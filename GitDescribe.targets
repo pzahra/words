@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+	<PropertyGroup>
+		<GitInfoReportImportance>high</GitInfoReportImportance>
+		<ThisAssemblyNamespace>System.Reflection</ThisAssemblyNamespace>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="GitInfo" Version="3.6.0">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<Target Name="FixGitVersion" AfterTargets="GitSetVersion">
+		<PropertyGroup>
+			<Version>$(GitBaseVersion).$(GitCommits)</Version>
+			<PackageVersion>$(GitBaseVersion)</PackageVersion>
+			<InformationalVersion>$(GitTag)</InformationalVersion>
+		</PropertyGroup>
+	</Target>
+</Project>

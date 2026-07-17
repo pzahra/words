@@ -1,0 +1,56 @@
+﻿<UserControl x:Class="WordsEdit.Views.EditLanguageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:WordsEdit.Views"
+             xmlns:vm="clr-namespace:WordsEdit.ViewModels" 
+			 xmlns:m="http://materialdesigninxaml.net/winfx/xaml/themes"
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="800"
+             d:DataContext="{d:DesignInstance vm:EditLanguageViewModel, IsDesignTimeCreatable=False}"
+             Padding="7px">
+	<UserControl.Resources>
+		<BooleanToVisibilityConverter x:Key="IsTrue" />
+		<m:BooleanToVisibilityConverter x:Key="IsFalse" TrueValue="Collapsed" FalseValue="Visible" />
+	</UserControl.Resources>
+    <Grid>
+        <StackPanel Grid.IsSharedSizeScope="True">
+            <HeaderedContentControl Header="Lanuage Code"
+                                    Margin="2.5px"
+                                    FontWeight="SemiBold">
+                <TextBox Text="{Binding LanguageCode, UpdateSourceTrigger=PropertyChanged}"
+                         TextWrapping="Wrap"
+                         FontWeight="Normal"
+                         Width="100"/>
+            </HeaderedContentControl>
+            <HeaderedContentControl Header="Native Lanuage Name"
+                                    FontWeight="SemiBold"
+                                    Margin="2.5px">
+                <TextBox Text="{Binding LanguageNativeName, UpdateSourceTrigger=PropertyChanged}"
+                         TextWrapping="Wrap"
+                         FontWeight="Normal"
+                         Width="100"/>
+            </HeaderedContentControl>
+            <HeaderedContentControl Header="English Lanuage Name"
+                                    FontWeight="SemiBold"
+                                    Margin="2.5px">
+                <TextBox Text="{Binding LanguageEnglishName, UpdateSourceTrigger=PropertyChanged}"
+                         TextWrapping="Wrap"
+                         FontWeight="Normal"
+                         Width="100"/>
+            </HeaderedContentControl>
+            <Button Content="Add Language"
+                    Command="{Binding AddLanguageCommand}"
+                    Visibility="{Binding IsEdit, Converter={StaticResource IsFalse}}"
+                    Margin="2.5px"/>
+            <Button Content="Edit Language"
+                    Command="{Binding EditLanguageCommand}"
+                    Visibility="{Binding IsEdit, Converter={StaticResource IsTrue}}"
+                    Margin="2.5px"/>
+            <Button Content="Cancel"
+                    Command="{Binding CancelCommand}"
+                    Margin="2.5px"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

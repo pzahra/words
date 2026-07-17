@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="LocalizationAnalyzer/LocalizationAnalyzer.CodeFixes/LocalizationAnalyzer.CodeFixes.csproj" />
+  <Project Path="LocalizationAnalyzer/LocalizationAnalyzer.Package/LocalizationAnalyzer.Package.csproj" />
+  <Project Path="LocalizationAnalyzer/LocalizationAnalyzer.Test/LocalizationAnalyzer.Test.csproj" />
+  <Project Path="LocalizationAnalyzer/LocalizationAnalyzer.Vsix/LocalizationAnalyzer.Vsix.csproj" />
+  <Project Path="LocalizationAnalyzer/LocalizationAnalyzer/LocalizationAnalyzer.csproj" />
+  <Project Path="LocalizedAttribute/LocalizedAttribute.csproj" />
+</Solution>

@@ -1,0 +1,47 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <DevelopmentDependency>false</DevelopmentDependency>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>PatTech.Localization.Analyzer</PackageId>
+    <PackageVersion>1.0.0.0</PackageVersion>
+    <Authors>PatrickZ</Authors>
+    <PackageLicenseUrl>http://LICENSE_URL_HERE_OR_DELETE_THIS_LINE</PackageLicenseUrl>
+    <PackageProjectUrl>http://PROJECT_URL_HERE_OR_DELETE_THIS_LINE</PackageProjectUrl>
+    <PackageIconUrl>http://ICON_URL_HERE_OR_DELETE_THIS_LINE</PackageIconUrl>
+    <RepositoryUrl>http://REPOSITORY_URL_HERE_OR_DELETE_THIS_LINE</RepositoryUrl>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <Description>LocalizationAnalyzer</Description>
+    <PackageReleaseNotes>Summary of changes made in this release of the package.</PackageReleaseNotes>
+    <Copyright>Copyright</Copyright>
+    <PackageTags>LocalizationAnalyzer, analyzers</PackageTags>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <NoPackageAnalysis>true</NoPackageAnalysis>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);_AddAnalyzersToOutput</TargetsForTfmSpecificContentInPackage>
+    <DevelopmentDependency>false</DevelopmentDependency>
+    <AssemblyName>PatTech.Localization</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--<ProjectReference Include="..\LocalizationAnalyzer.CodeFixes\LocalizationAnalyzer.CodeFixes.csproj" />-->
+    <ProjectReference Include="..\..\LocalizedAttribute\LocalizedAttribute.csproj" />
+    <ProjectReference Include="..\LocalizationAnalyzer\LocalizationAnalyzer.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="tools\*.ps1" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <Target Name="_AddAnalyzersToOutput">
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="$(OutputPath)\LocalizationAnalyzer.dll" PackagePath="analyzers/dotnet/cs" />
+      <!--<TfmSpecificPackageFile Include="$(OutputPath)\LocalizationAnalyzer.CodeFixes.dll" PackagePath="analyzers/dotnet/cs" />-->
+    </ItemGroup>
+  </Target>
+
+</Project>
