@@ -4,27 +4,24 @@ using WordsEdit.ViewModels;
 namespace WordsEdit.Utils {
 	public class WordsParserToLocalizationProvider : IWordsParserConsumer {
 		public IReadOnlyList<string> Errors => errors;
-		public IReadOnlyList<LocalizationKey> LocalizationKeys => localizationKeys;
-		public IReadOnlyDictionary<string, LocalizationKey> LocalizationKeysDictionary => localizationKeysDictionary;
-		public IReadOnlyDictionary<string, LocalizationLanguage> LocalizationLanguagesDictionary => localizationLanguagesDictionary;
+		public IReadOnlyDictionary<string, WordsKey> WordKeys => wordKeys;
+		public IReadOnlyDictionary<string, LanguageEntry> KnownLanguages => knownLanguages;
 
 		private readonly List<string> errors = [];
-		private readonly Dictionary<string, LocalizationLanguage> localizationLanguagesDictionary = [];
-		private readonly List<LocalizationKey> localizationKeys = [];
-		private readonly Dictionary<string, LocalizationKey> localizationKeysDictionary = [];
+		private readonly Dictionary<string, LanguageEntry> knownLanguages = [];
+		private readonly Dictionary<string, WordsKey> wordKeys = [];
 
 		public WordsParserToLocalizationProvider() { }
 
 		public void VisitFieldDeclaration(FieldKey key, string value) {
-			value = FormatFromINI(value);
 			var (blockKey, fieldType, languageCode) = key;
-			if (localizationKeysDictionary.Count == 0) {
+			if (wordKeys.Count == 0) {
 				switch (fieldType) {
 					case "value":
-						localizationLanguagesDictionary[languageCode] = new LocalizationLanguage(languageCode, value);
+						knownLanguages[languageCode] = new LanguageEntry(languageCode, value);
 						break;
 					case "comment":
-						if (localizationLanguagesDictionary.TryGetValue(languageCode, out var language)) {
+						if (knownLanguages.TryGetValue(languageCode, out var language)) {
 							language.EnglishName = value;
 						}
 						else {
@@ -34,13 +31,13 @@ namespace WordsEdit.Utils {
 				}
 			}
 			else {
-				var localizationKey = localizationKeysDictionary[blockKey];
-				if (languageCode != "" && !localizationLanguagesDictionary.ContainsKey(languageCode) && fieldType != "param") {
-					localizationLanguagesDictionary[languageCode] = new LocalizationLanguage(languageCode);
-					foreach (LocalizationKey localizationKeyToUpdate in localizationKeys) {
-						localizationKeyToUpdate.LanguageData[languageCode] = new LocalizationKeyLanguageData();
+				if (languageCode != "" && !knownLanguages.ContainsKey(languageCode) && fieldType != "param") {
+					knownLanguages[languageCode] = new LanguageEntry(languageCode);
+					foreach (WordsKey localizationKeyToUpdate in wordKeys.Values) {
+						localizationKeyToUpdate.Entries[languageCode] = new WordsEntry();
 					}
 				}
+				var localizationKey = wordKeys[blockKey];
 				switch ((languageCode, fieldType)) {
 					case ("", "value"):
 						localizationKey.DefaultValue = value;
@@ -55,27 +52,27 @@ namespace WordsEdit.Utils {
 						localizationKey.NeedsReview = true;
 						break;
 					case (not "", "value"):
-						localizationKey.LanguageData[languageCode].Value = value;
+						localizationKey.Entries[languageCode].Value = value;
 						break;
 					case (not "", "context"):
-						localizationKey.LanguageData[languageCode].LanguageContext = value;
+						localizationKey.Entries[languageCode].Context = value;
 						break;
 					case (not "", "comment"):
-						localizationKey.LanguageData[languageCode].LanguageComment = value;
+						localizationKey.Entries[languageCode].Comment = value;
 						break;
 					case (not "", "stale"):
-						localizationKey.LanguageData[languageCode].StaleComment = value;
+						localizationKey.Entries[languageCode].Stale = value;
 						break;
 					case (not "", "param"):
 						if (!localizationKey.Parameters.Any(parameter => parameter.Key == languageCode)) {
 							var values = value.Split(':', count: 2);
 							string dataTypeName = values.Length > 1 ? values[0] : "String";
 							string providedValue = values.Length > 1 ? values[1] : values[0];
-							LocalizationParameter parameterToAdd = new() {
-								Key = languageCode,
-								DataType = LocalizationParameterType.Select(dataTypeName),
-								Value = providedValue,
-							};
+							WordsParameter parameterToAdd = new(
+								key: languageCode,
+								dataType: WordsParameterType.Select(dataTypeName),
+								value: providedValue
+							);
 							localizationKey.Parameters.Add(parameterToAdd);
 						}
 						break;
@@ -88,7 +85,7 @@ namespace WordsEdit.Utils {
 		public void VisitFieldContinuation(FieldKey key, string value) {
 			var (blockKey, fieldType, languageCode) = key;
 
-			var localizationKey = localizationKeysDictionary[blockKey];
+			var localizationKey = wordKeys[blockKey];
 			switch ((languageCode, fieldType)) {
 				case ("", "value"):
 					localizationKey.DefaultValue += value;
@@ -100,18 +97,18 @@ namespace WordsEdit.Utils {
 					localizationKey.Comment += value;
 					break;
 				case (not "", "value"):
-					localizationKey.LanguageData[languageCode].Value += value;
+					localizationKey.Entries[languageCode].Value += value;
 					break;
 				case (not "", "context"):
-					localizationKey.LanguageData[languageCode].LanguageContext += value;
+					localizationKey.Entries[languageCode].Context += value;
 					break;
 				case (not "", "comment"):
-					localizationKey.LanguageData[languageCode].LanguageComment += value;
+					localizationKey.Entries[languageCode].Comment += value;
 					break;
 				case (not "", "param"):
 					if (!localizationKey.Parameters.Any(parameter => parameter.Key == languageCode)) {
 						int index = localizationKey.Parameters.FindIndex(parameter => parameter.Key == languageCode);
-						LocalizationParameter parameterToEdit = localizationKey.Parameters[index];
+						WordsParameter parameterToEdit = localizationKey.Parameters[index];
 						parameterToEdit.Value += value;
 					}
 					break;
@@ -121,28 +118,24 @@ namespace WordsEdit.Utils {
 			}
 		}
 
-		void IWordsParserConsumer.VisitBlock(string blockKey) {
-			LocalizationKey keyToAdd;
-			if (blockKey[0] == '$') {
-				keyToAdd = new LocalizationKey(blockKey) {
+		void IWordsParserConsumer.VisitBlock(string baseKey, string name) {
+			WordsKey keyToAdd;
+			if (name[0] == '.') {
+				baseKey += name;
+			}
+			if (baseKey[0] == '$') {
+				keyToAdd = new WordsKey(baseKey) {
 					IsConstant = true
 				};
 			}
 			else {
-				keyToAdd = new LocalizationKey(blockKey);
+				keyToAdd = new WordsKey(baseKey);
 			}
-			if (localizationKeysDictionary.TryAdd(keyToAdd.BlockKey, keyToAdd)) {
-				foreach (LocalizationLanguage language in localizationLanguagesDictionary.Values) {
-					keyToAdd.LanguageData[language.Code] = new LocalizationKeyLanguageData();
+			if (wordKeys.TryAdd(keyToAdd.BlockKey, keyToAdd)) {
+				foreach (LanguageEntry language in knownLanguages.Values) {
+					keyToAdd.Entries[language.Code] = new WordsEntry();
 				}
-				localizationKeys.Add(keyToAdd);
 			}
-		}
-
-		static string FormatFromINI(string input) {
-			input = input.Replace("''", "'");
-			input = input.Replace("__", "_");
-			return input;
 		}
 	}
 }

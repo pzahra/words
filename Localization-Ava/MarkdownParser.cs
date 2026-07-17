@@ -1,7 +1,7 @@
 ﻿using Avalonia.Controls.Documents;
 using Avalonia.Media;
 
-namespace PatTech.Localization.Ava;
+namespace PatTech.Localization.Avalonia;
 
 public class MarkdownParser(float baseFontSize = 13, ITakeException? logger = null) : MarkdownParser<Inline>(logger), IMarkdownParser {
 	protected override Inline Run(string text) => new Run { Text = text };
@@ -15,6 +15,7 @@ public class MarkdownParser(float baseFontSize = 13, ITakeException? logger = nu
 			ToolTip = tooltip,
 		};
 	}
+	protected override Inline Image(Uri source, string? tooltip) => throw new NotImplementedException();
 	protected override void Embolden(ref Inline content) => content.FontWeight = FontWeight.Bold;
 	protected override void Italicize(ref Inline content) => content.FontStyle = FontStyle.Italic;
 	protected override void Subscript(ref Inline content) {

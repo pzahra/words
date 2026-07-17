@@ -91,6 +91,13 @@ namespace WordsEdit.Utils {
 		}
 
 		/// <summary>
+		/// Checks that the specified property has no errors.
+		/// </summary>
+		/// <param name="propertyName">The property name to check for.</param>
+		/// <returns>True if the specified property has no errors.</returns>
+		protected bool IsValid(string propertyName) => !errors.TryGetValue(propertyName, out var items) || items.Count == 0;
+
+		/// <summary>
 		/// Concrete view models implement this to validate a single property.
 		/// Should call <see cref="SetError(string, string)"/> for any validation failures and return true when valid.
 		/// </summary>

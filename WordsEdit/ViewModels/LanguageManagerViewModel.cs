@@ -5,104 +5,91 @@ using WordsEdit.Views;
 namespace WordsEdit.ViewModels;
 
 public class LanguageManagerViewModel : ViewModelBase {
-	public DragDropLanguagesViewModel DragDropLanguagesViewModel { get; set; }
-	private MainWindowViewModel _MainWindowViewModel;
-	public MainWindowViewModel MainWindowViewModel {
-		get => _MainWindowViewModel;
-		set => ChangeProperty(ref _MainWindowViewModel, value);
-	}
-	private ObservableCollection<LocalizationLanguage> _LocalizationLanguages = new();
-	public ObservableCollection<LocalizationLanguage> LocalizationLanguages {
-		get => _LocalizationLanguages;
-		set => ChangeProperty(ref _LocalizationLanguages, value);
-	}
-	private LocalizationLanguage _SelectedLocalizationLanguage;
-	public LocalizationLanguage SelectedLocalizationLanguage {
-		get => _SelectedLocalizationLanguage;
+	public LanguageDragDropHandler LanguageDragDropHandler { get; }
+	public MainWindowViewModel Parent { get; }
+	public ObservableCollection<LanguageEntry> KnownLanguages => Parent.KnownLanguages;
+	public LanguageEntry SelectedLanguage {
+		get => Parent.SelectedLanguage;
 		set {
-			ChangeProperty(ref _SelectedLocalizationLanguage, value);
+			if (value == Parent.SelectedLanguage) return;
+
+			Parent.SelectedLanguage = value;
+			AffectProperty(nameof(SelectedLanguage));
 		}
 	}
 
 
-	public DelegateCommand RemoveLocalizationLanguageCommand { get; }
-	public DelegateCommand AddLocalizationLanguageCommand { get; }
-	public DelegateCommand EditLocalizationLanguageCommand { get; }
+	public DelegateCommand RemoveLanguageCommand { get; }
+	public DelegateCommand AddLanguageCommand { get; }
+	public DelegateCommand EditLanguageCommand { get; }
 	public DelegateCommand OkayCommand { get; }
-	public LanguageManagerViewModel(MainWindowViewModel mainWindowViewModel) {
-		DragDropLanguagesViewModel = new DragDropLanguagesViewModel() { LanguageManager = this };
-		_MainWindowViewModel = mainWindowViewModel;
-		LocalizationLanguages = mainWindowViewModel.LocalizationLanguages;
-		_SelectedLocalizationLanguage = mainWindowViewModel.SelectedLocalizationLanguage;
+	public LanguageManagerViewModel(MainWindowViewModel parent) {
+		LanguageDragDropHandler = new LanguageDragDropHandler() { LanguageManager = this };
+		Parent = parent;
 		OkayCommand = new DelegateCommand(DoOkay);
-		RemoveLocalizationLanguageCommand = new DelegateCommand(DoRemoveLocalizationLanguage, CanRemoveLocalizationLanguage);
-		AddLocalizationLanguageCommand = new DelegateCommand(DoAddLocalizationLanguage);
-		EditLocalizationLanguageCommand = new DelegateCommand(DoEditLocalizationLanguage);
+		RemoveLanguageCommand = new DelegateCommand(DoRemoveLanguage, CanRemoveLanguage);
+		AddLanguageCommand = new DelegateCommand(DoAddLanguage);
+		EditLanguageCommand = new DelegateCommand(DoEditLanguage);
 	}
 
-	private bool CanRemoveLocalizationLanguage() {
-		return LocalizationLanguages.Count != 1;
-	}
-	private void DoRemoveLocalizationLanguage() {
-		foreach (LocalizationKey localizationKey in MainWindowViewModel.LocalizationKeys) {
-			localizationKey.LanguageData.Remove(SelectedLocalizationLanguage.Code);
+	private bool CanRemoveLanguage() => KnownLanguages.Count < 2;
+	private void DoRemoveLanguage() {
+		foreach (var key in Parent.Keys) {
+			key.Entries.Remove(SelectedLanguage.Code);
 		}
-		if (LocalizationLanguages.Count <= 1) {
+		if (KnownLanguages.Count <= 1) {
 			throw new InvalidOperationException("Must have at least two languages to remove one.");
 		}
-		LocalizationLanguage languageToRemove = SelectedLocalizationLanguage;
-		int indexToRemove = LocalizationLanguages.IndexOf(languageToRemove);
-		if(indexToRemove == 0) {
-			SelectedLocalizationLanguage = LocalizationLanguages[1];
+		var remove = SelectedLanguage;
+		int i = KnownLanguages.IndexOf(remove);
+		if (i == 0) {
+			SelectedLanguage = KnownLanguages[1];
 		}
 		else {
-			SelectedLocalizationLanguage = LocalizationLanguages[indexToRemove - 1];
+			SelectedLanguage = KnownLanguages[i - 1];
 		}
-		if (MainWindowViewModel.SelectedLocalizationLanguage == languageToRemove) {
-			MainWindowViewModel.SelectedLocalizationLanguage = SelectedLocalizationLanguage;
-		}
-		LocalizationLanguages.Remove(languageToRemove);
-		MainWindowViewModel.IsDirty = true;
+		KnownLanguages.Remove(remove);
+		Parent.IsDirty = true;
 	}
 
-	private void DoAddLocalizationLanguage() {
+	private void DoAddLanguage() {
 		PopupDialog.Push(new EditLanguageView() { DataContext = new EditLanguageViewModel(this) });
 	}
 
-	public void AddLocalizationLanguage(LocalizationLanguage languageToAdd) {
-		foreach (LocalizationKey localizationKey in MainWindowViewModel.LocalizationKeys) {
-			localizationKey.LanguageData[languageToAdd.Code] = new LocalizationKeyLanguageData();
+	public void AddLanguage(LanguageEntry lang) {
+		foreach (var key in Parent.Keys) {
+			key.Entries[lang.Code] = new WordsEntry();
 		}
-		LocalizationLanguages.Add(languageToAdd);
-		SelectedLocalizationLanguage = languageToAdd;
-		MainWindowViewModel.IsDirty = true;
+		KnownLanguages.Add(lang);
+		SelectedLanguage = lang;
+		Parent.IsDirty = true;
 	}
 
-	private void DoEditLocalizationLanguage() {
-		PopupDialog.Push(new EditLanguageView() { DataContext = new EditLanguageViewModel(this, SelectedLocalizationLanguage) });
+	private void DoEditLanguage() {
+		PopupDialog.Push(new EditLanguageView() { DataContext = new EditLanguageViewModel(this, SelectedLanguage) });
 	}
 
-	public void EditLocalizationLanguage(LocalizationLanguage languageToEdit) {
-		foreach (LocalizationKey localizationKey in MainWindowViewModel.LocalizationKeys) {
-			localizationKey.LanguageData[languageToEdit.Code] = localizationKey.LanguageData[SelectedLocalizationLanguage.Code];
+	public void EditLanguage(LanguageEntry lang) {
+		foreach (var key in Parent.Keys) {
+			key.Entries[lang.Code] = key.Entries[SelectedLanguage.Code];
 		}
-		LocalizationLanguages.Insert(LocalizationLanguages.IndexOf(SelectedLocalizationLanguage), languageToEdit);
-		for (int i = 0; i < LocalizationLanguages.Count; i++) {
-			if (LocalizationLanguages[i].Equals(SelectedLocalizationLanguage)) {
-				SelectedLocalizationLanguage = languageToEdit;
-				if (MainWindowViewModel.SelectedLocalizationLanguage == LocalizationLanguages[i]) {
-					MainWindowViewModel.SelectedLocalizationLanguage = SelectedLocalizationLanguage;
+		KnownLanguages.Insert(KnownLanguages.IndexOf(SelectedLanguage), lang);
+		for (int i = 0; i < KnownLanguages.Count; i++) {
+			if (KnownLanguages[i].Equals(SelectedLanguage)) {
+				SelectedLanguage = lang;
+				if (Parent.SelectedLanguage == KnownLanguages[i]) {
+					Parent.SelectedLanguage = SelectedLanguage;
 				}
-				LocalizationLanguages.RemoveAt(i);
+				KnownLanguages.RemoveAt(i);
 				break;
 			}
 		}
-		MainWindowViewModel.IsDirty = true;
+		Parent.IsDirty = true;
 	}
 
 	private void DoOkay() {
-		_MainWindowViewModel.LocalizationLanguages = _LocalizationLanguages;
-		_MainWindowViewModel.SelectedLocalizationLanguage = _SelectedLocalizationLanguage;
+		Parent.KnownLanguages = KnownLanguages;
+		Parent.SelectedLanguage = SelectedLanguage;
 		PopupDialog.Close();
 	}
 }

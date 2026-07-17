@@ -5,24 +5,24 @@ namespace PatTech.Localization {
 	public class WordsParserToWordsProvider(ITakeException? logger = null) : IWordsParserConsumer {
 		private readonly ITakeException logger = logger ?? ITakeException.Dummy;
 
-		public IReadOnlyDictionary<string, DictionaryWordsProvider> Languages => _languages;
-		public IReadOnlyList<string> LanguageCodes => _languageCodes;
+		public IReadOnlyDictionary<string, DictionaryWordsProvider> Languages => languages;
+		public IReadOnlyList<string> LanguageCodes => languageCodes;
 
-		private readonly Dictionary<string, DictionaryWordsProvider> _languages = [];
-		private readonly List<string> _languageCodes = [];
+		private readonly Dictionary<string, DictionaryWordsProvider> languages = [];
+		private readonly List<string> languageCodes = [];
 
 		public void VisitFieldDeclaration(FieldKey key, string value) {
 			var (blockKey, fieldType, languageCode) = key;
 
 			switch (fieldType) {
 				case "value": {
-					if (!_languageCodes.Contains(languageCode)) {
-						_languageCodes.Add(languageCode);
+					if (!languageCodes.Contains(languageCode)) {
+						languageCodes.Add(languageCode);
 					}
 
-					if (!_languages.TryGetValue(languageCode, out var language)) {
+					if (!languages.TryGetValue(languageCode, out var language)) {
 						language = [];
-						_languages.Add(languageCode, language);
+						languages.Add(languageCode, language);
 					}
 
 					if (!language.TryAdd(blockKey, value)) {
@@ -60,13 +60,13 @@ namespace PatTech.Localization {
 			var (blockKey, fieldType, languageCode) = key;
 
 			if (fieldType is "value") {
-				Debug.Assert(_languageCodes.Contains(languageCode));
+				Debug.Assert(languageCodes.Contains(languageCode));
 
-				var language = _languages[languageCode];
+				var language = languages[languageCode];
 				language[blockKey] += value;
 			}
 		}
 
-		void IWordsParserConsumer.VisitBlock(string blockKey) { }
+		void IWordsParserConsumer.VisitBlock(string baseKey, string name) { }
 	}
 }

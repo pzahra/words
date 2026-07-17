@@ -7,7 +7,7 @@ using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Tip = Avalonia.Controls.ToolTip;
 
-namespace PatTech.Localization.Ava;
+namespace PatTech.Localization.Avalonia;
 
 /// <summary>
 /// Represents a span of text that acts as a clickable hyperlink within a TextBlock.
@@ -28,7 +28,7 @@ public class Hyperlink : Span {
 	static Hyperlink() {
 		EnableHyperlinksProperty.Changed.AddClassHandler<TextBlock>(OnEnableHyperlinksChanged);
 		ForegroundProperty.OverrideDefaultValue<Hyperlink>(Brushes.Blue);
-		TextDecorationsProperty.OverrideDefaultValue<Hyperlink>(Avalonia.Media.TextDecorations.Underline);
+		TextDecorationsProperty.OverrideDefaultValue<Hyperlink>(global::Avalonia.Media.TextDecorations.Underline);
 	}
 
 	public static void RegisterGlobalNavigateHandler(Action<Uri> handler)
@@ -57,7 +57,7 @@ public class Hyperlink : Span {
 
 	public Hyperlink() {
 		SetCurrentValue(ForegroundProperty, Brushes.Blue);
-		SetCurrentValue(TextDecorationsProperty, Avalonia.Media.TextDecorations.Underline);
+		SetCurrentValue(TextDecorationsProperty, global::Avalonia.Media.TextDecorations.Underline);
 	}
 
 	/// <inheritdoc />

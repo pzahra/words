@@ -15,16 +15,16 @@
                        FontWeight="Bold"
                        FontSize="16"
                        Margin="2.5px"/>
-            <ListBox ItemsSource="{Binding LocalizationLanguages}"
-                     SelectedItem="{Binding SelectedLocalizationLanguage}"
+            <ListBox ItemsSource="{Binding KnownLanguages}"
+                     SelectedItem="{Binding SelectedLanguage}"
                      FontWeight="SemiBold"
                      FontSize="13"
                      Margin="2.5px"
                      AllowDrop="True"
                      MaxHeight="200px"
                      ScrollViewer.CanContentScroll="false"
-                     dd:DragDrop.DragHandler="{Binding DragDropLanguagesViewModel}"
-                     dd:DragDrop.DropHandler="{Binding DragDropLanguagesViewModel}"
+                     dd:DragDrop.DragHandler="{Binding LanguageDragDropHandler}"
+                     dd:DragDrop.DropHandler="{Binding LanguageDragDropHandler}"
                      dd:DragDrop.IsDragSource="True"
                      dd:DragDrop.IsDropTarget="True">
                 <ListBox.Style>
@@ -53,13 +53,13 @@
                 </ListBox.ItemContainerStyle>
             </ListBox>
             <Button Content="Add Language"
-                    Command="{Binding AddLocalizationLanguageCommand}"
+                    Command="{Binding AddLanguageCommand}"
                     Margin="2.5px"/>
             <Button Content="Edit Selected Language"
-                    Command="{Binding EditLocalizationLanguageCommand}"
+                    Command="{Binding EditLanguageCommand}"
                     Margin="2.5px"/>
             <Button Content="Remove Selected Language"
-                    Command="{Binding RemoveLocalizationLanguageCommand}"
+                    Command="{Binding RemoveLanguageCommand}"
                     Margin="2.5px"/>
             <Button Content="Ok"
                     Command="{Binding OkayCommand}"

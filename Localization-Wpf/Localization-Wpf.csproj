@@ -1,16 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFrameworks>net10.0-windows;net8.0-windows</TargetFrameworks>
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
     <RootNamespace>PatTech.Localization.Wpf</RootNamespace>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <PackageId>PatTech.Localization.WPF</PackageId>
+    <AssemblyName>PatTech.Localization.WPF</AssemblyName>
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="NLog" Version="6.0.7" />
-  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Localization-Core\Localization-Core.csproj" />

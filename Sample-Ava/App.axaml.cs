@@ -2,7 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using PatTech.Localization;
-using PatTech.Localization.Ava;
+using PatTech.Localization.Avalonia;
 using Sample_Ava.ViewModels;
 using Sample_Ava.Views;
 using System.Diagnostics;

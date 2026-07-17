@@ -6,7 +6,7 @@ using WordsEdit.Utils;
 
 namespace WordsEdit.ViewModels {
 
-	public class DragDropKeysViewModel : IDragSource, IDropTarget {
+	public class KeyDragDropHandler : IDragSource, IDropTarget {
 		public MainWindowViewModel? MainWindow { get; set; } = null;
 		public bool CanStartDrag(IDragInfo dragInfo) {
 			return dragInfo?.SourceItem != null;
@@ -35,8 +35,8 @@ namespace WordsEdit.ViewModels {
 					if (!targetKeyNode.IsFile) {
 						draggedNodeCanBeChildOfTargetNode = false;
 					}
-					if (targetKeyNode.GetParentNode(MainWindow.LocalizationKeyNodes) is not null) {
-						KeyNode? targetParentNode = targetKeyNode.GetParentNode(MainWindow.LocalizationKeyNodes)
+					if (targetKeyNode.GetParentNode(MainWindow.KeyNodes) is not null) {
+						KeyNode? targetParentNode = targetKeyNode.GetParentNode(MainWindow.KeyNodes)
 							?? throw new InvalidDataException("targetKeyNode parent became null between checks");
 						if (!targetParentNode.IsFile) {
 							dropInfo.DropTargetAdorner = typeof(DropTargetAdorner);
@@ -72,7 +72,7 @@ namespace WordsEdit.ViewModels {
 			if (dropInfo.Data is KeyNode draggedKeyNode && dropInfo.TargetItem is KeyNode targetKeyNode) {
 				KeyNode? parentNode;
 				int index;
-				ObservableCollection<KeyNode> localizationKeyNodes = MainWindow.LocalizationKeyNodes;
+				ObservableCollection<KeyNode> localizationKeyNodes = MainWindow.KeyNodes;
 				parentNode = draggedKeyNode.GetParentNode(localizationKeyNodes);
 				bool draggedNodeCanBeChildOfTargetNode = true;
 				if (parentNode is null) {
@@ -82,7 +82,7 @@ namespace WordsEdit.ViewModels {
 				else {
 					index = parentNode.Children.IndexOf(draggedKeyNode);
 					parentNode.Children.Remove(draggedKeyNode);
-					KeyNode? grandParentNode = parentNode.GetParentNode(MainWindow.LocalizationKeyNodes);
+					KeyNode? grandParentNode = parentNode.GetParentNode(MainWindow.KeyNodes);
 					if (grandParentNode is not null && grandParentNode.IsFile && parentNode.Children.Count == 0) {
 						parentNode.CanBeConstant = true;
 					}
@@ -167,14 +167,14 @@ namespace WordsEdit.ViewModels {
 				throw new InvalidOperationException("No Main Window");
 			}
 			if (newParentNode is null) {
-				if (MainWindow.LocalizationKeyNodes.Any(keyNode => keyNode.Label == draggedKeyNode.Label)) {
-					int indexToRemove = MainWindow.LocalizationKeyNodes.FindIndex(keyNode => keyNode.Label == draggedKeyNode.Label);
-					MainWindow.LocalizationKeyNodes.RemoveAt(indexToRemove);
+				if (MainWindow.KeyNodes.Any(keyNode => keyNode.Label == draggedKeyNode.Label)) {
+					int indexToRemove = MainWindow.KeyNodes.FindIndex(keyNode => keyNode.Label == draggedKeyNode.Label);
+					MainWindow.KeyNodes.RemoveAt(indexToRemove);
 					if (index >= indexToRemove) {
 						index--;
 					}
 				}
-				MainWindow.LocalizationKeyNodes.Insert(index, draggedKeyNode);
+				MainWindow.KeyNodes.Insert(index, draggedKeyNode);
 			}
 			else {
 				if (newParentNode.Children.Any(keyNode => keyNode.Label == draggedKeyNode.Label)) {
@@ -224,7 +224,7 @@ namespace WordsEdit.ViewModels {
 		}
 	}
 
-	public class DragDropLanguagesViewModel : IDragSource, IDropTarget {
+	public class LanguageDragDropHandler : IDragSource, IDropTarget {
 		public LanguageManagerViewModel? LanguageManager { get; set; } = null;
 		public bool CanStartDrag(IDragInfo dragInfo) {
 			return dragInfo?.SourceItem != null;
@@ -242,7 +242,7 @@ namespace WordsEdit.ViewModels {
 				throw new InvalidOperationException("No Main Window");
 			}
 			dropInfo.Effects = DragDropEffects.Move;
-			if ((dropInfo.Data is LocalizationLanguage draggedItem && dropInfo.TargetItem is LocalizationLanguage targetItem)) {
+			if ((dropInfo.Data is LanguageEntry draggedItem && dropInfo.TargetItem is LanguageEntry targetItem)) {
 				dropInfo.DropTargetAdorner = typeof(DropTargetInsertionAdorner);
 			}
 		}
@@ -251,23 +251,23 @@ namespace WordsEdit.ViewModels {
 			if (LanguageManager is null) {
 				throw new InvalidOperationException("No LanguageManager");
 			}
-			if (dropInfo.Data is LocalizationLanguage draggedLanguage && dropInfo.TargetItem is LocalizationLanguage targetLanguage) {
+			if (dropInfo.Data is LanguageEntry draggedLanguage && dropInfo.TargetItem is LanguageEntry targetLanguage) {
 				if (draggedLanguage.Code == targetLanguage.Code) {
 					return;
 				}
-				int draggedIndex = LanguageManager.LocalizationLanguages.IndexOf(draggedLanguage);
-				int targetIndex = LanguageManager.LocalizationLanguages.IndexOf(targetLanguage);
+				int draggedIndex = LanguageManager.KnownLanguages.IndexOf(draggedLanguage);
+				int targetIndex = LanguageManager.KnownLanguages.IndexOf(targetLanguage);
 				if (targetIndex != draggedIndex) {
-					LanguageManager.LocalizationLanguages.Move(draggedIndex, targetIndex);
+					LanguageManager.KnownLanguages.Move(draggedIndex, targetIndex);
 				}
 			}
-			LanguageManager.MainWindowViewModel.IsDirty = true;
+			LanguageManager.Parent.IsDirty = true;
 		}
 
 		public void Dropped(IDropInfo dropInfo) { }
 
 		public void StartDrag(IDragInfo dragInfo) {
-			if (dragInfo?.SourceItem is LocalizationLanguage sourceItem) {
+			if (dragInfo?.SourceItem is LanguageEntry sourceItem) {
 				dragInfo.Data = sourceItem;
 				dragInfo.Effects = DragDropEffects.Move;
 			}

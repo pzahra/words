@@ -1,74 +1,44 @@
 ﻿using System.Collections.ObjectModel;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
-using System.Runtime.CompilerServices;
+using System.Text;
 using System.Windows.Input;
 using WordsEdit.Utils;
 
 namespace WordsEdit.ViewModels;
-internal class MergeControlViewModel : DataViewModelBase {
-	private MainWindowViewModel _MainWindowViewModel;
-	public MainWindowViewModel MainWindowViewModel {
-		get => _MainWindowViewModel;
-		set => ChangeProperty(ref _MainWindowViewModel, value);
-	}
 
-	private ObservableCollection<KeyNode> _AvailableFiles;
-	public ObservableCollection<KeyNode> AvailableFiles {
-		get => _AvailableFiles;
-		set => ChangeProperty(ref _AvailableFiles, value);
-	}
+internal class MergeControlViewModel : ViewModelBase {
+	public MainWindowViewModel Parent { get; }
 
-	private ObservableCollection<KeyNode> _FilesToMerge = [];
-	public ObservableCollection<KeyNode> FilesToMerge {
-		get => _FilesToMerge;
-		set => ChangeProperty(ref _FilesToMerge, value);
-	}
+	public IReadOnlyCollection<KeyNode> AvailableFiles { get; }
 
-	private KeyNode? _BaseFile;
-	public KeyNode? BaseFile {
-		get => _BaseFile;
-		set => ChangeProperty(ref _BaseFile, value);
-	}
+	public ObservableCollection<KeyNode> FilesToMerge { get; } = [];
 
-	private ObservableCollection<LocalizationLanguage> _LocalizationLanguages = [];
-	public ObservableCollection<LocalizationLanguage> LocalizationLanguages {
-		get => _LocalizationLanguages;
-		set => ChangeProperty(ref _LocalizationLanguages, value);
-	}
+	public KeyNode? BaseFile { get; set => ChangeProperty(ref field, value); }
 
-	private Dictionary<string, KeyNode> _LanguageCodeFilePairDictionary = [];
-	public Dictionary<string, KeyNode> LanguageCodeFilePairDictionary {
-		get => _LanguageCodeFilePairDictionary;
-		set => ChangeProperty(ref _LanguageCodeFilePairDictionary, value);
-	}
+	public IReadOnlyCollection<LanguageEntry> Languages { get; }
 
-	private bool _HasConflict = false;
-	public bool HasConflict {
-		get => _HasConflict;
-		set => ChangeProperty(ref _HasConflict, value);
-	}
+	public Dictionary<string, KeyNode> LanguageCodeFilePair { get; } = [];
 
-	private string _ConflictMessage = "";
-	public string ConflictMessage {
-		get => _ConflictMessage;
-		set => ChangeProperty(ref _ConflictMessage, value);
-	}
+	public string ConflictMessage { get; set => _ = ChangeProperty(ref field, value) && AffectProperty(nameof(HasConflict)); }
 
+	public bool HasConflict => ConflictMessage.Length > 0;
 	public bool CanMerge => !HasConflict && FilesToMerge.Count > 0;
 
 	public ICommand MergeCommand { get; }
 	public ICommand SetBaseFileCommand { get; }
 	public ICommand CancelCommand { get; }
 
-	public MergeControlViewModel(MainWindowViewModel mainWindowViewModel) {
-		ArgumentNullException.ThrowIfNull(mainWindowViewModel);
-		_MainWindowViewModel = mainWindowViewModel;
-		_AvailableFiles = mainWindowViewModel.LocalizationKeyNodes;
-		_LocalizationLanguages = mainWindowViewModel.LocalizationLanguages;
+	public MergeControlViewModel(MainWindowViewModel parent) {
+		ArgumentNullException.ThrowIfNull(parent);
+		
 		MergeCommand = new DelegateCommand(DoMerge);
 		SetBaseFileCommand = new DelegateCommand<KeyNode>(DoSetBaseFile);
 		CancelCommand = new DelegateCommand(DoCancel);
+
+		ConflictMessage = "";
+		Parent = parent;
+		AvailableFiles = parent.KeyNodes;
+		Languages = parent.KnownLanguages;
 	}
 
 	private void DoMerge() {
@@ -76,16 +46,14 @@ internal class MergeControlViewModel : DataViewModelBase {
 		if (!PopupDialog.TryFileSave("Merge Location", "INI file (*.ini)|*.ini|All files (*.*)|*.*", out string? mergedFileName)) {
 			return;
 		}
-		KeyNode mergedFile = MainWindowViewModel.GetMergedKeyNode(BaseFile, LanguageCodeFilePairDictionary, Path.GetFileNameWithoutExtension(mergedFileName), out var mergedKeys) ?? throw new InvalidOperationException("Merge Failed");
-		MainWindowViewModel.WriteMergedToINIFile(mergedFile, mergedFileName, mergedKeys);
-		MainWindowViewModel.LoadFile(mergedFileName);
+		KeyNode mergedFile = Parent.GetMergedKeyNode(BaseFile, LanguageCodeFilePair, Path.GetFileNameWithoutExtension(mergedFileName), out var mergedKeys) ?? throw new InvalidOperationException("Merge Failed");
+		IniWriter.WriteFile(mergedFile, mergedFileName, mergedKeys, Parent.KnownLanguages);
+		Parent.LoadFile(mergedFileName);
 		PopupDialog.Close();
 	}
 
 	private void DoSetBaseFile(KeyNode file) {
-		if (BaseFile is not null) {
-			BaseFile.IsBaseFile = false;
-		}
+		BaseFile?.IsBaseFile = false;
 		BaseFile = file;
 		file.IsBaseFile = true;
 	}
@@ -95,18 +63,14 @@ internal class MergeControlViewModel : DataViewModelBase {
 	}
 
 	public void FilesChanged() {
-		HasConflict = MainWindowViewModel.FilesHaveConflict(_FilesToMerge, out HashSet<string> conflicts);
-		if (HasConflict) {
-			ConflictMessage = "Files do not share Keys:";
-			foreach (string conflict in conflicts) {
-				ConflictMessage += "\n" + conflict;
-			}
+		if (Parent.FilesHaveConflict(FilesToMerge, out HashSet<string> conflicts)) {
+			var conflict = new StringBuilder("Files do not share Keys:");
+			conflicts.ForEach(c => conflict.Append("\n" + c));
+			ConflictMessage = conflict.ToString();
 		}
 		else {
 			ConflictMessage = "";
 		}
 		AffectProperty(nameof(CanMerge));
 	}
-
-	protected override bool Validate([AllowNull, CallerMemberName] string propertyName = null) => throw new NotImplementedException();
 }

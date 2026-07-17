@@ -2,7 +2,7 @@
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
 
-namespace PatTech.Localization.Ava;
+namespace PatTech.Localization.Avalonia;
 
 /// <summary>
 /// Provides a markup extension for retrieving known Words based on a specified key.
@@ -58,5 +58,4 @@ public static class WordsExtensions {
 		wb.Load(stream);
 		return wb;
 	}
-
 }

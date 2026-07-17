@@ -4,8 +4,8 @@ using System.Windows.Data;
 
 namespace PatTech.Localization.Wpf {
 	[ValueConversion(typeof(object), typeof(string), ParameterType = typeof(string))]
-	public class WordsConverter(IWords? words = null) : IValueConverter {
-		private static readonly NLog.Logger logger = NLog.LogManager.GetCurrentClassLogger();
+	public class WordsConverter(IWords? words = null, ITakeException? logger = null) : IValueConverter {
+		private readonly ITakeException logger = logger ?? ITakeException.Dummy;
 
 		public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) {
 			if (parameter is null) {

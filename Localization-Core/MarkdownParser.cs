@@ -19,6 +19,8 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 |(?<basic>~)(?=[\S-[~]])(?<text>.+?)(?<=[\S-[~]])\k<basic>
 # full link `[text](url)` or `[label](url ""title"")`
 |\[(?<text>[^]]+)\]\(\s*(?<url>[^\s)]+)(\s+""(?<title>[^""]*)"")?\s*\)
+# simple image `!(url)` or `!(url ""title"")`
+|(?<image>!)\(\s*(?<url>[^\s)]+)(\s+""(?<title>[^""]*)"")?\s*\)
 # simple link `<url>`
 |<\s*(?<text>(?<url>[^\s>]+))\s*>",
 		options: RegexOptions.Compiled
@@ -35,6 +37,7 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 	protected abstract TInline Span(IEnumerable<TInline> inlines);
 	protected abstract TInline Run(string text);
 	protected abstract TInline Hyperlink(TInline content, Uri target, string? tooltip);
+	protected abstract TInline Image(Uri source, string? tooltip);
 	protected abstract void Embolden(ref TInline content);
 	protected abstract void Italicize(ref TInline content);
 	protected abstract void Subscript(ref TInline content);
@@ -85,8 +88,8 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 			}
 
 			// text-content patterns
-			if (match.TryGetGroup("basic", out var urlGroup)) {
-				var mark = urlGroup.Value;
+			if (match.TryGetGroup("basic", out var basicGroup)) {
+				var mark = basicGroup.Value;
 
 				if (disallowedElements.HasFlag(MarkdownElementType.Basic)) {
 					throw new InvalidOperationException($"basic element not allowed in this context! {disallowedElements}");
@@ -103,26 +106,14 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 				if (mark is "^") Superscript(ref content);
 				yield return content;
 			}
-			else if (match.TryGetGroup("url", out urlGroup)) {
+			else if (match.TryGetGroup("url", out var urlGroup)) {
 				var url = urlGroup.Value;
-				if (disallowedElements.HasFlag(MarkdownElementType.Hyperlink)) {
-					var ex = new InvalidOperationException($"Hyperlink element not allowed in this context. {disallowedElements}");
-					logger.Error(ex, "MD:HNEST:" + url);
-					throw ex;
-				}
-				TInline content;
-				if (match.TryGetGroup("text", out var textGroup)) {
-					content = ToInline(textGroup.Value, (disallowedElements | MarkdownElementType.Hyperlink) & ~MarkdownElementType.Basic);
+				if (match.Groups.ContainsKey("image")) {
+					yield return DecodeImage(disallowedElements, match, url);
 				}
 				else {
-					content = Run(DecodeText(url));
+					yield return DecodeHyperlink(disallowedElements, match, url);
 				}
-				string? toolTip = null;
-				if (match.TryGetGroup("title", out var titleGroup)) {
-					toolTip = DecodeText(titleGroup.Value);
-				}
-				var link = Hyperlink(content, new(url), toolTip);
-				yield return link;
 			}
 			else {
 				var ex = new InvalidOperationException("invalid markdown match?!");
@@ -141,7 +132,40 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 		yield break;
 	}
 
-	static string DecodeText(string text) {
+	private TInline DecodeImage(MarkdownElementType disallowedElements, Match match, string url) {
+		if (disallowedElements.HasFlag(MarkdownElementType.Image)) {
+			var ex = new InvalidOperationException($"Image element not allowed in this context. {disallowedElements}");
+			logger.Error(ex, "MD:IMG:" + url);
+			throw ex;
+		}
+		string? toolTip = null;
+		if (match.TryGetGroup("title", out var titleGroup)) {
+			toolTip = DecodeText(titleGroup.Value);
+		}
+		return Image(new(url), toolTip);
+	}
+
+	private TInline DecodeHyperlink(MarkdownElementType disallowedElements, Match match, string url) {
+		TInline content;
+		if (disallowedElements.HasFlag(MarkdownElementType.Hyperlink)) {
+			var ex = new InvalidOperationException($"Hyperlink element not allowed in this context. {disallowedElements}");
+			logger.Error(ex, "MD:HNEST:" + url);
+			throw ex;
+		}
+		if (match.TryGetGroup("text", out var textGroup)) {
+			content = ToInline(textGroup.Value, (disallowedElements | MarkdownElementType.Hyperlink) & ~MarkdownElementType.Basic);
+		}
+		else {
+			content = Run(DecodeText(url));
+		}
+		string? toolTip = null;
+		if (match.TryGetGroup("title", out var titleGroup)) {
+			toolTip = DecodeText(titleGroup.Value);
+		}
+		return Hyperlink(content, new(url), toolTip);
+	}
+
+	private static string DecodeText(string text) {
 		if (!EntitiesPattern.TryMatch(text, out var match)) {
 			return text;
 		}
@@ -254,7 +278,8 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 public enum MarkdownElementType {
 	None = 0,
 	Basic = 1 << 0,
-	Hyperlink = 2 << 0,
+	Hyperlink = 1 << 1,
+	Image = 1 << 2,
 }
 
 public interface IMarkdownParser<TInline> {

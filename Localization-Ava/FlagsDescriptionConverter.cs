@@ -3,7 +3,7 @@ using Avalonia.Data.Converters;
 using PatTech.Utils;
 using System.Globalization;
 
-namespace PatTech.Localization.Ava;
+namespace PatTech.Localization.Avalonia;
 
 /// <summary>
 /// Provides value conversion for enumeration types, producing formatted descriptions of flag values according to

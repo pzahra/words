@@ -5,7 +5,6 @@ using System.Runtime.CompilerServices;
 namespace Sample_Ava.ViewModels {
 	public abstract class ViewModelBase : INotifyPropertyChanged {
 		public event PropertyChangedEventHandler? PropertyChanged;
-		public event PropertyChangingEventHandler? PropertyChanging;
 
 		protected virtual bool ChangeProperty<T>(ref T backer, T value, [CallerMemberName] string propertyName = "") {
 			if (EqualityComparer<T>.Default.Equals(backer, value)) return false;

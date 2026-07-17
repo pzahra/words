@@ -55,7 +55,7 @@ namespace PatTech.Localization {
 		bool IEquatable<FieldKey>.Equals(FieldKey other) => Equals(in other);
 	}
 	public interface IWordsParserConsumer {
-		void VisitBlock(string blockKey);
+		void VisitBlock(string baseKey, string key);
 		void VisitFieldDeclaration(FieldKey key, string text);
 		void VisitFieldContinuation(FieldKey key, string value);
 	}
@@ -102,7 +102,7 @@ namespace PatTech.Localization {
 			@"^\[(?<1>[^]]+)\]",
 			RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 		static readonly Regex rxPair = new(
-			@"^(\.(?<namesuffix>\w+(\.\w+)*)\.)?(?<key>\w+)(-(?<lang>\w+(?:-\w+)?))?\s*[:=]\s*(?<text>.*)",
+			@"^(?<key>\w+)(-(?<lang>\w+(?:-\w+)?))?\s*[:=]\s*(?<text>.*)",
 			RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 		static readonly Regex rxIsContinuedLine = new(
 			@"^([\\_].|[^\\_])*[\\_]$",
@@ -110,18 +110,22 @@ namespace PatTech.Localization {
 		static readonly Regex rxSkippableLine = new(
 			@"^\s*[;|$]",
 			RegexOptions.Compiled | RegexOptions.ExplicitCapture);
+		static readonly Regex rxUnescape = new(
+			@"([\\_'])\1",
+			RegexOptions.Compiled);
 
 		public WordsParser Load(TextReader reader) {
 			ArgumentNullException.ThrowIfNull(reader);
 
-			string? baseBlockKey = null;
-			string? currentBlockKey = null;
+			string baseBlockKey = "";
+			string currentBlockKey = "";
 			FieldKey? target = null;
 			while (reader.ReadLine() is string line) {
 				if (TryReadLine(ref target, line, first: false)) {
 					continue;
 				}
 				else if (rxSkippableLine.IsMatch(line)) {
+					
 					continue;
 				}
 				else if (rxBlock.TryMatch(line, out var block)) {
@@ -133,25 +137,16 @@ namespace PatTech.Localization {
 					else {
 						currentBlockKey = baseBlockKey = name;
 					}
-					consumer.VisitBlock(currentBlockKey);
+					consumer.VisitBlock(baseBlockKey, name);
 				}
 				else if (rxPair.TryMatch(line, out var pair)) {
 					string lang = NormalizeLanguageCasing(pair.Groups["lang"].Value);
 					var text = pair.Groups["text"].Value;
-					var targetBlockKey = currentBlockKey ?? "";
-					if (pair.TryGetGroup("namesuffix", out var nameSuffix)) {
-						if (targetBlockKey is "") {
-							targetBlockKey = nameSuffix.Value;
-						}
-						else {
-							targetBlockKey = string.Concat(currentBlockKey, ".", nameSuffix.ValueSpan);
-						}
-					}
 					var fieldKey = pair.Groups["key"].Value;
-					target = new FieldKey(targetBlockKey, fieldKey, lang);
+					target = new FieldKey(currentBlockKey, fieldKey, lang);
 					var lineRead = TryReadLine(ref target, text, first: true);
 					if (!lineRead) {
-						throw new InvalidOperationException("should not be possible?!");
+						throw new UnreachableException();
 					}
 				}
 			}
@@ -174,6 +169,8 @@ namespace PatTech.Localization {
 					text += '\n';
 				}
 			}
+
+			text = rxUnescape.Replace(text, "$1");
 
 			if (first) {
 				consumer.VisitFieldDeclaration(target.Value, text);

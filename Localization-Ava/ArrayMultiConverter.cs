@@ -1,7 +1,7 @@
 ﻿using Avalonia.Data.Converters;
 using System.Globalization;
 
-namespace PatTech.Localization.Ava;
+namespace PatTech.Localization.Avalonia;
 
 /// <summary>
 /// Provides an implementation of the IMultiValueConverter interface that converts a collection of values into an array.

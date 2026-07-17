@@ -3,7 +3,7 @@ using Avalonia.Controls.Documents;
 using Avalonia.Metadata;
 using System.Globalization;
 
-namespace PatTech.Localization.Ava;
+namespace PatTech.Localization.Avalonia;
 
 public class WordsInline : Span {
 	private static readonly MarkdownParser markdown = new();

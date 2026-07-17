@@ -3,12 +3,12 @@
         xmlns:vm="using:Sample_Ava.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:l="urn:pattech.words"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="Sample_Ava.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="Sample_Ava">
+        xmlns:l="pattech.words"
+        Title="{l:Words main.title}">
 
     <Design.DataContext>
         <!-- This only sets the DataContext for the previewer in an IDE,
@@ -18,12 +18,14 @@
     
   <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
     <TextBlock>
-      <l:WordsInline Key="main.Markdown"/>
+      <l:WordsInline Key="main.markdown"/>
     </TextBlock>
 
     <TextBlock>
       asdf<Span>
         <Run BaselineAlignment="Subscript" FontSize="10">dn</Run></Span><Span TextDecorations="Underline">asdf</Span>
     </TextBlock>
+    
+    <TextBlock Text="{l:Words main.greeting}"/>
   </StackPanel>
 </Window>

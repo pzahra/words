@@ -20,7 +20,7 @@ Sections
 	Command Logic
 	Miscellaneous Logic
 **/
-public class MainWindowViewModel : LocalizationViewModelSaveBase {
+public class MainWindowViewModel : ViewModelSaveBase {
 
 	/*
 	State
@@ -33,166 +33,72 @@ public class MainWindowViewModel : LocalizationViewModelSaveBase {
 	**/
 
 	//Collections
-	public DragDropKeysViewModel DragDropKeysViewModel { get; set; }
+	public KeyDragDropHandler KeyDragDropHandler { get; set; }
 
-	private ObservableCollection<KeyNode> _LocalizationKeyNodes = new();
-	public ObservableCollection<KeyNode> LocalizationKeyNodes {
-		get => _LocalizationKeyNodes;
-		private set => ChangeProperty(ref _LocalizationKeyNodes, value);
-	}
+	public ObservableCollection<KeyNode> KeyNodes { get; } = [];
 
-	private readonly HashSet<KeyNode> _AllKeyNodes = new();
+	private readonly HashSet<KeyNode> AllKeyNodes = [];
 
-	public ObservableCollection<LocalizationKey> LocalizationKeys { get; } = new();
-	private readonly Dictionary<string, LocalizationKey> _localizationKeysDictionary = new();
+	public ObservableCollection<WordsKey> Keys { get; } = [];
+	internal readonly Dictionary<string, WordsKey> allKeys = [];
 
-	private ObservableCollection<LocalizationLanguage> _LocalizationLanguages = new();
-	public ObservableCollection<LocalizationLanguage> LocalizationLanguages {
-		get => _LocalizationLanguages;
-		set => ChangeProperty(ref _LocalizationLanguages, value);
-	}
+	public ObservableCollection<LanguageEntry> KnownLanguages { get; set => ChangeProperty(ref field, value); } = [];
 
-	private HashSet<string> _FileNames = new();
-	public HashSet<string> FileNames {
-		get => _FileNames;
-		set => ChangeProperty(ref _FileNames, value);
-	}
+	public HashSet<string> FileNames { get; set => ChangeProperty(ref field, value); } = [];
 
 
 	//Selection UI
-	private KeyNode? _SelectedKeyNode;
 	public KeyNode? SelectedKeyNode {
-		get => _SelectedKeyNode;
+		get;
 		set {
-			if (ChangeProperty(ref _SelectedKeyNode, value)) {
-				SelectedKeyNodeChanged();
+			if (ChangeProperty(ref field, value)) {
+				OnSelectedKeyNodeChanged();
 			}
 		}
 	}
 
-	private LocalizationKey? _SelectedLocalizationKey;
-	public LocalizationKey? SelectedLocalizationKey {
-		get => _SelectedLocalizationKey;
+	public WordsKey? SelectedKey {
+		get;
 		set {
-			LocalizationKey? oldValue = _SelectedLocalizationKey;
-			if (ChangeProperty(ref _SelectedLocalizationKey, value)) {
-				if (oldValue is not null) {
-					oldValue.PropertyChanged -= OnLocalizationKeyDataChanged;
-				}
-				if (value is not null) {
-					value.PropertyChanged += OnLocalizationKeyDataChanged;
-				}
+			WordsKey? oldValue = field;
+			if (ChangeProperty(ref field, value)) {
+				oldValue?.PropertyChanged -= OnSelectedKeyValueChanged;
+				value?.PropertyChanged += OnSelectedKeyValueChanged;
 			}
 		}
 	}
 
-	private LocalizationKeyLanguageData? _SelectedLocalizationKeyLanguageData;
-	public LocalizationKeyLanguageData? SelectedLocalizationKeyLanguageData {
-		get => _SelectedLocalizationKeyLanguageData;
+	public WordsEntry? SelectedEntry {
+		get;
 		set {
-			LocalizationKeyLanguageData? oldValue = _SelectedLocalizationKeyLanguageData;
-			if (ChangeProperty(ref _SelectedLocalizationKeyLanguageData, value)) {
-				if (oldValue is not null) {
-					oldValue.PropertyChanged -= OnLocalizationKeyLanguageDataChanged;
-				}
-				if (value is not null) {
-					value.PropertyChanged += OnLocalizationKeyLanguageDataChanged;
-				}
+			WordsEntry? oldValue = field;
+			if (ChangeProperty(ref field, value)) {
+				oldValue?.PropertyChanged -= OnSelectedEntryChanged;
+				value?.PropertyChanged += OnSelectedEntryChanged;
 			}
 		}
 	}
 
-	private void OnLocalizationKeyDataChanged(object? sender, PropertyChangedEventArgs e) {
-		if (SelectedLocalizationKey is null || SelectedKeyNode is null || SelectedLocalizationKeyLanguageData is null) {
-			throw new InvalidOperationException("Phantom Key Value Change");
-		}
-		IsDirty = true;
-		if (e.PropertyName == "Comment" && SelectedLocalizationKey.Comment.Trim() != "") {
-			SelectedLocalizationKey.NeedsReview = true;
-			SelectedKeyNode.NeedsReview = true;
-		}
-		if (e.PropertyName == "DefaultValue" && SelectedLocalizationKey.DefaultValue.Trim() != "" && SelectedLocalizationKeyLanguageData.Value.Trim() != "") {
-			SelectedKeyNode.EmptyValue = false;
-		}
-		if (e.PropertyName == "DefaultValue" && SelectedLocalizationKey.DefaultValue.Trim() == "") {
-			SelectedKeyNode.EmptyValue = true;
-		}
-	}
-	private void OnLocalizationKeyLanguageDataChanged(object? sender, PropertyChangedEventArgs e) {
-		if (SelectedLocalizationKeyLanguageData is null || SelectedLocalizationKey is null || SelectedKeyNode is null) {
-			throw new InvalidOperationException("Phantom Key Value Change");
-		}
-		IsDirty = true;
-		if (e.PropertyName == "LanguageComment" && SelectedLocalizationKeyLanguageData.LanguageComment.Trim() != "") {
-			SelectedLocalizationKey.NeedsReview = true;
-			SelectedKeyNode.NeedsReview = true;
-		}
-		if (e.PropertyName == "Value" && SelectedLocalizationKeyLanguageData.Value.Trim() != "" && SelectedLocalizationKey.DefaultValue.Trim() != "") {
-			SelectedKeyNode.EmptyValue = false;
-		}
-		if (e.PropertyName == "Value" && SelectedLocalizationKeyLanguageData.Value.Trim() == "") {
-			SelectedKeyNode.EmptyValue = true;
-		}
-	}
-
-	private LocalizationLanguage _SelectedLocalizationLanguage;
-	public LocalizationLanguage SelectedLocalizationLanguage {
-		get => _SelectedLocalizationLanguage;
+	public LanguageEntry SelectedLanguage {
+		get;
 		set {
-			if (ChangeProperty(ref _SelectedLocalizationLanguage, value)) {
-				SelectedLocalizationLanguageChanged();
-				ApplyFiltersAndUpdateVisibility();
+			if (ChangeProperty(ref field, value)) {
+				OnSelectedLanguageChanged();
+				ApplyFilters();
 			}
 		}
-	}
-
-
-	//Filters
-	private bool _IsStaleFilter = false;
-	public bool IsStaleFilter {
-		get => _IsStaleFilter;
-		set {
-			if (ChangeProperty(ref _IsStaleFilter, value)) {
-				ApplyFiltersAndUpdateVisibility();
-			}
-		}
-	}
-
-	private bool _NeedsReviewFilter = false;
-	public bool NeedsReviewFilter {
-		get => _NeedsReviewFilter;
-		set {
-			if (ChangeProperty(ref _NeedsReviewFilter, value)) {
-				ApplyFiltersAndUpdateVisibility();
-			}
-		}
-	}
-
-	private string _SearchFilterText = "";
-	public string SearchFilterText {
-		get => _SearchFilterText;
-		set {
-			if (ChangeProperty(ref _SearchFilterText, value)) {
-				ApplyFiltersAndUpdateVisibility();
-			}
-		}
-	}
-
-
-	//Previews
-	private bool _ShowDefaultPreview;
-	public bool ShowDefaultPreview {
-		get => _ShowDefaultPreview;
-		set => ChangeProperty(ref _ShowDefaultPreview, value);
-	}
-
-	private bool _ShowLocalizationPreview;
-	public bool ShowLocalizationPreview {
-		get => _ShowLocalizationPreview;
-		set => ChangeProperty(ref _ShowLocalizationPreview, value);
 	}
 
 	private bool usingDefaultLanguage = true;
+
+	//Filters
+	public bool IsStaleFilter { get; set => _ = ChangeProperty(ref field, value) && ApplyFilters(); }
+	public bool NeedsReviewFilter { get; set => _ = ChangeProperty(ref field, value) && ApplyFilters(); }
+	public string SearchFilterText { get; set => _ = ChangeProperty(ref field, value) && ApplyFilters(); } = "";
+
+	//Previews
+	public bool ShowDefaultPreview { get; set => ChangeProperty(ref field, value); }
+	public bool ShowLocalizationPreview { get; set => ChangeProperty(ref field, value); }
 
 	//Commands
 	public ICommand LoadFileCommand { get; }
@@ -211,21 +117,17 @@ public class MainWindowViewModel : LocalizationViewModelSaveBase {
 	public ICommand ToggleLocalizationKeyNeedsReviewCommand { get; }
 	public ICommand ToggleLocalizationKeyIsConstantCommand { get; }
 
-/*
-Constructor
-**/
+	/*
+	Constructor
+	**/
 	public MainWindowViewModel() {
-		LocalizationLanguage defaultLanguage = new("en", "!English (common)");
-		_LocalizationLanguages.Add(defaultLanguage);
-		_SelectedLocalizationLanguage = defaultLanguage;
-		DragDropKeysViewModel = new DragDropKeysViewModel() { MainWindow = this };
 		LoadFileCommand = new DelegateCommand(DoLoadFiles);
 		ResetCommand = new DelegateCommand(DoReset);
 		SaveCommand = new DelegateCommand(DoSave);
 		MergeFilesCommand = new DelegateCommand(DoMergeFiles);
 		ManageLanguagesCommand = new DelegateCommand(DoManageLanguages);
 		RemoveLocalizationKeyAndNodeCommand = new DelegateCommand(DoRemoveLocalizationKeyAndNode);
-		RenameLocalizationKeyAndNodeCommand = new DelegateCommand(DoRenameLocalizationKeyAndNode);
+		RenameLocalizationKeyAndNodeCommand = new DelegateCommand(DoRenameNode);
 		AddLocalizationKeyNodeCommand = new DelegateCommand(DoAddLocalizationKeyNode);
 		AddLocalizationKeyCommand = new DelegateCommand(DoAddLocalizationKey);
 		RemoveLocalizationKeyCommand = new DelegateCommand(DoRemoveLocalizationKey);
@@ -233,23 +135,28 @@ Constructor
 		ToggleStaleLanguageCommand = new DelegateCommand<string>(DoToggleStaleLanguage);
 		ToggleLocalizationKeyNeedsReviewCommand = new DelegateCommand(DoToggleKeyNeedsReview);
 		ToggleLocalizationKeyIsConstantCommand = new DelegateCommand(DoToggleLocalizationKeyIsConstant);
-		TestParametersCommand = new DelegateCommand<ObservableCollection<LocalizationParameter>>(DoTestParameters);
+		TestParametersCommand = new DelegateCommand<ObservableCollection<WordsParameter>>(DoTestParameters);
+
+		Title = "Wordsmith Editor";
+		LanguageEntry defaultLanguage = new("en", "!English (common)");
+		KnownLanguages.Add(defaultLanguage);
+		SelectedLanguage = defaultLanguage;
+		KeyDragDropHandler = new KeyDragDropHandler() { MainWindow = this };
 	}
 
-/*
-UI Logic
-Subsections: 
-	Selection
-	Visibility
-	Markers
-**/
+	/*
+	UI Logic
+	Subsections: 
+		Selection
+		Visibility
+		Markers
+	**/
 
 	//Selection
-	public void SelectedLocalizationLanguageChanged() {
-		foreach (KeyNode keyNode in _AllKeyNodes) {
-			if (_localizationKeysDictionary.ContainsKey(keyNode.FullLabel) && !keyNode.IsConstant) {
-				LocalizationKey localizationKey = _localizationKeysDictionary[keyNode.FullLabel];
-				if (localizationKey.DefaultValue.Trim() == "" || localizationKey.LanguageData[SelectedLocalizationLanguage.Code].Value.Trim() == "") {
+	public void OnSelectedLanguageChanged() {
+		foreach (KeyNode keyNode in AllKeyNodes) {
+			if (allKeys.TryGetValue(keyNode.FullLabel, out var key) && !keyNode.IsConstant) {
+				if (key.DefaultValue.Trim() == "" || key.Entries[SelectedLanguage.Code].Value.Trim() == "") {
 					keyNode.EmptyValue = true;
 				}
 				else {
@@ -257,57 +164,89 @@ Subsections:
 				}
 			}
 		}
-		if (SelectedKeyNode is null || SelectedLocalizationKey is null || SelectedKeyNode.IsConstant) {
-			SelectedLocalizationKeyLanguageData = null;
-			foreach (KeyNode node in LocalizationKeyNodes) {
+		if (SelectedKeyNode is null || SelectedKey is null || SelectedKeyNode.IsConstant) {
+			SelectedEntry = null;
+			foreach (KeyNode node in KeyNodes) {
 				MarkStaleNodes(node);
 				MarkOverwrittenNodes(node);
 			}
 			return;
 		}
-		SelectedLocalizationKeyLanguageData = SelectedLocalizationKey.LanguageData[SelectedLocalizationLanguage.Code];
+		SelectedEntry = SelectedKey.Entries[SelectedLanguage.Code];
 		ShowLocalizationPreview = false;
-		foreach (KeyNode node in LocalizationKeyNodes) {
+		foreach (KeyNode node in KeyNodes) {
 			MarkStaleNodes(node);
 			MarkOverwrittenNodes(node);
 		}
 	}
 
-	private void SelectedKeyNodeChanged() {
+	private void OnSelectedKeyNodeChanged() {
 		if (SelectedKeyNode is null) {
-			SelectedLocalizationKey = null;
-			SelectedLocalizationKeyLanguageData = null;
+			SelectedKey = null;
+			SelectedEntry = null;
 			return;
 		}
 		string fullLabel = SelectedKeyNode.FullLabel;
-		string label = SelectedKeyNode.Label;
 		ShowDefaultPreview = false;
 		ShowLocalizationPreview = false;
-		if (_localizationKeysDictionary.ContainsKey(fullLabel)) {
-			SelectedLocalizationKey = _localizationKeysDictionary[fullLabel];
-			if (SelectedLocalizationKey.IsConstant) {
-				SelectedLocalizationKeyLanguageData = null;
+		if (allKeys.TryGetValue(fullLabel, out var key)) {
+			SelectedKey = key;
+			if (SelectedKey.IsConstant) {
+				SelectedEntry = null;
 			}
 			else {
-				SelectedLocalizationKeyLanguageData = SelectedLocalizationKey.LanguageData[SelectedLocalizationLanguage.Code];
+				SelectedEntry = SelectedKey.Entries[SelectedLanguage.Code];
 			}
 		}
 		else {
-			SelectedLocalizationKey = null;
-			SelectedLocalizationKeyLanguageData = null;
+			SelectedKey = null;
+			SelectedEntry = null;
+		}
+	}
+
+	private void OnSelectedKeyValueChanged(object? sender, PropertyChangedEventArgs e) {
+		if (SelectedKey is null || SelectedKeyNode is null || SelectedEntry is null) {
+			throw new InvalidOperationException("Phantom Key Value Change");
+		}
+		IsDirty = true;
+		if (e.PropertyName == nameof(SelectedKey.Comment) && SelectedKey.Comment.Trim() != "") {
+			SelectedKey.NeedsReview = true;
+			SelectedKeyNode.NeedsReview = true;
+		}
+		if (e.PropertyName == nameof(SelectedKey.DefaultValue)) {
+			SelectedKeyNode.EmptyValue = SelectedKey.DefaultValue.Trim() == "" && SelectedEntry.Value.Trim() == "";
+		}
+	}
+
+	private void OnSelectedEntryChanged(object? sender, PropertyChangedEventArgs e) {
+		if (SelectedEntry is null || SelectedKey is null || SelectedKeyNode is null) {
+			throw new InvalidOperationException("Phantom Key Value Change");
+		}
+		IsDirty = true;
+		if (e.PropertyName == nameof(SelectedEntry.Comment) && SelectedEntry.Comment.Trim() != "") {
+			SelectedKey.NeedsReview = true;
+			SelectedKeyNode.NeedsReview = true;
+		}
+		if (e.PropertyName == nameof(SelectedEntry.Value)) {
+			SelectedKeyNode.EmptyValue = SelectedEntry.Value.Trim() == "" && SelectedKey.DefaultValue.Trim() == "";
 		}
 	}
 
 
 	//Visibility
-	public void ApplyFiltersAndUpdateVisibility() {
-		foreach (var node in _AllKeyNodes) {
+	public bool ApplyFilters() {
+		foreach (var node in AllKeyNodes) {
 			node.IsVisible = PassesVisibilityFilters(node);
 		}
-		UpdateVisibilityBasedOnDescendants(LocalizationKeyNodes);
+		foreach (var node in AllKeyNodes) {
+			if (!node.IsVisible) {
+				node.IsVisible = EnsureVisibleDescendant(node);
+			}
+		}
+		return true;
 	}
 
-	public bool PassesVisibilityFilters(KeyNode node) {
+	private bool PassesVisibilityFilters(KeyNode node) {
 		bool passesFilter = true;
 
 		if (IsStaleFilter) {
@@ -323,30 +262,21 @@ Subsections:
 		return passesFilter;
 	}
 
-	public static void UpdateVisibilityBasedOnDescendants(ObservableCollection<KeyNode> keyNodes) {
-		foreach (var keyNode in keyNodes) {
-			UpdateVisibilityBasedOnDescendantsRecursive(keyNode);
+	private static bool EnsureVisibleDescendant(KeyNode node) {
+		if (node.IsVisible) return true;
+		foreach (var child in node.Children) {
+			if (EnsureVisibleDescendant(child)) {
+				node.IsVisible = true;
+				return true;
+			}
 		}
-	}
-
-	private static bool UpdateVisibilityBasedOnDescendantsRecursive(KeyNode keyNode) {
-		if (keyNode.Children.Count == 0) {
-			return keyNode.IsVisible;
-		}
-
-		foreach (var childKeyNode in keyNode.Children) {
-			bool isVisible = UpdateVisibilityBasedOnDescendantsRecursive(childKeyNode);
-			keyNode.IsVisible |= isVisible;
-		}
-
-		return keyNode.IsVisible;
+		return false;
 	}
 
 
 	//Markers
 	private void MarkStaleNodes(KeyNode node) {
-		if (_localizationKeysDictionary.ContainsKey(node.FullLabel)
-				&& _localizationKeysDictionary[node.FullLabel].LanguageData[SelectedLocalizationLanguage.Code].StaleComment != null) {
+		if (allKeys.TryGetValue(node.FullLabel, out var key) && key.Entries[SelectedLanguage.Code].Stale != null) {
 			node.IsStale = true;
 		}
 		else {
@@ -360,12 +290,11 @@ Subsections:
 
 	private void MarkOverwrittenNodes(KeyNode node) {
 		node.IsOverwritten = false;
-		if (_localizationKeysDictionary.ContainsKey(node.FullLabel)) {
-			LocalizationKey localizationKey = _localizationKeysDictionary[node.FullLabel];
-			IEnumerable<string> regionalLanguages = localizationKey.LanguageData.Keys
-				.Where(language => language.Contains(SelectedLocalizationLanguage.Code) && language != SelectedLocalizationLanguage.Code);
+		if (allKeys.TryGetValue(node.FullLabel, out var key)) {
+			IEnumerable<string> regionalLanguages = key.Entries.Keys
+				.Where(language => language.Contains(SelectedLanguage.Code) && language != SelectedLanguage.Code);
 			foreach (string language in regionalLanguages) {
-				if (!string.IsNullOrEmpty(localizationKey.LanguageData[language].Value)) {
+				if (!string.IsNullOrEmpty(key.Entries[language].Value)) {
 					node.IsOverwritten = true;
 				}
 			}
@@ -376,15 +305,15 @@ Subsections:
 	}
 
 
-/*
-Command Logic
-Subsections:
-	Load
-	Reset
-	Save
-	Merge
-	Data Alteration
-**/
+	/*
+	Command Logic
+	Subsections:
+		Load
+		Reset
+		Save
+		Merge
+		Data Alteration
+	**/
 
 	//Load
 	private void DoLoadFiles() {
@@ -402,115 +331,101 @@ Subsections:
 	}
 
 	public void LoadFile(TextReader reader, string fileName) {
-		if (!FileNames.Contains(fileName)) {
-			FileNames.Add(fileName);
-		}
+		FileNames.Add(fileName);
 		fileName = Path.GetFileNameWithoutExtension(fileName);
 		WordsParserToLocalizationProvider consumer = new();
 		WordsParser parser = new(consumer);
 		parser.Load(reader);
-		if (usingDefaultLanguage && consumer.LocalizationKeysDictionary.Count > 0) {
-			LocalizationLanguages.Clear();
+		// TODO: explain?
+		if (usingDefaultLanguage && consumer.WordKeys.Count > 0) {
+			KnownLanguages.Clear();
 		}
-		foreach (LocalizationLanguage language in consumer.LocalizationLanguagesDictionary.Values) {
-			if (!LocalizationLanguages.Any(languageInFile => languageInFile.Code == language.Code)
-					&& !LocalizationLanguages.Any(languageInFile => languageInFile.NativeName == language.NativeName)
-					&& !LocalizationLanguages.Any(languageInFile => languageInFile.EnglishName == language.EnglishName)) {
-				LocalizationLanguages.Add(language);
+		foreach (var language in consumer.KnownLanguages.Values) {
+			if (!KnownLanguages.Any(l
+				=> l.Code == language.Code
+			)) {
+				KnownLanguages.Add(language);
 			}
-			else if (!language.NativeName.StartsWith("MISSING") && LocalizationLanguages
-					.Any(languageInFile => languageInFile.Code == language.Code && languageInFile.NativeName
-						.StartsWith("MISSING"))) {
-				LocalizationLanguage languageToEdit = LocalizationLanguages
-					.Where(languageInFile => languageInFile.Code == language.Code).First();
-				languageToEdit.NativeName = language.NativeName;
-				languageToEdit.EnglishName = language.EnglishName;
+			else if (!language.NativeName.StartsWith("MISSING")
+				&& KnownLanguages.Any(l => l.Code == language.Code && l.NativeName.StartsWith("MISSING"))
+			) {
+				LanguageEntry edit = KnownLanguages.First(l => l.Code == language.Code);
+				edit.NativeName = language.NativeName;
+				edit.EnglishName = language.EnglishName;
 			}
-			else if (!(language.EnglishName == language.NativeName) && LocalizationLanguages
-					.Any(languageInFile => languageInFile.Code == language.Code 
-						&& languageInFile.EnglishName == languageInFile.NativeName)) {
-				LocalizationLanguage languageToEdit = LocalizationLanguages
-					.Where(languageInFile => languageInFile.Code == language.Code).First();
-				languageToEdit.EnglishName = language.EnglishName;
+			else if (language.EnglishName != language.NativeName
+				&& KnownLanguages.Any(l => l.Code == language.Code && l.EnglishName == l.NativeName)
+			) {
+				LanguageEntry edit = KnownLanguages.First(l => l.Code == language.Code);
+				edit.EnglishName = language.EnglishName;
 			}
 		}
-		SelectedLocalizationLanguage ??= LocalizationLanguages[0];
-		var localizationKeys = consumer.LocalizationKeys;
-		if (localizationKeys.Count == 0) {
+		SelectedLanguage ??= KnownLanguages[0];
+		var keys = consumer.WordKeys;
+		if (keys.Count == 0) {
 			KeyNode fileNode = new KeyNode(fileName, fileName) {
 				IsFile = true
 			};
-			LocalizationKeyNodes.Add(fileNode);
-			_AllKeyNodes.Add(fileNode);
+			KeyNodes.Add(fileNode);
+			AllKeyNodes.Add(fileNode);
 		}
 		else {
-			foreach (LocalizationKey localizationKey in localizationKeys) {
-				localizationKey.BlockKey = $"{fileName}.{localizationKey.BlockKey}";
-				if (_localizationKeysDictionary.ContainsKey(localizationKey.BlockKey)) {
-					_localizationKeysDictionary.Remove(localizationKey.BlockKey);
-					for (int i = LocalizationKeys.Count - 1; i >= 0; i--) {
-						if (LocalizationKeys[i].BlockKey == localizationKey.BlockKey) {
-							LocalizationKeys.RemoveAt(i);
-						}
-					}
+			foreach (var (_, key) in keys) {
+				key.BlockKey = $"{fileName}.{key.BlockKey}";
+				if (allKeys.Remove(key.BlockKey, out var gone)) {
+					Keys.Remove(gone);
 				}
-				if (!localizationKey.IsEmpty()) {
-					LocalizationKeys.Add(localizationKey);
-					_localizationKeysDictionary.Add(localizationKey.BlockKey, localizationKey);
+				if (!key.IsEmpty()) {
+					Keys.Add(key);
+					allKeys.Add(key.BlockKey, key);
 				}
 			}
-			foreach (LocalizationKey localizationKey in LocalizationKeys) {
-				foreach (LocalizationLanguage localizationLanguage in LocalizationLanguages) {
-					if (!localizationKey.LanguageData.ContainsKey(localizationLanguage.Code)) {
-						localizationKey.LanguageData[localizationLanguage.Code] = new();
+			foreach (var key in Keys) {
+				foreach (var lang in KnownLanguages) {
+					if (!key.Entries.ContainsKey(lang.Code)) {
+						key.Entries[lang.Code] = new();
 					}
 				}
 			}
-			KeyNode fileToAdd = GetFileNode(localizationKeys);
-			if (!consumer.LocalizationLanguagesDictionary.Values
-					.Any(localizationLanguage => !localizationLanguage.NativeName.StartsWith("MISSING NAME"))) {
-				fileToAdd.IsLibraryFile = true;
+			var add = GetFileNode(keys.Values);
+			if (!consumer.KnownLanguages.Values.Any(l => !l.NativeName.StartsWith("MISSING"))) {
+				add.IsLibraryFile = true;
 			}
-			if (LocalizationKeyNodes.Any(file => file.FullLabel == fileToAdd.FullLabel)) {
-				int indexOfFileToRemove = LocalizationKeyNodes.FindIndex(file => file.FullLabel == fileToAdd.FullLabel);
-				LocalizationKeyNodes.RemoveAt(indexOfFileToRemove);
-				_AllKeyNodes.RemoveWhere(keyNode => keyNode.FullLabel.StartsWith(fileToAdd.Label + '.') || keyNode.FullLabel == fileToAdd.FullLabel);
+			int remove = KeyNodes.FindIndex(file => file.FullLabel == add.FullLabel);
+			if (remove > -1) {
+				KeyNodes.RemoveAt(remove);
+				AllKeyNodes.RemoveWhere(k => k.FullLabel.StartsWith(add.Label + '.') || k.FullLabel == add.FullLabel);
 			}
-			LocalizationKeyNodes.Add(fileToAdd);
-			_AllKeyNodes.Add(fileToAdd);
+			KeyNodes.Add(add);
+			AllKeyNodes.Add(add);
 		}
 		usingDefaultLanguage = false;
-		foreach (LocalizationKey localizationKey in LocalizationKeys) {
-			foreach (LocalizationLanguage localizationLanguage in LocalizationLanguages) {
-				if (!localizationKey.LanguageData.ContainsKey(localizationLanguage.Code)) {
-					localizationKey.LanguageData[localizationLanguage.Code] = new();
+		foreach (var key in Keys) {
+			foreach (var lang in KnownLanguages) {
+				if (!key.Entries.ContainsKey(lang.Code)) {
+					key.Entries[lang.Code] = new();
 				}
 			}
 		}
-		foreach (KeyNode keyNode in _AllKeyNodes) {
-			if (_localizationKeysDictionary.ContainsKey(keyNode.FullLabel) && !keyNode.IsConstant) {
-				LocalizationKey localizationKey = _localizationKeysDictionary[keyNode.FullLabel];
-				if (localizationKey.DefaultValue.Trim() == "" || localizationKey.LanguageData[SelectedLocalizationLanguage.Code].Value.Trim() == "") {
-					keyNode.EmptyValue = true;
-				}
-				else {
-					keyNode.EmptyValue = false;
-				}
+		foreach (var keyNode in AllKeyNodes) {
+			if (allKeys.TryGetValue(keyNode.FullLabel, out var key) && !keyNode.IsConstant) {
+				keyNode.EmptyValue = key.DefaultValue.Trim() == ""
+					|| key.Entries[SelectedLanguage.Code].Value.Trim() == "";
 			}
 		}
 	}
 
-	private KeyNode GetFileNode(IEnumerable<LocalizationKey> localizationKeys) {
-		List<string> localizationKeyLabels = new List<string>();
-		foreach (LocalizationKey localizationKey in localizationKeys) {
-			localizationKeyLabels.Add(localizationKey.BlockKey);
+	private KeyNode GetFileNode(IEnumerable<WordsKey> keys) {
+		List<string> labels = [];
+		foreach (var key in keys) {
+			labels.Add(key.BlockKey);
 		}
-		Dictionary<string, Tuple<KeyNode, string>> nodes = new Dictionary<string, Tuple<KeyNode, string>>();
+		Dictionary<string, (KeyNode node, string parentName)> nodes = [];
 
-		foreach (string keyName in localizationKeyLabels) {
+		foreach (string keyName in labels) {
 			string[] parts = keyName.Split('.');
 			for (int i = 1; i <= parts.Length; i++) {
-				string[] subparts = parts.Take(i).ToArray();
+				string[] subparts = [.. parts.Take(i)];
 				string name = string.Join(".", subparts);
 				string label = subparts[^1];
 				if (label.Length > 0 && label[0] == '$') {
@@ -519,39 +434,29 @@ Subsections:
 				string fullLabel = string.Join(".", subparts);
 				if (!nodes.ContainsKey(name)) {
 					KeyNode node = new KeyNode(label, fullLabel);
-					if (_localizationKeysDictionary.ContainsKey(fullLabel)) {
-						LocalizationKey localizationKey = _localizationKeysDictionary[fullLabel];
-						if (localizationKey.IsConstant) {
-							node.IsConstant = true;
-						}
-						if (localizationKey.NeedsReview) {
-							node.NeedsReview = true;
-						}
-						if (localizationKey.LanguageData[SelectedLocalizationLanguage.Code].StaleComment != null) {
-							node.IsStale = true;
-						}
-						IEnumerable<string> regionalLanguages = localizationKey.LanguageData.Keys
-							.Where(language => language.Contains(SelectedLocalizationLanguage.Code) && language != SelectedLocalizationLanguage.Code);
-						foreach (string language in regionalLanguages) {
-							if (!string.IsNullOrEmpty(localizationKey.LanguageData[language].Value)) {
-								node.IsOverwritten = true;
-							}
-						}
+					if (allKeys.TryGetValue(fullLabel, out var key)) {
+						node.IsConstant = key.IsConstant;
+						node.NeedsReview = key.NeedsReview;
+						node.IsStale = key.Entries[SelectedLanguage.Code].Stale != null;
+						node.IsOverwritten = KnownLanguages
+							.Where(lang => lang.Code.StartsWith(SelectedLanguage.Code + "-"))
+							.Any(lang => !string.IsNullOrEmpty(key.Entries[lang.Code].Value));
+						
 					}
 					string parentName = string.Join(".", subparts.Take(i - 1));
-					nodes[name] = new Tuple<KeyNode, string>(node, parentName);
+					nodes[name] = (node, parentName);
 				}
 			}
 		}
 		KeyNode fileStarter = new();
-		foreach (var node in nodes.Values) {
-			if (node.Item2 == null || !nodes.ContainsKey(node.Item2)) {
-				fileStarter.Children.Add(node.Item1);
-				_AllKeyNodes.Add(node.Item1);
+		foreach (var (node, parentName) in nodes.Values) {
+			if (parentName == null || !nodes.TryGetValue(parentName, out var parent)) {
+				fileStarter.Children.Add(node);
+				AllKeyNodes.Add(node);
 			}
 			else {
-				nodes[node.Item2].Item1.Children.Add(node.Item1);
-				_AllKeyNodes.Add(node.Item1);
+				parent.node.Children.Add(node);
+				AllKeyNodes.Add(node);
 			}
 		}
 		KeyNode file = fileStarter.Children[0];
@@ -579,15 +484,15 @@ Subsections:
 	}
 
 	public void ResetCore() {
-		LocalizationKeys.Clear();
-		LocalizationKeyNodes.Clear();
-		_AllKeyNodes.Clear();
-		LocalizationLanguages.Clear();
-		_localizationKeysDictionary.Clear();
-		LocalizationLanguage defaultLanguage = new("en", "!English (common)");
-		LocalizationLanguages.Add(defaultLanguage);
+		Keys.Clear();
+		KeyNodes.Clear();
+		AllKeyNodes.Clear();
+		KnownLanguages.Clear();
+		allKeys.Clear();
+		LanguageEntry defaultLanguage = new("en", "!English (common)");
+		KnownLanguages.Add(defaultLanguage);
 		usingDefaultLanguage = true;
-		SelectedLocalizationLanguage = LocalizationLanguages.FirstOrDefault()
+		SelectedLanguage = KnownLanguages.FirstOrDefault()
 			?? throw new InvalidOperationException("Failed to add default language.");
 		SearchFilterText = "";
 		IsStaleFilter = false;
@@ -603,98 +508,14 @@ Subsections:
 		Save();
 	}
 	public override void Save() {
-		IsDirty = false;
 		foreach (string fileName in FileNames) {
-			using StreamWriter writer = new StreamWriter(fileName);
-			WriteToINIFile(writer, fileName);
+			KeyNode fileNode = KeyNodes.FirstOrDefault(k => k.FullLabel == fileName)
+				?? throw new InvalidDataException($"Cannot find node with file name: {fileName}");
+			IniWriter.WriteFile(fileNode, fileName, allKeys, KnownLanguages);
 		}
+		IsDirty = false;
 	}
 
-	public void WriteToINIFile(string fileName) {
-		using StreamWriter writer = new StreamWriter(fileName);
-		WriteToINIFile(writer, fileName);
-	}
-
-	public void WriteToINIFile(TextWriter textWriter, string fileName) {
-		IniWriter writer = new(textWriter);
-		fileName = Path.GetFileNameWithoutExtension(fileName);
-		KeyNode fileToWrite = LocalizationKeyNodes.Where(k => k.FullLabel == fileName).FirstOrDefault()
-			?? throw new InvalidDataException($"Cannot find node with file name: {fileName}");
-		if (fileToWrite.IsLibraryFile) {
-			WriteKeyNodesToFile(fileToWrite, writer);
-			return;
-		}
-		foreach (LocalizationLanguage language in LocalizationLanguages) {
-			writer.WritePair($"value-{language.Code}", language.NativeName);
-			writer.WritePair($"comment-{language.Code}", language.EnglishName);
-		}
-		writer.WriteLine();
-		WriteKeyNodesToFile(fileToWrite, writer);
-	}
-
-	private void WriteKeyNodesToFile(KeyNode keyNode, IniWriter writer) {
-		if (_localizationKeysDictionary.ContainsKey(keyNode.FullLabel)) {
-			LocalizationKey localizationKey = _localizationKeysDictionary[keyNode.FullLabel];
-			WriteBlockToFile(localizationKey, writer);
-		}
-		foreach (KeyNode childNode in keyNode.Children) {
-			WriteKeyNodesToFile(childNode, writer);
-		}
-	}
-
-	private static void WriteBlockToFile(LocalizationKey localizationKey, IniWriter writer) {
-		string blockKey = localizationKey.BlockKey[(localizationKey.BlockKey.IndexOf('.') + 1)..];
-		writer.WriteBlockHeader(blockKey);
-
-
-		if (localizationKey.Context != "") {
-			writer.WritePair("context", localizationKey.Context);
-		}
-
-		if (localizationKey.Comment != "") {
-			writer.WritePair("comment", localizationKey.Comment);
-		}
-
-		if (localizationKey.DefaultValue != "") {
-			writer.WritePair("value", localizationKey.DefaultValue);
-		}
-
-		if (localizationKey.Parameters.Count != 0) {
-			foreach (LocalizationParameter parameter in localizationKey.Parameters) {
-				writer.WritePair(
-					$"param-{parameter.Key}",
-					$"{parameter.DataType.Name}:{parameter.Value}");
-			}
-		}
-
-		if (localizationKey.NeedsReview) {
-			writer.WritePair("stale", "");
-		}
-
-		foreach (KeyValuePair<string, LocalizationKeyLanguageData> localizationLanguageDataEntry in localizationKey.LanguageData) {
-			string languageCode = localizationLanguageDataEntry.Key;
-			LocalizationKeyLanguageData languageData = localizationLanguageDataEntry.Value;
-
-			if (languageData.Value != "") {
-				writer.WritePair($"value-{languageCode}", languageData.Value);
-			}
-
-			if (languageData.StaleComment is not null) {
-				writer.WritePair($"stale-{languageCode}", $"{languageData.StaleComment?.ToString(CultureInfo.InvariantCulture)}");
-			}
-
-			if (languageData.LanguageContext != "") {
-				writer.WritePair($"context-{languageCode}", languageData.LanguageContext);
-			}
-
-			if (languageData.LanguageComment != "") {
-				writer.WritePair($"comment-{languageCode}", languageData.LanguageComment);
-			}
-		}
-		if (localizationKey.DefaultValue != "") {
-			writer.WriteLine();
-		}
-	}
 
 	//Merge
 	private void DoMergeFiles() {
@@ -703,50 +524,49 @@ Subsections:
 
 	public KeyNode? GetMergedKeyNode(
 		KeyNode baseFile,
-		Dictionary<string, KeyNode> languageCodeFilePairDictionary,
+		Dictionary<string, KeyNode> files,
 		string mergedFileName,
-		out Dictionary<string,
-		LocalizationKey> keysToMerge) {
+		out Dictionary<string, WordsKey> keysToMerge) {
 		KeyNode fileToMerge = new(baseFile) {
 			Label = mergedFileName,
 			FullLabel = mergedFileName
 		};
 		UpdateChildFullLabelsWithoutKeys(fileToMerge.Children, fileToMerge.FullLabel);
-		Dictionary<string, Dictionary<string, LocalizationKey>> selectedDictionaries = new();
-		var baseKeys = _localizationKeysDictionary.Where(pair => pair.Key.StartsWith(baseFile.FullLabel + "."))
+		Dictionary<string, Dictionary<string, WordsKey>> selectedDictionaries = [];
+		var baseKeys = allKeys.Where(pair => pair.Key.StartsWith(baseFile.FullLabel + "."))
 			.ToDictionary(pair => pair.Key, pair => pair.Value);
-		keysToMerge = new Dictionary<string, LocalizationKey>();
+		keysToMerge = [];
 		foreach (var kvp in baseKeys) {
 			string newBlockKey = mergedFileName + kvp.Value.BlockKey[kvp.Value.BlockKey.IndexOf('.')..];
-			LocalizationKey localizationKey = new LocalizationKey(kvp.Value) {
+			WordsKey localizationKey = new WordsKey(kvp.Value) {
 				BlockKey = newBlockKey
 			};
 			keysToMerge.Add(localizationKey.BlockKey, localizationKey);
 		}
-		foreach (var (languageCode, sourceFile) in languageCodeFilePairDictionary) {
-			var localizationKeyDictionary = _localizationKeysDictionary.Where(pair => pair.Key.StartsWith(sourceFile.FullLabel + "."))
+		foreach (var (languageCode, sourceFile) in files) {
+			var keysOfFile = allKeys.Where(pair => pair.Key.StartsWith(sourceFile.FullLabel + "."))
 				.ToDictionary(pair => pair.Key, pair => pair.Value);
-			selectedDictionaries.Add(languageCode, localizationKeyDictionary);
+			selectedDictionaries.Add(languageCode, keysOfFile);
 		}
 		selectedDictionaries.Add("default", keysToMerge);
 		if (!DictionariesHaveTheSameLocalizationKeys(selectedDictionaries.Values)) {
 			return null;
 		}
 		selectedDictionaries.Remove("default");
-		foreach (var (languageCode, localizationKeyDictionary) in selectedDictionaries) {
-			foreach (LocalizationKey localizationKey in localizationKeyDictionary.Values) {
-				string sharedBlockKey = localizationKey.BlockKey[(localizationKey.BlockKey.IndexOf('.') + 1)..];
-				keysToMerge[$"{mergedFileName}.{sharedBlockKey}"].LanguageData[languageCode] = localizationKey.LanguageData[languageCode];
+		foreach (var (lang, keys) in selectedDictionaries) {
+			foreach (var key in keys.Values) {
+				string sharedBlockKey = key.BlockKey[(key.BlockKey.IndexOf('.') + 1)..];
+				keysToMerge[$"{mergedFileName}.{sharedBlockKey}"].Entries[lang] = key.Entries[lang];
 			}
 		}
 		return fileToMerge;
 	}
 
-	public static bool DictionariesHaveTheSameLocalizationKeys(IEnumerable<Dictionary<string, LocalizationKey>> localizationKeyDictionaries) {
+	public static bool DictionariesHaveTheSameLocalizationKeys(IEnumerable<Dictionary<string, WordsKey>> localizationKeyDictionaries) {
 		HashSet<string>? firstKeySet = null;
 
 		foreach (var dictionary in localizationKeyDictionaries) {
-			HashSet<string> currentKeySet = new HashSet<string>();
+			HashSet<string> currentKeySet = [];
 
 			foreach (var key in dictionary.Keys) {
 				int dotIndex = key.IndexOf('.');
@@ -766,14 +586,14 @@ Subsections:
 	}
 
 	public static bool DictionariesHaveTheSameLocalizationKeys(
-			IEnumerable<Dictionary<string, LocalizationKey>> localizationKeyDictionaries,
+			IEnumerable<Dictionary<string, WordsKey>> localizationKeyDictionaries,
 			out HashSet<string> conflicts) {
 		HashSet<string>? firstKeySet = null;
 		bool haveTheSameKeys = true;
-		conflicts = new HashSet<string>();
+		conflicts = [];
 
 		foreach (var dictionary in localizationKeyDictionaries) {
-			HashSet<string> currentKeySet = new HashSet<string>();
+			HashSet<string> currentKeySet = [];
 
 			foreach (var key in dictionary.Keys) {
 				int dotIndex = key.IndexOf('.');
@@ -796,39 +616,15 @@ Subsections:
 	}
 
 	public bool FilesHaveConflict(IEnumerable<KeyNode> files, out HashSet<string> conflictingKeys) {
-		List<Dictionary<string, LocalizationKey>> localizationKeyDictionaries = new();
+		List<Dictionary<string, WordsKey>> localizationKeyDictionaries = [];
 		foreach (var file in files) {
-			var localizationKeyDictionary = _localizationKeysDictionary.Where(pair => pair.Key.StartsWith(file.FullLabel + "."))
+			var localizationKeyDictionary = allKeys.Where(pair => pair.Key.StartsWith(file.FullLabel + "."))
 				.ToDictionary(pair => pair.Key, pair => pair.Value);
 			localizationKeyDictionaries.Add(localizationKeyDictionary);
 		}
 		bool hasConflict = !DictionariesHaveTheSameLocalizationKeys(localizationKeyDictionaries, out var conflicts);
 		conflictingKeys = conflicts;
 		return hasConflict;
-	}
-
-	public void WriteMergedToINIFile(KeyNode mergedFile, string fileName, Dictionary<string, LocalizationKey> mergedKeys) {
-		using IniWriter writer = new(new StreamWriter(fileName));
-		if (mergedFile.IsLibraryFile) {
-			WriteMergedKeyNodesToFile(mergedFile, writer, mergedKeys);
-			return;
-		}
-		foreach (LocalizationLanguage language in LocalizationLanguages) {
-			writer.WritePair($"value-{language.Code}", language.NativeName);
-			writer.WritePair($"comment-{language.Code}", language.EnglishName);
-		}
-		writer.WriteLine();
-		WriteMergedKeyNodesToFile(mergedFile, writer, mergedKeys);
-	}
-
-	private void WriteMergedKeyNodesToFile(KeyNode keyNode, IniWriter writer, Dictionary<string, LocalizationKey> mergedKeys) {
-		if (mergedKeys.ContainsKey(keyNode.FullLabel)) {
-			LocalizationKey localizationKey = mergedKeys[keyNode.FullLabel];
-			WriteBlockToFile(localizationKey, writer);
-		}
-		foreach (KeyNode childNode in keyNode.Children) {
-			WriteMergedKeyNodesToFile(childNode, writer, mergedKeys);
-		}
 	}
 
 	//Data Alteration
@@ -845,10 +641,10 @@ Subsections:
 			return;
 		}
 		string blockKeyToRemove = SelectedKeyNode.FullLabel;
-		for (int i = LocalizationKeys.Count - 1; i >= 0; i--) {
-			if (LocalizationKeys[i].BlockKey.Contains(blockKeyToRemove)) {
-				LocalizationKeys.RemoveAt(i);
-				_localizationKeysDictionary.Remove(blockKeyToRemove);
+		for (int i = Keys.Count - 1; i >= 0; i--) {
+			if (Keys[i].BlockKey.Contains(blockKeyToRemove)) {
+				Keys.RemoveAt(i);
+				allKeys.Remove(blockKeyToRemove);
 			}
 		}
 		RemoveKeyNode(SelectedKeyNode);
@@ -867,17 +663,17 @@ Subsections:
 			throw new InvalidDataException("SelectedKeyNode is null");
 		}
 		string blockKeyToRemove = SelectedKeyNode.FullLabel;
-		for (int i = LocalizationKeys.Count - 1; i >= 0; i--) {
-			if (LocalizationKeys[i].BlockKey.Contains(blockKeyToRemove)) {
-				LocalizationKeys.RemoveAt(i);
-				_localizationKeysDictionary.Remove(blockKeyToRemove);
+		for (int i = Keys.Count - 1; i >= 0; i--) {
+			if (Keys[i].BlockKey.Contains(blockKeyToRemove)) {
+				Keys.RemoveAt(i);
+				allKeys.Remove(blockKeyToRemove);
 			}
 		}
 		FileNames.RemoveWhere(fileName => Path.GetFileNameWithoutExtension(fileName) == fileNodeToRemove.FullLabel);
-		LocalizationKeyNodes.Remove(fileNodeToRemove);
-		_AllKeyNodes.RemoveWhere(keyNode => keyNode.FullLabel.StartsWith(fileNodeToRemove.Label + '.') || keyNode.FullLabel == fileNodeToRemove.FullLabel);
-		if (!LocalizationKeyNodes.IsNullOrEmpty()) {
-			SelectedKeyNode = LocalizationKeyNodes[0];
+		KeyNodes.Remove(fileNodeToRemove);
+		AllKeyNodes.RemoveWhere(keyNode => keyNode.FullLabel.StartsWith(fileNodeToRemove.Label + '.') || keyNode.FullLabel == fileNodeToRemove.FullLabel);
+		if (!KeyNodes.IsNullOrEmpty()) {
+			SelectedKeyNode = KeyNodes[0];
 		}
 		else {
 			SelectedKeyNode = null;
@@ -889,10 +685,10 @@ Subsections:
 		if (keyNodeToRemove.FullLabel is null) {
 			return;
 		}
-		KeyNode? parentNode = keyNodeToRemove.GetParentNode(LocalizationKeyNodes);
-		KeyNode? grandParentNode = parentNode?.GetParentNode(LocalizationKeyNodes);
+		KeyNode? parentNode = keyNodeToRemove.GetParentNode(KeyNodes);
+		KeyNode? grandParentNode = parentNode?.GetParentNode(KeyNodes);
 		parentNode?.Children.Remove(keyNodeToRemove);
-		_AllKeyNodes.RemoveWhere(keyNode => keyNode.FullLabel.StartsWith(keyNodeToRemove.FullLabel + '.') || keyNode.FullLabel == keyNodeToRemove.FullLabel);
+		AllKeyNodes.RemoveWhere(keyNode => keyNode.FullLabel.StartsWith(keyNodeToRemove.FullLabel + '.') || keyNode.FullLabel == keyNodeToRemove.FullLabel);
 		if (parentNode is not null && parentNode.Children.IsNullOrEmpty() && grandParentNode is not null && grandParentNode.IsFile) {
 			parentNode.CanBeConstant = true;
 		}
@@ -901,8 +697,8 @@ Subsections:
 	}
 
 
-	private void DoRenameLocalizationKeyAndNode() {
-		PopupDialog.Push(new KeyNameView() { DataContext = new KeyNameViewModel(this) });
+	private void DoRenameNode() {
+		PopupDialog.Push(new KeyNameView() { DataContext = new KeyNameViewModel(this, SelectedKeyNode) });
 	}
 
 	public void RenameLocalizationKeyAndNode(string newName) {
@@ -914,7 +710,7 @@ Subsections:
 		if (SelectedKeyNode.IsConstant) {
 			newName = "$" + newName;
 		}
-		if (LocalizationKeyNodes.Any(k => k.FullLabel == SelectedKeyNode.FullLabel)) {
+		if (KeyNodes.Any(k => k.FullLabel == SelectedKeyNode.FullLabel)) {
 			SelectedKeyNode.FullLabel = newName;
 		}
 		else {
@@ -924,15 +720,15 @@ Subsections:
 			SelectedKeyNode.FullLabel = blockKey;
 		}
 		UpdateChildFullLabels(SelectedKeyNode.Children, SelectedKeyNode.FullLabel);
-		if (SelectedLocalizationKey is not null) {
-			_localizationKeysDictionary.Remove(SelectedLocalizationKey.BlockKey);
-			SelectedLocalizationKey.BlockKey = SelectedKeyNode.FullLabel;
-			_localizationKeysDictionary.Add(SelectedLocalizationKey.BlockKey, SelectedLocalizationKey);
+		if (SelectedKey is not null) {
+			allKeys.Remove(SelectedKey.BlockKey);
+			SelectedKey.BlockKey = SelectedKeyNode.FullLabel;
+			allKeys.Add(SelectedKey.BlockKey, SelectedKey);
 		}
 	}
 
 	private void DoAddLocalizationKeyNode() {
-		PopupDialog.Push(new KeyNameView() { DataContext = new KeyNameViewModel(this, true) });
+		PopupDialog.Push(new KeyNameView() { DataContext = new KeyNameViewModel(this, null) });
 	}
 
 	public void AddLocalizationKeyNode(string newName) {
@@ -941,24 +737,16 @@ Subsections:
 		}
 		string blockKey = SelectedKeyNode.FullLabel + $".{newName}";
 		KeyNode nodeToAdd = new(newName, blockKey) {
-			IsSelected = true
+			IsSelected = true,
+			CanBeConstant = SelectedKeyNode.IsFile
 		};
-		SelectedKeyNode.Children.Add(nodeToAdd);
-		_AllKeyNodes.Add(nodeToAdd);
 		SelectedKeyNode.CanBeConstant = false;
 		SelectedKeyNode.IsExpanded = true;
 		SelectedKeyNode.IsSelected = false;
+		AllKeyNodes.Add(nodeToAdd);
+		SelectedKeyNode.Children.Add(nodeToAdd);
 		SelectedKeyNode = nodeToAdd;
-		KeyNode? parentNode = nodeToAdd.GetParentNode(LocalizationKeyNodes);
-		if (parentNode is not null && parentNode.IsFile && nodeToAdd.Children.Count == 0) {
-			nodeToAdd.CanBeConstant = true;
-		}
-		else {
-			nodeToAdd.CanBeConstant = false;
-		}
-		if (parentNode is not null) {
-			parentNode.CanBeConstant = false;
-		}
+		
 		IsDirty = true;
 	}
 
@@ -967,14 +755,14 @@ Subsections:
 		if (SelectedKeyNode is null) {
 			throw new InvalidDataException("Selected Node is null.");
 		}
-		LocalizationKey keyToAdd = new(SelectedKeyNode.FullLabel);
-		foreach (LocalizationLanguage language in LocalizationLanguages) {
-			keyToAdd.LanguageData[language.Code] = new();
+		WordsKey keyToAdd = new(SelectedKeyNode.FullLabel);
+		foreach (LanguageEntry language in KnownLanguages) {
+			keyToAdd.Entries[language.Code] = new();
 		}
-		LocalizationKeys.Add(keyToAdd);
-		_localizationKeysDictionary.Add(keyToAdd.BlockKey, keyToAdd);
-		SelectedLocalizationKey = keyToAdd;
-		SelectedLocalizationKeyLanguageData = keyToAdd.LanguageData[SelectedLocalizationLanguage.Code];
+		Keys.Add(keyToAdd);
+		allKeys.Add(keyToAdd.BlockKey, keyToAdd);
+		SelectedKey = keyToAdd;
+		SelectedEntry = keyToAdd.Entries[SelectedLanguage.Code];
 		IsDirty = true;
 	}
 
@@ -983,18 +771,18 @@ Subsections:
 			return;
 		}
 		string blockKeyToRemove = SelectedKeyNode.FullLabel;
-		for (int i = LocalizationKeys.Count - 1; i >= 0; i--) {
-			if (LocalizationKeys[i].BlockKey == blockKeyToRemove) {
-				LocalizationKeys.RemoveAt(i);
-				_localizationKeysDictionary.Remove(blockKeyToRemove);
+		for (int i = Keys.Count - 1; i >= 0; i--) {
+			if (Keys[i].BlockKey == blockKeyToRemove) {
+				Keys.RemoveAt(i);
+				allKeys.Remove(blockKeyToRemove);
 			}
 		}
 		SelectedKeyNode.IsConstant = false;
 		SelectedKeyNode.IsStale = false;
 		SelectedKeyNode.NeedsReview = false;
 		SelectedKeyNode.IsOverwritten = false;
-		SelectedLocalizationKey = null;
-		SelectedLocalizationKeyLanguageData = null;
+		SelectedKey = null;
+		SelectedEntry = null;
 		IsDirty = true;
 	}
 
@@ -1002,12 +790,12 @@ Subsections:
 	private void DoStaleAllLanguages() {
 		if (SelectedKeyNode is not null) {
 			string? selectedKeyLabel = SelectedKeyNode.FullLabel;
-			LocalizationKey? selectedLocalizationKey = LocalizationKeys.FirstOrDefault(key => key.BlockKey == selectedKeyLabel);
+			WordsKey? selectedLocalizationKey = Keys.FirstOrDefault(key => key.BlockKey == selectedKeyLabel);
 			if (selectedLocalizationKey != null) {
-				foreach (var languageData in selectedLocalizationKey.LanguageData.Values) {
-					languageData.StaleComment = DateTimeOffset.Now.ToString();
+				foreach (var languageData in selectedLocalizationKey.Entries.Values) {
+					languageData.Stale = DateTimeOffset.Now.ToString();
 				}
-				AffectProperty(nameof(SelectedLocalizationLanguage));
+				AffectProperty(nameof(SelectedLanguage));
 			}
 			SelectedKeyNode.IsStale = true;
 			IsDirty = true;
@@ -1021,68 +809,68 @@ Subsections:
 		if (SelectedKeyNode is not null) {
 			string? selectedKeyLabel = SelectedKeyNode.FullLabel;
 
-			LocalizationKey? selectedLocalizationKey = LocalizationKeys.FirstOrDefault(key => key.BlockKey == selectedKeyLabel);
+			WordsKey? selectedLocalizationKey = Keys.FirstOrDefault(key => key.BlockKey == selectedKeyLabel);
 
 			if (selectedLocalizationKey != null) {
-				if (selectedLocalizationKey.LanguageData[languageCode].StaleComment is null) {
-					selectedLocalizationKey.LanguageData[languageCode].StaleComment = DateTimeOffset.Now.ToString();
+				if (selectedLocalizationKey.Entries[languageCode].Stale is null) {
+					selectedLocalizationKey.Entries[languageCode].Stale = DateTimeOffset.Now.ToString();
 					SelectedKeyNode.IsStale = true;
 				}
 				else {
-					selectedLocalizationKey.LanguageData[languageCode].StaleComment = null;
+					selectedLocalizationKey.Entries[languageCode].Stale = null;
 					SelectedKeyNode.IsStale = false;
 				}
 			}
-			AffectProperty(nameof(SelectedLocalizationLanguage));
+			AffectProperty(nameof(SelectedLanguage));
 			IsDirty = true;
 		}
 	}
 
 	private void DoToggleKeyNeedsReview() {
-		if (SelectedLocalizationKey is null || SelectedKeyNode is null) {
+		if (SelectedKey is null || SelectedKeyNode is null) {
 			return;
 		}
-		if (SelectedLocalizationKey.NeedsReview) {
-			SelectedLocalizationKey.NeedsReview = false;
+		if (SelectedKey.NeedsReview) {
+			SelectedKey.NeedsReview = false;
 			SelectedKeyNode.NeedsReview = false;
 		}
 		else {
-			SelectedLocalizationKey.NeedsReview = true;
+			SelectedKey.NeedsReview = true;
 			SelectedKeyNode.NeedsReview = true;
 		}
 	}
 
 	private void DoToggleLocalizationKeyIsConstant() {
-		if (SelectedLocalizationKey is null || SelectedKeyNode is null) {
+		if (SelectedKey is null || SelectedKeyNode is null) {
 			return;
 		}
 		IsDirty = true;
-		if (SelectedLocalizationKey.IsConstant) {
+		if (SelectedKey.IsConstant) {
 			SelectedKeyNode.IsConstant = false;
-			SelectedLocalizationKey.IsConstant = false;
-			_localizationKeysDictionary.Remove(SelectedLocalizationKey.BlockKey);
-			SelectedLocalizationKey.BlockKey = SelectedLocalizationKey.BlockKey.Replace(".$", ".");
-			_localizationKeysDictionary.Add(SelectedLocalizationKey.BlockKey, SelectedLocalizationKey);
+			SelectedKey.IsConstant = false;
+			allKeys.Remove(SelectedKey.BlockKey);
+			SelectedKey.BlockKey = SelectedKey.BlockKey.Replace(".$", ".");
+			allKeys.Add(SelectedKey.BlockKey, SelectedKey);
 			SelectedKeyNode.FullLabel = SelectedKeyNode.FullLabel.Replace(".$", ".");
-			SelectedLocalizationKeyLanguageData = SelectedLocalizationKey.LanguageData[SelectedLocalizationLanguage.Code];
+			SelectedEntry = SelectedKey.Entries[SelectedLanguage.Code];
 		}
 		else {
 			SelectedKeyNode.IsConstant = true;
 			SelectedKeyNode.IsStale = false;
 			SelectedKeyNode.IsOverwritten = false;
-			SelectedLocalizationKey.IsConstant = true;
-			_localizationKeysDictionary.Remove(SelectedLocalizationKey.BlockKey);
-			SelectedLocalizationKey.BlockKey = SelectedLocalizationKey.BlockKey.Replace(".", ".$");
-			_localizationKeysDictionary.Add(SelectedLocalizationKey.BlockKey, SelectedLocalizationKey);
+			SelectedKey.IsConstant = true;
+			allKeys.Remove(SelectedKey.BlockKey);
+			SelectedKey.BlockKey = SelectedKey.BlockKey.Replace(".", ".$");
+			allKeys.Add(SelectedKey.BlockKey, SelectedKey);
 			SelectedKeyNode.FullLabel = SelectedKeyNode.FullLabel.Replace(".", ".$");
-			SelectedLocalizationKeyLanguageData = null;
-			foreach (string key in _localizationKeysDictionary[SelectedKeyNode.FullLabel].LanguageData.Keys) {
-				_localizationKeysDictionary[SelectedKeyNode.FullLabel].LanguageData[key] = new LocalizationKeyLanguageData();
+			SelectedEntry = null;
+			foreach (string key in allKeys[SelectedKeyNode.FullLabel].Entries.Keys) {
+				allKeys[SelectedKeyNode.FullLabel].Entries[key] = new WordsEntry();
 			}
 		}
 	}
 
-	private void DoTestParameters(ObservableCollection<LocalizationParameter> parameters) {
+	private void DoTestParameters(ObservableCollection<WordsParameter> parameters) {
 		PopupDialog.Push(new TestParametersView() { DataContext = new TestParametersViewModel(this, parameters) });
 	}
 
@@ -1102,16 +890,14 @@ Subsections:
 		IsDirty = true;
 		foreach (KeyNode childNode in childNodes) {
 			string newFullLabel = parentFullLabel + $".{childNode.Label}";
-			if (_localizationKeysDictionary.ContainsKey(childNode.FullLabel)) {
-				LocalizationKey keyToUpdate = _localizationKeysDictionary[childNode.FullLabel];
-				_localizationKeysDictionary.Remove(keyToUpdate.BlockKey);
-				if (_localizationKeysDictionary.ContainsKey(newFullLabel)) {
-					_localizationKeysDictionary.Remove(newFullLabel);
-					int indexToRemove = LocalizationKeys.FindIndex(localizationKey => localizationKey.BlockKey == newFullLabel);
-					LocalizationKeys.RemoveAt(indexToRemove);
+			if (allKeys.TryGetValue(childNode.FullLabel, out var keyToUpdate)) {
+				allKeys.Remove(keyToUpdate.BlockKey);
+				if (allKeys.Remove(newFullLabel)) {
+					int indexToRemove = Keys.FindIndex(localizationKey => localizationKey.BlockKey == newFullLabel);
+					Keys.RemoveAt(indexToRemove);
 				}
 				keyToUpdate.BlockKey = newFullLabel;
-				_localizationKeysDictionary.Add(newFullLabel, keyToUpdate);
+				allKeys.Add(newFullLabel, keyToUpdate);
 			}
 			childNode.FullLabel = newFullLabel;
 			if (childNode.Children.Count > 0) {
@@ -1120,7 +906,7 @@ Subsections:
 		}
 	}
 
-	public void UpdateChildFullLabelsWithoutKeys(IEnumerable<KeyNode> childNodes, string parentFullLabel) {
+	public static void UpdateChildFullLabelsWithoutKeys(IEnumerable<KeyNode> childNodes, string parentFullLabel) {
 		foreach (KeyNode childNode in childNodes) {
 			string newFullLabel = parentFullLabel + $".{childNode.Label}";
 			childNode.FullLabel = newFullLabel;
@@ -1138,27 +924,24 @@ Subsections:
 		if (oldKey == newKey) {
 			return;
 		}
-		if (!_localizationKeysDictionary.TryGetValue(oldKey, out var keyToUpdate)) {
+		if (!allKeys.TryGetValue(oldKey, out var keyToUpdate)) {
 			return;
 		}
-		_localizationKeysDictionary.Remove(oldKey);
-		if (_localizationKeysDictionary.ContainsKey(newKey)) {
-			_localizationKeysDictionary.Remove(newKey);
-			int indexToRemove = LocalizationKeys.FindIndex(localizationKey => localizationKey.BlockKey == newKey);
-			LocalizationKeys.RemoveAt(indexToRemove);
+		allKeys.Remove(oldKey);
+		if (allKeys.Remove(newKey)) {
+			int indexToRemove = Keys.FindIndex(localizationKey => localizationKey.BlockKey == newKey);
+			Keys.RemoveAt(indexToRemove);
 		}
 		keyToUpdate.BlockKey = newKey;
-		_localizationKeysDictionary.Add(keyToUpdate.BlockKey, keyToUpdate);
+		allKeys.Add(keyToUpdate.BlockKey, keyToUpdate);
 		IsDirty = true;
 	}
 
 
 	//WordsProvider
-	public IWordsProvider GetWordsProvider(string fileName) {
-		return new LocalizationDefaultWordsProvider(_localizationKeysDictionary, fileName);
-	}
+	public IWordsProvider GetWordsProvider(string fileName)
+		=> new DefaultWordsProvider(allKeys, fileName);
 
-	public IWordsProvider GetWordsProvider(string languageCode, string fileName) {
-		return new LocalizationLanguageWordsProvider(_localizationKeysDictionary, languageCode, fileName);
-	}
+	public IWordsProvider GetWordsProvider(string languageCode, string fileName)
+		=> new LanguageWordsProvider(allKeys, languageCode, fileName);
 }

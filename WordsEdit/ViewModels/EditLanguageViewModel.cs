@@ -8,148 +8,98 @@ using WordsEdit.Views;
 namespace WordsEdit.ViewModels;
 
 internal class EditLanguageViewModel : DataViewModelBase {
-	private LanguageManagerViewModel _LanguageManagerViewModel;
-	public LanguageManagerViewModel LanguageManagerViewModel {
-		get => _LanguageManagerViewModel;
-		set => ChangeProperty(ref _LanguageManagerViewModel, value);
-	}
+	public LanguageManagerViewModel Parent { get; }
+	public string LanguageCode { get; set => _ = ChangeProperty(ref field, value) && Validate(); } = "";
+	public string NativeName { get; set => _ = ChangeProperty(ref field, value) && Validate(); } = "";
+	public string EnglishName { get; set => _ = ChangeProperty(ref field, value) && Validate(); } = "";
 
-	private string? _LanguageCode;
-	public string LanguageCode {
-		get => _LanguageCode ?? "";
-		set => ChangeProperty(ref _LanguageCode, value);
-	}
+	[MemberNotNullWhen(true, nameof(editing))]
+	public bool IsEdit => editing is not null;
 
-	private string? _LanguageNativeName;
-	public string LanguageNativeName {
-		get => _LanguageNativeName ?? "";
-		set => ChangeProperty(ref _LanguageNativeName, value);
-	}
-
-	private string? _LanguageEnglishName;
-	public string LanguageEnglishName {
-		get => _LanguageEnglishName ?? "";
-		set => ChangeProperty(ref _LanguageEnglishName, value);
-	}
-
-	private bool _IsEdit;
-	public bool IsEdit {
-		get => _IsEdit;
-		set => ChangeProperty(ref _IsEdit, value);
-	}
-
-	private readonly Regex LanguageCodeRegex = new Regex(
+	private readonly Regex rxLangCode = new Regex(
 			@"^[a-z]{2}(-[a-zA-Z]+)?$",
 			RegexOptions.Compiled | RegexOptions.ExplicitCapture);
+	private LanguageEntry? editing;
 
 	public ICommand CancelCommand { get; }
 	public ICommand AddLanguageCommand { get; }
 	public ICommand EditLanguageCommand { get; }
 
-	public EditLanguageViewModel(LanguageManagerViewModel languageManagerViewModel) {
-		ArgumentNullException.ThrowIfNull(languageManagerViewModel);
+	public EditLanguageViewModel(LanguageManagerViewModel parent) {
+		ArgumentNullException.ThrowIfNull(parent);
 
-		_LanguageManagerViewModel = languageManagerViewModel;
 		CancelCommand = new DelegateCommand(DoCancel);
-		AddLanguageCommand = new DelegateCommand(DoAddLanguage);
-		EditLanguageCommand = new DelegateCommand(DoEditLanguage);
+		AddLanguageCommand = new DelegateCommand(DoAddLanguage, CanAddLanguage);
+		EditLanguageCommand = new DelegateCommand(DoEditLanguage, CanEditLanguage);
+
+		Parent = parent;
 	}
 
-	public EditLanguageViewModel(LanguageManagerViewModel languageManagerViewModel, LocalizationLanguage selectedLocalizationLanguage) {
-		_LanguageManagerViewModel = languageManagerViewModel;
-		_LanguageCode = selectedLocalizationLanguage.Code;
-		_LanguageNativeName = selectedLocalizationLanguage.NativeName;
-		_LanguageEnglishName = selectedLocalizationLanguage.EnglishName;
-		_IsEdit = true;
-		CancelCommand = new DelegateCommand(DoCancel);
-		AddLanguageCommand = new DelegateCommand(DoAddLanguage);
-		EditLanguageCommand = new DelegateCommand(DoEditLanguage);
+	public EditLanguageViewModel(LanguageManagerViewModel parent, LanguageEntry language) : this(parent) {
+		editing = language;
+		LanguageCode = language.Code;
+		NativeName = language.NativeName;
+		EnglishName = language.EnglishName;
 	}
 
+	private bool CanAddLanguage() => !HasErrors;
 	private void DoAddLanguage() {
-		ClearAllErrors();
-		LanguageEnglishName = LanguageEnglishName.Trim();
-		LanguageNativeName = LanguageNativeName.Trim();
-		LanguageCode = LanguageCode.Trim();
-		if (!LanguageCodeRegex.IsMatch(LanguageCode)) {
-			SetError("Invalid Language Code", nameof(LanguageCode));
-			return;
-		}
-		if (string.IsNullOrWhiteSpace(LanguageNativeName)) {
-			SetError("Invalid Language Name", nameof(LanguageNativeName));
-			return;
-		}
-		if (string.IsNullOrWhiteSpace(LanguageEnglishName)) {
-			SetError("Invalid Language Name", nameof(LanguageEnglishName));
-			return;
-		}
-		foreach (LocalizationLanguage language in LanguageManagerViewModel.LocalizationLanguages) {
-			if (LanguageCode == language.Code) {
-				SetError("Already exists.", nameof(LanguageCode));
-				return;
-			}
-			else if (LanguageNativeName == language.NativeName) {
-				SetError("Already exists.", nameof(LanguageNativeName));
-				return;
-			}
-			else if (LanguageEnglishName == language.EnglishName) {
-				SetError("Already exists.", nameof(LanguageEnglishName));
-				return;
-			}
-		}
-		LocalizationLanguage languageToAdd = new(LanguageCode, LanguageNativeName) { EnglishName = LanguageEnglishName, };
-		LanguageManagerViewModel.AddLocalizationLanguage(languageToAdd);
-		PopupDialog.Push(new LanguageManagerView() { DataContext = LanguageManagerViewModel });
+		if (!Validate()) return;
+		editing = new(LanguageCode, NativeName) { EnglishName = EnglishName, };
+		Parent.AddLanguage(editing);
+		PopupDialog.Push(new LanguageManagerView() { DataContext = Parent });
 	}
 
+	private bool CanEditLanguage() => !HasErrors;
 	private void DoEditLanguage() {
-		ClearAllErrors();
-		LanguageEnglishName = LanguageEnglishName.Trim();
-		LanguageNativeName = LanguageNativeName.Trim();
-		LanguageCode = LanguageCode.Trim();
-		if (!LanguageCodeRegex.IsMatch(LanguageCode)) {
-			SetError("Invalid Language Code", nameof(LanguageCode));
+		if (!Validate()) return;
+		if (LanguageCode == editing!.Code && NativeName == editing.NativeName && EnglishName == editing.EnglishName) {
+			// Nothing to do.
+			PopupDialog.Push(new LanguageManagerView() { DataContext = Parent });
 			return;
 		}
-		if (string.IsNullOrWhiteSpace(LanguageNativeName)) {
-			SetError("Invalid Native Language Name", nameof(LanguageNativeName));
-			return;
-		}
-		if (string.IsNullOrWhiteSpace(LanguageEnglishName)) {
-			SetError("Invalid English Language Name", nameof(LanguageEnglishName));
-			return;
-		}
-		if (LanguageCode == LanguageManagerViewModel.SelectedLocalizationLanguage.Code && LanguageNativeName == LanguageManagerViewModel.SelectedLocalizationLanguage.NativeName && LanguageEnglishName == LanguageManagerViewModel.SelectedLocalizationLanguage.EnglishName) {
-			PopupDialog.Push(new LanguageManagerView() { DataContext = LanguageManagerViewModel });
-			return;
-		}
-		foreach (LocalizationLanguage language in LanguageManagerViewModel.LocalizationLanguages) {
-			if (LanguageCode == language.Code || LanguageNativeName == language.NativeName || LanguageEnglishName == language.EnglishName) {
-				if (LanguageCode == LanguageManagerViewModel.SelectedLocalizationLanguage.Code || LanguageNativeName == LanguageManagerViewModel.SelectedLocalizationLanguage.NativeName || LanguageEnglishName == LanguageManagerViewModel.SelectedLocalizationLanguage.EnglishName) {
-					continue;
-				}
-				if (LanguageCode == language.Code) {
-					SetError("Already exists.", nameof(LanguageCode));
-					return;
-				}
-				else if (LanguageNativeName == language.NativeName) {
-					SetError("Already exists.", nameof(LanguageNativeName));
-					return;
-				}
-				else if (LanguageEnglishName == language.EnglishName) {
-					SetError("Already exists.", nameof(LanguageEnglishName));
-					return;
-				}
-			}
-		}
-		LocalizationLanguage languageToEdit = new(LanguageCode, LanguageNativeName) { EnglishName = LanguageEnglishName };
-		LanguageManagerViewModel.EditLocalizationLanguage(languageToEdit);
-		PopupDialog.Push(new LanguageManagerView() { DataContext = LanguageManagerViewModel });
+
+		editing = new(LanguageCode, NativeName) { EnglishName = EnglishName };
+		Parent.EditLanguage(editing);
+		PopupDialog.Push(new LanguageManagerView() { DataContext = Parent });
 	}
 
 	private void DoCancel() {
-		PopupDialog.Push(new LanguageManagerView() { DataContext = LanguageManagerViewModel });
+		PopupDialog.Push(new LanguageManagerView() { DataContext = Parent });
 	}
 
-	protected override bool Validate([AllowNull, CallerMemberName] string propertyName = null) => throw new NotImplementedException();
+	protected override bool Validate([CallerMemberName] string? propertyName = "") {
+		bool all = string.IsNullOrEmpty(propertyName);
+
+		if (all || propertyName is nameof(LanguageCode)) {
+			ClearErrors(nameof(LanguageCode));
+			if (!rxLangCode.IsMatch(LanguageCode)) {
+				SetError("Invalid Language Code", nameof(LanguageCode));
+			}
+			else if (Parent.KnownLanguages.Any(known => known != editing && known.Code == LanguageCode)) {
+				SetError("Already exists", nameof(LanguageCode));
+			}
+		}
+
+		if (all || propertyName is nameof(NativeName)) {
+			if (string.IsNullOrWhiteSpace(NativeName)) {
+				SetError("Value Required", nameof(NativeName));
+			}
+			else if (Parent.KnownLanguages.Any(known => known != editing && known.NativeName == NativeName)) {
+				SetError("Already exists", nameof(NativeName));
+			}
+		}
+
+		if (all || propertyName is nameof(EnglishName)) {
+			if (string.IsNullOrWhiteSpace(EnglishName)) {
+				SetError("Value Required", nameof(EnglishName));
+			}
+			else if (Parent.KnownLanguages.Any(known => known != editing && known.EnglishName == EnglishName)) {
+				SetError("Already exists", nameof(EnglishName));
+			}
+		}
+
+		if (all) return !HasErrors;
+		return IsValid(propertyName!);
+	}
 }

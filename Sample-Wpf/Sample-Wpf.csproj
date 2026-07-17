@@ -10,7 +10,19 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Assets\words.ini" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\words.ini" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="PatTech.Localization.Analyzer" Version="1.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Localization-Wpf\Localization-Wpf.csproj" />
   </ItemGroup>
 
 </Project>

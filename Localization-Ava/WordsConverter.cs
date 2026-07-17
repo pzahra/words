@@ -1,7 +1,7 @@
 ﻿using Avalonia.Data.Converters;
 using System.Globalization;
 
-namespace PatTech.Localization.Ava;
+namespace PatTech.Localization.Avalonia;
 
 /// <summary>
 /// Provides value conversion for localization by substituting values into localized string templates using a specified

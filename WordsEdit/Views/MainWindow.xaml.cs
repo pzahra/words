@@ -36,15 +36,15 @@ public partial class MainWindow : Window {
 		if (DataContext is not MainWindowViewModel vm) {
 			throw new InvalidOperationException("Bad View Model");
 		}
-		if (vm.SelectedLocalizationKey is null) {
+		if (vm.SelectedKey is null) {
 			throw new InvalidOperationException("Selected Localization Key is null");
 		}
-		string fileName = vm.SelectedLocalizationKey.BlockKey.Split('.')[0];
+		string fileName = vm.SelectedKey.BlockKey.Split('.')[0];
 		IWordsProvider wordsProvider = vm.GetWordsProvider(fileName);
-		string defaultValue = Words.RenderKey(wordsProvider, vm.SelectedLocalizationKey.BlockKey);
-		if (vm.SelectedLocalizationKey.Parameters.Count != 0) {
+		string defaultValue = Words.RenderKey(wordsProvider, vm.SelectedKey.BlockKey);
+		if (vm.SelectedKey.Parameters.Count != 0) {
 			try {
-				defaultValue = FormatParameters(defaultValue, vm.SelectedLocalizationKey.Parameters);
+				defaultValue = FormatParameters(defaultValue, vm.SelectedKey.Parameters);
 			}
 			catch (Exception ex) {
 				PopupDialog.Push(ex.Message);
@@ -65,15 +65,15 @@ public partial class MainWindow : Window {
 		if (DataContext is not MainWindowViewModel vm) {
 			throw new InvalidOperationException("Bad View Model");
 		}
-		if (vm.SelectedLocalizationKey is null) {
+		if (vm.SelectedKey is null) {
 			throw new InvalidOperationException("Selected Localization Key is null");
 		}
-		string fileName = vm.SelectedLocalizationKey.BlockKey.Split('.')[0];
-		IWordsProvider wordsProvider = vm.GetWordsProvider(vm.SelectedLocalizationLanguage.Code, fileName);
-		string localizationValue = Words.RenderKey(wordsProvider, vm.SelectedLocalizationKey.BlockKey);
-		if (vm.SelectedLocalizationKey.Parameters.Count != 0) {
+		string fileName = vm.SelectedKey.BlockKey.Split('.')[0];
+		IWordsProvider wordsProvider = vm.GetWordsProvider(vm.SelectedLanguage.Code, fileName);
+		string localizationValue = Words.RenderKey(wordsProvider, vm.SelectedKey.BlockKey);
+		if (vm.SelectedKey.Parameters.Count != 0) {
 			try {
-				localizationValue = FormatParameters(localizationValue, vm.SelectedLocalizationKey.Parameters);
+				localizationValue = FormatParameters(localizationValue, vm.SelectedKey.Parameters);
 			}
 			catch (Exception ex) {
 				PopupDialog.Push(ex.Message);
@@ -90,8 +90,8 @@ public partial class MainWindow : Window {
 		LocalizationValuePreview.Visibility = Visibility.Collapsed;
 	}
 
-	public static string FormatParameters(string value, ObservableCollection<LocalizationParameter> parameters) {
-		foreach (LocalizationParameter parameter in parameters) {
+	public static string FormatParameters(string value, ObservableCollection<WordsParameter> parameters) {
+		foreach (WordsParameter parameter in parameters) {
 			string placeholder = @"\{" + parameter.Key + @"(:[^}]+)?\}";
 			value = Regex.Replace(
 				value,

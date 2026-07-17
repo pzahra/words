@@ -3,7 +3,7 @@ using Avalonia.Controls.Documents;
 using Avalonia.Data.Converters;
 using System.Globalization;
 
-namespace PatTech.Localization.Ava;
+namespace PatTech.Localization.Avalonia;
 
 public class MarkdownConverter : IValueConverter {
 	private static readonly MarkdownParser markdown = new();

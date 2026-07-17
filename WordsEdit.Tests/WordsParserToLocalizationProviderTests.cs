@@ -28,7 +28,7 @@ stale=
 value-en-US=US value
 context-en-US=US context
 comment-en-GB=GB comment
-stale-en-GB=05/11/2023 10:30:00 -03:00
+stale-en-GB=2023/05/11 10:30:00 -03:00
 
 value-en-US=Override check
 value-en-GB=BritishValue
@@ -45,38 +45,23 @@ value-en-GB=BritishValue
 	}
 
 	[Fact]
-	public void WordsParserToLocalizationProvider_ListAndDictionaryHaveSameKeysTest() {
-		//Arrange+Act
-		var provider = CreateProvider();
-
-		//Assert
-		IReadOnlyDictionary<string, LocalizationKey> localizationKeyDictionary;
-		IReadOnlyList<LocalizationKey> localizationKeyList;
-		localizationKeyDictionary = provider.LocalizationKeysDictionary;
-		localizationKeyList = provider.LocalizationKeys;
-		bool haveSameKeys = localizationKeyList.All(key => localizationKeyDictionary.ContainsKey(key.BlockKey))
-							&& localizationKeyDictionary.Values.All(key => localizationKeyList.Any(x => x == key));
-		Assert.True(haveSameKeys);
-	}
-
-	[Fact]
 	public void WordsParserToLocalizationProvider_KeysHaveAllAndOnlyKnownLanguagesTest() {
 		//Arrange+Act
 		var provider = CreateProvider();
 
 		//Assert
-		IReadOnlyList<LocalizationKey> localizationKeyList = provider.LocalizationKeys;
-		IReadOnlyDictionary<string, LocalizationLanguage> localizationLanguageDictionary = provider.LocalizationLanguagesDictionary;
+		var localizationKeyList = provider.WordKeys.Values.ToArray();
+		var localizationLanguageDictionary = provider.KnownLanguages;
 		bool keysContainAllLanguages = true;
 		bool keysContainOnlyKnownLanguages = true;
 		int languagesChecked;
 		int keyLanguages;
 
-		foreach (LocalizationKey localizationKey in localizationKeyList) {
+		foreach (WordsKey localizationKey in localizationKeyList) {
 			languagesChecked = 0;
-			keyLanguages = localizationKey.LanguageData.Keys.Count;
-			foreach (LocalizationLanguage language in localizationLanguageDictionary.Values) {
-				if (!localizationKey.LanguageData.ContainsKey(language.Code)) {
+			keyLanguages = localizationKey.Entries.Keys.Count;
+			foreach (LanguageEntry language in localizationLanguageDictionary.Values) {
+				if (!localizationKey.Entries.ContainsKey(language.Code)) {
 					keysContainAllLanguages = false;
 				}
 				languagesChecked++;
@@ -95,7 +80,7 @@ value-en-GB=BritishValue
 		var provider = CreateProvider();
 
 		//Assert
-		var localizationLanguagesDictionary = provider.LocalizationLanguagesDictionary;
+		var localizationLanguagesDictionary = provider.KnownLanguages;
 		Assert.Equal("English (Simplified)", localizationLanguagesDictionary["en-US"].NativeName);
 		Assert.Equal("English (Traditional)", localizationLanguagesDictionary["en-GB"].NativeName);
 	}
@@ -106,7 +91,7 @@ value-en-GB=BritishValue
 		var provider = CreateProvider();
 
 		//Assert
-		var localizationKeyDictionary = provider.LocalizationKeysDictionary;
+		var localizationKeyDictionary = provider.WordKeys;
 		Assert.Equal("key1", localizationKeyDictionary["key1"].BlockKey);
 		Assert.Equal("Default value", localizationKeyDictionary["key1"].DefaultValue);
 		Assert.Equal("context line 1\nsecond line\nthird line", localizationKeyDictionary["key1"].Context);
@@ -121,15 +106,15 @@ value-en-GB=BritishValue
 		Assert.Equal(typeof(DateTimeOffset), localizationKeyDictionary["key1"].Parameters[2].DataType.DataType);
 		Assert.Equal("6/13/2023", localizationKeyDictionary["key1"].Parameters[2].Value);
 		Assert.True(localizationKeyDictionary["key1"].NeedsReview);
-		Assert.Equal("Override check", localizationKeyDictionary["key1"].LanguageData["en-US"].Value);
-		Assert.Equal("US context", localizationKeyDictionary["key1"].LanguageData["en-US"].LanguageContext);
-		Assert.Equal("GB comment", localizationKeyDictionary["key1"].LanguageData["en-GB"].LanguageComment);
-		Assert.False(localizationKeyDictionary["key1"].LanguageHasStaleValue("en-US"));
-		Assert.Null(localizationKeyDictionary["key1"].LanguageData["en-US"].StaleComment);
-		Assert.True(localizationKeyDictionary["key1"].LanguageHasStaleValue("en-GB"));
+		Assert.Equal("Override check", localizationKeyDictionary["key1"].Entries["en-US"].Value);
+		Assert.Equal("US context", localizationKeyDictionary["key1"].Entries["en-US"].Context);
+		Assert.Equal("GB comment", localizationKeyDictionary["key1"].Entries["en-GB"].Comment);
+		Assert.False(localizationKeyDictionary["key1"].HasStaleValue("en-US"));
+		Assert.Null(localizationKeyDictionary["key1"].Entries["en-US"].Stale);
+		Assert.True(localizationKeyDictionary["key1"].HasStaleValue("en-GB"));
 		Assert.Equal(
-			DateTimeOffset.Parse("2023 - 05 - 11 10:30:00"),
-			DateTimeOffset.Parse(localizationKeyDictionary["key1"].LanguageData["en-GB"].StaleComment!));
+			DateTimeOffset.Parse("2023 - 05 - 11 10:30:00 -03:00"),
+			DateTimeOffset.Parse(localizationKeyDictionary["key1"].Entries["en-GB"].Stale!));
 		Assert.True(localizationKeyDictionary["$key2"].IsConstant);
 		Assert.False(localizationKeyDictionary["$key2"].NeedsReview);
 		Assert.True(localizationKeyDictionary.ContainsKey("key3"));

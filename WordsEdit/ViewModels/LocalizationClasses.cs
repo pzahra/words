@@ -7,181 +7,130 @@ using WordsEdit.Utils;
 
 namespace WordsEdit.ViewModels {
 
-	public class LocalizationKey : ViewModelBase {
-		private string _BlockKey;
-		public string BlockKey {
-			get => _BlockKey;
-			set => ChangeProperty(ref _BlockKey, value);
+	public class WordsKey : ViewModelBase {
+		public string BlockKey { get; set => ChangeProperty(ref field, value); }
+
+		public bool IsConstant { get; set => ChangeProperty(ref field, value); }
+
+		public string DefaultValue { get; set => ChangeProperty(ref field, value); }
+
+		public string Context { get; set => ChangeProperty(ref field, value); }
+
+		public string Comment { get; set => ChangeProperty(ref field, value); }
+
+		public bool NeedsReview { get; set => ChangeProperty(ref field, value); }
+
+		public ObservableCollection<WordsParameter> Parameters { get; } = [];
+
+		public Dictionary<string, WordsEntry> Entries { get; } = [];
+
+		public WordsKey(string blockKey) {
+			BlockKey = blockKey;
+			DefaultValue = "";
+			Context = "";
+			Comment = "";
 		}
 
-		private bool _IsConstant;
-		public bool IsConstant {
-			get => _IsConstant;
-			set => ChangeProperty(ref _IsConstant, value);
+		public WordsKey(WordsKey original) {
+			BlockKey = original.BlockKey;
+			IsConstant = original.IsConstant;
+			DefaultValue = original.DefaultValue;
+			Context = original.Context;
+			Comment = original.Comment;
+			Entries = original.Entries.ToDictionary(k => k.Key, v => new WordsEntry(v.Value));
 		}
 
-		private string _DefaultValue = "";
-		public string DefaultValue {
-			get => _DefaultValue;
-			set => ChangeProperty(ref _DefaultValue, value);
+		public bool IsEmpty()
+			=> IsConstant == false
+			&& DefaultValue == ""
+			&& Context == ""
+			&& Comment == ""
+			&& Parameters.Count == 0
+			&& NeedsReview == false
+			&& Entries.Values.All(entry => entry.IsEmpty());
+
+		public bool HasStaleValue(string languageCode)
+			=> Entries[languageCode].Stale is not null;
+	}
+
+	public class WordsEntry : ViewModelBase {
+		public string Value { get; set => ChangeProperty(ref field, value); }
+
+		public string? Stale { get; set => ChangeProperty(ref field, value); }
+
+		public string Context { get; set => ChangeProperty(ref field, value); }
+
+		public string Comment { get; set => ChangeProperty(ref field, value); }
+
+		public WordsEntry() {
+			Value = "";
+			Stale = "";
+			Context = "";
+			Comment = "";
 		}
 
-		private string _Context = "";
-		public string Context {
-			get => _Context;
-			set => ChangeProperty(ref _Context, value);
+		public WordsEntry(WordsEntry original) {
+			Value = original.Value;
+			Stale = original.Stale;
+			Context = original.Context;
+			Comment = original.Comment;
 		}
 
-		private string _Comment = "";
-		public string Comment {
-			get => _Comment;
-			set => ChangeProperty(ref _Comment, value);
+		public bool IsEmpty()
+			=> Value == ""
+			&& Stale is null
+			&& Context == ""
+			&& Comment == "";
+	}
+
+	public class LanguageEntry : ViewModelBase {
+		public string Code { get; set => ChangeProperty(ref field, value); }
+		/// <summary>From Value</summary>
+		public string NativeName { get; set => ChangeProperty(ref field, value); }
+		/// <summary>From Comment</summary>
+		public string EnglishName { get; set => ChangeProperty(ref field, value); }
+
+		public LanguageEntry(string code, string nativeName) {
+			Code = code;
+			NativeName = nativeName;
+			EnglishName = nativeName;
 		}
 
-		private bool _NeedsReview = false;
-		public bool NeedsReview {
-			get => _NeedsReview;
-			set => ChangeProperty(ref _NeedsReview, value);
+		public LanguageEntry(string code) {
+			Code = code;
+			NativeName = "MISSING NAME: " + code;
+			EnglishName = "MISSING NAME: " + code;
 		}
 
-		public ObservableCollection<LocalizationParameter> Parameters { get; } = new();
-
-		public Dictionary<string, LocalizationKeyLanguageData> LanguageData { get; } = new();
-
-		public LocalizationKey(string blockKey) {
-			_BlockKey = blockKey;
-		}
-
-		public LocalizationKey(LocalizationKey original) {
-			_BlockKey = original._BlockKey;
-			_IsConstant = original._IsConstant;
-			_DefaultValue = original._DefaultValue;
-			_Context = original._Context;
-			_Comment = original._Comment;
-			LanguageData = new Dictionary<string, LocalizationKeyLanguageData>();
-			foreach (var kvp in original.LanguageData) {
-				LocalizationKeyLanguageData languageData = new LocalizationKeyLanguageData(kvp.Value);
-				LanguageData.Add(kvp.Key, languageData);
-			}
-		}
-
-		public bool IsEmpty() {
-			if(_IsConstant == false &&  _DefaultValue == "" && _Context == ""
-					&& _Comment == "" && Parameters.Count == 0 && NeedsReview == false) {
-				if (LanguageData.Values.All(localizationKeyLanguageData => localizationKeyLanguageData.IsEmpty())) {
-					return true;
-				}
-			}
-			return false;
-		}
-
-		public bool LanguageHasStaleValue(string languageCode) {
-			return LanguageData[languageCode].StaleComment is not null;
+		public LanguageEntry(LanguageEntry other) {
+			Code = other.Code;
+			NativeName = other.NativeName;
+			EnglishName = other.EnglishName;
 		}
 	}
 
-	public class LocalizationKeyLanguageData : ViewModelBase {
-		private string _Value = "";
-		public string Value {
-			get => _Value;
-			set => ChangeProperty(ref _Value, value);
-		}
-
-		private string? _StaleComment;
-		public string? StaleComment {
-			get => _StaleComment;
-			set => ChangeProperty(ref _StaleComment, value);
-		}
-
-		private string _LanguageContext = "";
-		public string LanguageContext {
-			get => _LanguageContext;
-			set => ChangeProperty(ref _LanguageContext, value);
-		}
-
-		private string _LanguageComment = "";
-		public string LanguageComment {
-			get => _LanguageComment;
-			set => ChangeProperty(ref _LanguageComment, value);
-		}
-
-		public LocalizationKeyLanguageData() { }
-
-		public LocalizationKeyLanguageData(LocalizationKeyLanguageData original) {
-			_Value = original._Value;
-			_StaleComment = original._StaleComment;
-			_LanguageContext = original._LanguageContext;
-			_LanguageComment = original._LanguageComment;
-		}
-
-		public bool IsEmpty() {
-			if (Value == "" && _StaleComment is null && _LanguageContext == "" && _LanguageComment == "") {
-				return true;
-			}
-			return false;
-		}
-
-	}
-
-	public class LocalizationLanguage : ViewModelBase {
-		private string _Code;
-		public string Code {
-			get => _Code;
-			set => ChangeProperty(ref _Code, value);
-		}
-
-		private string _NativeName = "";
-		public string NativeName {
-			get => _NativeName;
-			set => ChangeProperty(ref _NativeName, value);
-		}
-
-		private string _EnglishName = "";
-		public string EnglishName {
-			get => _EnglishName;
-			set => ChangeProperty(ref _EnglishName, value);
-		}
-
-		public LocalizationLanguage(string code, string nativeName) {
-			_Code = code;
-			_NativeName = nativeName;
-			_EnglishName = _NativeName;
-		}
-
-		public LocalizationLanguage(string code) {
-			_Code = code;
-			_NativeName = "MISSING NAME: " + code;
-			_EnglishName = "MISSING NAME: " + code;
-		}
-
-		public LocalizationLanguage(LocalizationLanguage other) {
-			_Code = other.Code;
-			_NativeName = other.NativeName;
-			_EnglishName = other.EnglishName;
-		}
-	}
-
-	public class LocalizationParameter : ViewModelBase {
-		private string _Key = "";
+	public class WordsParameter : ViewModelBase {
 		public string Key {
-			get => _Key;
-			set => ChangeProperty(ref _Key, value);
+			get => field;
+			set => ChangeProperty(ref field, value);
 		}
 
-		private string _Value = "";
 		public string Value {
-			get => _Value;
-			set => ChangeProperty(ref _Value, value);
+			get => field;
+			set => ChangeProperty(ref field, value);
 		}
 
-		private LocalizationParameterType _DataType = LocalizationParameterType.String;
-		public LocalizationParameterType DataType {
-			get => _DataType;
-			set => ChangeProperty(ref _DataType, value);
+		public WordsParameterType DataType {
+			get => field;
+			set => ChangeProperty(ref field, value);
 		}
-		public LocalizationParameter() { }
+		public WordsParameter(string key, WordsParameterType dataType, string value) {
+			Key = key;
+			DataType = dataType;
+			Value = value;
+		}
 
-		public LocalizationParameter(LocalizationParameter parameter) {
+		public WordsParameter(WordsParameter parameter) {
 			Key = parameter.Key;
 			Value = parameter.Value;
 			DataType = parameter.DataType;
@@ -190,52 +139,36 @@ namespace WordsEdit.ViewModels {
 		public object ToObject() => DataType.Parse(Key, Value);
 	}
 
-	public class LocalizationParameterType {
-		public static readonly LocalizationParameterType[] All = new LocalizationParameterType[] {
+	public class WordsParameterType(string name, Type dataType, Func<string, object?> parse) {
+		public static readonly WordsParameterType[] All = [
 			new("String", typeof(string), v => v),
 			new("Integer", typeof(int), v => int.TryParse(v, out var result) ? result : null),
 			new("Double", typeof(double), v => double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out var result) ? result : null),
 			new("TimeSpan", typeof(TimeSpan), v => TimeSpan.TryParse(v, CultureInfo.InvariantCulture, out var result) ? result : null),
 			new("DateTimeOffset", typeof(DateTimeOffset), v => DateTimeOffset.TryParse(v, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var result) ? result : null),
-		};
-		public static readonly LocalizationParameterType String = All[0];
-		public static LocalizationParameterType Select(string name) => All.FirstOrDefault(t => t.Name == name) ?? String;
+		];
+		public static readonly WordsParameterType String = All[0];
+		public static WordsParameterType Select(string name) => All.FirstOrDefault(t => t.Name == name) ?? String;
 
-		public string Name { get; }
-		public Type DataType { get; }
+		public string Name { get; } = name;
+		public Type DataType { get; } = dataType;
 
-		private readonly Func<string, string, object> ParseCore;
-
-		public LocalizationParameterType(string name, Type dataType, Func<string, object?> parse) {
-			Name = name;
-			DataType = dataType;
-			ParseCore = (key, value) => parse(value)
+		private readonly Func<string, string, object> ParseCore = (key, value) => parse(value)
 				?? throw new FormatException($"Invalid value \"{value}\" for parameter {key} of type {name}");
-		}
 
 		public object Parse(string key, string value) => ParseCore(key, value);
 	}
 
-	public class LocalizationDefaultWordsProvider : IWordsProvider {
-		readonly Dictionary<string, LocalizationKey> _localizationKeyDictionary;
-		readonly string _fileName;
+	public class DefaultWordsProvider(Dictionary<string, WordsKey> keys, string fileName) : IWordsProvider {
+		public string this[string key] => throw new NotImplementedException();
 
-		public LocalizationDefaultWordsProvider(Dictionary<string, LocalizationKey> localizationKeyDictionary, string fileName) {
-			_localizationKeyDictionary = localizationKeyDictionary;
-			_fileName = fileName;
-		}
-		public string this[[DisallowNull] string key] => throw new NotImplementedException();
+		public bool ContainsKey(string key) => keys.ContainsKey(key);
 
-		public bool ContainsKey([DisallowNull] string key) {
-			return _localizationKeyDictionary.ContainsKey(key);
-		}
-		public bool TryGetValue([DisallowNull] string key, [MaybeNullWhen(false)] out string value) {
-			if (ContainsKey(key)) {
-				value = _localizationKeyDictionary[key].DefaultValue;
-				return true;
-			}
-			else if (ContainsKey($"{_fileName}.{key}")) {
-				value = _localizationKeyDictionary[$"{_fileName}.{key}"].DefaultValue;
+		public bool TryGetValue(string key, [MaybeNullWhen(false)] out string value) {
+			if (keys.TryGetValue(key, out var word)
+				|| keys.TryGetValue($"{fileName}.{key}", out word)
+			) {
+				value = word.DefaultValue;
 				return true;
 			}
 			else {
@@ -245,61 +178,50 @@ namespace WordsEdit.ViewModels {
 		}
 	}
 
-	public class LocalizationLanguageWordsProvider : IWordsProvider {
-		readonly Dictionary<string, LocalizationKey> _localizationKeyDictionary;
-		readonly string _primaryLanguageCode;
-		readonly string? _secondaryLanguageCode = null;
-		readonly string _fileName;
+	public class LanguageWordsProvider : IWordsProvider {
+		readonly Dictionary<string, WordsKey> keys;
+		readonly string code;
+		readonly string? family = null;
+		readonly string fileName;
 
-		public LocalizationLanguageWordsProvider(Dictionary<string, LocalizationKey> localizationKeyDictionary, string languageCode, string fileName) {
-			_localizationKeyDictionary = localizationKeyDictionary;
-			_primaryLanguageCode = languageCode;
-			if (languageCode.Contains('-')) {
-				_secondaryLanguageCode = languageCode[..languageCode.IndexOf('-')];
+		public LanguageWordsProvider(Dictionary<string, WordsKey> keys, string code, string fileName) {
+			this.keys = keys;
+			this.code = code;
+			if (code.Contains('-')) {
+				family = code[..code.IndexOf('-')];
 			}
-			_fileName = fileName;
+			this.fileName = fileName;
 		}
-		public string this[[DisallowNull] string key] => throw new NotImplementedException();
+		public string this[string key] => throw new NotImplementedException();
 
-		public bool ContainsKey([DisallowNull] string key) {
-			if (_localizationKeyDictionary.ContainsKey(key)
-				&& _localizationKeyDictionary[key].LanguageData.ContainsKey(_primaryLanguageCode)) {
-				return true;
+		public bool ContainsKey(string key) {
+			if (keys.TryGetValue(key, out var words)) {
+				if (words.Entries.ContainsKey(code)) {
+					return true;
+				}
+				if (family is not null && keys[key].Entries.ContainsKey(family)) {
+					return true;
+				}
 			}
-			else if (_localizationKeyDictionary.ContainsKey(key)
-				&& _secondaryLanguageCode is not null && _localizationKeyDictionary[key].LanguageData.ContainsKey(_secondaryLanguageCode)) {
-				return true;
-			}
-			else if (_localizationKeyDictionary.ContainsKey(key)) {
+
+			// CHECK: why throw away the earlier checks against langauge code?
+			if (keys.ContainsKey(key)) {
 				return true;
 			}
 			else {
 				return false;
 			}
 		}
-		public bool TryGetValue([DisallowNull] string key, [MaybeNullWhen(false)] out string value) {
-			if (ContainsKey(key)) {
-				if (_localizationKeyDictionary[key].LanguageData[_primaryLanguageCode].Value != "") {
-					value = _localizationKeyDictionary[key].LanguageData[_primaryLanguageCode].Value;
+		public bool TryGetValue(string key, [MaybeNullWhen(false)] out string value) {
+			if (keys.TryGetValue(key, out var words)
+				|| keys.TryGetValue($"{fileName}.{key}", out words)
+			) {
+				value = words.Entries[code].Value;
+				if (value is "" && family is not null) {
+					value = words.Entries[family].Value;
 				}
-				else if (_secondaryLanguageCode is not null && _localizationKeyDictionary[key].LanguageData[_secondaryLanguageCode].Value != "") {
-					value = _localizationKeyDictionary[key].LanguageData[_secondaryLanguageCode].Value;
-				}
-				else {
-					value = _localizationKeyDictionary[key].DefaultValue;
-				}
-				return true;
-			}
-			else if (ContainsKey($"{_fileName}.{key}")) {
-				if (_localizationKeyDictionary[$"{_fileName}.{key}"].LanguageData[_primaryLanguageCode].Value != "") {
-					value = _localizationKeyDictionary[$"{_fileName}.{key}"].LanguageData[_primaryLanguageCode].Value;
-				}
-				else if (_secondaryLanguageCode is not null
-					&& _localizationKeyDictionary[$"{_fileName}.{key}"].LanguageData[_secondaryLanguageCode].Value != "") {
-					value = _localizationKeyDictionary[$"{_fileName}.{key}"].LanguageData[_secondaryLanguageCode].Value;
-				}
-				else {
-					value = _localizationKeyDictionary[$"{_fileName}.{key}"].DefaultValue;
+				if (value is "") {
+					value = words.DefaultValue;
 				}
 				return true;
 			}
@@ -310,38 +232,22 @@ namespace WordsEdit.ViewModels {
 		}
 	}
 
-	public abstract class LocalizationViewModelSaveBase : ViewModelBase {
-
-		public string Title {
-			get {
-				var title = "Wordsmith Editor";
-				if (IsDirty) {
-					title += " *";
-				}
-				return title;
-			}
-		}
-
-		private bool _IsDirty;
-		public bool IsDirty {
-			get => _IsDirty;
-			set {
-				if (ChangeProperty(ref _IsDirty, value)) {
-					AffectProperty(nameof(Title));
-				}
-			}
-		}
+	public abstract class ViewModelSaveBase : ViewModelBase {
+		public string TitleMarked => IsDirty ? Title + " *" : Title;
+		public string Title { get; set => _ = ChangeProperty(ref field, value) && AffectProperty(nameof(TitleMarked)); } = "";
+		public bool IsDirty { get; set => _ = ChangeProperty(ref field, value) && AffectProperty(nameof(TitleMarked)); }
 
 		public abstract void Save();
 
 		protected bool ChangeProperty<T>(
-			[NotNullIfNotNull("newValue")] ref T field,
+			[NotNullIfNotNull(nameof(newValue))] ref T field,
 			T newValue,
 			bool dirty = false,
-			[DisallowNull, CallerMemberName] string propertyName = ""
+			[CallerMemberName] string propertyName = ""
 		) {
 			if (ChangeProperty(ref field, newValue, propertyName)) {
-				IsDirty |= dirty; return true;
+				IsDirty |= dirty;
+				return true;
 			}
 			return false;
 		}
