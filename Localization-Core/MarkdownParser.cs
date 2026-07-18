@@ -17,10 +17,8 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
  (?<basic>\*{1,3})(?=[\S-[*]])(?<text>.+?)(?<=[\S-[*]])\k<basic>
 |(?<basic>\^)(?=[\S-[\^]])(?<text>.+?)(?<=[\S-[\^]])\k<basic>
 |(?<basic>~)(?=[\S-[~]])(?<text>.+?)(?<=[\S-[~]])\k<basic>
-# full link `[text](url)` or `[label](url ""title"")`
-|\[(?<text>[^]]+)\]\(\s*(?<url>[^\s)]+)(\s+""(?<title>[^""]*)"")?\s*\)
-# simple image `!(url)` or `!(url ""title"")`
-|(?<image>!)\(\s*(?<url>[^\s)]+)(\s+""(?<title>[^""]*)"")?\s*\)
+# full link (or image) `[text](url)` or `[label](url ""title"")`
+|(?<image>!)\[(?<text>[^]]+)\]\(\s*(?<url>[^\s)]+)(\s+""(?<title>[^""]*)"")?\s*\)
 # simple link `<url>`
 |<\s*(?<text>(?<url>[^\s>]+))\s*>",
 		options: RegexOptions.Compiled
@@ -37,7 +35,7 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 	protected abstract TInline Span(IEnumerable<TInline> inlines);
 	protected abstract TInline Run(string text);
 	protected abstract TInline Hyperlink(TInline content, Uri target, string? tooltip);
-	protected abstract TInline Image(Uri source, string? tooltip);
+	protected abstract TInline Image(Uri source, string? altText, string? tooltip);
 	protected abstract void Embolden(ref TInline content);
 	protected abstract void Italicize(ref TInline content);
 	protected abstract void Subscript(ref TInline content);
@@ -142,7 +140,11 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 		if (match.TryGetGroup("title", out var titleGroup)) {
 			toolTip = DecodeText(titleGroup.Value);
 		}
-		return Image(new(url), toolTip);
+		string? altText = null;
+		if (match.TryGetGroup("content", out var altGroup)) {
+			altText = DecodeText(altGroup.Value);
+		}
+		return Image(new(url), altText, toolTip);
 	}
 
 	private TInline DecodeHyperlink(MarkdownElementType disallowedElements, Match match, string url) {
