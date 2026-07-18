@@ -9,9 +9,29 @@ using PathGeometry = Avalonia.Controls.Shapes.Path;
 
 namespace PatTech.Localization.Avalonia;
 
+/// <summary>
+///     Renders Words markdown as Avalonia <see cref="Inline"/> content: basic formatting
+///     (bold, italic, sub/superscript), hyperlinks, and images.
+/// </summary>
+/// <remarks>
+///     Image URIs honor the schemes <c>avares:</c> (embedded assets), <c>assets:</c>
+///     (files under the application's <c>Assets</c> folder), and <c>staticres:</c>
+///     (application resource by <c>x:Key</c> — <see cref="IImage"/>, <see cref="Geometry"/>,
+///     or any <see cref="Control"/>). The query string may carry <c>width</c>, <c>height</c>,
+///     <c>background</c>, and <c>foreground</c> options. Anything that fails to resolve
+///     degrades to the image's alt text.
+/// </remarks>
+/// <param name="baseFontSize">Font size the output is destined for; sets the sub/superscript size (80% of it) and the default height of geometry icons.</param>
+/// <param name="logger">An interface for passing on logging instructions to the caller.</param>
 public class MarkdownParser(float baseFontSize = 13, ITakeException? logger = null) : MarkdownParser<Inline>(logger), IMarkdownParser {
+	/// <summary>Creates a plain <see cref="global::Avalonia.Controls.Documents.Run"/> for unformatted text.</summary>
 	protected override Inline Run(string text) => new Run { Text = text };
+	/// <summary>Groups multiple inlines into a single <see cref="global::Avalonia.Controls.Documents.Span"/>.</summary>
 	protected override Inline Span(IEnumerable<Inline> inlines) => new Span { Inlines = [..inlines] };
+	/// <summary>
+	///     Wraps <paramref name="content"/> in a <see cref="PatTech.Localization.Avalonia.Hyperlink"/>
+	///     pointing at <paramref name="target"/>, underlined and blue in the traditional manner.
+	/// </summary>
 	protected override Inline Hyperlink(Inline content, Uri target, string? tooltip) {
 		content.TextDecorations = TextDecorations.Underline;
 		content.Foreground = Brushes.Blue;
@@ -22,6 +42,13 @@ public class MarkdownParser(float baseFontSize = 13, ITakeException? logger = nu
 		};
 	}
 
+	/// <summary>
+	///     Resolves an image URI to inline visual content according to its scheme
+	///     (<c>avares:</c>, <c>assets:</c>, or <c>staticres:</c> — see the class remarks),
+	///     applying any <c>width</c>/<c>height</c>/<c>background</c>/<c>foreground</c>
+	///     query options. Unknown schemes, missing resources, and load errors all fall back to
+	///     a <see cref="global::Avalonia.Controls.Documents.Run"/> holding <paramref name="altText"/>.
+	/// </summary>
 	protected override Inline Image(Uri source, string? altText, string? tooltip) {
 		try {
 			var scheme = (source.Scheme ?? string.Empty).ToLowerInvariant();
@@ -204,13 +231,17 @@ public class MarkdownParser(float baseFontSize = 13, ITakeException? logger = nu
 		}
 	}
 
+	/// <summary>Makes the content bold.</summary>
 	protected override void Embolden(ref Inline content) => content.FontWeight = FontWeight.Bold;
+	/// <summary>Makes the content italic.</summary>
 	protected override void Italicize(ref Inline content) => content.FontStyle = FontStyle.Italic;
+	/// <summary>Drops the content to subscript at 80% of the base font size.</summary>
 	protected override void Subscript(ref Inline content) {
 		content.BaselineAlignment = BaselineAlignment.Subscript;
 		content.FontSize = baseFontSize * 0.8f;
 		content = Span([content]);
 	}
+	/// <summary>Raises the content to superscript at 80% of the base font size.</summary>
 	protected override void Superscript(ref Inline content) {
 		content.BaselineAlignment = BaselineAlignment.Superscript;
 		content.FontSize = baseFontSize * 0.8f;
@@ -218,4 +249,7 @@ public class MarkdownParser(float baseFontSize = 13, ITakeException? logger = nu
 	}
 }
 
+/// <summary>
+/// A markdown parser that produces Avalonia <see cref="Inline"/> content.
+/// </summary>
 public interface IMarkdownParser : IMarkdownParser<Inline> { }

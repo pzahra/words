@@ -3,11 +3,26 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
 namespace PatTech.Localization {
+	/// <summary>
+	/// The standard <see cref="IWords"/> implementation: a flattened provider paired
+	/// with the culture of its language. Lookups render <c>{$constant}</c> and
+	/// <c>{&gt;key}</c> references via
+	/// <see cref="Words.RenderKey(IWordsProvider, string, object[])"/>, so missing keys
+	/// come back as <c>#key#</c> rather than throwing.
+	/// </summary>
+	/// <param name="provider">The flattened words for the selected language, typically from <see cref="WordsBuilder.Flatten(string, bool)"/>.</param>
+	/// <param name="setCulture">The culture applied by <see cref="SetCulture"/>.</param>
 	public class Wordsmith(IWordsProvider provider, CultureInfo setCulture) : IWords {
+		/// <inheritdoc/>
 		public string this[string key] => GetValue(key);
 
+		/// <inheritdoc/>
 		public IWordsProvider Provider { get; } = provider;
 
+		/// <summary>
+		/// Sets the current thread's culture and UI culture, and the process-wide
+		/// defaults for future threads, to the culture this dictionary was built with.
+		/// </summary>
 		public void SetCulture()
 			=> CultureInfo.DefaultThreadCurrentCulture
 			= CultureInfo.DefaultThreadCurrentUICulture
@@ -15,11 +30,17 @@ namespace PatTech.Localization {
 			= CultureInfo.CurrentUICulture
 			= setCulture;
 
+		/// <summary>
+		/// Looks up and renders <paramref name="key"/>; a missing key renders as
+		/// <c>#key#</c> and warns via <see cref="Words.Logger"/>.
+		/// </summary>
+		/// <exception cref="ArgumentNullException"><paramref name="key"/> is <see langword="null"/>.</exception>
 		public string GetValue(string key) {
 			ArgumentNullException.ThrowIfNull(key);
 
 			return Words.RenderKey(Provider, key);
 		}
+		/// <inheritdoc/>
 		public bool TryGetValue(string key, [MaybeNullWhen(false)] out string value) {
 			if (Provider.ContainsKey(key)) {
 				value = GetValue(key);
@@ -30,13 +51,31 @@ namespace PatTech.Localization {
 				return false;
 			}
 		}
+		/// <inheritdoc/>
 		public bool ContainsKey(string key) => Provider.ContainsKey(key);
 	}
 
+	/// <summary>
+	/// Implement this when you take exception to your Words. A minimal logging seam
+	/// so the library can object to missing keys, stale words and parse oddities
+	/// without depending on a logging framework.
+	/// </summary>
 	public interface ITakeException {
+		/// <summary>
+		/// A logger that swallows everything. The default wherever a logger is optional.
+		/// Note this is a mutable static field, so it can technically be replaced
+		/// process-wide.
+		/// </summary>
 		public static ITakeException Dummy = new DummyLogger();
-		
+
+		/// <summary>
+		/// Reports a non-fatal condition, e.g. a missing key or an overwritten value.
+		/// Messages use terse machine-greppable codes like <c>WORDS:KEY:`the.key`</c>.
+		/// </summary>
 		void Warn(string text);
+		/// <summary>
+		/// Reports an exception, usually just before it is thrown.
+		/// </summary>
 		void Error(Exception exception, string message);
 
 		private class DummyLogger : ITakeException {

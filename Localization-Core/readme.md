@@ -117,6 +117,13 @@ function will assume the existence of "key.tooltip", "key.sub", "key.desc"
 and "key.unit" as well as the exact name, to provide additional variations
 of the text associated with an enum item.
 
+Migrating an existing enum? `Describe` already understands
+`[Description("...")]` and uses it as fallback display text. If your tooltips
+or subtitles live in some custom attribute instead, move the text to
+`[Tooltip("...")]`: `Describe` reads it for the tooltip and subtitle formats,
+and its obsolete warning keeps reminding you that those words really belong
+in a `words.ini` under a `[Words]` key.
+
 Use the container `LazyWords` to preload a key for services that statically
 initialise before the dictionary has been loaded. The words will resolve
 once the Value is accessed the first time.

@@ -22,9 +22,13 @@ namespace PatTech.Localization {
 	}
 	
 	/// <summary>
-	/// Provides a subtitle text option for <see cref="Utils.Extensions.Describe"/>
-	/// when paired with <see cref="System.ComponentModel.DescriptionAttribute"/>.
-	/// Both attributes should be replaced with a single <see cref="WordsAttribute"/>.
+	/// Migration aid for <see cref="Utils.Extensions.Describe"/>.
+	/// Enums already using <see cref="System.ComponentModel.DescriptionAttribute"/>
+	/// are picked up by Describe automatically; enums using a custom attribute to
+	/// carry raw tooltip or subtitle strings can swap it for this one. Describe
+	/// reads the text (formats "T" and "S"), and the obsolete warning keeps a
+	/// reminder ticking until the text moves to a words.ini key and the attribute
+	/// is replaced by a <see cref="WordsAttribute"/>.
 	/// </summary>
 	/// <param name="text">Default text to display in a popup, tooltip or subtitle.</param>
 	[Obsolete("Use this for migration purposes only.")]

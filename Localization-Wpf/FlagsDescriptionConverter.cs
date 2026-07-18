@@ -56,7 +56,7 @@ public class FlagsDescriptionConverter : IValueConverter {
 	/// <param name="parameter">An optional formatting parameter used to customize the description output. Can be null.</param>
 	/// <param name="culture">The culture information used for formatting the output.</param>
 	/// <returns>A string containing the formatted description(s) of the enumeration value, or an enumerable of descriptions if
-	/// array output is enabled. Returns AvaloniaProperty.UnsetValue if the input is not an enumeration.</returns>
+	/// array output is enabled. Returns <see cref="Binding.DoNothing"/> if the input is not an enumeration.</returns>
 	/// <exception cref="InvalidOperationException">Thrown if the enumeration value's string representation is unexpectedly null.</exception>
 	public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) {
 		if (value is Enum @enum) {

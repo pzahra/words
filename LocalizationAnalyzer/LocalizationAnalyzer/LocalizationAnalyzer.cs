@@ -9,16 +9,42 @@ using System.Threading;
 
 namespace LocalizationAnalyzer
 {
+    /// <summary>
+    /// Roslyn analyzer for rule PTL001: targets marked with
+    /// <c>[PatTech.Localization.Localized]</c> must receive localized values.
+    /// </summary>
+    /// <remarks>
+    /// The analyzer inspects invocation arguments and assignments whose target
+    /// (parameter, property, or field) carries the <c>[Localized]</c> attribute,
+    /// and warns when the supplied expression is not itself localized — that is,
+    /// when it does not read from another <c>[Localized]</c> member or call a
+    /// method marked <c>[return: Localized]</c>. Expressions are examined through
+    /// parentheses, <c>await</c>, conditional (<c>?:</c>) expressions, and
+    /// <c>switch</c> expressions, so only the offending branches are flagged.
+    /// </remarks>
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public class LocalizationAnalyzer : DiagnosticAnalyzer
     {
+        /// <summary>The diagnostic ID shared by all PTL001 warnings.</summary>
         public const string DiagnosticId = "PTL001";
+        /// <summary>The short title shown for PTL001 diagnostics.</summary>
         public const string Title = "Expecting localized value";
+        /// <summary>The diagnostic category under which PTL001 is grouped.</summary>
         public const string Category = "PatTech.Localization";
+        /// <summary>The long-form description of what PTL001 enforces.</summary>
         public const string Description = "Localized items should receive localized strings.";
 
+        /// <summary>
+        /// Fully qualified name of the attribute that marks a symbol as expecting
+        /// (or, on a method return, producing) localized text.
+        /// </summary>
         public static readonly string LocalizationAttributeName = "PatTech.Localization.LocalizedAttribute";
 
+        /// <summary>
+        /// Fires when a non-localized expression is passed as an argument for a
+        /// <c>[Localized]</c> method parameter (or assigned through a
+        /// <c>[Localized]</c> <c>ref</c>/<c>out</c> parameter).
+        /// </summary>
         public static readonly DiagnosticDescriptor MethodParameterDiagnostic
             = new DiagnosticDescriptor(
                     DiagnosticId,
@@ -28,6 +54,10 @@ namespace LocalizationAnalyzer
                     DiagnosticSeverity.Warning,
                     isEnabledByDefault: true,
                     description: Description);
+        /// <summary>
+        /// Fires when a non-localized expression is assigned to a property
+        /// marked with <c>[Localized]</c>.
+        /// </summary>
         public static readonly DiagnosticDescriptor PropertyAssignmentDiagnostic
             = new DiagnosticDescriptor(
                     DiagnosticId,
@@ -37,6 +67,10 @@ namespace LocalizationAnalyzer
                     DiagnosticSeverity.Warning,
                     isEnabledByDefault: true,
                     description: Description);
+        /// <summary>
+        /// Fires when a non-localized expression is assigned to a field
+        /// marked with <c>[Localized]</c>.
+        /// </summary>
         public static readonly DiagnosticDescriptor FieldAssignmentDiagnostic
             = new DiagnosticDescriptor(
                     DiagnosticId,
@@ -47,12 +81,24 @@ namespace LocalizationAnalyzer
                     isEnabledByDefault: true,
                     description: Description);
 
+        /// <summary>
+        /// The three PTL001 descriptors this analyzer can report: method
+        /// parameter, property assignment, and field assignment.
+        /// </summary>
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; }
             = ImmutableArray.Create(
                     MethodParameterDiagnostic,
                     PropertyAssignmentDiagnostic,
                     FieldAssignmentDiagnostic);
 
+        /// <summary>
+        /// Registers the syntax-node callbacks that drive the analysis:
+        /// invocation expressions (for method arguments) and simple/add
+        /// assignments (for properties, fields, and <c>ref</c>/<c>out</c>
+        /// parameters). Generated code is skipped and concurrent execution
+        /// is enabled.
+        /// </summary>
+        /// <param name="context">The analysis context to register callbacks on.</param>
         public override void Initialize(AnalysisContext context)
         {
             context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
@@ -283,10 +329,12 @@ namespace LocalizationAnalyzer
             }
         }
 
+        /// <summary>Determine whether <paramref name="symbol"/> is marked <c>[Localized]</c>.</summary>
         private static bool SymbolIsLocalized(ISymbol symbol)
         {
             return ContainsLocalizedAttribute(symbol.GetAttributes());
         }
+        /// <summary>Determine whether the method's return value is marked <c>[return: Localized]</c>.</summary>
         private static bool MethodReturnsLocalized(IMethodSymbol symbol)
         {
             return ContainsLocalizedAttribute(symbol.GetReturnTypeAttributes());
@@ -304,6 +352,12 @@ namespace LocalizationAnalyzer
             }
             return false;
         }
+        /// <summary>
+        /// Determine whether <paramref name="expression"/> fails to produce a localized
+        /// value: it neither reads a <c>[Localized]</c> member nor invokes a method
+        /// marked <c>[return: Localized]</c> (looking through parentheses, <c>await</c>,
+        /// conditional access, conditionals, and switch expressions).
+        /// </summary>
         private static bool IsLocalizationError(
                 SemanticModel semanticModel,
                 ExpressionSyntax expression,

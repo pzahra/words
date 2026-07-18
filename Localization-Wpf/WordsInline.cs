@@ -5,16 +5,29 @@ using System.Windows.Documents;
 using System.Windows.Markup;
 
 namespace PatTech.Localization.Wpf {
+	/// <summary>
+	///     An inline that renders the Words for <see cref="Key"/> — markdown and all — inside a
+	///     <see cref="System.Windows.Controls.TextBlock"/> or other flow content.
+	/// </summary>
+	/// <remarks>
+	///     The resolved text may contain format placeholders, filled from <see cref="Params"/>:
+	///     an array supplies positional <c>{0}</c>-style arguments, while any other single object
+	///     supplies <c>{Name}</c>-style placeholders looked up by field or property name (see
+	///     <see cref="Words.FormatByName(string, object?, object?[])"/>). The rendered inlines are
+	///     rebuilt whenever <see cref="Key"/> or <see cref="Params"/> changes.
+	/// </remarks>
 	[ContentProperty(nameof(Params))]
 	public class WordsInline : Span {
 		private static readonly MarkdownParser markdown = new();
 
+		/// <summary>Identifies the <see cref="Key"/> dependency property.</summary>
 		public static readonly DependencyProperty KeyProperty = DependencyProperty.Register(
 			nameof(Key),
 			typeof(string),
 			typeof(WordsInline),
 			new PropertyMetadata(propertyChangedCallback: KeyChanged));
 
+		/// <summary>Identifies the <see cref="Params"/> dependency property.</summary>
 		public static readonly DependencyProperty ParamsProperty = DependencyProperty.Register(
 			nameof(Params),
 			typeof(object),
@@ -62,11 +75,21 @@ namespace PatTech.Localization.Wpf {
 			Inlines.AddRange(markdown.ToInlines(text));
 		}
 
+		/// <summary>
+		///     The key of the Words to render. A null or empty key renders nothing;
+		///     an unknown key renders as <c>#key#</c>.
+		/// </summary>
 		public string Key {
 			get => (string)GetValue(KeyProperty);
 			set => SetValue(KeyProperty, value);
 		}
 
+		/// <summary>
+		///     Optional arguments for the resolved text's format placeholders. An array fills
+		///     positional <c>{0}</c> placeholders; any other object fills <c>{Name}</c>
+		///     placeholders from its public fields and properties. This is the content property,
+		///     so a single argument can be written as the element's content in XAML.
+		/// </summary>
 		public object? Params {
 			get => GetValue(ParamsProperty);
 			set => SetValue(ParamsProperty, value);

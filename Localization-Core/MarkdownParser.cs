@@ -10,6 +10,16 @@ using PatTech.Utils;
 
 namespace PatTech.Localization;
 
+/// <summary>
+/// Parses a subset of inline markdown into framework-specific inline objects,
+/// built by the abstract factory methods a subclass supplies. Supported syntax:
+/// <c>*italic*</c>, <c>**bold**</c>, <c>***both***</c>, <c>^superscript^</c>,
+/// <c>~subscript~</c>, links as <c>[text](url "title")</c> or <c>&lt;url&gt;</c>,
+/// images as <c>![alt](url "title")</c>, HTML entities (<c>&amp;amp;</c>,
+/// <c>&amp;#65;</c>, <c>&amp;#x41;</c>) and <c>:emoji:</c> shortcodes. Block-level
+/// markdown (headings, lists, paragraphs) is out of scope.
+/// </summary>
+/// <typeparam name="TInline">The framework's inline type, e.g. a WPF <c>Inline</c>.</typeparam>
 public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 	private static readonly Regex MarkdownTextFormatPattern = new(
 		pattern: @"
@@ -32,15 +42,47 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 	private static readonly Dictionary<string, string> EntityDictionary;
 	private static readonly Dictionary<string, string> EmojiDictionary;
 
+	/// <summary>
+	/// Combines several inlines into one container inline.
+	/// </summary>
 	protected abstract TInline Span(IEnumerable<TInline> inlines);
+	/// <summary>
+	/// Creates a plain text inline; entities and emoji are already decoded.
+	/// </summary>
 	protected abstract TInline Run(string text);
+	/// <summary>
+	/// Creates a link around already-parsed <paramref name="content"/>.
+	/// </summary>
+	/// <param name="content">The link's label, parsed as markdown (nested links excluded).</param>
+	/// <param name="target">The link destination.</param>
+	/// <param name="tooltip">The quoted title, or <see langword="null"/> if none was given.</param>
 	protected abstract TInline Hyperlink(TInline content, Uri target, string? tooltip);
+	/// <summary>
+	/// Creates an image inline.
+	/// </summary>
+	/// <param name="source">The image location.</param>
+	/// <param name="altText">The alternative text, or <see langword="null"/> if none was captured.</param>
+	/// <param name="tooltip">The quoted title, or <see langword="null"/> if none was given.</param>
 	protected abstract TInline Image(Uri source, string? altText, string? tooltip);
+	/// <summary>
+	/// Makes <paramref name="content"/> bold, in place or by replacement.
+	/// </summary>
 	protected abstract void Embolden(ref TInline content);
+	/// <summary>
+	/// Makes <paramref name="content"/> italic, in place or by replacement.
+	/// </summary>
 	protected abstract void Italicize(ref TInline content);
+	/// <summary>
+	/// Lowers <paramref name="content"/> to subscript, in place or by replacement.
+	/// </summary>
 	protected abstract void Subscript(ref TInline content);
+	/// <summary>
+	/// Raises <paramref name="content"/> to superscript, in place or by replacement.
+	/// </summary>
 	protected abstract void Superscript(ref TInline content);
 
+	/// <inheritdoc/>
+	/// <exception cref="InvalidOperationException">A disallowed element was encountered.</exception>
 	public TInline ToInline(
 			string markdown,
 			MarkdownElementType disallowedElements = MarkdownElementType.None) {
@@ -52,6 +94,8 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 
 		return Span(inlines);
 	}
+	/// <inheritdoc/>
+	/// <exception cref="InvalidOperationException">A disallowed element was encountered.</exception>
 	public IReadOnlyList<TInline> ToInlines(
 			string markdown,
 			MarkdownElementType disallowedElements = MarkdownElementType.None) {
@@ -71,6 +115,8 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 		}
 		return inlines;
 	}
+	/// <inheritdoc/>
+	/// <exception cref="InvalidOperationException">A disallowed element was encountered.</exception>
 	public IEnumerator<TInline> EnumerateInlines(
 			string markdown,
 			MarkdownElementType disallowedElements = MarkdownElementType.None) {
@@ -250,6 +296,12 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 	private static readonly string? resourceError;
 	private readonly ITakeException logger;
 
+	/// <summary>
+	/// Initializes the parser. The entity and emoji tables load once per process from
+	/// an embedded resource; if that load failed, the failure is reported here as an
+	/// <c>MD:INIT</c> warning and those patterns simply pass through undecoded.
+	/// </summary>
+	/// <param name="logger">Receives parse errors and the init warning; <see langword="null"/> discards them.</param>
 	public MarkdownParser(ITakeException? logger) {
 		this.logger = logger ?? ITakeException.Dummy;
 		if (resourceError is not null) this.logger.Warn($"MD:INIT:{resourceError}");
@@ -276,16 +328,48 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 	}
 }
 
+/// <summary>
+/// Categories of inline markdown element, used to forbid elements that make no
+/// sense in a given context (e.g. a hyperlink inside a hyperlink's own label).
+/// </summary>
 [Flags]
 public enum MarkdownElementType {
+	/// <summary>Nothing is disallowed.</summary>
 	None = 0,
+	/// <summary>Text styling: bold, italic, superscript and subscript.</summary>
 	Basic = 1 << 0,
+	/// <summary>Links, in both <c>[text](url)</c> and <c>&lt;url&gt;</c> forms.</summary>
 	Hyperlink = 1 << 1,
+	/// <summary>Images, i.e. <c>![alt](url)</c>.</summary>
 	Image = 1 << 2,
 }
 
+/// <summary>
+/// Converts inline markdown into framework-specific inline objects.
+/// See <see cref="MarkdownParser{TInline}"/> for the supported syntax.
+/// </summary>
+/// <typeparam name="TInline">The framework's inline type, e.g. a WPF <c>Inline</c>.</typeparam>
 public interface IMarkdownParser<TInline> {
+	/// <summary>
+	/// Parses <paramref name="markdown"/> into a single inline, wrapping multiple
+	/// results in a span. Plain text with no markup comes back as a single run.
+	/// </summary>
+	/// <param name="markdown">The inline markdown text.</param>
+	/// <param name="disallowedElements">Element categories that throw <see cref="InvalidOperationException"/> if encountered.</param>
 	TInline ToInline(string markdown, MarkdownElementType disallowedElements = MarkdownElementType.None);
+	/// <summary>
+	/// Parses <paramref name="markdown"/> into the list of inlines it contains,
+	/// in document order. Never empty: plain text yields one run, and the empty
+	/// string yields one empty run.
+	/// </summary>
+	/// <param name="markdown">The inline markdown text.</param>
+	/// <param name="disallowedElements">Element categories that throw <see cref="InvalidOperationException"/> if encountered.</param>
 	IReadOnlyList<TInline> ToInlines(string markdown, MarkdownElementType disallowedElements = MarkdownElementType.None);
+	/// <summary>
+	/// Lazily parses <paramref name="markdown"/>, yielding each inline as it is
+	/// read. Backs <see cref="ToInlines(string, MarkdownElementType)"/>.
+	/// </summary>
+	/// <param name="markdown">The inline markdown text.</param>
+	/// <param name="disallowedElements">Element categories that throw <see cref="InvalidOperationException"/> if encountered.</param>
 	IEnumerator<TInline> EnumerateInlines(string markdown, MarkdownElementType disallowedElements = MarkdownElementType.None);
 }

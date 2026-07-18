@@ -5,7 +5,16 @@ using System.IO;
 using System.Reflection;
 
 namespace PatTech.Localization {
+	/// <summary>
+	/// Loads one or more <c>words.ini</c> sources and turns them into an
+	/// <see cref="IWords"/> dictionary for a chosen language. Stack as many
+	/// <c>Load</c> calls as you like, then finish with <see cref="ToWords(string, bool)"/>.
+	/// </summary>
 	public class WordsBuilder {
+		/// <summary>
+		/// Creates a fresh builder with its own parser and empty language store.
+		/// </summary>
+		/// <param name="logger">Receives warnings about overwritten keys and unknown fields; <see langword="null"/> discards them.</param>
 		public static WordsBuilder Create(ITakeException? logger = null) {
 			var builder = new WordsParserToWordsProvider(logger);
 			var parser = new WordsParser(builder);
@@ -26,9 +35,9 @@ namespace PatTech.Localization {
 		/// <summary>
 		/// Load a language file as an EmbeddedResource from the specified assembly.
 		/// </summary>
-		/// <param name="path"></param>
-		/// <param name="assembly"></param>
-		/// <exception cref="FileNotFoundException"></exception>
+		/// <param name="path">The manifest resource name, e.g. <c>"MyApp.Assets.words.ini"</c>.</param>
+		/// <param name="assembly">The assembly containing the resource.</param>
+		/// <exception cref="FileNotFoundException">No resource with that name exists in <paramref name="assembly"/>.</exception>
 		public WordsBuilder LoadResource(string path, Assembly assembly) {
 			ArgumentNullException.ThrowIfNull(path);
 			if (path is "") {
@@ -50,7 +59,7 @@ namespace PatTech.Localization {
 		/// Called at the very beginning of application runtime. Multiple files can be loaded,
 		/// and any duplicate keys will favour last-in, so the official default should be last.
 		/// </summary>
-		/// <param name="filename"></param>
+		/// <param name="filename">Path to a <c>words.ini</c> file on disk.</param>
 		public WordsBuilder Load(string filename) {
 			ArgumentNullException.ThrowIfNull(filename);
 			if (filename is "") {
@@ -69,6 +78,11 @@ namespace PatTech.Localization {
 
 			return Load(new StreamReader(stream));
 		}
+		/// <summary>
+		/// Parses <c>words.ini</c> content held directly in a string, no file required.
+		/// Same last-in-wins rules as <see cref="Load(string)"/>.
+		/// </summary>
+		/// <param name="wordsScript">The <c>words.ini</c>-formatted text.</param>
 		public WordsBuilder LoadString(string wordsScript) {
 			ArgumentNullException.ThrowIfNull(wordsScript);
 
@@ -80,6 +94,13 @@ namespace PatTech.Localization {
 			return this;
 		}
 
+		/// <summary>
+		/// Enumerates the display languages declared in the loaded files, as
+		/// language-code/label pairs, in the order the codes were first seen.
+		/// A language is listed when its file header declares a label
+		/// (a top-of-file <c>value-xx=</c> line before any <c>[block]</c>); labels that
+		/// are empty or start with <c>!</c> are hidden from the list.
+		/// </summary>
 		public IEnumerable<KeyValuePair<string, string>> GetLanguages() {
 			var codes = _builder.LanguageCodes;
 			for (var i = 0; i < codes.Count; ++i) {
@@ -91,6 +112,16 @@ namespace PatTech.Localization {
 			}
 		}
 
+		/// <summary>
+		/// Merges the loaded languages into a single read-only provider for
+		/// <paramref name="languageCode"/>. Per key, the value comes from the exact
+		/// language (e.g. <c>en-GB</c>) first, then its language family (<c>en</c>),
+		/// then the language-less default. Passing <c>""</c> returns the raw default
+		/// dictionary directly.
+		/// </summary>
+		/// <param name="languageCode">The language to flatten, e.g. <c>"en"</c> or <c>"en-GB"</c>; casing is normalized for you.</param>
+		/// <param name="showFallback">When <see langword="true"/>, values that fell back are visibly branded: 🕮 for family fallback, 📚 for default fallback. Handy for spotting missing translations.</param>
+		/// <returns>The flattened provider; an empty provider if nothing was loaded at all.</returns>
 		public IWordsProvider Flatten(string languageCode, bool showFallback = false) {
 			if (languageCode is "") {
 				return _builder.Languages[""];
@@ -152,6 +183,14 @@ namespace PatTech.Localization {
 			}
 		}
 
+		/// <summary>
+		/// <see cref="Flatten(string, bool)"/> plus a culture: builds the final
+		/// <see cref="IWords"/> for <paramref name="languageCode"/>, carrying the matching
+		/// <see cref="CultureInfo"/> so assigning it to <see cref="Words.Known"/> also
+		/// sets the thread cultures. Typically the last call in the builder chain.
+		/// </summary>
+		/// <param name="languageCode">The language to select, e.g. <c>"en"</c> or <c>"en-GB"</c>.</param>
+		/// <param name="showFallback">See <see cref="Flatten(string, bool)"/>.</param>
 		public IWords ToWords(string languageCode, bool showFallback = false) {
 			var cultureInfo = CultureInfo.CreateSpecificCulture(languageCode);
 			return new Wordsmith(Flatten(languageCode, showFallback), cultureInfo);

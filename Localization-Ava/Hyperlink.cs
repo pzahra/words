@@ -17,12 +17,20 @@ namespace PatTech.Localization.Avalonia;
 /// TextBlock when the EnableHyperlinks attached property is set to <see langword="true"/>. This class is typically used
 /// to provide clickable links in rich text scenarios.</remarks>
 public class Hyperlink : Span {
+	/// <summary>
+	///     Attached property that turns on hyperlink hit-testing for a <see cref="TextBlock"/>:
+	///     pointer handlers give links a hand cursor, a pointer-placed tooltip, and click-to-navigate.
+	///     A <see cref="Hyperlink"/> sets this on its host automatically when it enters the
+	///     logical tree, so setting it by hand is rarely necessary.
+	/// </summary>
 	public static readonly AttachedProperty<bool> EnableHyperlinksProperty =
 		AvaloniaProperty.RegisterAttached<TextBlock, bool>(
 			"EnableHyperlinks",
 			typeof(Hyperlink));
 
+	/// <summary>Reads <see cref="EnableHyperlinksProperty"/> from a <see cref="TextBlock"/>.</summary>
 	public static bool GetEnableHyperlinks(TextBlock tb) => tb.GetValue(EnableHyperlinksProperty);
+	/// <summary>Writes <see cref="EnableHyperlinksProperty"/> on a <see cref="TextBlock"/>.</summary>
 	public static void SetEnableHyperlinks(TextBlock tb, bool value) => tb.SetValue(EnableHyperlinksProperty, value);
 
 	static Hyperlink() {
@@ -31,23 +39,48 @@ public class Hyperlink : Span {
 		TextDecorationsProperty.OverrideDefaultValue<Hyperlink>(global::Avalonia.Media.TextDecorations.Underline);
 	}
 
+	/// <summary>
+	///     Registers an application-wide handler for hyperlink activation: from then on, every
+	///     hyperlink clicked in any <see cref="TextBlock"/> passes its <see cref="Uri"/> to
+	///     <paramref name="handler"/>. Typically called once at startup to route <c>http:</c>
+	///     links to the shell and custom schemes (e.g. <c>appcmd:</c>) to application commands.
+	/// </summary>
+	/// <remarks>
+	///     Registration is additive and permanent — there is no unregister, and calling this
+	///     twice means every click is handled twice. Once is plenty.
+	/// </remarks>
+	/// <param name="handler">Receives the activated hyperlink's URI.</param>
 	public static void RegisterGlobalNavigateHandler(Action<Uri> handler)
 		=> NavigateEvent.AddClassHandler<TextBlock>((_, e) => handler(e.Uri));
 
+	/// <summary>
+	///     Raised on the host <see cref="TextBlock"/> when a hyperlink with a non-null
+	///     <see cref="Uri"/> is clicked. Direct routing; no bubbling beyond the TextBlock.
+	/// </summary>
 	public static readonly RoutedEvent<NavigateEventArgs> NavigateEvent
 		= RoutedEvent.Register<TextBlock, NavigateEventArgs>("Navigate", RoutingStrategies.Direct);
 
+	/// <summary>Identifies the <see cref="Uri"/> styled property.</summary>
 	public static readonly StyledProperty<Uri?> UriProperty =
 			AvaloniaProperty.Register<Hyperlink, Uri?>(nameof(Uri));
 
+	/// <summary>Identifies the <see cref="ToolTip"/> styled property.</summary>
 	public static readonly StyledProperty<object?> ToolTipProperty =
 		AvaloniaProperty.Register<Hyperlink, object?>(nameof(ToolTip));
 
+	/// <summary>
+	///     The navigation target. Clicking the link raises <see cref="NavigateEvent"/> with this
+	///     URI; if it is <see langword="null"/>, clicks do nothing.
+	/// </summary>
 	public Uri? Uri {
 		get => GetValue(UriProperty);
 		set => SetValue(UriProperty, value);
 	}
 
+	/// <summary>
+	///     Content shown as a tooltip at the pointer while it hovers over this link.
+	///     <see langword="null"/> shows nothing.
+	/// </summary>
 	public object? ToolTip {
 		get => GetValue(ToolTipProperty);
 		set => SetValue(ToolTipProperty, value);
@@ -55,6 +88,9 @@ public class Hyperlink : Span {
 
 	private TextBlock? owner;
 
+	/// <summary>
+	///     Creates a hyperlink, underlined and blue in the traditional manner.
+	/// </summary>
 	public Hyperlink() {
 		SetCurrentValue(ForegroundProperty, Brushes.Blue);
 		SetCurrentValue(TextDecorationsProperty, global::Avalonia.Media.TextDecorations.Underline);
@@ -151,6 +187,13 @@ public class Hyperlink : Span {
 	}
 }
 
+/// <summary>
+/// Event arguments for <see cref="Hyperlink.NavigateEvent"/>, carrying the activated link's URI.
+/// </summary>
+/// <param name="routedEvent">The routed event being raised.</param>
+/// <param name="source">The object raising the event, typically the host <see cref="TextBlock"/>.</param>
+/// <param name="uri">The activated hyperlink's URI.</param>
 public class NavigateEventArgs(RoutedEvent? routedEvent, object? source, Uri uri) : RoutedEventArgs(routedEvent, source) {
+	/// <summary>The activated hyperlink's URI.</summary>
 	public Uri Uri { get; } = uri;
 }

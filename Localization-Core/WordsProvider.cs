@@ -69,13 +69,25 @@ namespace PatTech.Localization {
 			}
 		}
 	}
+	/// <summary>
+	/// A mutable <see cref="IWordsProvider"/> that is simply a
+	/// <see cref="Dictionary{TKey, TValue}"/> of key to text. Used while loading,
+	/// where entries are still being added and overwritten.
+	/// </summary>
 	public class DictionaryWordsProvider : Dictionary<string, string>, IWordsProvider, ICloneable {
+		/// <summary>
+		/// Returns a new provider containing a shallow copy of every entry.
+		/// </summary>
 		public DictionaryWordsProvider Clone() {
 			var clone = new DictionaryWordsProvider();
 			clone.CopyFrom(this);
 			return clone;
 		}
 
+		/// <summary>
+		/// Copies every entry from <paramref name="other"/> into this provider,
+		/// overwriting existing keys; entries only in this provider are kept.
+		/// </summary>
 		public void CopyFrom(DictionaryWordsProvider other) {
 			foreach (var (key, value) in other) {
 				this[key] = value;
@@ -84,12 +96,23 @@ namespace PatTech.Localization {
 
 		object ICloneable.Clone() => Clone();
 	}
+	/// <summary>
+	/// An <see cref="IWordsProvider"/> wrapping a dictionary that is no longer meant
+	/// to change — the shape <see cref="WordsBuilder.Flatten(string, bool)"/> hands out.
+	/// The wrapper adds no copying: mutate the backing dictionary and the provider
+	/// sees it.
+	/// </summary>
 	public class ReadOnlyWordsProvider : IWordsProvider {
 		/// <inheritdoc/>
 		public string this[string key] => _backing[key];
 
 		private readonly IReadOnlyDictionary<string, string> _backing;
 
+		/// <summary>
+		/// Wraps <paramref name="backing"/> without copying it.
+		/// </summary>
+		/// <param name="backing">The dictionary to expose.</param>
+		/// <exception cref="ArgumentNullException"><paramref name="backing"/> is <see langword="null"/>.</exception>
 		public ReadOnlyWordsProvider(IReadOnlyDictionary<string, string> backing) {
 			ArgumentNullException.ThrowIfNull(backing);
 
