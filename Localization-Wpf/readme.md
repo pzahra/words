@@ -48,9 +48,10 @@ value=Press ![save icon](staticres:SaveIconGeometry?height=16&foreground=DarkGre
 
 Out of the box the parser speaks `staticres:` (application resource by
 `x:Key`), `pack:` (WPF pack URIs), `resx:` (a `Resources` class in your loaded
-assemblies), and `assets:` (files under the application's `Assets` folder).
-Query options `width`, `height`, `background`, and `foreground` apply whatever
-the scheme. Anything that fails to resolve renders as the image's alt text,
+assemblies), and `assets:` (files under the application's `Assets` folder —
+and only that folder; `../` escapes are clamped, no matter how creatively
+encoded). Query options `width`, `height`, `background`, and `foreground`
+apply whatever the scheme. Anything that fails to resolve renders as the image's alt text,
 because a missing icon should never eat your sentence.
 
 Teach it new schemes by registering an `IImageSchemeResolver` on the shared

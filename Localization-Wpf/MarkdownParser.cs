@@ -24,10 +24,12 @@ namespace PatTech.Localization.Wpf {
 	/// <param name="baseFontSize">Font size the output is destined for; sets the sub/superscript size (80% of it) and the default height of geometry icons.</param>
 	/// <param name="logger">An interface for passing on logging instructions to the caller.</param>
 	public class MarkdownParser(float baseFontSize = 13, ITakeException? logger = null) : MarkdownParser<Inline>(logger), IMarkdownParser {
-		private static MarkdownParser _Default = new();
+		private static MarkdownParser _Default = new(logger: ITakeException.Global);
 		/// <summary>
 		///     The shared parser used by <see cref="WordsInline"/> and
-		///     <see cref="MarkdownConverter"/>. Register custom image schemes on it at
+		///     <see cref="MarkdownConverter"/>. It gripes through
+		///     <see cref="ITakeException.Global"/>, i.e. wherever <see cref="Words.Logger"/>
+		///     points when the gripe happens. Register custom image schemes on it at
 		///     startup (<c>MarkdownParser.Default.ImageSchemes["md"] = …</c>), or replace
 		///     it wholesale to change the base font size or logger.
 		/// </summary>
@@ -80,7 +82,8 @@ namespace PatTech.Localization.Wpf {
 		///     size), wraps in a <see cref="Border"/> when a
 		///     <c>background</c> was asked for, and attaches the tooltip. Unknown schemes,
 		///     resolvers that come back empty-handed, and resolver exceptions all fall back
-		///     to a <see cref="System.Windows.Documents.Run"/> holding <paramref name="altText"/>.
+		///     to a <see cref="System.Windows.Documents.Run"/> holding <paramref name="altText"/>,
+		///     reporting the failed source to the logger as <c>IMG:RES</c>.
 		/// </summary>
 		protected override Inline Image(Uri source, string? altText, string? tooltip) {
 			try {
@@ -98,9 +101,11 @@ namespace PatTech.Localization.Wpf {
 						return new InlineUIContainer(outer);
 					}
 				}
+				logger.Warn("IMG:RES:" + source);
 			}
-			catch {
+			catch (Exception ex) {
 				// a broken image must not take the paragraph down with it
+				logger.Error(ex, "IMG:RES:" + source);
 			}
 
 			return new Run { Text = altText };

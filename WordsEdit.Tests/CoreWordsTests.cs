@@ -73,6 +73,15 @@ public class CoreWordsTests {
 	}
 
 	[Fact]
+	public void Markdown_EntitiesAndEmoji_Decode() {
+		var parser = new TextMarkdownParser();
+
+		Assert.Equal("Fish & Chips © 2026", parser.ToInline("Fish &amp; Chips &copy; 2026"));
+		Assert.Equal("ship it \U0001F680", parser.ToInline("ship it :rocket:"));
+		Assert.Equal("A and A", parser.ToInline("&#65; and &#x41;"));
+	}
+
+	[Fact]
 	public void Markdown_BasicStyles_Nest() {
 		var parser = new TextMarkdownParser();
 

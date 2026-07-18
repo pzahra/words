@@ -111,21 +111,39 @@ public class AvaresImageResolver : IImageSchemeResolver {
 
 /// <summary>
 ///     Resolves <c>assets:path</c> from files under the <c>Assets</c> folder next to
-///     the application. A missing file resolves to nothing, which the parser renders
-///     as the alt text.
+///     the application — and only that folder: the path is canonicalized and clamped,
+///     so <c>../</c> trickery, rooted paths and UNC shares resolve to nothing.
+///     Environment variables are never expanded; a <c>%</c> is just a filename
+///     character. A missing (or clamped) file resolves to nothing, which the parser
+///     renders as the alt text.
 /// </summary>
 public class AssetsImageResolver : IImageSchemeResolver {
 	/// <inheritdoc/>
 	public Control? Resolve(Uri source, ImageOptions options) {
-		var relative = (source.AbsolutePath ?? source.OriginalString).TrimStart('/');
-		var root = AppContext.BaseDirectory ?? Environment.CurrentDirectory;
-		var filePath = System.IO.Path.Combine(root, "Assets", relative.Replace('/', System.IO.Path.DirectorySeparatorChar));
-		if (!File.Exists(filePath)) return null;
+		var filePath = ResolveAssetPath(source);
+		if (filePath is null || !File.Exists(filePath)) return null;
 
 		return new Image {
 			Source = new Bitmap(filePath),
 			Stretch = Stretch.Uniform,
 		};
+	}
+
+	/// <summary>
+	///     Canonicalizes the URI's path under the <c>Assets</c> root and returns it,
+	///     or <see langword="null"/> if it would land anywhere else.
+	/// </summary>
+	internal static string? ResolveAssetPath(Uri source) {
+		var relative = Uri.UnescapeDataString((source.AbsolutePath ?? source.OriginalString).TrimStart('/'));
+		var root = AppContext.BaseDirectory ?? Environment.CurrentDirectory;
+		var assetsRoot = System.IO.Path.GetFullPath(System.IO.Path.Combine(root, "Assets"))
+			+ System.IO.Path.DirectorySeparatorChar;
+		// GetFullPath resolves any ../ and ./ segments; a rooted or UNC path survives
+		// Path.Combine untouched. Either way, anything outside the root is refused.
+		var filePath = System.IO.Path.GetFullPath(System.IO.Path.Combine(
+			assetsRoot,
+			relative.Replace('/', System.IO.Path.DirectorySeparatorChar)));
+		return filePath.StartsWith(assetsRoot, StringComparison.Ordinal) ? filePath : null;
 	}
 }
 

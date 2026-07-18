@@ -23,4 +23,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Localization-Core\Localization-Core.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="WordsEdit.Tests" />
+  </ItemGroup>
   </Project>

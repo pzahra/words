@@ -18,6 +18,7 @@ There is even a compiler warning for the day you inevitably try to sneak a raw
 | [LocalizationAnalyzer](LocalizationAnalyzer/readme.md) | The Words police. Provides `[Localized]` and warns (PTL001) when an unlocalized string is handed to something that wanted Words. Ships as `PatTech.Localization.Analyzer`, and comes along automatically with Core. |
 | [WordsEdit](WordsEdit/readme.md) | Wordsmith, the WPF editor for `words.ini` files. For when the translators would rather not hand-edit an INI file. |
 | Sample-Wpf, Sample-Ava | Small apps that show Words being put in the XAML and AXAML respectively. |
+| Sample-Console | Words in the terminal: `dotnet run --project Sample-Console` shows the markdown rendered with ANSI styling, clickable links, emoji, and a deliberate missing key griping to the logger. |
 | LocalizedSample | A console app whose whole job is to trip the analyzer. It builds with a PTL001 warning on purpose. |
 
 ## Quick start

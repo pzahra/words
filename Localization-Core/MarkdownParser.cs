@@ -224,7 +224,8 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 			sb.Append(text, lastIndex, match.Index - lastIndex);
 			lastIndex = match.Index + match.Length;
 			if (match.TryGetGroup("entity", out var nameGroup)) {
-				if (EntityDictionary?.TryGetValue(nameGroup.Value, out var entityText) is true) {
+				// the entity table is keyed by the full `&name;` form
+				if (EntityDictionary?.TryGetValue($"&{nameGroup.Value};", out var entityText) is true) {
 					sb.Append(entityText);
 				}
 				else {
@@ -294,7 +295,11 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 	}
 
 	private static readonly string? resourceError;
-	private readonly ITakeException logger;
+	/// <summary>
+	/// The logger handed to the constructor, never <see langword="null"/> (a discarding
+	/// dummy stands in). Subclasses are welcome to report their own oddities through it.
+	/// </summary>
+	protected readonly ITakeException logger;
 
 	/// <summary>
 	/// Initializes the parser. The entity and emoji tables load once per process from

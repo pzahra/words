@@ -69,6 +69,15 @@ namespace PatTech.Localization {
 		public static ITakeException Dummy = new DummyLogger();
 
 		/// <summary>
+		/// A logger that forwards to wherever <see cref="Words.Logger"/> points at the
+		/// moment of the call, so it stays current no matter how late the application
+		/// assigns its real logger. The default for shared parsers that are constructed
+		/// before startup wiring runs. (Assigning it to <see cref="Words.Logger"/> itself
+		/// would be circular; it declines to echo into its own ear.)
+		/// </summary>
+		public static readonly ITakeException Global = new GlobalLogger();
+
+		/// <summary>
 		/// Reports a non-fatal condition, e.g. a missing key or an overwritten value.
 		/// Messages use terse machine-greppable codes like <c>WORDS:KEY:`the.key`</c>.
 		/// </summary>
@@ -81,6 +90,17 @@ namespace PatTech.Localization {
 		private class DummyLogger : ITakeException {
 			public void Error(Exception exception, string message) { }
 			public void Warn(string text) { }
+		}
+
+		private class GlobalLogger : ITakeException {
+			public void Error(Exception exception, string message) {
+				var current = Words.Logger;
+				if (!ReferenceEquals(current, this)) current.Error(exception, message);
+			}
+			public void Warn(string text) {
+				var current = Words.Logger;
+				if (!ReferenceEquals(current, this)) current.Warn(text);
+			}
 		}
 	}
 }

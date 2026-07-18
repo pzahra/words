@@ -109,8 +109,8 @@ namespace PatTech.Localization {
 	/// <see cref="ConsoleMarkdownParser"/> directly.)
 	/// </summary>
 	public static class WordsConsoleExtensions {
-		private static readonly ConsoleMarkdownParser AnsiParser = new(useAnsi: true);
-		private static readonly ConsoleMarkdownParser PlainParser = new(useAnsi: false);
+		private static readonly ConsoleMarkdownParser AnsiParser = new(useAnsi: true, ITakeException.Global);
+		private static readonly ConsoleMarkdownParser PlainParser = new(useAnsi: false, ITakeException.Global);
 
 		extension(Console) {
 			/// <summary>

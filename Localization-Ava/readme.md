@@ -54,7 +54,8 @@ value=Press ![save icon](staticres:SaveIconGeometry?height=16&foreground=DarkGre
 ```
 
 Out of the box the parser speaks `avares:` (embedded assets), `assets:` (files
-under the application's `Assets` folder), and `staticres:` (application
+under the application's `Assets` folder — and only that folder; `../` escapes
+are clamped, no matter how creatively encoded), and `staticres:` (application
 resource by `x:Key`). Query options `width`, `height`, `background`, and
 `foreground` apply whatever the scheme. Anything that fails to resolve renders
 as the image's alt text, because a missing icon should never eat your sentence.

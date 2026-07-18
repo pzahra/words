@@ -17,6 +17,7 @@
   <Folder Name="/Samples/">
     <Project Path="Sample-Wpf/Sample-Wpf.csproj" />
     <Project Path="Sample-Ava/Sample-Ava.csproj" />
+    <Project Path="Sample-Console/Sample-Console.csproj" />
     <Project Path="LocalizedSample/LocalizedSample.csproj" />
   </Folder>
   <Folder Name="/Solution Items/">

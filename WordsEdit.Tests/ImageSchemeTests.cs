@@ -138,6 +138,31 @@ public class ImageSchemeTests {
 		});
 	}
 
+	private sealed class CaptureLogger : PatTech.Localization.ITakeException {
+		public readonly System.Collections.Concurrent.ConcurrentQueue<string> Messages = new();
+		public void Warn(string text) => Messages.Enqueue(text);
+		public void Error(Exception exception, string message) => Messages.Enqueue(message);
+	}
+
+	[Fact]
+	public void DefaultParser_GripesThroughWordsLogger_EvenWhenAssignedLate() {
+		RunSta<object?>(() => {
+			var capture = new CaptureLogger();
+			var original = PatTech.Localization.Words.Logger;
+			try {
+				// assigned long after MarkdownParser.Default was constructed
+				PatTech.Localization.Words.Logger = capture;
+				MarkdownParser.Default.ToInline("![alt](nosuch:thing)");
+			}
+			finally {
+				PatTech.Localization.Words.Logger = original;
+			}
+
+			Assert.Contains(capture.Messages, m => m.Contains("IMG:RES") && m.Contains("nosuch:thing"));
+			return null;
+		});
+	}
+
 	[Fact]
 	public void Registry_IsPerInstance() {
 		var schooled = new MarkdownParser();
@@ -145,6 +170,55 @@ public class ImageSchemeTests {
 
 		Assert.False(new MarkdownParser().ImageSchemes.ContainsKey("fake"));
 		Assert.True(schooled.ImageSchemes.ContainsKey("fake"));
+	}
+
+	[Theory]
+	[InlineData("assets:../secret.png")]
+	[InlineData("assets:icons/../../secret.png")]
+	[InlineData("assets:..%5C..%5Csecret.png")]
+	[InlineData("assets:C:/Windows/notepad.exe")]
+	public void AssetPath_EscapeAttempts_AreClamped(string uri) {
+		Assert.Null(AssetsImageResolver.ResolveAssetPath(new Uri(uri)));
+	}
+
+	[Fact]
+	public void AssetPath_HonestPath_ResolvesUnderAssetsRoot() {
+		var path = AssetsImageResolver.ResolveAssetPath(new Uri("assets:icons/save.png"));
+
+		Assert.NotNull(path);
+		Assert.StartsWith(AppDomain.CurrentDomain.BaseDirectory, path);
+		Assert.EndsWith(Path.Combine("Assets", "icons", "save.png"), path);
+	}
+
+	[Fact]
+	public void AssetPath_PercentEncoding_UnescapesToRealFileName() {
+		var path = AssetsImageResolver.ResolveAssetPath(new Uri("assets:tiny%20image.png"));
+
+		Assert.NotNull(path);
+		Assert.EndsWith(Path.Combine("Assets", "tiny image.png"), path);
+	}
+
+	[Fact]
+	public void AssetsResolver_ExistingFile_LoadsBitmap() {
+		RunSta<object?>(() => {
+			var assetsDir = Directory.CreateDirectory(
+				Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets"));
+			var file = Path.Combine(assetsDir.FullName, "tiny image.png");
+			if (!File.Exists(file)) {
+				var pixel = System.Windows.Media.Imaging.BitmapSource.Create(
+					1, 1, 96, 96, PixelFormats.Bgra32, null, new byte[4], 4);
+				var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+				encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(pixel));
+				using var stream = File.Create(file);
+				encoder.Save(stream);
+			}
+
+			var visual = new AssetsImageResolver().Resolve(new Uri("assets:tiny%20image.png"), new ImageOptions());
+
+			var image = Assert.IsType<Image>(visual);
+			Assert.NotNull(image.Source);
+			return null;
+		});
 	}
 
 	[Fact]
