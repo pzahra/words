@@ -3,7 +3,7 @@
   <Metadata>
     <Identity Id="LocalizationAnalyzer.806075fa-d73d-4012-bbb3-49149a6b267d" Version="1.0" Language="en-US" Publisher="PatrickZ"/>
     <DisplayName>LocalizationAnalyzer</DisplayName>
-    <Description xml:space="preserve">This is a sample diagnostic extension for the .NET Compiler Platform ("Roslyn").</Description>
+    <Description xml:space="preserve">Debug-deploys the Words analyzer (PTL001) to the Roslyn experimental instance.</Description>
   </Metadata>
   <Installation>
     <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[15.0,)" />
@@ -14,8 +14,6 @@
   <Assets>
     <Asset Type="Microsoft.VisualStudio.MefComponent" d:Source="Project" d:ProjectName="LocalizationAnalyzer" Path="|LocalizationAnalyzer|"/>
     <Asset Type="Microsoft.VisualStudio.Analyzer" d:Source="Project" d:ProjectName="LocalizationAnalyzer" Path="|LocalizationAnalyzer|"/>
-    <Asset Type="Microsoft.VisualStudio.MefComponent" d:Source="Project" d:ProjectName="LocalizationAnalyzer.CodeFixes" Path="|LocalizationAnalyzer.CodeFixes|"/>
-    <Asset Type="Microsoft.VisualStudio.Analyzer" d:Source="Project" d:ProjectName="LocalizationAnalyzer.CodeFixes" Path="|LocalizationAnalyzer.CodeFixes|"/>
   </Assets>
   <Prerequisites>
     <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[15.0,)" DisplayName="Visual Studio core editor" />

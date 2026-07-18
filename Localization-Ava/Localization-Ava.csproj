@@ -9,6 +9,7 @@
     <PackageId>PatTech.Localization.Avalonia</PackageId>
     <AssemblyName>PatTech.Localization.Avalonia</AssemblyName>
     <PackageReadmeFile>readme.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>

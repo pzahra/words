@@ -51,7 +51,7 @@ public class MainWindowViewModelTests {
 		var reader = GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini");
 		string originalFileContents = reader.ReadToEnd();
 		reader.BaseStream.Position = 0;
-		var fileName = "Example.ini";
+		var fileName = "Example";
 
 		//Act
 		mainWindowViewModel.LoadFile(reader, "Example");
@@ -72,7 +72,7 @@ public class MainWindowViewModelTests {
 		mainWindowViewModel1.LoadFile(reader, "Example");
 		ObservableCollection<WordsKey> localizationKeys1 = mainWindowViewModel1.Keys;
 		ObservableCollection<LanguageEntry> localizationLanguages1 = mainWindowViewModel1.KnownLanguages;
-		string fileName = "Example.ini";
+		string fileName = "Example";
 
 		// Act
 		var writer = new StringWriter();

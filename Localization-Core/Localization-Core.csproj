@@ -11,6 +11,7 @@
     <AssemblyName>PatTech.Localization.Core</AssemblyName>
     <Title>Words Core</Title>
     <Description>Gives you words.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <Copyright>2025</Copyright>
     <PackageReadmeFile>readme.md</PackageReadmeFile>
   </PropertyGroup>

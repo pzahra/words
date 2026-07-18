@@ -1,5 +1,11 @@
 # Words
 
+This is Words. It gives you Words.
+
+Write your strings in a `words.ini`, load them at startup, and ask for them by
+key. Words handles the languages, the fallbacks, the parameters, and the
+references, so your code never has to know what "hello" is in `en-GB`.
+
 ## Make Words
 
 Place a `words.ini` in the project assets or resources. It can be loaded from a
@@ -109,7 +115,7 @@ the compiler will produce a warning.
 Use the attribute `[Words("key")]` to mark enum values. The `Enum.Describe`
 function will assume the existence of "key.tooltip", "key.sub", "key.desc"
 and "key.unit" as well as the exact name, to provide additional variations
-of the text associaed with an enum item.
+of the text associated with an enum item.
 
 Use the container `LazyWords` to preload a key for services that statically
 initialise before the dictionary has been loaded. The words will resolve

@@ -64,7 +64,7 @@ namespace WordsEdit.ViewModels {
 
 		public WordsEntry() {
 			Value = "";
-			Stale = "";
+			Stale = null;
 			Context = "";
 			Comment = "";
 		}

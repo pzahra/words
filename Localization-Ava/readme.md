@@ -1,4 +1,6 @@
-# Words
+# Words for Avalonia
+
+Use the Words extension to put Words in the AXAML.
 
 ## Include Words
 
@@ -7,7 +9,7 @@ public override void Initialize() {
 	Words.Known = Words.Builder()
 		// Use as many of these as you need.
 		.LoadResource("avares://My-Project/Assets/words.ini")
-		// Select langauge to use.
+		// Select the language to use.
 		.ToWords("en");
 	AvaloniaXamlLoader.Load(this);
 }

@@ -16,6 +16,8 @@
     <CopyBuildOutputToOutputDirectory>false</CopyBuildOutputToOutputDirectory>
     <CopyOutputSymbolsToOutputDirectory>false</CopyOutputSymbolsToOutputDirectory>
     <VSSDKTargetPlatformRegRootSuffix>Roslyn</VSSDKTargetPlatformRegRootSuffix>
+    <!-- VSIX deployment only works from inside Visual Studio; keep `dotnet build` working. -->
+    <DeployExtension Condition="'$(BuildingInsideVisualStudio)' != 'true'">false</DeployExtension>
   </PropertyGroup>
 
   <ItemGroup>
@@ -33,7 +35,6 @@
   <Import Project="$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets" Condition="Exists('$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets')" />
 
   <ItemGroup>
-    <ProjectReference Include="..\LocalizationAnalyzer.CodeFixes\LocalizationAnalyzer.CodeFixes.csproj" />
     <ProjectReference Include="..\LocalizationAnalyzer\LocalizationAnalyzer.csproj" />
   </ItemGroup>
 

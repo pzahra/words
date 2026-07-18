@@ -1,8 +1,25 @@
 <Solution>
-  <Project Path="LocalizationAnalyzer/LocalizationAnalyzer.CodeFixes/LocalizationAnalyzer.CodeFixes.csproj" />
-  <Project Path="LocalizationAnalyzer/LocalizationAnalyzer.Package/LocalizationAnalyzer.Package.csproj" />
-  <Project Path="LocalizationAnalyzer/LocalizationAnalyzer.Test/LocalizationAnalyzer.Test.csproj" />
-  <Project Path="LocalizationAnalyzer/LocalizationAnalyzer.Vsix/LocalizationAnalyzer.Vsix.csproj" />
-  <Project Path="LocalizationAnalyzer/LocalizationAnalyzer/LocalizationAnalyzer.csproj" />
-  <Project Path="LocalizedAttribute/LocalizedAttribute.csproj" />
+  <Folder Name="/Words/">
+    <Project Path="Localization-Core/Localization-Core.csproj" />
+    <Project Path="Localization-Wpf/Localization-Wpf.csproj" />
+    <Project Path="Localization-Ava/Localization-Ava.csproj" />
+  </Folder>
+  <Folder Name="/Analyzer/">
+    <Project Path="LocalizationAnalyzer/LocalizationAnalyzer/LocalizationAnalyzer.csproj" />
+    <Project Path="LocalizationAnalyzer/LocalizationAnalyzer.Package/LocalizationAnalyzer.Package.csproj" />
+    <Project Path="LocalizationAnalyzer/LocalizationAnalyzer.Test/LocalizationAnalyzer.Test.csproj" />
+    <Project Path="LocalizationAnalyzer/LocalizationAnalyzer.Vsix/LocalizationAnalyzer.Vsix.csproj" />
+  </Folder>
+  <Folder Name="/Editor/">
+    <Project Path="WordsEdit/WordsEdit.csproj" />
+    <Project Path="WordsEdit.Tests/WordsEdit.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Samples/">
+    <Project Path="Sample-Wpf/Sample-Wpf.csproj" />
+    <Project Path="Sample-Ava/Sample-Ava.csproj" />
+    <Project Path="LocalizedSample/LocalizedSample.csproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+  </Folder>
 </Solution>
