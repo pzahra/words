@@ -65,7 +65,7 @@ public class MarkdownParser(float baseFontSize = 13, ITakeException? logger = nu
 				if (parsedWidth.HasValue) c.Width = parsedWidth.Value;
 				if (parsedHeight.HasValue) c.Height = parsedHeight.Value;
 				// default height if none specified
-				if (!parsedHeight.HasValue && c.Height == double.NaN && c is Image) c.Height = baseFontSize;
+				if (!parsedHeight.HasValue && double.IsNaN(c.Height) && c is Image) c.Height = baseFontSize;
 				if (!parsedHeight.HasValue && !parsedWidth.HasValue && c is PathGeometry) c.Height = baseFontSize;
 			}
 

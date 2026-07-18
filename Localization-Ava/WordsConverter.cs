@@ -68,8 +68,8 @@ public class WordsConverter(IWords? words = null, ITakeException? logger = null)
 	/// <param name="culture">The culture information used to format the string and values according to locale-specific conventions.</param>
 	/// <returns>A formatted string with values substituted into the localized template.</returns>
 	public static string? Format(IWords words, object? value, string key, CultureInfo culture) {
-		if (value is Array) {
-			return string.Format(culture, words[key], (object[])value);
+		if (value is Array array) {
+			return string.Format(culture, words[key], args: array.Cast<object?>().ToArray());
 		}
 		else {
 			return Words.FormatByName(culture, words[key], value);

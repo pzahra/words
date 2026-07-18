@@ -131,3 +131,26 @@ once the Value is accessed the first time.
 Use the formatter `Words.Known.Format` as you would `String.Format`, but
 you can also use `Words.Known.FormatByName` to access properties as
 named parameters.
+
+## Words on the console
+
+Use the Words extension to put Words in the terminal:
+
+``` csharp
+Console.WriteWordsLine("main.title");
+Console.WriteWordsLine("main.greeting", userName);
+```
+
+Markdown comes along for the ride: bold and italic become ANSI styling, links
+become genuinely clickable OSC 8 hyperlinks (underlined and blue in the
+traditional manner), `m^2^` becomes `m²`, and images bow out gracefully as
+their alt text. When output is redirected to a pipe or file, the escape codes
+stay home and you get plain text with links spelled out as `text (url)`.
+
+The `Console.WriteWords` extension needs .NET 10 (it hangs static members off
+`Console` itself); on .NET 8, use `ConsoleMarkdownParser` directly:
+
+``` csharp
+var parser = new ConsoleMarkdownParser(useAnsi: !Console.IsOutputRedirected);
+Console.WriteLine(parser.ToInline(Words.Known["main.title"]));
+```

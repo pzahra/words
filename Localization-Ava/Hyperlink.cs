@@ -40,18 +40,25 @@ public class Hyperlink : Span {
 	}
 
 	/// <summary>
-	///     Registers an application-wide handler for hyperlink activation: from then on, every
+	///     Registers the application-wide handler for hyperlink activation: from then on, every
 	///     hyperlink clicked in any <see cref="TextBlock"/> passes its <see cref="Uri"/> to
 	///     <paramref name="handler"/>. Typically called once at startup to route <c>http:</c>
 	///     links to the shell and custom schemes (e.g. <c>appcmd:</c>) to application commands.
 	/// </summary>
 	/// <remarks>
-	///     Registration is additive and permanent — there is no unregister, and calling this
-	///     twice means every click is handled twice. Once is plenty.
+	///     There is one global handler: calling this again replaces the previous registration,
+	///     so a click is never handled twice. Dispose the returned subscription to unregister
+	///     without replacing.
 	/// </remarks>
 	/// <param name="handler">Receives the activated hyperlink's URI.</param>
-	public static void RegisterGlobalNavigateHandler(Action<Uri> handler)
-		=> NavigateEvent.AddClassHandler<TextBlock>((_, e) => handler(e.Uri));
+	/// <returns>A subscription that removes the handler when disposed.</returns>
+	public static IDisposable RegisterGlobalNavigateHandler(Action<Uri> handler) {
+		globalNavigateSubscription?.Dispose();
+		globalNavigateSubscription = NavigateEvent.AddClassHandler<TextBlock>((_, e) => handler(e.Uri));
+		return globalNavigateSubscription;
+	}
+
+	private static IDisposable? globalNavigateSubscription;
 
 	/// <summary>
 	///     Raised on the host <see cref="TextBlock"/> when a hyperlink with a non-null

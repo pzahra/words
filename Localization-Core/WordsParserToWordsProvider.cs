@@ -63,14 +63,14 @@ namespace PatTech.Localization {
 					break;
 				case "stale":
 					logger.Warn(string.Format(
-						"WP:STALE:`{0}.{1}-{2}",
+						"WP:STALE:`{0}.{1}-{2}`",
 						blockKey,
 						fieldType,
 						languageCode));
 					break;
 				default:
 					logger.Warn(string.Format(
-						"WP:WHO:`{0}.{1}-{2}",
+						"WP:WHO:`{0}.{1}-{2}`",
 						blockKey,
 						fieldType,
 						languageCode));

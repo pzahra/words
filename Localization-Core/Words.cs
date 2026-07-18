@@ -307,11 +307,13 @@ namespace PatTech.Localization {
 			=> FormatByName(provider, known[key], value, args);
 
 		/// <summary>
-		/// Takes a format template with named placeholders, and replaces the names with numbers. The first item is a
-		/// direct reference to the object being passed, followed by any public instance field/property it finds with
-		/// the specified name. A name that matches neither a field nor a property formats
-		/// as <c>#name#</c> and warns via <see cref="Logger"/>. Numbered placeholders
-		/// pass through untouched and keep referring to <paramref name="args"/>.
+		/// Takes a format template with named placeholders, and replaces the names with numbers.
+		/// The returned argument array holds <paramref name="args"/> first, then the
+		/// <paramref name="value"/> object itself, then each named member in order of first
+		/// appearance; a repeated name reuses its original slot. A name that matches neither
+		/// a public field nor a property formats as <c>#name#</c> and warns via
+		/// <see cref="Logger"/>. Numbered placeholders pass through untouched and keep
+		/// referring to <paramref name="args"/>.
 		/// </summary>
 		/// <param name="template">The format template containing <c>{Name}</c> or <c>{Name:format}</c> tags.</param>
 		/// <param name="value">The object whose public fields and properties are read by name.</param>
@@ -324,11 +326,11 @@ namespace PatTech.Localization {
 				string name = m.Groups[1].Value;
 				int i = newArgs.FindIndex(n => n.Key == name);
 				if (i == -1) {
-					i = newArgs.Count + args.Length;
+					i = newArgs.Count;
 					var newValue = valueOf(value, name, type);
 					newArgs.Add(new PairObj(name, newValue));
 				}
-				return $"{{{i}:{m.Groups[2].Value}}}";
+				return $"{{{i + args.Length}:{m.Groups[2].Value}}}";
 			});
 			var newValues = args
 				.Concat(newArgs.Select(n => n.Value))

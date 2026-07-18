@@ -27,8 +27,8 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
  (?<basic>\*{1,3})(?=[\S-[*]])(?<text>.+?)(?<=[\S-[*]])\k<basic>
 |(?<basic>\^)(?=[\S-[\^]])(?<text>.+?)(?<=[\S-[\^]])\k<basic>
 |(?<basic>~)(?=[\S-[~]])(?<text>.+?)(?<=[\S-[~]])\k<basic>
-# full link (or image) `[text](url)` or `[label](url ""title"")`
-|(?<image>!)\[(?<text>[^]]+)\]\(\s*(?<url>[^\s)]+)(\s+""(?<title>[^""]*)"")?\s*\)
+# full link `[text](url)` or `[label](url ""title"")`, or image with leading `!`
+|(?<image>!)?\[(?<text>[^]]+)\]\(\s*(?<url>[^\s)]+)(\s+""(?<title>[^""]*)"")?\s*\)
 # simple link `<url>`
 |<\s*(?<text>(?<url>[^\s>]+))\s*>",
 		options: RegexOptions.Compiled
@@ -61,7 +61,7 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 	/// Creates an image inline.
 	/// </summary>
 	/// <param name="source">The image location.</param>
-	/// <param name="altText">The alternative text, or <see langword="null"/> if none was captured.</param>
+	/// <param name="altText">The alternative text from the <c>![alt]</c> label; the markdown syntax requires it, so it is only <see langword="null"/> for callers outside the parser.</param>
 	/// <param name="tooltip">The quoted title, or <see langword="null"/> if none was given.</param>
 	protected abstract TInline Image(Uri source, string? altText, string? tooltip);
 	/// <summary>
@@ -152,7 +152,7 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 			}
 			else if (match.TryGetGroup("url", out var urlGroup)) {
 				var url = urlGroup.Value;
-				if (match.Groups.ContainsKey("image")) {
+				if (match.TryGetGroup("image", out _)) {
 					yield return DecodeImage(disallowedElements, match, url);
 				}
 				else {
@@ -187,7 +187,7 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 			toolTip = DecodeText(titleGroup.Value);
 		}
 		string? altText = null;
-		if (match.TryGetGroup("content", out var altGroup)) {
+		if (match.TryGetGroup("text", out var altGroup)) {
 			altText = DecodeText(altGroup.Value);
 		}
 		return Image(new(url), altText, toolTip);
