@@ -1,10 +1,6 @@
-﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
-using Avalonia.Controls.Shapes;
 using Avalonia.Media;
-using Avalonia.Media.Imaging;
-using Path = System.IO.Path;
 using PathGeometry = Avalonia.Controls.Shapes.Path;
 
 namespace PatTech.Localization.Avalonia;
@@ -14,16 +10,42 @@ namespace PatTech.Localization.Avalonia;
 ///     (bold, italic, sub/superscript), hyperlinks, and images.
 /// </summary>
 /// <remarks>
-///     Image URIs honor the schemes <c>avares:</c> (embedded assets), <c>assets:</c>
-///     (files under the application's <c>Assets</c> folder), and <c>staticres:</c>
-///     (application resource by <c>x:Key</c> — <see cref="IImage"/>, <see cref="Geometry"/>,
-///     or any <see cref="Control"/>). The query string may carry <c>width</c>, <c>height</c>,
-///     <c>background</c>, and <c>foreground</c> options. Anything that fails to resolve
-///     degrades to the image's alt text.
+///     Image URIs are resolved through the <see cref="ImageSchemes"/> registry. Out of
+///     the box that covers <c>avares:</c> (embedded assets), <c>assets:</c> (files under
+///     the application's <c>Assets</c> folder), and <c>staticres:</c> (application
+///     resource by <c>x:Key</c>); register your own <see cref="IImageSchemeResolver"/>
+///     to teach it more. The query string may carry <c>width</c>, <c>height</c>,
+///     <c>background</c>, and <c>foreground</c> options, applied uniformly whatever
+///     the scheme. Anything that fails to resolve degrades to the image's alt text.
 /// </remarks>
 /// <param name="baseFontSize">Font size the output is destined for; sets the sub/superscript size (80% of it) and the default height of geometry icons.</param>
 /// <param name="logger">An interface for passing on logging instructions to the caller.</param>
 public class MarkdownParser(float baseFontSize = 13, ITakeException? logger = null) : MarkdownParser<Inline>(logger), IMarkdownParser {
+	private static MarkdownParser _Default = new();
+	/// <summary>
+	///     The shared parser used by <see cref="WordsInline"/> and
+	///     <see cref="MarkdownConverter"/>. Register custom image schemes on it at
+	///     startup (<c>MarkdownParser.Default.ImageSchemes["md"] = …</c>), or replace
+	///     it wholesale to change the base font size or logger.
+	/// </summary>
+	/// <exception cref="ArgumentNullException">The value assigned is <see langword="null"/>.</exception>
+	public static MarkdownParser Default {
+		get => _Default;
+		set => _Default = value ?? throw new ArgumentNullException(nameof(value));
+	}
+
+	/// <summary>
+	///     The image scheme registry: maps a URI scheme (case-insensitive, no colon) to
+	///     the resolver that produces its visual. Pre-loaded with the built-in schemes;
+	///     add, replace or remove entries to taste. The registry is per-instance, so a
+	///     specially-schooled parser doesn't leak its vocabulary into others.
+	/// </summary>
+	public Dictionary<string, IImageSchemeResolver> ImageSchemes { get; } = new(StringComparer.OrdinalIgnoreCase) {
+		["avares"] = new AvaresImageResolver(),
+		["assets"] = new AssetsImageResolver(),
+		["staticres"] = new StaticResImageResolver(),
+	};
+
 	/// <summary>Creates a plain <see cref="global::Avalonia.Controls.Documents.Run"/> for unformatted text.</summary>
 	protected override Inline Run(string text) => new Run { Text = text };
 	/// <summary>Groups multiple inlines into a single <see cref="global::Avalonia.Controls.Documents.Span"/>.</summary>
@@ -43,192 +65,44 @@ public class MarkdownParser(float baseFontSize = 13, ITakeException? logger = nu
 	}
 
 	/// <summary>
-	///     Resolves an image URI to inline visual content according to its scheme
-	///     (<c>avares:</c>, <c>assets:</c>, or <c>staticres:</c> — see the class remarks),
-	///     applying any <c>width</c>/<c>height</c>/<c>background</c>/<c>foreground</c>
-	///     query options. Unknown schemes, missing resources, and load errors all fall back to
-	///     a <see cref="global::Avalonia.Controls.Documents.Run"/> holding <paramref name="altText"/>.
+	///     Resolves an image URI through the <see cref="ImageSchemes"/> registry, then
+	///     applies the <c>width</c>/<c>height</c> options (raster images default to
+	///     their actual size; geometry, having none, defaults to the base font
+	///     size), wraps in a <see cref="Border"/> when a
+	///     <c>background</c> was asked for, and attaches the tooltip. Unknown schemes,
+	///     resolvers that come back empty-handed, and resolver exceptions all fall back
+	///     to a <see cref="global::Avalonia.Controls.Documents.Run"/> holding <paramref name="altText"/>.
 	/// </summary>
 	protected override Inline Image(Uri source, string? altText, string? tooltip) {
 		try {
-			var scheme = (source.Scheme ?? string.Empty).ToLowerInvariant();
-			var query = ParseQuery(source.Query);
-
-			// parse optional width/height/background/foreground from query
-			double? parsedWidth = TryParseDoubleFromQuery(query, "width");
-			double? parsedHeight = TryParseDoubleFromQuery(query, "height");
-			Brush? backgroundBrush = TryParseColorBrushFromQuery(query, "background");
-			Brush? foregroundBrush = TryParseColorBrushFromQuery(query, "foreground");
-
-			// helper to apply width/height on a control
-			void ApplySize(Control c) {
-				if (parsedWidth.HasValue) c.Width = parsedWidth.Value;
-				if (parsedHeight.HasValue) c.Height = parsedHeight.Value;
-				// default height if none specified
-				if (!parsedHeight.HasValue && double.IsNaN(c.Height) && c is Image) c.Height = baseFontSize;
-				if (!parsedHeight.HasValue && !parsedWidth.HasValue && c is PathGeometry) c.Height = baseFontSize;
-			}
-
-			// AVARES: treat as Avalonia embedded resource (avares://...)
-			if (scheme == "avares") {
-				var img = new Image {
-					Source = new Bitmap(source.AbsoluteUri),
-					Stretch = Stretch.Uniform,
-				};
-				ApplySize(img);
-
-				Control outer = img;
-				if (backgroundBrush != null) {
-					outer = new Border { Background = backgroundBrush, Child = img };
-					ApplySize(outer);
-				}
-
-				if (!string.IsNullOrEmpty(tooltip)) ToolTip.SetTip(outer, tooltip);
-				return new InlineUIContainer { Child = outer };
-			}
-
-			// ASSETS: local filesystem rooted at Assets folder in application directory
-			if (scheme == "assets") {
-				// path portion
-				var rel = source.AbsolutePath ?? source.OriginalString;
-				rel = rel.TrimStart('/');
-				var root = AppContext.BaseDirectory ?? Environment.CurrentDirectory;
-				var filePath = Path.Combine(root, "Assets", rel.Replace('/', Path.DirectorySeparatorChar));
-
-				if (!File.Exists(filePath)) {
-					return new Run { Text = altText };
-				}
-
-				try {
-					var img = new Image {
-						Source = new Bitmap(filePath),
-						Stretch = Stretch.Uniform,
-					};
-					ApplySize(img);
-
-					Control outer = img;
-					if (backgroundBrush != null) {
-						outer = new Border { Background = backgroundBrush, Child = img };
-						ApplySize(outer);
+			if (ImageSchemes.TryGetValue(source.Scheme ?? string.Empty, out var resolver)) {
+				var options = ImageOptions.Parse(source.Query);
+				if (resolver.Resolve(source, options) is { } visual) {
+					ApplySize(visual, options);
+					Control outer = visual;
+					if (options.Background is not null) {
+						outer = new Border { Background = options.Background, Child = visual };
 					}
-
-					if (!string.IsNullOrEmpty(tooltip)) ToolTip.SetTip(outer, tooltip);
-					return new InlineUIContainer { Child = outer };
-				} catch {
-					return new Run { Text = altText };
-				}
-			}
-
-			// STATICRES: lookup Application static resources (axaml)
-			if (scheme == "staticres") {
-				// resource key: try AbsolutePath without leading '/'
-				var key = source.AbsolutePath ?? source.OriginalString;
-				if (key.StartsWith("/")) key = key.Substring(1);
-
-				object? resource = null;
-				if (Application.Current?.Resources != null && Application.Current.Resources.TryGetValue((object)key, out var val)) {
-					resource = val;
-				}
-
-				// Try original string key as fallback
-				if (resource == null && Application.Current?.Resources != null && Application.Current.Resources.TryGetValue((object)source.OriginalString, out var val2)) {
-					resource = val2;
-				}
-
-				if (resource is null) {
-					return new Run { Text = altText };
-				}
-
-				// If image resource
-				if (resource is IImage imgRes) {
-					var img = new Image {
-						Source = imgRes,
-						Stretch = Stretch.Uniform,
-					};
-					ApplySize(img);
-
-					Control outer = img;
-					if (backgroundBrush != null) {
-						outer = new Border { Background = backgroundBrush, Child = img };
-						ApplySize(outer);
+					if (!string.IsNullOrEmpty(tooltip)) {
+						ToolTip.SetTip(outer, tooltip);
 					}
-
-					if (!string.IsNullOrEmpty(tooltip)) ToolTip.SetTip(outer, tooltip);
 					return new InlineUIContainer { Child = outer };
 				}
-
-				// If resource is a Geometry (path), apply foreground (fill), size and optional background
-				if (resource is Geometry geometry) {
-					var path = new PathGeometry {
-						Data = geometry,
-						Fill = foregroundBrush ?? (IBrush)Brushes.Black,
-						Stretch = Stretch.Uniform,
-					};
-					ApplySize(path);
-
-					Control outer = path;
-					if (backgroundBrush != null) {
-						outer = new Border { Background = backgroundBrush, Child = path };
-						ApplySize(outer);
-					}
-
-					if (!string.IsNullOrEmpty(tooltip)) ToolTip.SetTip(outer, tooltip);
-					return new InlineUIContainer { Child = outer };
-				}
-
-				// If resource is a Control already, try to size and return it
-				if (resource is Control ctl) {
-					if (foregroundBrush != null && ctl is Shape shapeCtl) shapeCtl.Fill = foregroundBrush;
-					if (backgroundBrush != null) {
-						var b = new Border { Background = backgroundBrush, Child = ctl };
-						ApplySize(b);
-						if (!string.IsNullOrEmpty(tooltip)) ToolTip.SetTip(b, tooltip);
-						return new InlineUIContainer { Child = b };
-					}
-					ApplySize(ctl);
-					if (!string.IsNullOrEmpty(tooltip)) ToolTip.SetTip(ctl, tooltip);
-					return new InlineUIContainer { Child = ctl };
-				}
-
-				// Unknown resource type - fallback to alternate text
-				return new Run { Text = altText };
 			}
-		} catch {
-			// Swallow rendering errors to avoid breaking markdown flow
+		}
+		catch {
+			// a broken image must not take the paragraph down with it
 		}
 
-		// Default fallback
 		return new Run { Text = altText };
 	}
 
-	// --- helpers ---
-	private static Dictionary<string, string> ParseQuery(string? query) {
-		var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-		if (string.IsNullOrEmpty(query)) return result;
-		var q = query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries);
-		foreach (var kv in q) {
-			var parts = kv.Split(new[] { '=' }, 2);
-			var name = Uri.UnescapeDataString(parts[0]);
-			var value = parts.Length > 1 ? Uri.UnescapeDataString(parts[1]) : string.Empty;
-			result[name] = value;
-		}
-		return result;
-	}
-
-	private static double? TryParseDoubleFromQuery(Dictionary<string, string> q, string key) {
-		if (!q.TryGetValue(key, out var v) || string.IsNullOrWhiteSpace(v)) return null;
-		if (double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d)) return d;
-		return null;
-	}
-
-	private static Brush? TryParseColorBrushFromQuery(Dictionary<string, string> q, string key) {
-		if (!q.TryGetValue(key, out var v) || string.IsNullOrWhiteSpace(v)) return null;
-		try {
-			var c = Color.Parse(v);
-			return new SolidColorBrush(c);
-		} catch {
-			return null;
-		}
+	private void ApplySize(Control control, ImageOptions options) {
+		if (options.Width is double width) control.Width = width;
+		if (options.Height is double height) control.Height = height;
+		// geometry has no natural size, so default it to the font height;
+		// raster images keep their actual size unless told otherwise
+		if (options.Height is null && options.Width is null && control is PathGeometry) control.Height = baseFontSize;
 	}
 
 	/// <summary>Makes the content bold.</summary>

@@ -36,6 +36,39 @@ One namespace gives you everything:
 - `<l:WordsInline Key="key"/>` — an inline that renders the value, markdown
   and all, inside a `TextBlock`.
 
+## Put pictures in your Words
+
+Markdown images work in any rendered value, with the URI scheme deciding where
+the picture comes from:
+
+``` ini
+[main.save-hint]
+value=Press ![save icon](staticres:SaveIconGeometry?height=16&foreground=DarkGreen) to save.
+```
+
+Out of the box the parser speaks `staticres:` (application resource by
+`x:Key`), `pack:` (WPF pack URIs), `resx:` (a `Resources` class in your loaded
+assemblies), and `assets:` (files under the application's `Assets` folder).
+Query options `width`, `height`, `background`, and `foreground` apply whatever
+the scheme. Anything that fails to resolve renders as the image's alt text,
+because a missing icon should never eat your sentence.
+
+Teach it new schemes by registering an `IImageSchemeResolver` on the shared
+parser at startup — say, Material Design icons:
+
+``` csharp
+class PackIconResolver : IImageSchemeResolver {
+	public FrameworkElement? Resolve(Uri source, ImageOptions options)
+		=> Enum.TryParse<PackIconKind>(source.AbsolutePath.TrimStart('/'), out var kind)
+			? new PackIcon { Kind = kind, Foreground = options.Foreground ?? Brushes.Black }
+			: null;
+}
+
+// at startup:
+MarkdownParser.Default.ImageSchemes["md"] = new PackIconResolver();
+// and now `![save](md:ContentSave)` gives you Words with icons in them.
+```
+
 ## Convert Words
 
 For values that only exist at runtime, there are converters:

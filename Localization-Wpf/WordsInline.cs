@@ -18,8 +18,6 @@ namespace PatTech.Localization.Wpf {
 	/// </remarks>
 	[ContentProperty(nameof(Params))]
 	public class WordsInline : Span {
-		private static readonly MarkdownParser markdown = new();
-
 		/// <summary>Identifies the <see cref="Key"/> dependency property.</summary>
 		public static readonly DependencyProperty KeyProperty = DependencyProperty.Register(
 			nameof(Key),
@@ -72,7 +70,7 @@ namespace PatTech.Localization.Wpf {
 					break;
 			}
 
-			Inlines.AddRange(markdown.ToInlines(text));
+			Inlines.AddRange(MarkdownParser.Default.ToInlines(text));
 		}
 
 		/// <summary>

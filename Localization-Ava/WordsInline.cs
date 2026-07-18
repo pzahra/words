@@ -17,8 +17,6 @@ namespace PatTech.Localization.Avalonia;
 ///     rebuilt whenever <see cref="Key"/> or <see cref="Params"/> changes.
 /// </remarks>
 public class WordsInline : Span {
-	private static readonly MarkdownParser markdown = new();
-
 	/// <summary>Identifies the <see cref="Key"/> styled property.</summary>
 	public static readonly StyledProperty<string?> KeyProperty =
 		AvaloniaProperty.Register<WordsInline, string?>(nameof(Key));
@@ -95,7 +93,7 @@ public class WordsInline : Span {
 			}
 		}
 
-		foreach (var inline in markdown.ToInlines(text)) {
+		foreach (var inline in MarkdownParser.Default.ToInlines(text)) {
 			Inlines.Add(inline);
 		}
 	}

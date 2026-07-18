@@ -12,8 +12,6 @@ namespace PatTech.Localization.Wpf {
 	[ValueConversion(typeof(string), typeof(Span))]
 	[ValueConversion(typeof(string), typeof(TextBlock))]
 	public class MarkdownConverter : IValueConverter {
-		private static readonly MarkdownParser markdown = new();
-
 		/// <summary>
 		///     Parses the bound value (via <see cref="object.ToString"/> if it isn't already a
 		///     string) as markdown and returns the formatted result.
@@ -34,7 +32,7 @@ namespace PatTech.Localization.Wpf {
 
 			Inline inline;
 			if (!string.IsNullOrEmpty(text)) {
-				inline = markdown.ToInline(text);
+				inline = MarkdownParser.Default.ToInline(text);
 			}
 			else {
 				inline = new Run();

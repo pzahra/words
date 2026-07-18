@@ -10,8 +10,6 @@ namespace PatTech.Localization.Avalonia;
 ///     <see cref="TextBlock"/>. Currently only supports basic formatting and hyperlinks.
 /// </summary>
 public class MarkdownConverter : IValueConverter {
-	private static readonly MarkdownParser markdown = new();
-
 	/// <summary>
 	///     Parses the bound value (via <see cref="object.ToString"/> if it isn't already a
 	///     string) as markdown and returns the formatted result.
@@ -32,7 +30,7 @@ public class MarkdownConverter : IValueConverter {
 
 		Inline inline;
 		if (!string.IsNullOrEmpty(text)) {
-			inline = markdown.ToInline(text);
+			inline = MarkdownParser.Default.ToInline(text);
 		}
 		else {
 			inline = new Run();
