@@ -52,19 +52,24 @@ public class MarkdownParser(float baseFontSize = 13, ITakeException? logger = nu
 	/// <summary>Creates a plain <see cref="global::Avalonia.Controls.Documents.Run"/> for unformatted text.</summary>
 	protected override Inline Run(string text) => new Run { Text = text };
 	/// <summary>Groups multiple inlines into a single <see cref="global::Avalonia.Controls.Documents.Span"/>.</summary>
-	protected override Inline Span(IEnumerable<Inline> inlines) => new Span { Inlines = [..inlines] };
+	protected override Inline Span(IEnumerable<Inline> inlines) {
+		// populate the existing collection: replacing it via the setter leaves the
+		// children without a logical parent, so they stop inheriting text properties
+		var span = new Span();
+		span.Inlines.AddRange(inlines);
+		return span;
+	}
 	/// <summary>
 	///     Wraps <paramref name="content"/> in a <see cref="PatTech.Localization.Avalonia.Hyperlink"/>
 	///     pointing at <paramref name="target"/>, underlined and blue in the traditional manner.
 	/// </summary>
 	protected override Inline Hyperlink(Inline content, Uri target, string? tooltip) {
-		content.TextDecorations = TextDecorations.Underline;
-		content.Foreground = Brushes.Blue;
-		return new Hyperlink {
-			Inlines = [content],
+		var link = new Hyperlink {
 			Uri = target,
 			ToolTip = tooltip,
 		};
+		link.Inlines.Add(content);
+		return link;
 	}
 
 	/// <summary>
@@ -80,7 +85,7 @@ public class MarkdownParser(float baseFontSize = 13, ITakeException? logger = nu
 	protected override Inline Image(Uri source, string? altText, string? tooltip) {
 		try {
 			if (ImageSchemes.TryGetValue(source.Scheme ?? string.Empty, out var resolver)) {
-				var options = ImageOptions.Parse(source.Query);
+				var options = ImageOptions.Parse(ref source);
 				if (resolver.Resolve(source, options) is { } visual) {
 					ApplySize(visual, options);
 					Control outer = visual;
@@ -100,15 +105,23 @@ public class MarkdownParser(float baseFontSize = 13, ITakeException? logger = nu
 			logger.Error(ex, "IMG:RES:" + source);
 		}
 
-		return new Run { Text = altText };
+		return new Run { Text = $"[🖼️!{altText}]" };
 	}
 
 	private void ApplySize(Control control, ImageOptions options) {
 		if (options.Width is double width) control.Width = width;
 		if (options.Height is double height) control.Height = height;
-		// geometry has no natural size, so default it to the font height;
-		// raster images keep their actual size unless told otherwise
-		if (options.Height is null && options.Width is null && control is PathGeometry) control.Height = baseFontSize;
+		if (options.Height is null && options.Width is null) {
+			// geometry has no natural size, so default it to the font height
+			if (control is PathGeometry) control.Height = baseFontSize;
+			// raster images get pinned to their natural size: the TextBlock measures
+			// embedded controls with the whole line's constraint, and an unpinned
+			// Stretch.Uniform image balloons to fill it
+			else if (control is Image { Source: { } source }) {
+				control.Width = source.Size.Width;
+				control.Height = source.Size.Height;
+			}
+		}
 	}
 
 	/// <summary>Makes the content bold.</summary>

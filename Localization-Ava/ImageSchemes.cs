@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using System.Globalization;
 using PathGeometry = Avalonia.Controls.Shapes.Path;
 
@@ -23,7 +24,7 @@ public interface IImageSchemeResolver {
 	///     the tooltip are applied uniformly by the parser afterwards. Exceptions are
 	///     treated the same as <see langword="null"/>.
 	/// </summary>
-	/// <param name="source">The image URI, scheme and all.</param>
+	/// <param name="source">The image URI, scheme and all — but query-less: the query is pre-parsed into <paramref name="options"/> (raw pairs in <see cref="ImageOptions.Query"/>).</param>
 	/// <param name="options">The pre-parsed query options.</param>
 	Control? Resolve(Uri source, ImageOptions options);
 }
@@ -65,6 +66,25 @@ public class ImageOptions {
 		};
 	}
 
+	/// <summary>
+	///     Parses the options off a whole image URI and rewrites
+	///     <paramref name="source"/> to the query-less remainder: the query carries
+	///     display options, not asset identity, so resolvers always receive a clean
+	///     URI. The split is done by hand because <see cref="System.Uri"/> only
+	///     recognizes a query in schemes it knows, and authority-style image schemes
+	///     (<c>avares://…</c>) are anything but: left alone, the <c>?</c> stays
+	///     glued to the asset path.
+	/// </summary>
+	/// <param name="source">The image URI; rewritten without its query portion.</param>
+	public static ImageOptions Parse(ref Uri source) {
+		var raw = source.OriginalString;
+		var q = raw.IndexOf('?');
+		if (q < 0) return Parse((string?)null);
+		var options = Parse(raw[(q + 1)..]);
+		source = new Uri(raw[..q]);
+		return options;
+	}
+
 	private static Dictionary<string, string> ParseQuery(string? query) {
 		var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 		if (string.IsNullOrEmpty(query)) return result;
@@ -97,16 +117,20 @@ public class ImageOptions {
 }
 
 /// <summary>
-///     Resolves <c>avares:</c> URIs (Avalonia embedded assets) by handing them
-///     straight to <see cref="Bitmap"/>.
+///     Resolves <c>avares:</c> URIs (Avalonia embedded assets) through the
+///     <see cref="AssetLoader"/>. A missing asset resolves to nothing, which the
+///     parser renders as the alt text.
 /// </summary>
 public class AvaresImageResolver : IImageSchemeResolver {
 	/// <inheritdoc/>
-	public Control? Resolve(Uri source, ImageOptions options)
-		=> new Image {
-			Source = new Bitmap(source.AbsoluteUri),
+	public Control? Resolve(Uri source, ImageOptions options) {
+		if (!AssetLoader.Exists(source)) return null;
+		using var stream = AssetLoader.Open(source);
+		return new Image {
+			Source = new Bitmap(stream),
 			Stretch = Stretch.Uniform,
 		};
+	}
 }
 
 /// <summary>

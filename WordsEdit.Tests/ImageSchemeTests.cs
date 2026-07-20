@@ -70,7 +70,7 @@ public class ImageSchemeTests {
 			var inline = parser.ToInline("![the alt](nosuch:thing)");
 
 			var run = Assert.IsType<Run>(inline);
-			Assert.Equal("the alt", run.Text);
+			Assert.Equal("[🖼️!the alt]", run.Text);
 			return null;
 		});
 	}
@@ -84,7 +84,7 @@ public class ImageSchemeTests {
 			var inline = parser.ToInline("![the alt](fake:thing)");
 
 			var run = Assert.IsType<Run>(inline);
-			Assert.Equal("the alt", run.Text);
+			Assert.Equal("[🖼️!the alt]", run.Text);
 			return null;
 		});
 	}
@@ -98,7 +98,7 @@ public class ImageSchemeTests {
 			var inline = parser.ToInline("![the alt](fake:thing)");
 
 			var run = Assert.IsType<Run>(inline);
-			Assert.Equal("the alt", run.Text);
+			Assert.Equal("[🖼️!the alt]", run.Text);
 			return null;
 		});
 	}
@@ -123,6 +123,49 @@ public class ImageSchemeTests {
 	}
 
 	[Fact]
+	public void NoQueryScheme_QueryIsSplitOffByHand() {
+		// Avalonia registers `avares` with a UriParser that has no query support,
+		// leaving the `?` glued to the asset path. Emulate that registration: the
+		// options must still apply, and the resolver must get a query-less URI.
+		UriParser.Register(new GenericUriParser(
+			GenericUriParserOptions.GenericAuthority
+			| GenericUriParserOptions.NoQuery
+			| GenericUriParserOptions.NoFragment), "fakeres", -1);
+		RunSta<object?>(() => {
+			var parser = new MarkdownParser();
+			var resolver = new FakeResolver((_, _) => new TextBlock());
+			parser.ImageSchemes["fakeres"] = resolver;
+
+			var inline = parser.ToInline("![alt](fakeres://host/thing.png?width=32&height=16)");
+
+			var container = Assert.IsType<InlineUIContainer>(inline);
+			var textBlock = Assert.IsType<TextBlock>(container.Child);
+			Assert.Equal(32, textBlock.Width);
+			Assert.Equal(16, textBlock.Height);
+			Assert.Equal("fakeres://host/thing.png", resolver.LastSource?.OriginalString);
+			return null;
+		});
+	}
+
+	[Fact]
+	public void RegularScheme_QueryAlsoTrimmedFromResolverUri() {
+		// the query carries display options, not asset identity, so the resolver
+		// gets a query-less URI even when System.Uri parsed the query itself
+		// (a pack: resource named `x.png?width=32` exists nowhere)
+		RunSta<object?>(() => {
+			var parser = new MarkdownParser();
+			var resolver = new FakeResolver((_, _) => new TextBlock());
+			parser.ImageSchemes["fake"] = resolver;
+
+			parser.ToInline("![alt](fake:thing?width=32)");
+
+			Assert.Equal("fake:thing", resolver.LastSource?.OriginalString);
+			Assert.Equal(32, resolver.LastOptions?.Width);
+			return null;
+		});
+	}
+
+	[Fact]
 	public void RasterImage_WithoutSizeOptions_KeepsNaturalSize() {
 		RunSta<object?>(() => {
 			var parser = new MarkdownParser();
@@ -134,6 +177,47 @@ public class ImageSchemeTests {
 			var image = Assert.IsType<Image>(container.Child);
 			Assert.True(double.IsNaN(image.Width));
 			Assert.True(double.IsNaN(image.Height));
+			return null;
+		});
+	}
+
+	private static Image TinyImage(int pixelWidth, int pixelHeight) => new() {
+		Source = System.Windows.Media.Imaging.BitmapSource.Create(
+			pixelWidth, pixelHeight, 96, 96, PixelFormats.Bgra32, null,
+			new byte[4 * pixelWidth * pixelHeight], 4 * pixelWidth),
+		Stretch = Stretch.Uniform,
+	};
+
+	[Fact]
+	public void RasterImage_WithSource_PinnedToNaturalSize() {
+		// measured with the whole line's constraint, an unpinned Stretch.Uniform
+		// image balloons to fill it; no options means natural size, so pin it
+		RunSta<object?>(() => {
+			var parser = new MarkdownParser();
+			parser.ImageSchemes["fake"] = new FakeResolver((_, _) => TinyImage(10, 8));
+
+			var inline = parser.ToInline("![alt](fake:thing)");
+
+			var container = Assert.IsType<InlineUIContainer>(inline);
+			var image = Assert.IsType<Image>(container.Child);
+			Assert.Equal(10, image.Width);
+			Assert.Equal(8, image.Height);
+			return null;
+		});
+	}
+
+	[Fact]
+	public void RasterImage_OneSizeOption_LeavesTheOtherToAspectRatio() {
+		RunSta<object?>(() => {
+			var parser = new MarkdownParser();
+			parser.ImageSchemes["fake"] = new FakeResolver((_, _) => TinyImage(10, 8));
+
+			var inline = parser.ToInline("![alt](fake:thing?height=16)");
+
+			var container = Assert.IsType<InlineUIContainer>(inline);
+			var image = Assert.IsType<Image>(container.Child);
+			Assert.True(double.IsNaN(image.Width));
+			Assert.Equal(16, image.Height);
 			return null;
 		});
 	}

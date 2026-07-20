@@ -3,29 +3,69 @@
         xmlns:vm="using:Sample_Ava.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="760"
         x:Class="Sample_Ava.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
         xmlns:l="pattech.words"
-        Title="{l:Words main.title}">
+        Title="{l:Words main.title}"
+        Width="700" Height="760">
 
     <Design.DataContext>
         <!-- This only sets the DataContext for the previewer in an IDE,
              to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
         <vm:MainWindowViewModel/>
     </Design.DataContext>
-    
-  <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-    <TextBlock>
-      <l:WordsInline Key="main.markdown"/>
-    </TextBlock>
 
-    <TextBlock>
-      asdf<Span>
-        <Run BaselineAlignment="Subscript" FontSize="10">dn</Run></Span><Span TextDecorations="Underline">asdf</Span>
-    </TextBlock>
-    
-    <TextBlock Text="{l:Words main.greeting}"/>
-  </StackPanel>
+  <Window.Resources>
+    <!-- renders any bound string as markdown; used by the playground below -->
+    <l:MarkdownConverter x:Key="Markdown"/>
+  </Window.Resources>
+
+  <Window.Styles>
+    <Style Selector="TextBlock.h">
+      <Setter Property="FontSize" Value="15"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Margin" Value="0,18,0,4"/>
+    </Style>
+    <Style Selector="TextBlock.demo">
+      <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+  </Window.Styles>
+
+  <ScrollViewer>
+    <StackPanel Margin="24,16" MaxWidth="640" Spacing="4">
+
+      <!-- {l:Words key} resolves plain localized text; the app asked for Italian
+           at startup, so keys with a value-it render it and the rest fall back -->
+      <TextBlock FontSize="22" FontWeight="Bold" Text="{l:Words main.title}"/>
+      <TextBlock FontStyle="Italic" Text="{l:Words main.greeting}"/>
+
+      <TextBlock Classes="h" Text="{l:Words section.formatting}"/>
+      <!-- WordsInline renders a key's Words as rich inline content, markdown and all -->
+      <TextBlock Classes="demo"><l:WordsInline Key="demo.formatting"/></TextBlock>
+      <TextBlock Classes="demo"><l:WordsInline Key="demo.entities"/></TextBlock>
+
+      <TextBlock Classes="h" Text="{l:Words section.links}"/>
+      <TextBlock Classes="demo"><l:WordsInline Key="demo.links"/></TextBlock>
+      <!-- clicking the appcmd: link above updates this line through the view model -->
+      <TextBlock Classes="demo"><l:WordsInline Key="demo.appcmd-report" Params="{Binding AppCommandParams}"/></TextBlock>
+
+      <TextBlock Classes="h" Text="{l:Words section.images}"/>
+      <TextBlock Classes="demo"><l:WordsInline Key="demo.images"/></TextBlock>
+
+      <TextBlock Classes="h" Text="{l:Words section.params}"/>
+      <TextBlock Classes="demo"><l:WordsInline Key="demo.params-positional" Params="{Binding UnreadParams}"/></TextBlock>
+      <Slider Minimum="0" Maximum="42" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Unread}"/>
+      <TextBlock Classes="demo"><l:WordsInline Key="demo.params-named" Params="{Binding Profile}"/></TextBlock>
+
+      <TextBlock Classes="h" Text="{l:Words section.kitchen}"/>
+      <TextBlock Classes="demo"><l:WordsInline Key="main.markdown"/></TextBlock>
+
+      <TextBlock Classes="h" Text="{l:Words section.playground}"/>
+      <TextBox Text="{Binding Playground}"/>
+      <ContentControl Margin="0,4,0,16" Content="{Binding Playground, Converter={StaticResource Markdown}}"/>
+
+    </StackPanel>
+  </ScrollViewer>
 </Window>

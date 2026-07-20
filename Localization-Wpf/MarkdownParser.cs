@@ -88,7 +88,7 @@ namespace PatTech.Localization.Wpf {
 		protected override Inline Image(Uri source, string? altText, string? tooltip) {
 			try {
 				if (ImageSchemes.TryGetValue(source.Scheme ?? string.Empty, out var resolver)) {
-					var options = ImageOptions.Parse(source.Query);
+					var options = ImageOptions.Parse(ref source);
 					if (resolver.Resolve(source, options) is { } visual) {
 						ApplySize(visual, options);
 						FrameworkElement outer = visual;
@@ -108,15 +108,22 @@ namespace PatTech.Localization.Wpf {
 				logger.Error(ex, "IMG:RES:" + source);
 			}
 
-			return new Run { Text = altText };
+			return new Run { Text = $"[🖼️!{altText}]" };
 		}
 
 		private void ApplySize(FrameworkElement element, ImageOptions options) {
 			if (options.Width is double width) element.Width = width;
 			if (options.Height is double height) element.Height = height;
-			// geometry has no natural size, so default it to the font height;
-			// raster images keep their actual size unless told otherwise
-			if (options.Height is null && options.Width is null && element is PathGeometry) element.Height = baseFontSize;
+			if (options.Height is null && options.Width is null) {
+				// geometry has no natural size, so default it to the font height
+				if (element is PathGeometry) element.Height = baseFontSize;
+				// raster images get pinned to their natural size: measured with the
+				// whole line's constraint, an unpinned Stretch.Uniform image balloons
+				else if (element is Image { Source: { } source }) {
+					element.Width = source.Width;
+					element.Height = source.Height;
+				}
+			}
 		}
 
 		/// <summary>Makes the content bold.</summary>

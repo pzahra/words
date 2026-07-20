@@ -42,7 +42,11 @@ public class MarkdownConverter : IValueConverter {
 		}
 		else {
 			// otherwise, assume it's in a Visual context
-			return new TextBlock { Inlines = [inline] };
+			// (populate the existing collection: replacing it via the setter leaves the
+			// inline without a logical parent, so it stops inheriting text properties)
+			var textBlock = new TextBlock();
+			textBlock.Inlines!.Add(inline);
+			return textBlock;
 		}
 	}
 

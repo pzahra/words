@@ -29,7 +29,7 @@ namespace PatTech.Localization.Wpf {
 		///     the tooltip are applied uniformly by the parser afterwards. Exceptions are
 		///     treated the same as <see langword="null"/>.
 		/// </summary>
-		/// <param name="source">The image URI, scheme and all.</param>
+		/// <param name="source">The image URI, scheme and all — but query-less: the query is pre-parsed into <paramref name="options"/> (raw pairs in <see cref="ImageOptions.Query"/>).</param>
 		/// <param name="options">The pre-parsed query options.</param>
 		FrameworkElement? Resolve(Uri source, ImageOptions options);
 	}
@@ -69,6 +69,25 @@ namespace PatTech.Localization.Wpf {
 				Foreground = TryParseColorBrush(values, "foreground"),
 				Query = values,
 			};
+		}
+
+		/// <summary>
+		///     Parses the options off a whole image URI and rewrites
+		///     <paramref name="source"/> to the query-less remainder: the query carries
+		///     display options, not asset identity, so resolvers always receive a clean
+		///     URI (a <c>pack:</c> resource named <c>x.png?width=32</c> exists nowhere).
+		///     The split is done by hand because <see cref="System.Uri"/> only
+		///     recognizes a query in schemes it knows, and image schemes are often
+		///     anything but: left alone, the <c>?</c> stays glued to the asset path.
+		/// </summary>
+		/// <param name="source">The image URI; rewritten without its query portion.</param>
+		public static ImageOptions Parse(ref Uri source) {
+			var raw = source.OriginalString;
+			var q = raw.IndexOf('?');
+			if (q < 0) return Parse((string?)null);
+			var options = Parse(raw[(q + 1)..]);
+			source = new Uri(raw[..q]);
+			return options;
 		}
 
 		private static Dictionary<string, string> ParseQuery(string? query) {

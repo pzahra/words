@@ -17,9 +17,12 @@ namespace Sample_Ava {
 		}
 
 		public override void OnFrameworkInitializationCompleted() {
+			var viewModel = new MainWindowViewModel();
+
 			Hyperlink.RegisterGlobalNavigateHandler(uri => {
 				if (uri.Scheme is "appcmd") {
-
+					// application-command links stay inside the app
+					viewModel.TakeAppCommand(uri);
 				}
 				else {
 					Process.Start(new ProcessStartInfo(uri.ToString()) { UseShellExecute = true });
@@ -28,7 +31,7 @@ namespace Sample_Ava {
 
 			if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop) {
 				desktop.MainWindow = new MainWindow {
-					DataContext = new MainWindowViewModel(),
+					DataContext = viewModel,
 				};
 			}
 

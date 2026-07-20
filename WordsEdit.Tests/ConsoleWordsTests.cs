@@ -66,7 +66,7 @@ public class ConsoleWordsTests {
 
 		var text = parser.ToInline(@"see ![a diagram](https://example.test/d.png ""hover"")");
 
-		Assert.Equal("see a diagram", text);
+		Assert.Equal("see [🖼️!a diagram]", text);
 	}
 
 	[Fact]

@@ -8,8 +8,13 @@
     <Application.DataTemplates>
         <local:ViewLocator/>
     </Application.DataTemplates>
-  
+
     <Application.Styles>
         <FluentTheme />
     </Application.Styles>
+
+    <Application.Resources>
+        <!-- resolved by markdown images through the staticres: scheme -->
+        <StreamGeometry x:Key="StarGeometry">M 8,0 L 10.47,5.53 16,6.11 11.8,9.88 13.06,16 8,12.94 2.94,16 4.2,9.88 0,6.11 5.53,5.53 Z</StreamGeometry>
+    </Application.Resources>
 </Application>

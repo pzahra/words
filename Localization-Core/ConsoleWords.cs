@@ -48,7 +48,7 @@ namespace PatTech.Localization {
 		/// (or its address, if somehow there is no alt text). The tooltip is dropped.
 		/// </summary>
 		protected override string Image(Uri source, string? altText, string? tooltip)
-			=> altText ?? source.OriginalString;
+			=> $"[🖼️!{altText ?? source.OriginalString}]";
 
 		/// <summary>Wraps the content in SGR bold (<c>CSI 1 m</c> … <c>CSI 22 m</c>).</summary>
 		protected override void Embolden(ref string content) {
