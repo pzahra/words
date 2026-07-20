@@ -36,6 +36,11 @@ One namespace gives you everything:
 - `<l:WordsInline Key="key"/>` — an inline that renders the value, markdown
   and all, inside a `TextBlock`.
 
+`WordsInline` also fills format placeholders from its `Params` property: bind
+an array for positional `{0}` tags, or any other object for `{Name}` tags read
+off its public fields and properties. The inlines re-render whenever `Key` or
+`Params` changes.
+
 ## Put pictures in your Words
 
 Markdown images work in any rendered value, with the URI scheme deciding where
@@ -51,8 +56,12 @@ Out of the box the parser speaks `staticres:` (application resource by
 assemblies), and `assets:` (files under the application's `Assets` folder —
 and only that folder; `../` escapes are clamped, no matter how creatively
 encoded). Query options `width`, `height`, `background`, and `foreground`
-apply whatever the scheme. Anything that fails to resolve renders as the image's alt text,
-because a missing icon should never eat your sentence.
+apply whatever the scheme; the query carries display options, not asset
+identity, so resolvers always receive the URI with it already split off.
+Raster images render at their natural size unless `width` or `height` says
+otherwise; geometry, having no natural size, defaults to the font height.
+Anything that fails to resolve degrades to its alt text as `[🖼️!alt]`, because
+a missing icon should never eat your sentence.
 
 Teach it new schemes by registering an `IImageSchemeResolver` on the shared
 parser at startup — say, Material Design icons:
@@ -74,7 +83,8 @@ MarkdownParser.Default.ImageSchemes["md"] = new PackIconResolver();
 
 For values that only exist at runtime, there are converters:
 
-- `WordsConverter` — binds a key, gets Words out.
+- `WordsConverter` — formats a bound value into the Words template named by
+  `ConverterParameter`.
 - `MarkdownConverter` — turns a markdown string into WPF inlines.
 - `FlagsDescriptionConverter` — turns a `[Words]`-decorated enum (flags
   included) into its display text.

@@ -5,19 +5,28 @@ using PatTech.Localization;
 using PatTech.Localization.Avalonia;
 using Sample_Ava.ViewModels;
 using Sample_Ava.Views;
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 
 namespace Sample_Ava {
 	public partial class App : Application {
+		IEnumerable<KeyValuePair<string, string>> langs = [];
+		string lang = "it";
 		public override void Initialize() {
-			Words.Known = Words.Builder()
-				.LoadResource("avares://Sample-Ava/Assets/sample.ini")
-				.ToWords("it");
+			// honor `--lang=xx` from a changeLang relaunch (see MainWindowViewModel.TakeAppCommand)
+			foreach (var arg in Environment.GetCommandLineArgs()) {
+				if (arg.StartsWith("--lang=")) lang = arg["--lang=".Length..];
+			}
+			var wb = Words.Builder()
+				.LoadResource("avares://Sample-Ava/Assets/sample.ini");
+			langs = [.. wb.GetLanguages()];
+			Words.Known = wb.ToWords(lang);
 			AvaloniaXamlLoader.Load(this);
 		}
 
 		public override void OnFrameworkInitializationCompleted() {
-			var viewModel = new MainWindowViewModel();
+			var viewModel = new MainWindowViewModel(langs, lang);
 
 			Hyperlink.RegisterGlobalNavigateHandler(uri => {
 				if (uri.Scheme is "appcmd") {

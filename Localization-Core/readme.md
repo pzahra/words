@@ -104,6 +104,12 @@ Words.Known = WordsBuilder.Create()
 	.ToWords("en");
 ```
 
+The top-of-file `value-xx=` labels double as your language menu:
+`WordsBuilder.GetLanguages()` returns the code/label pairs in file order,
+skipping labels that are empty or start with `!`. There is also a
+`ToWords(lang, out languages)` overload that hands you both in one call —
+see Sample-Ava's language dropdown for the pattern, relaunch and all.
+
 ## Use Words
 
 `Words.Known["key"]` returns the translated value of the specified key.
@@ -144,8 +150,9 @@ Console.WriteWordsLine("main.greeting", userName);
 Markdown comes along for the ride: bold and italic become ANSI styling, links
 become genuinely clickable OSC 8 hyperlinks (underlined and blue in the
 traditional manner), `m^2^` becomes `m²`, and images bow out gracefully as
-their alt text. When output is redirected to a pipe or file, the escape codes
-stay home and you get plain text with links spelled out as `text (url)`.
+their alt text, marked `[🖼️!alt]`. When output is redirected to a pipe or
+file, the escape codes stay home and you get plain text with links spelled
+out as `text (url)`.
 
 The `Console.WriteWords` extension needs .NET 10 (it hangs static members off
 `Console` itself); on .NET 8, use `ConsoleMarkdownParser` directly:

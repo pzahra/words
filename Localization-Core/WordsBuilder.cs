@@ -183,6 +183,12 @@ namespace PatTech.Localization {
 			}
 		}
 
+		/// <inheritdoc cref="ToWords(string, out IEnumerable{KeyValuePair{string, string}}, bool)"/>
+		public IWords ToWords(string languageCode, bool showFallback = false) {
+			var cultureInfo = CultureInfo.CreateSpecificCulture(languageCode);
+			return new Wordsmith(Flatten(languageCode, showFallback), cultureInfo);
+		}
+
 		/// <summary>
 		/// <see cref="Flatten(string, bool)"/> plus a culture: builds the final
 		/// <see cref="IWords"/> for <paramref name="languageCode"/>, carrying the matching
@@ -190,9 +196,11 @@ namespace PatTech.Localization {
 		/// sets the thread cultures. Typically the last call in the builder chain.
 		/// </summary>
 		/// <param name="languageCode">The language to select, e.g. <c>"en"</c> or <c>"en-GB"</c>.</param>
+		/// <param name="languages">Return a list of available languages (see <see cref="GetLanguages"/>)</param>
 		/// <param name="showFallback">See <see cref="Flatten(string, bool)"/>.</param>
-		public IWords ToWords(string languageCode, bool showFallback = false) {
+		public IWords ToWords(string languageCode, out IEnumerable<KeyValuePair<string, string>> languages, bool showFallback = false) {
 			var cultureInfo = CultureInfo.CreateSpecificCulture(languageCode);
+			languages = GetLanguages();
 			return new Wordsmith(Flatten(languageCode, showFallback), cultureInfo);
 		}
 	}

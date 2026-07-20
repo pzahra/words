@@ -41,6 +41,17 @@
       <TextBlock FontSize="22" FontWeight="Bold" Text="{l:Words main.title}"/>
       <TextBlock FontStyle="Italic" Text="{l:Words main.greeting}"/>
 
+      <!-- the languages come from the top-of-file `value-xx=` labels in sample.ini;
+           the appcmd: link relaunches the app with the selection on the command line -->
+      <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
+        <ComboBox MinWidth="140"
+                  ItemsSource="{Binding Languages}"
+                  DisplayMemberBinding="{ReflectionBinding Value}"
+                  SelectedValueBinding="{ReflectionBinding Key}"
+                  SelectedValue="{Binding SelectedLanguage, Mode=TwoWay}"/>
+        <TextBlock VerticalAlignment="Center"><l:WordsInline Key="main.change-lang"/></TextBlock>
+      </StackPanel>
+
       <TextBlock Classes="h" Text="{l:Words section.formatting}"/>
       <!-- WordsInline renders a key's Words as rich inline content, markdown and all -->
       <TextBlock Classes="demo"><l:WordsInline Key="demo.formatting"/></TextBlock>
