@@ -16,9 +16,18 @@ build/
 bld/
 [Bb]in/
 [Oo]bj/
+.gradle/
 
 # Roslyn cache directories
 *.ide/
+
+# JetBrains Rider / IntelliJ IDEA (Rider plugin)
+.idea/
+*.iml
+
+# IntelliJ Platform Gradle Plugin sandbox + caches (Rider plugin: runIde / buildPlugin output)
+.intellijPlatform/
+.kotlin/
 
 # MSTest test Results
 [Tt]est[Rr]esult*/

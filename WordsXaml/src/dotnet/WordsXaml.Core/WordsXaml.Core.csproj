@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    SDK-free core: the *-words.ini grammar parser, the key index and the preview renderer.
+    Deliberately has NO ReSharper/Rider dependency so it can be unit-tested in isolation and reused
+    (e.g. by a codegen tool that emits strongly-typed key constants). netstandard2.0 keeps it consumable
+    from both the net8.0 plugin and any legacy tooling.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <RootNamespace>WordsXaml</RootNamespace>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="WordsXaml.Core/WordsXaml.Core.csproj" />
+  <Project Path="WordsXaml.Tests/WordsXaml.Tests.csproj" />
+  <Project Path="WordsXaml/WordsXaml.csproj" />
+</Solution>

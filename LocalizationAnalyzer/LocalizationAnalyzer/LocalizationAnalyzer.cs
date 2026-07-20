@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using System.Threading;
 
 namespace LocalizationAnalyzer
@@ -284,26 +285,37 @@ namespace LocalizationAnalyzer
                 ExpressionSyntax expression,
                 CancellationToken cancellationToken)
         {
+            // `visited` guards against cycles when tracing a local back to the values assigned to it.
+            return FindLocalizationErrors(
+                    semanticModel, expression, cancellationToken,
+                    new HashSet<ISymbol>(SymbolEqualityComparer.Default));
+        }
+        private static IEnumerable<SyntaxNode> FindLocalizationErrors(
+                SemanticModel semanticModel,
+                ExpressionSyntax expression,
+                CancellationToken cancellationToken,
+                HashSet<ISymbol> visited)
+        {
             switch (expression)
             {
                 case ParenthesizedExpressionSyntax parenthesized:
-                    foreach (var node in FindLocalizationErrors(semanticModel, parenthesized.Expression, cancellationToken))
+                    foreach (var node in FindLocalizationErrors(semanticModel, parenthesized.Expression, cancellationToken, visited))
                     {
                         yield return node;
                     }
                     break;
                 case AwaitExpressionSyntax await:
-                    foreach (var node in FindLocalizationErrors(semanticModel, await.Expression, cancellationToken))
+                    foreach (var node in FindLocalizationErrors(semanticModel, await.Expression, cancellationToken, visited))
                     {
                         yield return node;
                     }
                     break;
                 case ConditionalExpressionSyntax conditional:
-                    if (IsLocalizationError(semanticModel, conditional.WhenTrue, cancellationToken))
+                    if (IsLocalizationError(semanticModel, conditional.WhenTrue, cancellationToken, visited))
                     {
                         yield return conditional.WhenTrue;
                     }
-                    if (IsLocalizationError(semanticModel, conditional.WhenFalse, cancellationToken))
+                    if (IsLocalizationError(semanticModel, conditional.WhenFalse, cancellationToken, visited))
                     {
                         yield return conditional.WhenFalse;
                     }
@@ -313,7 +325,7 @@ namespace LocalizationAnalyzer
                         var arms = @switch.Arms;
                         for (var i = 0; i < arms.Count; ++i)
                         {
-                            foreach (var node in FindLocalizationErrors(semanticModel, arms[i].Expression, cancellationToken))
+                            foreach (var node in FindLocalizationErrors(semanticModel, arms[i].Expression, cancellationToken, visited))
                             {
                                 yield return node;
                             }
@@ -321,7 +333,7 @@ namespace LocalizationAnalyzer
                         break;
                     }
                 default:
-                    if (IsLocalizationError(semanticModel, expression, cancellationToken))
+                    if (IsLocalizationError(semanticModel, expression, cancellationToken, visited))
                     {
                         yield return expression;
                     }
@@ -361,7 +373,8 @@ namespace LocalizationAnalyzer
         private static bool IsLocalizationError(
                 SemanticModel semanticModel,
                 ExpressionSyntax expression,
-                CancellationToken cancellationToken)
+                CancellationToken cancellationToken,
+                HashSet<ISymbol> visited)
         {
             switch (expression)
             {
@@ -372,10 +385,17 @@ namespace LocalizationAnalyzer
                             return true;
                         }
 
+                        // A local can't carry [Localized]; instead trace the value(s) it holds so an
+                        // intermediary (`var s = LocalizedThing; Use(s);`) isn't a false positive.
+                        if (symbol is ILocalSymbol local)
+                        {
+                            return LocalIsLocalizationError(semanticModel, local, cancellationToken, visited);
+                        }
+
                         return !SymbolIsLocalized(symbol);
                     }
                 case MemberAccessExpressionSyntax memberAccess:
-                    return IsLocalizationError(semanticModel, memberAccess.Name, cancellationToken);
+                    return IsLocalizationError(semanticModel, memberAccess.Name, cancellationToken, visited);
                 case ElementAccessExpressionSyntax elementAccess:
                     {
                         if (!(semanticModel.GetSymbolInfo(elementAccess, cancellationToken).Symbol is ISymbol symbol))
@@ -386,9 +406,9 @@ namespace LocalizationAnalyzer
                         return !SymbolIsLocalized(symbol);
                     }
                 case ParenthesizedExpressionSyntax parenthesized:
-                    return IsLocalizationError(semanticModel, parenthesized.Expression, cancellationToken);
+                    return IsLocalizationError(semanticModel, parenthesized.Expression, cancellationToken, visited);
                 case AwaitExpressionSyntax await:
-                    return IsLocalizationError(semanticModel, await.Expression, cancellationToken);
+                    return IsLocalizationError(semanticModel, await.Expression, cancellationToken, visited);
                 case InvocationExpressionSyntax invocation:
                     {
                         if (!(semanticModel.GetSymbolInfo(invocation.Expression, cancellationToken).Symbol is IMethodSymbol symbol))
@@ -399,16 +419,16 @@ namespace LocalizationAnalyzer
                         return !MethodReturnsLocalized(symbol.ReducedFrom ?? symbol);
                     }
                 case ConditionalAccessExpressionSyntax conditional:
-                    return IsLocalizationError(semanticModel, conditional.WhenNotNull, cancellationToken);
+                    return IsLocalizationError(semanticModel, conditional.WhenNotNull, cancellationToken, visited);
                 case ConditionalExpressionSyntax conditional:
-                    return IsLocalizationError(semanticModel, conditional.WhenTrue, cancellationToken)
-                        || IsLocalizationError(semanticModel, conditional.WhenFalse, cancellationToken);
+                    return IsLocalizationError(semanticModel, conditional.WhenTrue, cancellationToken, visited)
+                        || IsLocalizationError(semanticModel, conditional.WhenFalse, cancellationToken, visited);
                 case SwitchExpressionSyntax @switch:
                     {
                         var arms = @switch.Arms;
                         for (var i = 0; i < arms.Count; ++i)
                         {
-                            if (IsLocalizationError(semanticModel, arms[i].Expression, cancellationToken))
+                            if (IsLocalizationError(semanticModel, arms[i].Expression, cancellationToken, visited))
                             {
                                 return true;
                             }
@@ -418,6 +438,84 @@ namespace LocalizationAnalyzer
                 default:
                     return true;
             }
+        }
+
+        /// <summary>
+        /// A local variable is a localization error unless <em>every</em> value flowing into it is
+        /// localized. Gathers the declarator initializer plus every simple assignment to the local in its
+        /// enclosing block; any non-localized source (or none found) makes it an error. Handles the common
+        /// intermediary case; branches and loops are treated conservatively.
+        /// </summary>
+        private static bool LocalIsLocalizationError(
+                SemanticModel semanticModel,
+                ILocalSymbol local,
+                CancellationToken cancellationToken,
+                HashSet<ISymbol> visited)
+        {
+            // Already being evaluated further up the stack (e.g. `a = a`): don't recurse into it again.
+            if (!visited.Add(local))
+            {
+                return false;
+            }
+
+            var sources = GetLocalValueExpressions(local, semanticModel, cancellationToken);
+            if (sources.Count == 0)
+            {
+                // No visible initializer or assignment to inspect — can't prove it's localized.
+                return true;
+            }
+
+            foreach (var source in sources)
+            {
+                if (IsLocalizationError(semanticModel, source, cancellationToken, visited))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>The declarator initializer and every simple-assignment right-hand side for the local.</summary>
+        private static List<ExpressionSyntax> GetLocalValueExpressions(
+                ILocalSymbol local,
+                SemanticModel semanticModel,
+                CancellationToken cancellationToken)
+        {
+            var results = new List<ExpressionSyntax>();
+            BlockSyntax scope = null;
+
+            foreach (var reference in local.DeclaringSyntaxReferences)
+            {
+                if (reference.GetSyntax(cancellationToken) is VariableDeclaratorSyntax declarator)
+                {
+                    if (declarator.Initializer != null)
+                    {
+                        results.Add(declarator.Initializer.Value);
+                    }
+                    if (scope is null)
+                    {
+                        scope = declarator.FirstAncestorOrSelf<BlockSyntax>();
+                    }
+                }
+            }
+
+            if (scope != null)
+            {
+                foreach (var assignment in scope.DescendantNodes().OfType<AssignmentExpressionSyntax>())
+                {
+                    if (!assignment.IsKind(SyntaxKind.SimpleAssignmentExpression))
+                    {
+                        continue;
+                    }
+                    var target = semanticModel.GetSymbolInfo(assignment.Left, cancellationToken).Symbol;
+                    if (target != null && SymbolEqualityComparer.Default.Equals(target, local))
+                    {
+                        results.Add(assignment.Right);
+                    }
+                }
+            }
+
+            return results;
         }
 
         private static string GetArgumentName(IParameterSymbol parameterSymbol)

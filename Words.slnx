@@ -14,6 +14,17 @@
     <Project Path="WordsEdit/WordsEdit.csproj" />
     <Project Path="WordsEdit.Tests/WordsEdit.Tests.csproj" />
   </Folder>
+  <Folder Name="/Rider Plugin/">
+    <!--
+      Only the cheap, shared .NET pieces are part of this solution. The ReSharper-SDK plugin itself
+      (WordsXaml/src/dotnet/WordsXaml/WordsXaml.csproj) is deliberately NOT referenced here — it pulls the
+      large JetBrains SDK. Build it via WordsXaml/src/dotnet/WordsXaml.slnx or `./gradlew` in WordsXaml/.
+    -->
+    <Project Path="WordsXaml/src/dotnet/WordsXaml.Core/WordsXaml.Core.csproj" />
+    <Project Path="WordsXaml/src/dotnet/WordsXaml.Tests/WordsXaml.Tests.csproj" />
+    <File Path="WordsXaml/README.md" />
+    <File Path="WordsXaml/build.gradle.kts" />
+  </Folder>
   <Folder Name="/Samples/">
     <Project Path="Sample-Wpf/Sample-Wpf.csproj" />
     <Project Path="Sample-Ava/Sample-Ava.csproj" />

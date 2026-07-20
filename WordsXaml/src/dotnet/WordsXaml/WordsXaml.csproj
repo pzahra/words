@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    ReSharper/Rider extension assembly. Targets the locally-installed Rider 2025.3.
+
+    The JetBrains.ReSharper.SDK meta-package must match the Rider build: SDK 2025.3.x -> Rider 2025.3.x.
+    Rider 2025.3 runs plugins on net8.0. If you upgrade Rider, bump the SDK version to match, or the
+    plugin won't load. The SDK pulls in the Psi.Xaml / Feature.Services assemblies the providers use.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>WordsXaml</AssemblyName>
+    <RootNamespace>WordsXaml</RootNamespace>
+    <!-- Required so the SDK build tasks emit the plugin descriptor + zone metadata. -->
+    <GenerateProgramFile>false</GenerateProgramFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      MUST stay paired with `riderSdkVersion` in ../../../gradle.properties: the backend is compiled
+      against this SDK, and Gradle `runIde` launches a sandbox Rider of the matching build. Mismatch =
+      the host refuses to load the backend. SDK 2025.3.4.1  <->  Rider 2025.3.4.
+    -->
+    <PackageReference Include="JetBrains.ReSharper.SDK" Version="2025.3.4.1" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\WordsXaml.Core\WordsXaml.Core.csproj" />
+  </ItemGroup>
+
+</Project>

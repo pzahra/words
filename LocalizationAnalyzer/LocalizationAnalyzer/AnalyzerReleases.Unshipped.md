@@ -5,3 +5,4 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
+PTL002  | PatTech.Localization | Warning | WordsKeyAnalyzer: string passed to a [WordsKey] target must be a declared words key.

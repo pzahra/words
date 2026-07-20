@@ -1,6 +1,6 @@
 # Words
 
-This is Words. It gives you Words.
+Gives you Words.
 
 You write your strings in a `words.ini` file. Words reads them, picks the right
 language, fills in the parameters, follows the references, renders the markdown,
@@ -10,31 +10,31 @@ There is even a compiler warning for the day you inevitably try to sneak a raw
 
 ## What's in the box
 
-| Project | What it does |
+| Project                                                | What it does                                                                                                                                                                                                        |
 |---|---|
-| [Localization-Core](Localization-Core/readme.md) | The engine. Parses `words.ini`, resolves languages and fallbacks, formats parameters. Enough on its own for a console app or a framework we haven't met yet. Ships as `PatTech.Localization.Core`. |
-| [Localization-Wpf](Localization-Wpf/readme.md) | Puts Words in the XAML. Ships as `PatTech.Localization.WPF`. |
-| [Localization-Ava](Localization-Ava/readme.md) | Puts Words in the AXAML. Ships as `PatTech.Localization.Avalonia`. |
+| [Localization-Core](Localization-Core/readme.md)       | The engine. Parses `words.ini`, resolves languages and fallbacks, formats parameters. Enough on its own for a console app or a framework we haven't met yet. Ships as `PatTech.Localization.Core`.                  |
+| [Localization-Wpf](Localization-Wpf/readme.md)         | Puts Words in the XAML. Ships as `PatTech.Localization.WPF`.                                                                                                                                                        |
+| [Localization-Ava](Localization-Ava/readme.md)         | Puts Words in the AXAML. Ships as `PatTech.Localization.Avalonia`.                                                                                                                                                  |
 | [LocalizationAnalyzer](LocalizationAnalyzer/readme.md) | The Words police. Provides `[Localized]` and warns (PTL001) when an unlocalized string is handed to something that wanted Words. Ships as `PatTech.Localization.Analyzer`, and comes along automatically with Core. |
-| [WordsEdit](WordsEdit/readme.md) | Wordsmith, the WPF editor for `words.ini` files. For when the translators would rather not hand-edit an INI file. |
-| Sample-Wpf, Sample-Ava | Small apps that show Words being put in the XAML and AXAML respectively. |
-| Sample-Console | Words in the terminal: `dotnet run --project Sample-Console` shows the markdown rendered with ANSI styling, clickable links, emoji, and a deliberate missing key griping to the logger. |
-| LocalizedSample | A console app whose whole job is to trip the analyzer. It builds with a PTL001 warning on purpose. |
+| [WordsEdit](WordsEdit/readme.md)                       | Wordsmith, the WPF editor for `words.ini` files. For when the translators would rather not hand-edit an INI file.                                                                                                   |
+| Sample-Wpf, Sample-Ava                                 | Small apps that show Words being put in the XAML and AXAML respectively.                                                                                                                                            |
+| Sample-Console                                         | Words in the terminal: `dotnet run --project Sample-Console` shows the markdown rendered with ANSI styling, clickable links, emoji, and a deliberate missing key griping to the logger.                             |
+| LocalizedSample                                        | A console app whose whole job is to trip the analyzer. It builds with a PTL001 warning on purpose.                                                                                                                  |
 
 ## Quick start
 
 1. Put a `words.ini` in your assets:
-
+   
    ```ini
    value-en=!English (common)
-
+   
    [main.title]
    value=Words
    comment=it gives you words
    ```
 
 2. Load it once at startup:
-
+   
    ```csharp
    Words.Known = WordsBuilder.Create()
        .Load("path/to/assets/words.ini")
@@ -42,7 +42,7 @@ There is even a compiler warning for the day you inevitably try to sneak a raw
    ```
 
 3. Ask for Words:
-
+   
    ```csharp
    string title = Words.Known["main.title"];
    ```
