@@ -10,7 +10,7 @@
 
   <PropertyGroup>
     <PackageId>PatTech.Localization.Analyzer</PackageId>
-    <PackageVersion>1.0.0.0</PackageVersion>
+    <PackageVersion>1.1.0</PackageVersion>
     <Authors>PatrickZ</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
