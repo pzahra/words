@@ -110,6 +110,13 @@ skipping labels that are empty or start with `!`. There is also a
 `ToWords(lang, out languages)` overload that hands you both in one call —
 see Sample-Ava's language dropdown for the pattern, relaunch and all.
 
+The `!` prefix is for multi-assembly setups: each assembly ships its own
+`words.ini`, and a subordinate library may carry more languages than the
+host app offers. Declaring those languages with a `!Name` label tells the
+editor they are present on purpose — not an error — while keeping them out
+of the app's menu. Only the languages the app actually offers get plain
+labels, typically in the app's own file.
+
 ## Use Words
 
 `Words.Known["key"]` returns the translated value of the specified key.
@@ -137,6 +144,24 @@ once the Value is accessed the first time.
 Use the formatter `Words.Known.Format` as you would `String.Format`, but
 you can also use `Words.Known.FormatByName` to access properties as
 named parameters.
+
+## Teach your agents
+
+The package carries an agent skill — a `SKILL.md` that teaches coding agents
+(Claude Code and friends) the `words.ini` format, the lookup API, the markdown
+dialect, and the XAML integrations. Opt in from any project that references
+Words (directly or transitively):
+
+``` xml
+<PropertyGroup>
+	<WordsAgentSkill>true</WordsAgentSkill>
+</PropertyGroup>
+```
+
+The next build copies it to `.claude/skills/pattech-words/SKILL.md`, where
+agents discover it on their own. Point `WordsAgentSkillDir` somewhere else if
+your agent reads skills from a different folder. Commit the file; it only
+changes when the package does.
 
 ## Words on the console
 

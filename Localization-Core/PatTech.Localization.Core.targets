@@ -1,0 +1,25 @@
+<Project>
+  <!--
+    Opt-in agent-skill incorporation: set <WordsAgentSkill>true</WordsAgentSkill>
+    in the consuming project and the packaged SKILL.md is copied into the
+    project's agent skills folder (default `.claude/skills/pattech-words/`),
+    teaching coding agents the Words API. Override the folder with
+    <WordsAgentSkillDir> if your agent reads skills from somewhere else.
+  -->
+  <PropertyGroup>
+    <WordsAgentSkillDir Condition="'$(WordsAgentSkillDir)' == ''">$(MSBuildProjectDirectory)\.claude\skills</WordsAgentSkillDir>
+    <_WordsAgentSkillSource>$(MSBuildThisFileDirectory)..\skills\pattech-words\SKILL.md</_WordsAgentSkillSource>
+  </PropertyGroup>
+
+  <Target Name="IncorporateWordsAgentSkill"
+          BeforeTargets="Build"
+          Inputs="$(_WordsAgentSkillSource)"
+          Outputs="$(WordsAgentSkillDir)\pattech-words\SKILL.md"
+          Condition="'$(WordsAgentSkill)' == 'true' AND Exists('$(_WordsAgentSkillSource)')">
+    <Copy SourceFiles="$(_WordsAgentSkillSource)"
+          DestinationFolder="$(WordsAgentSkillDir)\pattech-words"
+          SkipUnchangedFiles="true" />
+    <Message Importance="high"
+             Text="Words agent skill incorporated: $(WordsAgentSkillDir)\pattech-words\SKILL.md" />
+  </Target>
+</Project>

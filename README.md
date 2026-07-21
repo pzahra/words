@@ -53,6 +53,11 @@ readmes. For everything the `words.ini` format can do — languages, fallbacks,
 constants, references, parameters, multiline values — see the
 [Core readme](Localization-Core/readme.md).
 
+Working with coding agents? Set `<WordsAgentSkill>true</WordsAgentSkill>` in a
+project that references Words and the next build drops an agent skill into
+`.claude/skills/pattech-words/`, teaching them the whole API — see the
+[Core readme](Localization-Core/readme.md#teach-your-agents).
+
 ## Building
 
 [Words.slnx](Words.slnx) is the solution. Open it in Visual Studio, or:
