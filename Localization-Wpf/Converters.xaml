@@ -1,0 +1,23 @@
+<!--
+    Ready-made converter instances. Merge once in App.xaml:
+
+    <Application.Resources>
+      <ResourceDictionary>
+        <ResourceDictionary.MergedDictionaries>
+          <ResourceDictionary Source="pack://application:,,,/PatTech.Localization.WPF;component/Converters.xaml"/>
+        </ResourceDictionary.MergedDictionaries>
+      </ResourceDictionary>
+    </Application.Resources>
+
+    and every view can say {StaticResource WordsMarkdown} and friends.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:l="clr-namespace:PatTech.Localization.Wpf">
+  <l:MarkdownConverter x:Key="WordsMarkdown"/>
+  <l:WordsConverter x:Key="WordsFormat"/>
+  <l:EnumDescriptionConverter x:Key="WordsEnumDescription"/>
+  <l:FlagsDescriptionConverter x:Key="WordsFlagsDescription" AsArray="False"/>
+  <l:FlagsDescriptionConverter x:Key="WordsFlagsDescriptionList"/>
+  <l:ArrayMultiConverter x:Key="WordsParamsArray"/>
+</ResourceDictionary>

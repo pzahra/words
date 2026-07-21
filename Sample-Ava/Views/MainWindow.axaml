@@ -17,11 +17,6 @@
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
-  <Window.Resources>
-    <!-- renders any bound string as markdown; used by the playground below -->
-    <l:MarkdownConverter x:Key="Markdown"/>
-  </Window.Resources>
-
   <Window.Styles>
     <Style Selector="TextBlock.h">
       <Setter Property="FontSize" Value="15"/>
@@ -75,7 +70,8 @@
 
       <TextBlock Classes="h" Text="{l:Words section.playground}"/>
       <TextBox Text="{Binding Playground}"/>
-      <ContentControl Margin="0,4,0,16" Content="{Binding Playground, Converter={StaticResource Markdown}}"/>
+      <!-- WordsMarkdown comes from the package's Converters.axaml, merged in App.axaml -->
+      <ContentControl Margin="0,4,0,16" Content="{Binding Playground, Converter={StaticResource WordsMarkdown}}"/>
 
     </StackPanel>
   </ScrollViewer>

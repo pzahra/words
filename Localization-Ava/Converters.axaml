@@ -1,0 +1,23 @@
+<!--
+    Ready-made converter instances. Merge once in App.axaml:
+
+    <Application.Resources>
+      <ResourceDictionary>
+        <ResourceDictionary.MergedDictionaries>
+          <ResourceInclude Source="avares://PatTech.Localization.Avalonia/Converters.axaml"/>
+        </ResourceDictionary.MergedDictionaries>
+      </ResourceDictionary>
+    </Application.Resources>
+
+    and every view can say {StaticResource WordsMarkdown} and friends.
+-->
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:l="using:PatTech.Localization.Avalonia">
+  <l:MarkdownConverter x:Key="WordsMarkdown"/>
+  <l:WordsConverter x:Key="WordsFormat"/>
+  <l:EnumDescriptionConverter x:Key="WordsEnumDescription"/>
+  <l:FlagsDescriptionConverter x:Key="WordsFlagsDescription" AsArray="False"/>
+  <l:FlagsDescriptionConverter x:Key="WordsFlagsDescriptionList"/>
+  <l:ArrayMultiConverter x:Key="WordsParamsArray"/>
+</ResourceDictionary>

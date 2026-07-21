@@ -102,7 +102,15 @@ Title="{l:Words main.title}">          <!-- plain string, resolved once -->
   `x:Key`; `IImage`, `Geometry`, or any `Control`).
 - Converters: `MarkdownConverter` (bound string → inlines/TextBlock),
   `WordsConverter` (bound value → template named by `ConverterParameter`),
-  `FlagsDescriptionConverter` (enum → display text).
+  `EnumDescriptionConverter` (enum → display text; parameter picks the
+  Describe format), `FlagsDescriptionConverter` (flags → list or joined text
+  with `AsArray="False"`), `ArrayMultiConverter` (MultiBinding → the array
+  `WordsInline.Params` wants). All ship pre-instantiated: merge
+  `avares://PatTech.Localization.Avalonia/Converters.axaml` (WPF:
+  `pack://application:,,,/PatTech.Localization.WPF;component/Converters.xaml`)
+  into App resources once, then use `{StaticResource WordsMarkdown}`,
+  `WordsFormat`, `WordsEnumDescription`, `WordsFlagsDescription` (joined),
+  `WordsFlagsDescriptionList`, `WordsParamsArray`.
 - Teach new schemes: `MarkdownParser.Default.ImageSchemes["md"] = resolver;`
   where resolver implements `IImageSchemeResolver`.
 

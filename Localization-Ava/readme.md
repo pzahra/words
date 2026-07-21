@@ -109,8 +109,30 @@ For values that only exist at runtime, there are converters:
   `ConverterParameter`.
 - `MarkdownConverter` — turns any bound markdown string into rendered inlines
   (or a whole `TextBlock`, when the target wants a control).
-- `FlagsDescriptionConverter` — turns a `[Words]`-decorated enum (flags
-  included) into its display text.
+- `EnumDescriptionConverter` — turns a `[Words]`-decorated enum value into its
+  display text; the ConverterParameter picks the `Describe` format (tooltip,
+  description, unit…).
+- `FlagsDescriptionConverter` — the same for `[Flags]` combinations, as a list
+  of descriptions or one delimited string (`AsArray="False"`).
+- `ArrayMultiConverter` — gathers a `MultiBinding` into the array that
+  `WordsInline.Params` wants.
+
+None of them need configuring, so the package ships them pre-instantiated in
+`Converters.axaml` — merge it once:
+
+``` xml
+<Application.Resources>
+	<ResourceDictionary>
+		<ResourceDictionary.MergedDictionaries>
+			<ResourceInclude Source="avares://PatTech.Localization.Avalonia/Converters.axaml"/>
+		</ResourceDictionary.MergedDictionaries>
+	</ResourceDictionary>
+</Application.Resources>
+```
+
+and every view can say `{StaticResource WordsMarkdown}`, `WordsFormat`,
+`WordsEnumDescription`, `WordsFlagsDescription` (joined text),
+`WordsFlagsDescriptionList` (one description per flag), or `WordsParamsArray`.
 
 ## See it all at once
 

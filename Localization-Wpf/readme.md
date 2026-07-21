@@ -86,5 +86,27 @@ For values that only exist at runtime, there are converters:
 - `WordsConverter` — formats a bound value into the Words template named by
   `ConverterParameter`.
 - `MarkdownConverter` — turns a markdown string into WPF inlines.
-- `FlagsDescriptionConverter` — turns a `[Words]`-decorated enum (flags
-  included) into its display text.
+- `EnumDescriptionConverter` — turns a `[Words]`-decorated enum value into its
+  display text; the ConverterParameter picks the `Describe` format (tooltip,
+  description, unit…).
+- `FlagsDescriptionConverter` — the same for `[Flags]` combinations, as a list
+  of descriptions or one delimited string (`AsArray="False"`).
+- `ArrayMultiConverter` — gathers a `MultiBinding` into the array that
+  `WordsInline.Params` wants.
+
+None of them need configuring, so the package ships them pre-instantiated in
+`Converters.xaml` — merge it once:
+
+``` xml
+<Application.Resources>
+	<ResourceDictionary>
+		<ResourceDictionary.MergedDictionaries>
+			<ResourceDictionary Source="pack://application:,,,/PatTech.Localization.WPF;component/Converters.xaml"/>
+		</ResourceDictionary.MergedDictionaries>
+	</ResourceDictionary>
+</Application.Resources>
+```
+
+and every view can say `{StaticResource WordsMarkdown}`, `WordsFormat`,
+`WordsEnumDescription`, `WordsFlagsDescription` (joined text),
+`WordsFlagsDescriptionList` (one description per flag), or `WordsParamsArray`.

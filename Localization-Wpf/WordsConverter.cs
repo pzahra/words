@@ -18,6 +18,12 @@ namespace PatTech.Localization.Wpf {
 		private readonly ITakeException logger = logger ?? ITakeException.Dummy;
 
 		/// <summary>
+		///     Creates a converter over <see cref="Words.Known"/> with a discarding logger —
+		///     the parameterless form XAML resource instantiation requires.
+		/// </summary>
+		public WordsConverter() : this(null, null) { }
+
+		/// <summary>
 		/// Inserts the provided value into the Words specified by the key provided through ConverterParameter.
 		/// </summary>
 		/// <remarks>ConverterParameter must be a string key; a missing or non-string parameter
