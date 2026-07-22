@@ -9,7 +9,9 @@ namespace WordsEdit.ViewModels {
 	public class KeyDragDropHandler : IDragSource, IDropTarget {
 		public MainWindowViewModel? MainWindow { get; set; } = null;
 		public bool CanStartDrag(IDragInfo dragInfo) {
-			return dragInfo?.SourceItem != null;
+			//standalone comments move freely; the pinned preamble does not
+			return dragInfo?.SourceItem is KeyNode node
+				&& (node is not OrganizerNode || node is CommentNode);
 		}
 
 		public void DragCancelled() { }
@@ -24,6 +26,15 @@ namespace WordsEdit.ViewModels {
 			dropInfo.Effects = DragDropEffects.Move;
 			bool draggedNodeCanBeChildOfTargetNode = true;
 			if ((dropInfo.Data is KeyNode draggedKeyNode && dropInfo.TargetItem is KeyNode targetKeyNode)) {
+				if (draggedKeyNode is OrganizerNode and not CommentNode) {
+					dropInfo.DropTargetAdorner = typeof(DropTargetAdorner);
+					return;
+				}
+				if (targetKeyNode is OrganizerNode && dropInfo.InsertPosition.HasFlag(RelativeInsertPosition.TargetItemCenter)) {
+					//comments take no children; only before/after makes sense
+					dropInfo.DropTargetAdorner = typeof(DropTargetAdorner);
+					return;
+				}
 				if (draggedKeyNode.IsFile) {
 					draggedNodeCanBeChildOfTargetNode = false;
 					if (!targetKeyNode.IsFile) {
@@ -70,6 +81,12 @@ namespace WordsEdit.ViewModels {
 				throw new InvalidOperationException("No Main Window");
 			}
 			if (dropInfo.Data is KeyNode draggedKeyNode && dropInfo.TargetItem is KeyNode targetKeyNode) {
+				if (draggedKeyNode is OrganizerNode and not CommentNode) {
+					return;
+				}
+				if (targetKeyNode is OrganizerNode && dropInfo.InsertPosition.HasFlag(RelativeInsertPosition.TargetItemCenter)) {
+					return;
+				}
 				KeyNode? parentNode;
 				int index;
 				ObservableCollection<KeyNode> localizationKeyNodes = MainWindow.KeyNodes;
@@ -166,8 +183,10 @@ namespace WordsEdit.ViewModels {
 			if (MainWindow is null) {
 				throw new InvalidOperationException("No Main Window");
 			}
+			//organizers all share the ';' label; deduplication is for keys only
+			bool deduplicate = draggedKeyNode is not OrganizerNode;
 			if (newParentNode is null) {
-				if (MainWindow.KeyNodes.Any(keyNode => keyNode.Label == draggedKeyNode.Label)) {
+				if (deduplicate && MainWindow.KeyNodes.Any(keyNode => keyNode.Label == draggedKeyNode.Label)) {
 					int indexToRemove = MainWindow.KeyNodes.FindIndex(keyNode => keyNode.Label == draggedKeyNode.Label);
 					MainWindow.KeyNodes.RemoveAt(indexToRemove);
 					if (index >= indexToRemove) {
@@ -177,7 +196,7 @@ namespace WordsEdit.ViewModels {
 				MainWindow.KeyNodes.Insert(index, draggedKeyNode);
 			}
 			else {
-				if (newParentNode.Children.Any(keyNode => keyNode.Label == draggedKeyNode.Label)) {
+				if (deduplicate && newParentNode.Children.Any(keyNode => keyNode.Label == draggedKeyNode.Label)) {
 					int indexToRemove = newParentNode.Children.FindIndex(keyNode => keyNode.Label == draggedKeyNode.Label);
 					newParentNode.Children.RemoveAt(indexToRemove);
 					if (index >= indexToRemove) {

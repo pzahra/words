@@ -30,6 +30,9 @@ public class MainWindowViewModelTests {
 		}
 	}
 
+	public static KeyNode Node(MainWindowViewModel viewModel, string fullLabel)
+		=> GetAllKeyNodes(viewModel.KeyNodes).First(node => node.FullLabel == fullLabel);
+
 	[Fact]
 	public void MainWindowViewModel_LoadTest() {
 		//Arrange
@@ -58,8 +61,8 @@ public class MainWindowViewModelTests {
 		mainWindowViewModel.LoadFile(reader, "Example");
 		var writer = new StringWriter();
 		var fileNode = mainWindowViewModel.KeyNodes.First(k => k.FullLabel == fileName);
-		var (preamble, trailer) = mainWindowViewModel.fileComments.GetValueOrDefault(fileName, ("", ""));
-		IniWriter.WriteFile(fileNode, writer, mainWindowViewModel.allKeys, mainWindowViewModel.LanguagesFor(fileName), preamble: preamble, trailer: trailer);
+		IniWriter.WriteFile(fileNode, writer, mainWindowViewModel.allKeys, mainWindowViewModel.LanguagesFor(fileName),
+			preamble: mainWindowViewModel.filePreambles.GetValueOrDefault(fileName, ""));
 		var modifiedFileContents = writer.ToString();
 
 		//Assert
@@ -133,7 +136,7 @@ public class MainWindowViewModelTests {
 		StreamReader reader = GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini");
 		mainWindowViewModel.LoadFile(reader, "Example");
 		mainWindowViewModel.SelectedKey = mainWindowViewModel.Keys[0]; //BlockKey = Example.view.section-name.key
-		mainWindowViewModel.SelectedKeyNode = mainWindowViewModel.KeyNodes[0].Children[0].Children[0].Children[0]; //FullLabel = Example.view.section-name.key
+		mainWindowViewModel.SelectedKeyNode = Node(mainWindowViewModel, "Example.view.section-name.key");
 
 		//Act
 		mainWindowViewModel.ToggleStaleLanguageCommand.Execute("en-CA");
@@ -169,7 +172,7 @@ public class MainWindowViewModelTests {
 		// Example.view.section-name.key <-> Example.view.section-name.$key
 		MainWindowViewModel mainWindowViewModel = new MainWindowViewModel();
 		mainWindowViewModel.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
-		mainWindowViewModel.SelectedKeyNode = mainWindowViewModel.KeyNodes[0].Children[0].Children[0].Children[0]; //Example.view.section-name.key
+		mainWindowViewModel.SelectedKeyNode = Node(mainWindowViewModel, "Example.view.section-name.key");
 
 		mainWindowViewModel.ToggleLocalizationKeyIsConstantCommand.Execute(null);
 
@@ -233,6 +236,115 @@ value=w
 		finally {
 			Directory.Delete(path, recursive: true);
 		}
+	}
+
+	[Fact]
+	public void MainWindowViewModel_OrganizerNodesPresentTheComments() {
+		// preamble pins to the file's start, trailer to its end, and a banner
+		// shows as an organizer node in front of the key it precedes
+		MainWindowViewModel mainWindowViewModel = new MainWindowViewModel();
+		mainWindowViewModel.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
+		KeyNode file = mainWindowViewModel.KeyNodes[0];
+
+		var preamble = Assert.IsType<OrganizerNode>(file.Children[0]);
+		Assert.Equal(" ExampleFile preamble — kept above the language labels", preamble.Text);
+		var trailer = Assert.IsType<CommentNode>(file.Children[^1]);
+		Assert.Equal(" trailer — comments after the last block close the file", trailer.Text);
+
+		KeyNode main = file.Children.First(n => n.Label == "main");
+		int titleIndex = main.Children.IndexOf(main.Children.First(n => n.Label == "title"));
+		var banner = Assert.IsType<CommentNode>(main.Children[titleIndex - 1]);
+		Assert.Equal(" a banner: freeform comments above a header ride the block", banner.Text);
+		Assert.StartsWith("a banner:", banner.Caption);
+	}
+
+	[Fact]
+	public void MainWindowViewModel_OrganizerEditsFlowToTheDocument() {
+		MainWindowViewModel mainWindowViewModel = new MainWindowViewModel();
+		mainWindowViewModel.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
+		KeyNode file = mainWindowViewModel.KeyNodes[0];
+		KeyNode main = file.Children.First(n => n.Label == "main");
+		var banner = main.Children.OfType<OrganizerNode>().First();
+
+		mainWindowViewModel.SelectedKeyNode = banner;
+		Assert.Same(banner, mainWindowViewModel.SelectedOrganizer);
+		Assert.Null(mainWindowViewModel.SelectedKey);
+
+		banner.Text = " rewritten";
+		Assert.True(mainWindowViewModel.IsDirty);
+		var writer = new StringWriter();
+		IniWriter.WriteFile(file, writer, mainWindowViewModel.allKeys, mainWindowViewModel.LanguagesFor("Example"),
+			preamble: mainWindowViewModel.filePreambles["Example"]);
+		Assert.Contains("; rewritten", writer.ToString());
+		Assert.DoesNotContain("; a banner:", writer.ToString());
+
+		var preamble = (OrganizerNode)file.Children[0];
+		preamble.Text = " new preamble";
+		Assert.Equal(" new preamble", mainWindowViewModel.filePreambles["Example"]);
+	}
+
+	[Fact]
+	public void MainWindowViewModel_RemovingAnOrganizerDeletesTheComment() {
+		MainWindowViewModel mainWindowViewModel = new MainWindowViewModel();
+		mainWindowViewModel.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
+		KeyNode main = mainWindowViewModel.KeyNodes[0].Children.First(n => n.Label == "main");
+		var banner = main.Children.OfType<OrganizerNode>().First();
+
+		mainWindowViewModel.SelectedKeyNode = banner;
+		mainWindowViewModel.RemoveLocalizationKeyAndNodeCommand.Execute(null);
+
+		Assert.DoesNotContain(banner, main.Children);
+		Assert.True(mainWindowViewModel.allKeys.ContainsKey("Example.main.title"));
+		var writer = new StringWriter();
+		IniWriter.WriteFile(mainWindowViewModel.KeyNodes[0], writer, mainWindowViewModel.allKeys, mainWindowViewModel.LanguagesFor("Example"));
+		Assert.DoesNotContain("; a banner:", writer.ToString());
+	}
+
+	[Fact]
+	public void MainWindowViewModel_RemovingAKeyLeavesTheCommentStanding() {
+		// the organizer is standalone: deleting the key beneath it leaves the
+		// comment in place, riding above whatever block comes next
+		MainWindowViewModel mainWindowViewModel = new MainWindowViewModel();
+		mainWindowViewModel.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
+		KeyNode main = mainWindowViewModel.KeyNodes[0].Children.First(n => n.Label == "main");
+		KeyNode title = main.Children.First(n => n.Label == "title");
+		var banner = main.Children.OfType<OrganizerNode>().First();
+
+		mainWindowViewModel.SelectedKeyNode = title;
+		mainWindowViewModel.RemoveLocalizationKeyAndNodeCommand.Execute(null);
+
+		Assert.DoesNotContain(title, main.Children);
+		Assert.Contains(banner, main.Children);
+
+		var writer = new StringWriter();
+		IniWriter.WriteFile(mainWindowViewModel.KeyNodes[0], writer, mainWindowViewModel.allKeys, mainWindowViewModel.LanguagesFor("Example"));
+		var output = writer.ToString();
+		Assert.True(output.IndexOf("; a banner:") < output.IndexOf("[main.circle-1]"));
+		Assert.DoesNotContain("[main.title]", output);
+	}
+
+	[Fact]
+	public void MainWindowViewModel_AddOrganizerInsertsAheadOfTheKey() {
+		MainWindowViewModel mainWindowViewModel = new MainWindowViewModel();
+		mainWindowViewModel.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
+		KeyNode main = mainWindowViewModel.KeyNodes[0].Children.First(n => n.Label == "main");
+		KeyNode circle = main.Children.First(n => n.Label == "circle-1");
+		mainWindowViewModel.SelectedKeyNode = circle;
+
+		mainWindowViewModel.AddOrganizerCommand.Execute(null);
+
+		var organizer = Assert.IsType<CommentNode>(mainWindowViewModel.SelectedKeyNode);
+		Assert.Same(organizer, main.Children[main.Children.IndexOf(circle) - 1]);
+		organizer.Text = " note to self";
+
+		// running the command again on the key reuses the existing organizer
+		mainWindowViewModel.SelectedKeyNode = circle;
+		mainWindowViewModel.AddOrganizerCommand.Execute(null);
+		Assert.Same(organizer, mainWindowViewModel.SelectedKeyNode);
+
+		var writer = new StringWriter();
+		IniWriter.WriteFile(mainWindowViewModel.KeyNodes[0], writer, mainWindowViewModel.allKeys, mainWindowViewModel.LanguagesFor("Example"));
+		Assert.Contains("; note to self", writer.ToString());
 	}
 
 	[Fact]
@@ -308,7 +420,7 @@ value=x
 		//Assert
 		var allKeyNodes = GetAllKeyNodes(mainWindowViewModel.KeyNodes);
 		bool correctlyAssignsCanBeConstant = true;
-		foreach (KeyNode nodeToCheck in allKeyNodes) {
+		foreach (KeyNode nodeToCheck in allKeyNodes.Where(node => node is not OrganizerNode)) {
 			foreach (KeyNode file in mainWindowViewModel.KeyNodes) {
 				if (file.Children.Contains(nodeToCheck) && nodeToCheck.Children.Count == 0) {
 					if (!nodeToCheck.CanBeConstant) {
@@ -331,7 +443,7 @@ value=x
 		MainWindowViewModel mainWindowViewModel = new MainWindowViewModel();
 		StreamReader reader = GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini");
 		mainWindowViewModel.LoadFile(reader, "Example");
-		mainWindowViewModel.SelectedKeyNode = mainWindowViewModel.KeyNodes[0].Children[0].Children[0].Children[0]; //FullLabel = Example.view.section-name.key
+		mainWindowViewModel.SelectedKeyNode = Node(mainWindowViewModel, "Example.view.section-name.key");
 
 		//Act
 		mainWindowViewModel.StaleAllLanguagesCommand.Execute(null);
@@ -355,7 +467,7 @@ value=x
 		MainWindowViewModel mainWindowViewModel = new MainWindowViewModel();
 		StreamReader reader = GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini");
 		mainWindowViewModel.LoadFile(reader, "Example");
-		mainWindowViewModel.SelectedKeyNode = mainWindowViewModel.KeyNodes[0].Children[0].Children[0]; //FullLabel = view.section-name.key
+		mainWindowViewModel.SelectedKeyNode = Node(mainWindowViewModel, "Example.view.section-name");
 		mainWindowViewModel.SelectedLanguage = mainWindowViewModel.KnownLanguages[1];
 
 		//Act
@@ -381,7 +493,7 @@ value=x
 		MainWindowViewModel mainWindowViewModel = new();
 		StreamReader reader = GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini");
 		mainWindowViewModel.LoadFile(reader, "Example");
-		mainWindowViewModel.SelectedKeyNode = mainWindowViewModel.KeyNodes[0].Children[0].Children[0]; //FullLabel = view.section-name.key
+		mainWindowViewModel.SelectedKeyNode = Node(mainWindowViewModel, "Example.view.section-name");
 		WordsKey? selectedLocalizationKey = mainWindowViewModel.SelectedKey;
 
 		//Act
@@ -399,7 +511,7 @@ value=x
 		MainWindowViewModel mainWindowViewModel = new MainWindowViewModel();
 		StreamReader reader = GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini");
 		mainWindowViewModel.LoadFile(reader, "Example");
-		mainWindowViewModel.SelectedKeyNode = mainWindowViewModel.KeyNodes[0].Children[0].Children[0].Children[0]; //FullLabel = Example.view.section-name.key
+		mainWindowViewModel.SelectedKeyNode = Node(mainWindowViewModel, "Example.view.section-name.key");
 		string selectedLocalizationKeyBlockKey = mainWindowViewModel.SelectedKey?.BlockKey
 			?? throw new InvalidOperationException();
 
@@ -420,7 +532,7 @@ value=x
 		MainWindowViewModel mainWindowViewModel = new MainWindowViewModel();
 		StreamReader reader = GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini");
 		mainWindowViewModel.LoadFile(reader, "Example");
-		mainWindowViewModel.SelectedKeyNode = mainWindowViewModel.KeyNodes[0].Children[0].Children[0].Children[0]; //FullLabel = Example.view.section-name.key
+		mainWindowViewModel.SelectedKeyNode = Node(mainWindowViewModel, "Example.view.section-name.key");
 		string selectedKeyNodeLabel = mainWindowViewModel.SelectedKeyNode.Label;
 		string selectedLocalizationKeyBlockKey = mainWindowViewModel.SelectedKey?.BlockKey
 			?? throw new InvalidOperationException();
@@ -470,19 +582,19 @@ value=x
 		MainWindowViewModel mainWindowViewModel = new MainWindowViewModel();
 		StreamReader reader = GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini");
 		mainWindowViewModel.LoadFile(reader, "Example");
-		mainWindowViewModel.SelectedKeyNode = mainWindowViewModel.KeyNodes[0].Children[0]; //FullLabel = Example.view
+		mainWindowViewModel.SelectedKeyNode = Node(mainWindowViewModel, "Example.view");
 
 		//Act
 		mainWindowViewModel.AddLocalizationKeyNode("test");
 
 		//Assert
-		KeyNode newKeyNode = mainWindowViewModel.KeyNodes[0].Children[0].Children[1]; //Should be added, FullLabel = Example.view.test
+		KeyNode newKeyNode = Node(mainWindowViewModel, "Example.view").Children[1]; //Should be added, FullLabel = Example.view.test
 		Assert.Equal("test", newKeyNode.Label);
 		Assert.Equal("Example.view.test", newKeyNode.FullLabel);
 		Assert.False(newKeyNode.CanBeConstant);
 		Assert.True(newKeyNode.IsSelected);
-		Assert.False(mainWindowViewModel.KeyNodes[0].Children[0].IsSelected);
-		Assert.True(mainWindowViewModel.KeyNodes[0].Children[0].IsExpanded);
+		Assert.False(Node(mainWindowViewModel, "Example.view").IsSelected);
+		Assert.True(Node(mainWindowViewModel, "Example.view").IsExpanded);
 		Assert.Equal(newKeyNode, mainWindowViewModel.SelectedKeyNode);
 		Assert.Null(mainWindowViewModel.SelectedKey);
 		Assert.Null(mainWindowViewModel.SelectedEntry);
@@ -665,14 +777,14 @@ value=x
 
 		//Assert
 		Assert.True(mainWindowViewModel.KeyNodes[0].IsVisible); //Example
-		Assert.True(mainWindowViewModel.KeyNodes[0].Children[0].IsVisible); //Example.view
-		Assert.True(mainWindowViewModel.KeyNodes[0].Children[0].Children[0].IsVisible); //Example.view.section-name
-		Assert.True(mainWindowViewModel.KeyNodes[0].Children[0].Children[0].Children[0].IsVisible); //Example.view.section-name.key
-		Assert.False(mainWindowViewModel.KeyNodes[0].Children[0].Children[0].Children[0].Children[0].IsVisible); //Example.view.section-name.key.tooltip
-		Assert.False(mainWindowViewModel.KeyNodes[0].Children[1].IsVisible); //Example.$rsi-unit
-		Assert.True(mainWindowViewModel.KeyNodes[0].Children[2].IsVisible); //Example.main
-		Assert.False(mainWindowViewModel.KeyNodes[0].Children[3].IsVisible); //Example.format
-		Assert.False(mainWindowViewModel.KeyNodes[0].Children[4].IsVisible); //Example.enum
+		Assert.True(Node(mainWindowViewModel, "Example.view").IsVisible);
+		Assert.True(Node(mainWindowViewModel, "Example.view.section-name").IsVisible);
+		Assert.True(Node(mainWindowViewModel, "Example.view.section-name.key").IsVisible);
+		Assert.False(Node(mainWindowViewModel, "Example.view.section-name.key.tooltip").IsVisible);
+		Assert.False(Node(mainWindowViewModel, "Example.$rsi-unit").IsVisible);
+		Assert.True(Node(mainWindowViewModel, "Example.main").IsVisible);
+		Assert.False(Node(mainWindowViewModel, "Example.format").IsVisible);
+		Assert.False(Node(mainWindowViewModel, "Example.enum").IsVisible);
 	}
 
 	[Fact]
@@ -688,18 +800,18 @@ value=x
 
 		//Assert
 		Assert.True(mainWindowViewModel.KeyNodes[0].IsVisible); //Example
-		Assert.True(mainWindowViewModel.KeyNodes[0].Children[0].IsVisible); //Example.view
-		Assert.True(mainWindowViewModel.KeyNodes[0].Children[0].Children[0].IsVisible); //Example.view.section-name
-		Assert.True(mainWindowViewModel.KeyNodes[0].Children[0].Children[0].Children[0].IsVisible); //Example.view.section-name.key
-		Assert.True(mainWindowViewModel.KeyNodes[0].Children[0].Children[0].Children[0].Children[0].IsVisible); //Example.view.section-name.key.tooltip
-		Assert.False(mainWindowViewModel.KeyNodes[0].Children[1].IsVisible); //Example.$rsi-unit
-		Assert.False(mainWindowViewModel.KeyNodes[0].Children[2].IsVisible); //Example.main
-		Assert.False(mainWindowViewModel.KeyNodes[0].Children[3].IsVisible); //Example.format
-		Assert.True(mainWindowViewModel.KeyNodes[0].Children[4].IsVisible); //Example.enum
-		Assert.False(mainWindowViewModel.KeyNodes[0].Children[4].Children[0].IsVisible); //Example.enum.none
-		Assert.True(mainWindowViewModel.KeyNodes[0].Children[4].Children[1].IsVisible); //Example.enum.two
-		Assert.True(mainWindowViewModel.KeyNodes[0].Children[4].Children[1].Children[0].IsVisible); //Example.enum.two.tooltip
-		Assert.False(mainWindowViewModel.KeyNodes[0].Children[4].Children[1].Children[1].IsVisible); //Example.enum.two.desc
+		Assert.True(Node(mainWindowViewModel, "Example.view").IsVisible);
+		Assert.True(Node(mainWindowViewModel, "Example.view.section-name").IsVisible);
+		Assert.True(Node(mainWindowViewModel, "Example.view.section-name.key").IsVisible);
+		Assert.True(Node(mainWindowViewModel, "Example.view.section-name.key.tooltip").IsVisible);
+		Assert.False(Node(mainWindowViewModel, "Example.$rsi-unit").IsVisible);
+		Assert.False(Node(mainWindowViewModel, "Example.main").IsVisible);
+		Assert.False(Node(mainWindowViewModel, "Example.format").IsVisible);
+		Assert.True(Node(mainWindowViewModel, "Example.enum").IsVisible);
+		Assert.False(Node(mainWindowViewModel, "Example.enum.none").IsVisible);
+		Assert.True(Node(mainWindowViewModel, "Example.enum.two").IsVisible);
+		Assert.True(Node(mainWindowViewModel, "Example.enum.two.tooltip").IsVisible);
+		Assert.False(Node(mainWindowViewModel, "Example.enum.two.desc").IsVisible);
 	}
 
 	[Fact]

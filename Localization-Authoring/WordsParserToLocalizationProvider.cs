@@ -11,6 +11,12 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>The comment run after the last block, at the very end of the file.</summary>
 		public string Trailer => string.Join('\n', pendingComments);
 		/// <summary>
+		///     Freeform comment runs by the block key they sat above — the block
+		///     is where the file put them, not what they belong to; an authoring
+		///     tool should let them stand alone and re-anchor by position.
+		/// </summary>
+		public IReadOnlyDictionary<string, string> BlockComments => blockComments;
+		/// <summary>
 		///     The codes declared by top-of-file labels, in declaration order — the
 		///     file's own language table. Languages that only appear on fields are
 		///     in <see cref="KnownLanguages"/> (with a <c>!code</c> placeholder
@@ -23,6 +29,7 @@ namespace PatTech.Localization.Authoring {
 		private readonly Dictionary<string, WordsKey> wordKeys = [];
 		private readonly List<string> pendingComments = [];
 		private readonly List<string> declaredLanguages = [];
+		private readonly Dictionary<string, string> blockComments = [];
 
 		public WordsParserToLocalizationProvider() { }
 
@@ -41,12 +48,12 @@ namespace PatTech.Localization.Authoring {
 			var (blockKey, fieldType, languageCode) = key;
 			if (pendingComments.Count != 0) {
 				// comments in the language section belong to the file preamble;
-				// a run between fields hoists to its block's banner
+				// a run between fields hoists above its block
 				if (wordKeys.Count == 0) {
 					Preamble = AppendRun(Preamble, TakePendingComments());
 				}
-				else if (wordKeys.TryGetValue(blockKey, out var owner)) {
-					owner.Banner = AppendRun(owner.Banner, TakePendingComments());
+				else if (blockKey != "") {
+					blockComments[blockKey] = AppendRun(blockComments.GetValueOrDefault(blockKey, ""), TakePendingComments());
 				}
 			}
 			if (wordKeys.Count == 0) {
@@ -177,10 +184,10 @@ namespace PatTech.Localization.Authoring {
 				}
 			}
 			if (pendingComments.Count != 0) {
-				// the run above a header banners that block, even when the
+				// the run above a header anchors to that block, even when the
 				// header re-opens a block declared earlier
-				var owner = wordKeys[keyToAdd.BlockKey];
-				owner.Banner = AppendRun(owner.Banner, TakePendingComments());
+				string blockKey = keyToAdd.BlockKey;
+				blockComments[blockKey] = AppendRun(blockComments.GetValueOrDefault(blockKey, ""), TakePendingComments());
 			}
 		}
 	}

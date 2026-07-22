@@ -15,6 +15,16 @@ namespace PatTech.Localization.Authoring {
 	}
 
 	/// <summary>
+	///     A freeform comment run standing on its own in the tree. The writer
+	///     emits it as <c>;</c> lines at its position in the walk, so whatever
+	///     block follows becomes its anchor on the next load — move keys around
+	///     it, or delete them, and the comment stays where it stands.
+	/// </summary>
+	public interface ICommentNode : IKeyTreeNode {
+		string Text { get; }
+	}
+
+	/// <summary>
 	///     Decides where the writer resets the dot-relative base. A cut node is
 	///     written as a full <c>[path]</c> header — bare, if it has no key of its
 	///     own — and blocks after it that extend the cut come out as one
@@ -74,6 +84,12 @@ namespace PatTech.Localization.Authoring {
 			WriteKeys(node, allKeys, depth: -1);
 		}
 		private void WriteKeys(IKeyTreeNode node, Dictionary<string, WordsKey> allKeys, int depth) {
+			if (node is ICommentNode comment) {
+				if (comment.Text != "") {
+					WriteComment(comment.Text);
+				}
+				return; //comment nodes carry no key and no children
+			}
 			bool cut = depth >= 0 && cuts.Cuts(node, depth);
 			if (allKeys.TryGetValue(node.FullLabel, out var key)) {
 				WriteBlock(key, forceCut: cut);
@@ -123,9 +139,6 @@ namespace PatTech.Localization.Authoring {
 
 		public void WriteBlock(WordsKey key) => WriteBlock(key, forceCut: false);
 		private void WriteBlock(WordsKey key, bool forceCut) {
-			if (key.Banner != "") {
-				WriteComment(key.Banner);
-			}
 			if (!forceCut && baseKey != "" && key.BlockKey.StartsWith($"{baseKey}.", StringComparison.Ordinal)) {
 				WriteBlockHeader(key.BlockKey[baseKey.Length..]);
 			}

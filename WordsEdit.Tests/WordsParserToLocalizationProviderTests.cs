@@ -145,8 +145,8 @@ value=other
 "));
 
 		Assert.Equal(" file preamble\n more preamble", consumer.Preamble);
-		Assert.Equal(" banner k\n interior, hoists to k", consumer.WordKeys["k"].Banner);
-		Assert.Equal(" banner m line 1\n banner m line 2", consumer.WordKeys["m"].Banner);
+		Assert.Equal(" banner k\n interior, hoists to k", consumer.BlockComments["k"]);
+		Assert.Equal(" banner m line 1\n banner m line 2", consumer.BlockComments["m"]);
 		Assert.Equal(" trailing remarks", consumer.Trailer);
 		Assert.Empty(consumer.Errors);
 	}

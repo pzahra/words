@@ -5,9 +5,15 @@ using Xunit;
 namespace WordsEdit.Tests;
 public class IniWriterTests {
 
-	private sealed class FakeNode(string fullLabel, params FakeNode[] children) : IKeyTreeNode {
+	private sealed class FakeNode(string fullLabel, params IKeyTreeNode[] children) : IKeyTreeNode {
 		public string FullLabel { get; } = fullLabel;
 		public IEnumerable<IKeyTreeNode> Children => children;
+	}
+
+	private sealed class FakeComment(string text) : ICommentNode {
+		public string FullLabel => ";";
+		public string Text { get; } = text;
+		public IEnumerable<IKeyTreeNode> Children => [];
 	}
 
 	private sealed class CutAt(params string[] fullLabels) : ICutStrategy {
@@ -87,20 +93,23 @@ public class IniWriterTests {
 
 	[Fact]
 	public void IniWriter_CommentsRoundTrip() {
-		// preamble tops the file, banners sit above their block's header (full or
-		// dot-relative), and the trailer closes the file — all surviving a reload
+		// the preamble tops the file; comment nodes write themselves wherever
+		// they stand in the walk (above full or dot-relative headers alike), and
+		// reload anchored to the block that follows them
 		var tree = new FakeNode("F",
+			new FakeComment(" about group"),
 			new FakeNode("F.group",
-				new FakeNode("F.group.a")));
+				new FakeComment(" about a\n second line"),
+				new FakeNode("F.group.a")),
+			new FakeComment(" the trailer"));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.group"] = new WordsKey("F.group") { DefaultValue = "G", Banner = " about group" },
-			["F.group.a"] = new WordsKey("F.group.a") { DefaultValue = "A", Banner = " about a\n second line" },
+			["F.group"] = new WordsKey("F.group") { DefaultValue = "G" },
+			["F.group.a"] = new WordsKey("F.group.a") { DefaultValue = "A" },
 		};
 		List<LanguageEntry> languages = [new LanguageEntry("en", "English")];
 
 		var output = new StringWriter();
-		IniWriter.WriteFile(tree, output, allKeys, languages,
-			preamble: " the preamble", trailer: " the trailer");
+		IniWriter.WriteFile(tree, output, allKeys, languages, preamble: " the preamble");
 		var ini = output.ToString();
 
 		var lines = ini.Split(Environment.NewLine);
@@ -108,13 +117,14 @@ public class IniWriterTests {
 		Assert.Contains("; about group", lines);
 		Assert.Contains("; about a", lines);
 		Assert.Contains("[.a]", lines);
+		Assert.Equal("; the trailer", lines[^2]);
 
 		WordsParserToLocalizationProvider consumer = new();
 		new WordsParser(consumer).Load(new StringReader(ini));
 		Assert.Empty(consumer.Errors);
 		Assert.Equal(" the preamble", consumer.Preamble);
-		Assert.Equal(" about group", consumer.WordKeys["group"].Banner);
-		Assert.Equal(" about a\n second line", consumer.WordKeys["group.a"].Banner);
+		Assert.Equal(" about group", consumer.BlockComments["group"]);
+		Assert.Equal(" about a\n second line", consumer.BlockComments["group.a"]);
 		Assert.Equal(" the trailer", consumer.Trailer);
 	}
 

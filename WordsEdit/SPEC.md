@@ -50,8 +50,8 @@ when several files are open.
 
 Load → save must never lose data; it may (and does) normalize formatting.
 
-Preserved exactly: every field and language entry, key order, banners,
-preamble, trailer, constants, `!` labels, stale timestamps.
+Preserved exactly: every field and language entry, key order, freeform
+comments, preamble, trailer, constants, `!` labels, stale values.
 
 Canonicalized by the writer (`IniWriter`): line wrapping (~50 columns),
 escaping (`__`, `''`, leading-whitespace `_` marker), newline continuations,
@@ -59,7 +59,7 @@ and block headers — a block extending the last full header is written as one
 dot-relative `[.suffix]`; an `ICutStrategy` decides where extra full-header
 cuts go (the descendant-aware strategy is a known TODO; until then, keyless
 groups reload flattened). Comment placement is canonicalized too: a `;` run
-between fields hoists to its block's banner; comments in the language section
+between fields hoists above its block; comments in the language section
 join the preamble.
 
 Save→load→save is byte-stable (pinned by `MainWindowViewModel_IdempotencyTest_FileContents`).
@@ -69,10 +69,14 @@ Save→load→save is byte-stable (pinned by `MainWindowViewModel_IdempotencyTes
 One tree presents every loaded file:
 
 - **Node kinds**: file, group (a path segment without its own key data), key,
-  and **organizer** — the presentation of a banner, shown as a separate node
-  in front of the key it precedes. Editing an organizer edits the banner text;
-  deleting it deletes the comment; dragging it re-anchors it to another key.
-  The preamble and trailer render as organizers pinned to a file's start/end.
+  and **organizer** — a standalone comment node. The writer emits it wherever
+  it stands in the tree, so its anchor is simply whatever block follows it on
+  the next load: interject a key between a comment and its original block,
+  delete the block and the comment rides above the next one, or drag the
+  comment itself. Editing the node edits the comment; deleting it deletes the
+  comment. The preamble renders as an organizer pinned above the language
+  table (the one comment written outside the tree walk); the trailer is just
+  a comment standing at the file's end.
 - **Badges** on nodes: file, constant, needs-review, stale (in the selected
   language), overwritten-by-later-file; keys whose default or selected-language
   value is empty render emphasized.

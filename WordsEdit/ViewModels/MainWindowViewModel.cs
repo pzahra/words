@@ -42,8 +42,10 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public ObservableCollection<WordsKey> Keys { get; } = [];
 	internal readonly Dictionary<string, WordsKey> allKeys = [];
 
-	//file preamble/trailer comment runs, keyed by the file node's label
-	internal readonly Dictionary<string, (string Preamble, string Trailer)> fileComments = [];
+	//file preamble comment runs, keyed by the file node's label. The preamble is
+	//the only comment written outside the tree walk (it precedes the language
+	//table); every other comment is a standalone CommentNode in the tree
+	internal readonly Dictionary<string, string> filePreambles = [];
 
 	//each file's own declared language codes in declaration order — files never
 	//gain each other's languages on save; KnownLanguages is the session union
@@ -86,6 +88,17 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 	}
 
+	public OrganizerNode? SelectedOrganizer {
+		get;
+		set {
+			OrganizerNode? oldValue = field;
+			if (ChangeProperty(ref field, value)) {
+				oldValue?.PropertyChanged -= OnSelectedOrganizerChanged;
+				value?.PropertyChanged += OnSelectedOrganizerChanged;
+			}
+		}
+	}
+
 	public LanguageEntry SelectedLanguage {
 		get;
 		set {
@@ -118,6 +131,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public ICommand RenameLocalizationKeyAndNodeCommand { get; }
 	public ICommand AddLocalizationKeyNodeCommand { get; }
 	public ICommand AddLocalizationKeyCommand { get; }
+	public ICommand AddOrganizerCommand { get; }
 	public ICommand RemoveLocalizationKeyCommand { get; }
 	public ICommand StaleAllLanguagesCommand { get; }
 	public ICommand ToggleStaleLanguageCommand { get; }
@@ -137,6 +151,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		RenameLocalizationKeyAndNodeCommand = new DelegateCommand(DoRenameNode);
 		AddLocalizationKeyNodeCommand = new DelegateCommand(DoAddLocalizationKeyNode);
 		AddLocalizationKeyCommand = new DelegateCommand(DoAddLocalizationKey);
+		AddOrganizerCommand = new DelegateCommand(DoAddOrganizer);
 		RemoveLocalizationKeyCommand = new DelegateCommand(DoRemoveLocalizationKey);
 		StaleAllLanguagesCommand = new DelegateCommand(DoStaleAllLanguages);
 		ToggleStaleLanguageCommand = new DelegateCommand<string>(DoToggleStaleLanguage);
@@ -188,6 +203,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	private void OnSelectedKeyNodeChanged() {
+		SelectedOrganizer = SelectedKeyNode as OrganizerNode;
 		if (SelectedKeyNode is null) {
 			SelectedKey = null;
 			SelectedEntry = null;
@@ -224,6 +240,12 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			//SelectedEntry is legitimately null while a constant is selected
 			SelectedKeyNode.EmptyValue = SelectedKey.DefaultValue.Trim() == ""
 				&& (SelectedEntry?.Value.Trim() ?? "") == "";
+		}
+	}
+
+	private void OnSelectedOrganizerChanged(object? sender, PropertyChangedEventArgs e) {
+		if (e.PropertyName == nameof(OrganizerNode.Text)) {
+			IsDirty = true;
 		}
 	}
 
@@ -265,7 +287,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			passesFilter &= node.NeedsReview;
 		}
 		if (!string.IsNullOrEmpty(SearchFilterText)) {
-			passesFilter &= node.FullLabel.Contains(SearchFilterText, StringComparison.OrdinalIgnoreCase);
+			passesFilter &= node.FullLabel.Contains(SearchFilterText, StringComparison.OrdinalIgnoreCase)
+				|| (node is OrganizerNode organizer && organizer.Text.Contains(SearchFilterText, StringComparison.OrdinalIgnoreCase));
 		}
 
 		return passesFilter;
@@ -345,7 +368,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		WordsParserToLocalizationProvider consumer = new();
 		WordsParser parser = new(consumer);
 		parser.Load(reader);
-		fileComments[fileName] = (consumer.Preamble, consumer.Trailer);
+		filePreambles[fileName] = consumer.Preamble;
 		fileLanguages[fileName] = [.. consumer.DeclaredLanguages];
 		// TODO: explain?
 		if (usingDefaultLanguage && consumer.WordKeys.Count > 0) {
@@ -379,6 +402,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			};
 			KeyNodes.Add(fileNode);
 			AllKeyNodes.Add(fileNode);
+			AddFileOrganizers(fileNode, consumer.Trailer);
 		}
 		else {
 			foreach (var (_, key) in keys) {
@@ -398,7 +422,10 @@ public class MainWindowViewModel : ViewModelSaveBase {
 					}
 				}
 			}
-			var add = GetFileNode(keys.Values);
+			var comments = consumer.BlockComments.ToDictionary(
+				pair => $"{fileName}.{pair.Key}",
+				pair => pair.Value);
+			var add = GetFileNode(keys.Values, comments);
 			//a library file lists nothing: every declared label is a !Label
 			//(or there are no labels at all)
 			if (!consumer.DeclaredLanguages.Any(code => !consumer.KnownLanguages[code].NativeName.StartsWith('!'))) {
@@ -411,6 +438,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			}
 			KeyNodes.Add(add);
 			AllKeyNodes.Add(add);
+			AddFileOrganizers(add, consumer.Trailer);
 		}
 		usingDefaultLanguage = false;
 		foreach (var key in Keys) {
@@ -429,7 +457,26 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		ApplyFilters();
 	}
 
-	private KeyNode GetFileNode(IEnumerable<WordsKey> keys) {
+	//the preamble shows as an organizer pinned to the file's start; its text
+	//lives in filePreambles, which Save writes above the language table. The
+	//trailer is just a standalone comment at the end of the walk.
+	private void AddFileOrganizers(KeyNode fileNode, string trailer) {
+		string label = fileNode.FullLabel;
+		if (filePreambles.GetValueOrDefault(label, "") != "") {
+			var node = new OrganizerNode($"{label}.;preamble",
+				() => filePreambles.GetValueOrDefault(label, ""),
+				text => filePreambles[label] = text);
+			fileNode.Children.Insert(0, node);
+			AllKeyNodes.Add(node);
+		}
+		if (trailer != "") {
+			var node = new CommentNode($"{label}.;trailer", trailer);
+			fileNode.Children.Add(node);
+			AllKeyNodes.Add(node);
+		}
+	}
+
+	private KeyNode GetFileNode(IEnumerable<WordsKey> keys, IReadOnlyDictionary<string, string> comments) {
 		List<string> labels = [];
 		foreach (var key in keys) {
 			labels.Add(key.BlockKey);
@@ -464,14 +511,18 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 		KeyNode fileStarter = new();
 		foreach (var (node, parentName) in nodes.Values) {
-			if (parentName == null || !nodes.TryGetValue(parentName, out var parent)) {
-				fileStarter.Children.Add(node);
-				AllKeyNodes.Add(node);
+			KeyNode target = parentName == null || !nodes.TryGetValue(parentName, out var parent)
+				? fileStarter
+				: parent.node;
+			if (comments.TryGetValue(node.FullLabel, out var text)) {
+				//the run that sat above this block becomes a standalone comment
+				//node in front of it; from here on, position is the anchor
+				var organizer = new CommentNode($"{node.FullLabel}.;comment", text);
+				target.Children.Add(organizer);
+				AllKeyNodes.Add(organizer);
 			}
-			else {
-				parent.node.Children.Add(node);
-				AllKeyNodes.Add(node);
-			}
+			target.Children.Add(node);
+			AllKeyNodes.Add(node);
 		}
 		KeyNode file = fileStarter.Children[0];
 		file.IsFile = true;
@@ -513,7 +564,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		NeedsReviewFilter = false;
 		SelectedKeyNode = null;
 		FileNames.Clear();
-		fileComments.Clear();
+		filePreambles.Clear();
 		fileLanguages.Clear();
 		IsDirty = false;
 	}
@@ -529,8 +580,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			string label = Path.GetFileNameWithoutExtension(fileName);
 			KeyNode fileNode = KeyNodes.FirstOrDefault(k => k.FullLabel == label)
 				?? throw new InvalidDataException($"Cannot find node with file name: {fileName}");
-			var (preamble, trailer) = fileComments.GetValueOrDefault(label, ("", ""));
-			IniWriter.WriteFile(fileNode, fileName, allKeys, LanguagesFor(label), preamble: preamble, trailer: trailer);
+			//comments in the tree write themselves in place; only the preamble
+			//needs passing, since it precedes the language table
+			IniWriter.WriteFile(fileNode, fileName, allKeys, LanguagesFor(label), preamble: filePreambles.GetValueOrDefault(label, ""));
 		}
 		IsDirty = false;
 	}
@@ -666,6 +718,12 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (SelectedKeyNode is null || SelectedKeyNode.FullLabel is null) {
 			return;
 		}
+		if (SelectedKeyNode is OrganizerNode organizer) {
+			//deleting the organizer deletes the comment it presents
+			organizer.Text = "";
+			RemoveKeyNode(organizer);
+			return;
+		}
 		if (SelectedKeyNode.IsFile) {
 			RemoveFileNodePopup(SelectedKeyNode);
 			return;
@@ -697,7 +755,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public void RemoveFileNodeCore(KeyNode fileNodeToRemove) {
 		RemoveKeysUnder(fileNodeToRemove.FullLabel);
 		FileNames.RemoveWhere(fileName => Path.GetFileNameWithoutExtension(fileName) == fileNodeToRemove.FullLabel);
-		fileComments.Remove(fileNodeToRemove.FullLabel);
+		filePreambles.Remove(fileNodeToRemove.FullLabel);
 		fileLanguages.Remove(fileNodeToRemove.FullLabel);
 		KeyNodes.Remove(fileNodeToRemove);
 		AllKeyNodes.RemoveWhere(keyNode => keyNode.FullLabel.StartsWith(fileNodeToRemove.Label + '.') || keyNode.FullLabel == fileNodeToRemove.FullLabel);
@@ -715,6 +773,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 		KeyNode? parentNode = keyNodeToRemove.GetParentNode(KeyNodes);
 		KeyNode? grandParentNode = parentNode?.GetParentNode(KeyNodes);
+		//a removed key leaves any comment above it standing; on the next load
+		//the comment anchors to whatever block follows it
 		parentNode?.Children.Remove(keyNodeToRemove);
 		AllKeyNodes.RemoveWhere(keyNode => keyNode.FullLabel.StartsWith(keyNodeToRemove.FullLabel + '.') || keyNode.FullLabel == keyNodeToRemove.FullLabel);
 		if (parentNode is not null && parentNode.Children.IsNullOrEmpty() && grandParentNode is not null && grandParentNode.IsFile) {
@@ -726,6 +786,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 
 	private void DoRenameNode() {
+		if (SelectedKeyNode is OrganizerNode) {
+			return;
+		}
 		PopupDialog.Push(new KeyNameView() { DataContext = new KeyNameViewModel(this, SelectedKeyNode) });
 	}
 
@@ -756,6 +819,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	private void DoAddLocalizationKeyNode() {
+		if (SelectedKeyNode is OrganizerNode) {
+			return;
+		}
 		PopupDialog.Push(new KeyNameView() { DataContext = new KeyNameViewModel(this, null) });
 	}
 
@@ -783,6 +849,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (SelectedKeyNode is null) {
 			throw new InvalidDataException("Selected Node is null.");
 		}
+		if (SelectedKeyNode is OrganizerNode) {
+			return;
+		}
 		WordsKey keyToAdd = new(SelectedKeyNode.FullLabel);
 		foreach (LanguageEntry language in KnownLanguages) {
 			keyToAdd.Entries[language.Code] = new();
@@ -792,6 +861,31 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		SelectedKey = keyToAdd;
 		SelectedEntry = keyToAdd.Entries[SelectedLanguage.Code];
 		IsDirty = true;
+	}
+
+	private void DoAddOrganizer() {
+		if (SelectedKeyNode is null or OrganizerNode || SelectedKeyNode.IsFile) {
+			return;
+		}
+		KeyNode? parent = SelectedKeyNode.GetParentNode(KeyNodes);
+		if (parent is null) {
+			return;
+		}
+		int index = parent.Children.IndexOf(SelectedKeyNode);
+		KeyNode select;
+		if (index > 0 && parent.Children[index - 1] is OrganizerNode existing) {
+			select = existing;
+		}
+		else {
+			var organizer = new CommentNode($"{SelectedKeyNode.FullLabel}.;comment");
+			parent.Children.Insert(index, organizer);
+			AllKeyNodes.Add(organizer);
+			select = organizer;
+			IsDirty = true;
+		}
+		SelectedKeyNode.IsSelected = false;
+		select.IsSelected = true;
+		SelectedKeyNode = select;
 	}
 
 	private void DoRemoveLocalizationKey() {

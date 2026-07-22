@@ -8,13 +8,6 @@ namespace PatTech.Localization.Authoring {
 	public class WordsKey : ViewModelBase {
 		public string BlockKey { get; set => ChangeProperty(ref field, value); }
 
-		/// <summary>
-		///     The freeform <c>;</c> comment run sitting above this block's header,
-		///     one line per <c>\n</c>. The editor shows it as an organizer node in
-		///     front of the key; the writer re-emits it above the block.
-		/// </summary>
-		public string Banner { get; set => ChangeProperty(ref field, value); } = "";
-
 		public bool IsConstant { get; set => ChangeProperty(ref field, value); }
 
 		public string DefaultValue { get; set => ChangeProperty(ref field, value); }
@@ -38,7 +31,6 @@ namespace PatTech.Localization.Authoring {
 
 		public WordsKey(WordsKey original) {
 			BlockKey = original.BlockKey;
-			Banner = original.Banner;
 			IsConstant = original.IsConstant;
 			DefaultValue = original.DefaultValue;
 			Context = original.Context;
@@ -48,7 +40,6 @@ namespace PatTech.Localization.Authoring {
 
 		public bool IsEmpty()
 			=> IsConstant == false
-			&& Banner == ""
 			&& DefaultValue == ""
 			&& Context == ""
 			&& Comment == ""
