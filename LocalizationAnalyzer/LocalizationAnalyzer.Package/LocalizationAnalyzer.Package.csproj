@@ -1,7 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="..\..\GitDescribe.targets" />
+
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <!-- versioning only: this shim compiles as C# 7.3, too old for GitInfo's
+         generated ThisAssembly class -->
+    <GitThisAssembly>false</GitThisAssembly>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <IncludeBuildOutput>true</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
@@ -10,7 +15,6 @@
 
   <PropertyGroup>
     <PackageId>PatTech.Localization.Analyzer</PackageId>
-    <PackageVersion>1.1.0</PackageVersion>
     <Authors>PatrickZ</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>

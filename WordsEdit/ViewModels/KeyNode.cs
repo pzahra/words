@@ -1,10 +1,10 @@
-﻿using System.Collections.ObjectModel;
+﻿using PatTech.Localization.Authoring;
+using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
-using WordsEdit.Utils;
 
 namespace WordsEdit.ViewModels {
-	public class KeyNode : ViewModelBase {
+	public class KeyNode : ViewModelBase, IKeyTreeNode {
 		public string Label { get; set => ChangeProperty(ref field, value); }
 		public string FullLabel {
 			get;
@@ -23,6 +23,7 @@ namespace WordsEdit.ViewModels {
 		public bool NeedsReview { get; set => ChangeProperty(ref field, value); }
 
 		public ObservableCollection<KeyNode> Children { get; set => ChangeProperty(ref field, value); } = [];
+		IEnumerable<IKeyTreeNode> IKeyTreeNode.Children => Children;
 		public bool IsExpanded { get; set => ChangeProperty(ref field, value); }
 		public bool IsVisible { get; set => ChangeProperty(ref field, value); }
 		public bool IsSelected { get; set => ChangeProperty(ref field, value); }

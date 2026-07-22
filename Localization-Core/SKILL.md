@@ -16,7 +16,7 @@ project's `words.ini` and reference it by key. Parameters marked
 ## The words.ini format
 
 ```ini
-; comment lines start with `;`, `|` or `$`
+; comment lines start with `;`
 value-en=English
 value-it=Italiano
 ; ^ top-of-file labels double as the language menu (WordsBuilder.GetLanguages).

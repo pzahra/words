@@ -15,7 +15,9 @@
 	<Target Name="FixGitVersion" AfterTargets="GitSetVersion">
 		<PropertyGroup>
 			<Version>$(GitBaseVersion).$(GitCommits)</Version>
-			<PackageVersion>$(GitBaseVersion)</PackageVersion>
+			<!-- GitSemVerPatch = tag patch + commits since the tag, so every commit
+			     past a release is automatically the next package version -->
+			<PackageVersion>$(GitSemVerMajor).$(GitSemVerMinor).$(GitSemVerPatch)</PackageVersion>
 			<InformationalVersion>$(GitTag)</InformationalVersion>
 		</PropertyGroup>
 	</Target>

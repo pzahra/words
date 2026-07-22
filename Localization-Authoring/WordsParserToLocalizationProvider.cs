@@ -1,7 +1,6 @@
-﻿using PatTech.Localization;
-using WordsEdit.ViewModels;
+using PatTech.Localization;
 
-namespace WordsEdit.Utils {
+namespace PatTech.Localization.Authoring {
 	public class WordsParserToLocalizationProvider : IWordsParserConsumer {
 		public IReadOnlyList<string> Errors => errors;
 		public IReadOnlyDictionary<string, WordsKey> WordKeys => wordKeys;
@@ -106,10 +105,12 @@ namespace WordsEdit.Utils {
 					localizationKey.Entries[languageCode].Comment += value;
 					break;
 				case (not "", "param"):
-					if (!localizationKey.Parameters.Any(parameter => parameter.Key == languageCode)) {
-						int index = localizationKey.Parameters.FindIndex(parameter => parameter.Key == languageCode);
-						WordsParameter parameterToEdit = localizationKey.Parameters[index];
-						parameterToEdit.Value += value;
+					// continue the value of the parameter this line belongs to
+					foreach (var parameter in localizationKey.Parameters) {
+						if (parameter.Key == languageCode) {
+							parameter.Value += value;
+							break;
+						}
 					}
 					break;
 				default:

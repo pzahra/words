@@ -1,8 +1,7 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using System.Windows.Input;
 
-namespace WordsEdit.Utils {
+namespace PatTech.Localization.Authoring {
 	/// <summary>
 	/// Base ViewModel for use with MVVM architecture.
 	/// </summary>

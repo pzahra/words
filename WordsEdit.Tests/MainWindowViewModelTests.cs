@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using System.Reflection;
+using PatTech.Localization.Authoring;
 using WordsEdit.Utils;
 using WordsEdit.ViewModels;
 using Xunit;

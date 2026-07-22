@@ -35,6 +35,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Localization-Authoring\Localization-Authoring.csproj" />
     <ProjectReference Include="..\Localization-Core\Localization-Core.csproj" />
     <ProjectReference Include="..\WordsEdit\WordsEdit.csproj" />
   </ItemGroup>

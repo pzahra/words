@@ -129,8 +129,8 @@ namespace PatTech.Localization {
 	/// A line-based parser for the <c>words.ini</c> format: <c>[block]</c> headers
 	/// (including dot-relative <c>[.sub]</c> inheritance), <c>field-lang=text</c> pairs
 	/// with <c>=</c> or <c>:</c>, line continuations via trailing <c>\</c> (keep newline)
-	/// or <c>_</c> (same line), and comment lines starting with <c>;</c>, <c>|</c> or
-	/// <c>$</c>. It holds no state of its own beyond the current position; results go
+	/// or <c>_</c> (same line), and comment lines starting with <c>;</c>. Blank lines
+	/// are skipped. It holds no state of its own beyond the current position; results go
 	/// to the <see cref="IWordsParserConsumer"/> it was built with.
 	/// </summary>
 	public class WordsParser {
@@ -193,7 +193,7 @@ namespace PatTech.Localization {
 			@"^([\\_].|[^\\_])*[\\_]$",
 			RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 		static readonly Regex rxSkippableLine = new(
-			@"^\s*[;|$]",
+			@"^\s*(;|$)",
 			RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 		static readonly Regex rxUnescape = new(
 			@"([\\_'])\1",

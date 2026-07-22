@@ -1,11 +1,9 @@
-﻿using PatTech.Localization;
+using PatTech.Localization;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.Runtime.CompilerServices;
-using WordsEdit.Utils;
 
-namespace WordsEdit.ViewModels {
+namespace PatTech.Localization.Authoring {
 
 	public class WordsKey : ViewModelBase {
 		public string BlockKey { get; set => ChangeProperty(ref field, value); }
@@ -229,27 +227,6 @@ namespace WordsEdit.ViewModels {
 				value = null;
 				return false;
 			}
-		}
-	}
-
-	public abstract class ViewModelSaveBase : ViewModelBase {
-		public string TitleMarked => IsDirty ? Title + " *" : Title;
-		public string Title { get; set => _ = ChangeProperty(ref field, value) && AffectProperty(nameof(TitleMarked)); } = "";
-		public bool IsDirty { get; set => _ = ChangeProperty(ref field, value) && AffectProperty(nameof(TitleMarked)); }
-
-		public abstract void Save();
-
-		protected bool ChangeProperty<T>(
-			[NotNullIfNotNull(nameof(newValue))] ref T field,
-			T newValue,
-			bool dirty = false,
-			[CallerMemberName] string propertyName = ""
-		) {
-			if (ChangeProperty(ref field, newValue, propertyName)) {
-				IsDirty |= dirty;
-				return true;
-			}
-			return false;
 		}
 	}
 }

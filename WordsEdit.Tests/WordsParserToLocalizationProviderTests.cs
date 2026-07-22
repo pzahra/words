@@ -1,6 +1,5 @@
 ﻿using PatTech.Localization;
-using WordsEdit.Utils;
-using WordsEdit.ViewModels;
+using PatTech.Localization.Authoring;
 using Xunit;
 
 namespace WordsEdit.Tests;
@@ -72,6 +71,48 @@ value-en-GB=BritishValue
 		}
 		Assert.True(keysContainAllLanguages);
 		Assert.True(keysContainOnlyKnownLanguages);
+	}
+
+	[Fact]
+	public void WordsParser_CommentsAreSemicolonOnly() {
+		// `;` starts a comment (even indented, even containing `=`); blank lines
+		// are skipped; a continuation line starting with `;` is still content
+		WordsParserToLocalizationProvider consumer = new();
+		new WordsParser(consumer).Load(new StringReader(@"
+value-en=English
+
+[k]
+; a comment
+  ; an indented comment
+;disabled=not a value
+value=kept_
+;still the value
+
+[m]
+value=other
+"));
+
+		Assert.Equal("kept;still the value", consumer.WordKeys["k"].DefaultValue);
+		Assert.Equal("other", consumer.WordKeys["m"].DefaultValue);
+		Assert.Empty(consumer.Errors);
+	}
+
+	[Fact]
+	public void WordsParserToLocalizationProvider_ParamContinuationAppends() {
+		// continuation lines on a param- field must extend the parameter's value
+		// (this used to be silently dropped by an inverted existence check)
+		WordsParserToLocalizationProvider consumer = new();
+		new WordsParser(consumer).Load(new StringReader(@"
+value-en=English
+
+[k]
+param-x=String:abc_
+def
+"));
+
+		var parameter = Assert.Single(consumer.WordKeys["k"].Parameters);
+		Assert.Equal("x", parameter.Key);
+		Assert.Equal("abcdef", parameter.Value);
 	}
 
 	[Fact]

@@ -27,8 +27,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Localization-Authoring\Localization-Authoring.csproj" />
     <ProjectReference Include="..\Localization-Core\Localization-Core.csproj" />
     <ProjectReference Include="..\Localization-Wpf\Localization-Wpf.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- the words.ini document model and round-trip layer live in the authoring
+         assembly; the editor's viewmodels use them everywhere -->
+    <Using Include="PatTech.Localization.Authoring" />
   </ItemGroup>
 
 </Project>
