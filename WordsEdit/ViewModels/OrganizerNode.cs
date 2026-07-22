@@ -45,6 +45,12 @@ public class OrganizerNode : KeyNode {
 		}
 	}
 
+	/// <summary>
+	///     Clones materialize as standalone comments carrying the current text —
+	///     a copied preamble rides inline and re-anchors on the next load.
+	/// </summary>
+	public override KeyNode Clone() => new CommentNode(FullLabel, Text);
+
 	/// <summary>The first line of the comment, for the tree row.</summary>
 	public string Caption {
 		get {

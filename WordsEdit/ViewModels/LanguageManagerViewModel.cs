@@ -72,26 +72,22 @@ public class LanguageManagerViewModel : ViewModelBase {
 	}
 
 	public void EditLanguage(LanguageEntry lang) {
-		foreach (var key in Parent.Keys) {
-			key.Entries[lang.Code] = key.Entries[SelectedLanguage.Code];
-			if (lang.Code != SelectedLanguage.Code) {
-				//re-coding: the entries moved, don't leave orphans under the old code
-				key.Entries.Remove(SelectedLanguage.Code);
-			}
+		var edited = SelectedLanguage;
+		if (lang.Code != edited.Code) {
+			//re-coding shifts the entries; collisions keep the target's value and
+			//park the displaced one in context, in copy/paste reach of the translator
+			WordsOperations.Shift(Parent.Keys, edited.Code, lang.Code);
+			Parent.ReplaceLanguageCode(edited.Code, lang.Code);
 		}
-		if (lang.Code != SelectedLanguage.Code) {
-			Parent.ReplaceLanguageCode(SelectedLanguage.Code, lang.Code);
+		LanguageEntry? absorbedInto = KnownLanguages.FirstOrDefault(known => known.Code == lang.Code && known != edited);
+		if (absorbedInto is not null) {
+			//shifted onto a language that already exists: no new list entry
+			SelectedLanguage = absorbedInto;
+			KnownLanguages.Remove(edited);
 		}
-		KnownLanguages.Insert(KnownLanguages.IndexOf(SelectedLanguage), lang);
-		for (int i = 0; i < KnownLanguages.Count; i++) {
-			if (KnownLanguages[i].Equals(SelectedLanguage)) {
-				SelectedLanguage = lang;
-				if (Parent.SelectedLanguage == KnownLanguages[i]) {
-					Parent.SelectedLanguage = SelectedLanguage;
-				}
-				KnownLanguages.RemoveAt(i);
-				break;
-			}
+		else {
+			KnownLanguages[KnownLanguages.IndexOf(edited)] = lang;
+			SelectedLanguage = lang;
 		}
 		Parent.IsDirty = true;
 	}

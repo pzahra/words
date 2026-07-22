@@ -35,7 +35,11 @@ namespace PatTech.Localization.Authoring {
 			DefaultValue = original.DefaultValue;
 			Context = original.Context;
 			Comment = original.Comment;
+			NeedsReview = original.NeedsReview;
 			Entries = original.Entries.ToDictionary(k => k.Key, v => new WordsEntry(v.Value));
+			foreach (WordsParameter parameter in original.Parameters) {
+				Parameters.Add(new WordsParameter(parameter));
+			}
 		}
 
 		public bool IsEmpty()

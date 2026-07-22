@@ -378,6 +378,47 @@ value-fr=Bé
 	}
 
 	[Fact]
+	public void MainWindowViewModel_EditLanguageRecodeShiftsEntries() {
+		// re-coding a language onto an existing one shifts the entries: the
+		// target's values win, displaced source values park in context, and
+		// the two dropdown entries collapse into one
+		MainWindowViewModel mainWindowViewModel = new MainWindowViewModel();
+		mainWindowViewModel.LoadFile(new StringReader(@"value-en=English
+value-en-GB=British
+
+[k]
+value=x
+value-en=family
+value-en-GB=regional
+
+[j]
+value=y
+value-en-GB=only regional
+"), "Main");
+		LanguageManagerViewModel manager = new(mainWindowViewModel) {
+			SelectedLanguage = mainWindowViewModel.KnownLanguages.First(l => l.Code == "en-GB"),
+		};
+
+		manager.EditLanguage(new LanguageEntry("en", "English"));
+
+		Assert.DoesNotContain(manager.KnownLanguages, l => l.Code == "en-GB");
+		Assert.Equal(1, manager.KnownLanguages.Count(l => l.Code == "en"));
+		Assert.Equal("en", manager.SelectedLanguage.Code);
+		Assert.Equal(["en"], mainWindowViewModel.LanguagesFor("Main").Select(l => l.Code));
+
+		WordsKey collided = mainWindowViewModel.allKeys["Main.k"];
+		Assert.Equal("family", collided.Entries["en"].Value);
+		Assert.Equal("regional", collided.Entries["en"].Context);
+		Assert.NotNull(collided.Entries["en"].Stale);
+		Assert.False(collided.Entries.ContainsKey("en-GB"));
+
+		WordsKey moved = mainWindowViewModel.allKeys["Main.j"];
+		Assert.Equal("only regional", moved.Entries["en"].Value);
+		Assert.Null(moved.Entries["en"].Stale);
+		Assert.False(moved.Entries.ContainsKey("en-GB"));
+	}
+
+	[Fact]
 	public void MainWindowViewModel_LibraryFileKeepsItsBangLabels() {
 		// a library file (only !Labels) is flagged, still populates the language
 		// list when opened solo, and writes its own !Labels back
@@ -598,33 +639,6 @@ value=x
 		Assert.Equal(newKeyNode, mainWindowViewModel.SelectedKeyNode);
 		Assert.Null(mainWindowViewModel.SelectedKey);
 		Assert.Null(mainWindowViewModel.SelectedEntry);
-	}
-
-	[Fact]
-	public void MainWindowViewModel_DictionariesHaveTheSameLocalizationKeysTest() {
-		//Arrange
-		List<Dictionary<string, WordsKey>> localizationKeyDictionaries = new();
-		Dictionary<string, WordsKey> dictionary1 = new();
-		Dictionary<string, WordsKey> dictionary2 = new();
-		Dictionary<string, WordsKey> dictionary3 = new();
-		dictionary1.Add("dictionary1.test1", new WordsKey("dictionary1.test1"));
-		dictionary2.Add("dictionary2.test1", new WordsKey("dictionary2.test1"));
-		dictionary3.Add("dictionary3.test1", new WordsKey("dictionary3.test1"));
-		dictionary1.Add("dictionary1.test2", new WordsKey("dictionary1.test2"));
-		dictionary2.Add("dictionary2.test2", new WordsKey("dictionary2.test2"));
-		dictionary3.Add("dictionary3.test2", new WordsKey("dictionary3.test2"));
-		dictionary1.Add("dictionary1.test3", new WordsKey("dictionary1.test3"));
-		dictionary2.Add("dictionary2.test3", new WordsKey("dictionary2.test3"));
-		dictionary3.Add("dictionary3.test3", new WordsKey("dictionary3.test3"));
-		localizationKeyDictionaries.Add(dictionary1);
-		localizationKeyDictionaries.Add(dictionary2);
-		localizationKeyDictionaries.Add(dictionary3);
-
-		//Act
-		bool dictionariesHaveTheSameLocalizationKeys = MainWindowViewModel.DictionariesHaveTheSameLocalizationKeys(localizationKeyDictionaries);
-
-		//Assert
-		Assert.True(dictionariesHaveTheSameLocalizationKeys);
 	}
 
 	[Fact]

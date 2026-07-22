@@ -124,9 +124,10 @@ and the markdown preview.
 A language manager adds, removes, and relabels languages. Adding one backfills
 an empty entry on every key; removing one deletes its entries after
 confirmation. Consider an option to shift a language (re-code it, e.g. `en-GB`
-absorbing into `en`); where both codes hold a value, keep the target's and
-mark it stale with the source value recoverable — the stale filter then
-doubles as the reconciliation queue.
+absorbing into `en`); where both codes hold a value, keep the target's, park
+the source value in the entry's `context-xx` field where the translator can
+copy/paste from it, and stale-mark the entry so the review filter surfaces
+the collision.
 
 ## Merge
 
@@ -144,8 +145,9 @@ prompts. Reset returns to the empty session (one default `en` language).
 ## Out of scope for the rewrite (known future work)
 
 - Descendant-aware `ICutStrategy` (task chip exists).
-- Split/merge/shift move into Localization-Authoring with their tests; the
-  ViewModels keep only intent-gathering.
+- A split UI: the engine lives in `WordsOperations.Split` (its output is
+  exactly the shape `Merge` consumes back), but nothing in the editor calls
+  it yet — wire it up during the front-end rewrite.
 - Test restructure: WPF/Ava/Core tests build off the API assemblies alone
   (one shared test project if they can co-exist); the only tests referencing
   Wordsmith are the editor's own.

@@ -56,8 +56,11 @@ namespace WordsEdit.ViewModels {
 			IsBaseFile = original.IsBaseFile;
 			IsLibraryFile = original.IsLibraryFile;
 			EmptyValue = original.EmptyValue;
-			Children = [.. original.Children.Select(c => new KeyNode(c))];
+			Children = [.. original.Children.Select(c => c.Clone())];
 		}
+
+		/// <summary>A deep copy keeping each node's kind (comments stay comments).</summary>
+		public virtual KeyNode Clone() => new KeyNode(this);
 
 		public KeyNode? GetParentNode(IEnumerable<KeyNode> keyNodes) {
 			// FIXME: this is awful. use a property!

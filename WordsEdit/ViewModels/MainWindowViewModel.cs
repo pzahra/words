@@ -609,104 +609,23 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Dictionary<string, KeyNode> files,
 		string mergedFileName,
 		out Dictionary<string, WordsKey> keysToMerge) {
+		var languageSources = files.ToDictionary(pair => pair.Key, pair => pair.Value.FullLabel);
+		var merged = WordsOperations.Merge(allKeys, baseFile.FullLabel, languageSources, mergedFileName, out _);
+		keysToMerge = merged ?? [];
+		if (merged is null) {
+			return null;
+		}
 		KeyNode fileToMerge = new(baseFile) {
 			Label = mergedFileName,
 			FullLabel = mergedFileName
 		};
 		UpdateChildFullLabelsWithoutKeys(fileToMerge.Children, fileToMerge.FullLabel);
-		Dictionary<string, Dictionary<string, WordsKey>> selectedDictionaries = [];
-		var baseKeys = allKeys.Where(pair => pair.Key.StartsWith(baseFile.FullLabel + "."))
-			.ToDictionary(pair => pair.Key, pair => pair.Value);
-		keysToMerge = [];
-		foreach (var kvp in baseKeys) {
-			string newBlockKey = mergedFileName + kvp.Value.BlockKey[kvp.Value.BlockKey.IndexOf('.')..];
-			WordsKey localizationKey = new WordsKey(kvp.Value) {
-				BlockKey = newBlockKey
-			};
-			keysToMerge.Add(localizationKey.BlockKey, localizationKey);
-		}
-		foreach (var (languageCode, sourceFile) in files) {
-			var keysOfFile = allKeys.Where(pair => pair.Key.StartsWith(sourceFile.FullLabel + "."))
-				.ToDictionary(pair => pair.Key, pair => pair.Value);
-			selectedDictionaries.Add(languageCode, keysOfFile);
-		}
-		selectedDictionaries.Add("default", keysToMerge);
-		if (!DictionariesHaveTheSameLocalizationKeys(selectedDictionaries.Values)) {
-			return null;
-		}
-		selectedDictionaries.Remove("default");
-		foreach (var (lang, keys) in selectedDictionaries) {
-			foreach (var key in keys.Values) {
-				string sharedBlockKey = key.BlockKey[(key.BlockKey.IndexOf('.') + 1)..];
-				keysToMerge[$"{mergedFileName}.{sharedBlockKey}"].Entries[lang] = key.Entries[lang];
-			}
-		}
 		return fileToMerge;
 	}
 
-	public static bool DictionariesHaveTheSameLocalizationKeys(IEnumerable<Dictionary<string, WordsKey>> localizationKeyDictionaries) {
-		HashSet<string>? firstKeySet = null;
-
-		foreach (var dictionary in localizationKeyDictionaries) {
-			HashSet<string> currentKeySet = [];
-
-			foreach (var key in dictionary.Keys) {
-				int dotIndex = key.IndexOf('.');
-				string sharedBlockKey = key[(dotIndex + 1)..];
-				currentKeySet.Add(sharedBlockKey);
-			}
-
-			if (firstKeySet == null) {
-				firstKeySet = currentKeySet;
-			}
-			else if (!firstKeySet.SetEquals(currentKeySet)) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	public static bool DictionariesHaveTheSameLocalizationKeys(
-			IEnumerable<Dictionary<string, WordsKey>> localizationKeyDictionaries,
-			out HashSet<string> conflicts) {
-		HashSet<string>? firstKeySet = null;
-		bool haveTheSameKeys = true;
-		conflicts = [];
-
-		foreach (var dictionary in localizationKeyDictionaries) {
-			HashSet<string> currentKeySet = [];
-
-			foreach (var key in dictionary.Keys) {
-				int dotIndex = key.IndexOf('.');
-				string sharedBlockKey = key[(dotIndex + 1)..];
-				currentKeySet.Add(sharedBlockKey);
-			}
-
-			if (firstKeySet == null) {
-				firstKeySet = currentKeySet;
-			}
-			else if (!firstKeySet.SetEquals(currentKeySet)) {
-				haveTheSameKeys = false;
-				currentKeySet.SymmetricExceptWith(firstKeySet);
-				foreach (string conflict in currentKeySet) {
-					conflicts.Add(conflict);
-				}
-			}
-		}
-		return haveTheSameKeys;
-	}
-
 	public bool FilesHaveConflict(IEnumerable<KeyNode> files, out HashSet<string> conflictingKeys) {
-		List<Dictionary<string, WordsKey>> localizationKeyDictionaries = [];
-		foreach (var file in files) {
-			var localizationKeyDictionary = allKeys.Where(pair => pair.Key.StartsWith(file.FullLabel + "."))
-				.ToDictionary(pair => pair.Key, pair => pair.Value);
-			localizationKeyDictionaries.Add(localizationKeyDictionary);
-		}
-		bool hasConflict = !DictionariesHaveTheSameLocalizationKeys(localizationKeyDictionaries, out var conflicts);
-		conflictingKeys = conflicts;
-		return hasConflict;
+		var keySets = files.Select(file => WordsOperations.KeysOf(allKeys, file.FullLabel));
+		return !WordsOperations.HaveSameKeys(keySets, out conflictingKeys);
 	}
 
 	//Data Alteration
