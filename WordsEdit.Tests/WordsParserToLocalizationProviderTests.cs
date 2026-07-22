@@ -98,6 +98,38 @@ value=other
 	}
 
 	[Fact]
+	public void WordsParserToLocalizationProvider_CommentsAnchorByPosition() {
+		// runs in the language section join the preamble; a run above a header
+		// banners that block; a run between fields hoists to its block's banner;
+		// a run at EOF is the trailer
+		WordsParserToLocalizationProvider consumer = new();
+		new WordsParser(consumer).Load(new StringReader(@"; file preamble
+value-en=English
+; more preamble
+value-it=Italiano
+
+; banner k
+[k]
+value=first
+; interior, hoists to k
+comment=notes
+
+; banner m line 1
+; banner m line 2
+[m]
+value=other
+
+; trailing remarks
+"));
+
+		Assert.Equal(" file preamble\n more preamble", consumer.Preamble);
+		Assert.Equal(" banner k\n interior, hoists to k", consumer.WordKeys["k"].Banner);
+		Assert.Equal(" banner m line 1\n banner m line 2", consumer.WordKeys["m"].Banner);
+		Assert.Equal(" trailing remarks", consumer.Trailer);
+		Assert.Empty(consumer.Errors);
+	}
+
+	[Fact]
 	public void WordsParserToLocalizationProvider_ParamContinuationAppends() {
 		// continuation lines on a param- field must extend the parameter's value
 		// (this used to be silently dropped by an inverted existence check)

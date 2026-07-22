@@ -6,14 +6,41 @@ namespace PatTech.Localization.Authoring {
 		public IReadOnlyDictionary<string, WordsKey> WordKeys => wordKeys;
 		public IReadOnlyDictionary<string, LanguageEntry> KnownLanguages => knownLanguages;
 
+		/// <summary>The comment run above the language labels, at the very top of the file.</summary>
+		public string Preamble { get; private set; } = "";
+		/// <summary>The comment run after the last block, at the very end of the file.</summary>
+		public string Trailer => string.Join('\n', pendingComments);
+
 		private readonly List<string> errors = [];
 		private readonly Dictionary<string, LanguageEntry> knownLanguages = [];
 		private readonly Dictionary<string, WordsKey> wordKeys = [];
+		private readonly List<string> pendingComments = [];
 
 		public WordsParserToLocalizationProvider() { }
 
+		public void VisitComment(string text) => pendingComments.Add(text);
+
+		private string TakePendingComments() {
+			var text = string.Join('\n', pendingComments);
+			pendingComments.Clear();
+			return text;
+		}
+
+		private static string AppendRun(string existing, string run)
+			=> existing == "" ? run : $"{existing}\n{run}";
+
 		public void VisitFieldDeclaration(FieldKey key, string value) {
 			var (blockKey, fieldType, languageCode) = key;
+			if (pendingComments.Count != 0) {
+				// comments in the language section belong to the file preamble;
+				// a run between fields hoists to its block's banner
+				if (wordKeys.Count == 0) {
+					Preamble = AppendRun(Preamble, TakePendingComments());
+				}
+				else if (wordKeys.TryGetValue(blockKey, out var owner)) {
+					owner.Banner = AppendRun(owner.Banner, TakePendingComments());
+				}
+			}
 			if (wordKeys.Count == 0) {
 				switch (fieldType) {
 					case "value":
@@ -136,6 +163,12 @@ namespace PatTech.Localization.Authoring {
 				foreach (LanguageEntry language in knownLanguages.Values) {
 					keyToAdd.Entries[language.Code] = new WordsEntry();
 				}
+			}
+			if (pendingComments.Count != 0) {
+				// the run above a header banners that block, even when the
+				// header re-opens a block declared earlier
+				var owner = wordKeys[keyToAdd.BlockKey];
+				owner.Banner = AppendRun(owner.Banner, TakePendingComments());
 			}
 		}
 	}

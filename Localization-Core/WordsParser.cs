@@ -123,15 +123,23 @@ namespace PatTech.Localization {
 		/// <param name="key">The same key passed to the originating <see cref="VisitFieldDeclaration(FieldKey, string)"/>.</param>
 		/// <param name="value">The next segment of the field's text.</param>
 		void VisitFieldContinuation(FieldKey key, string value);
+		/// <summary>
+		/// A comment line was read: <paramref name="text"/> is everything after the
+		/// first <c>;</c>, with any whitespace before it dropped. Runs of consecutive
+		/// comment lines arrive as consecutive calls. Ignored unless overridden.
+		/// </summary>
+		/// <param name="text">The comment text, without the leading <c>;</c>.</param>
+		void VisitComment(string text) { }
 	}
 
 	/// <summary>
 	/// A line-based parser for the <c>words.ini</c> format: <c>[block]</c> headers
 	/// (including dot-relative <c>[.sub]</c> inheritance), <c>field-lang=text</c> pairs
 	/// with <c>=</c> or <c>:</c>, line continuations via trailing <c>\</c> (keep newline)
-	/// or <c>_</c> (same line), and comment lines starting with <c>;</c>. Blank lines
-	/// are skipped. It holds no state of its own beyond the current position; results go
-	/// to the <see cref="IWordsParserConsumer"/> it was built with.
+	/// or <c>_</c> (same line), and comment lines starting with <c>;</c> — reported via
+	/// <see cref="IWordsParserConsumer.VisitComment(string)"/> so authoring tools can
+	/// round-trip them. Blank lines are skipped. It holds no state of its own beyond the
+	/// current position; results go to the <see cref="IWordsParserConsumer"/> it was built with.
 	/// </summary>
 	public class WordsParser {
 		private static readonly Regex rxLanguageName = new(
@@ -192,9 +200,12 @@ namespace PatTech.Localization {
 		static readonly Regex rxIsContinuedLine = new(
 			@"^([\\_].|[^\\_])*[\\_]$",
 			RegexOptions.Compiled | RegexOptions.ExplicitCapture);
-		static readonly Regex rxSkippableLine = new(
-			@"^\s*(;|$)",
+		static readonly Regex rxComment = new(
+			@"^\s*;(?<text>.*)",
 			RegexOptions.Compiled | RegexOptions.ExplicitCapture);
+		static readonly Regex rxBlankLine = new(
+			@"^\s*$",
+			RegexOptions.Compiled);
 		static readonly Regex rxUnescape = new(
 			@"([\\_'])\1",
 			RegexOptions.Compiled);
@@ -217,8 +228,10 @@ namespace PatTech.Localization {
 				if (TryReadLine(ref target, line, first: false)) {
 					continue;
 				}
-				else if (rxSkippableLine.IsMatch(line)) {
-					
+				else if (rxComment.TryMatch(line, out var comment)) {
+					consumer.VisitComment(comment.Groups["text"].Value);
+				}
+				else if (rxBlankLine.IsMatch(line)) {
 					continue;
 				}
 				else if (rxBlock.TryMatch(line, out var block)) {

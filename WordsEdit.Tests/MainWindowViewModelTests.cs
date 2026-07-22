@@ -58,7 +58,8 @@ public class MainWindowViewModelTests {
 		mainWindowViewModel.LoadFile(reader, "Example");
 		var writer = new StringWriter();
 		var fileNode = mainWindowViewModel.KeyNodes.First(k => k.FullLabel == fileName);
-		IniWriter.WriteFile(fileNode, writer, mainWindowViewModel.allKeys, mainWindowViewModel.KnownLanguages);
+		var (preamble, trailer) = mainWindowViewModel.fileComments.GetValueOrDefault(fileName, ("", ""));
+		IniWriter.WriteFile(fileNode, writer, mainWindowViewModel.allKeys, mainWindowViewModel.KnownLanguages, preamble: preamble, trailer: trailer);
 		var modifiedFileContents = writer.ToString();
 
 		//Assert

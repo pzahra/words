@@ -39,8 +39,7 @@ public partial class MainWindow : Window {
 		if (vm.SelectedKey is null) {
 			throw new InvalidOperationException("Selected Localization Key is null");
 		}
-		string fileName = vm.SelectedKey.BlockKey.Split('.')[0];
-		IWordsProvider wordsProvider = vm.GetWordsProvider(fileName);
+		IWordsProvider wordsProvider = vm.GetWordsProvider();
 		string defaultValue = Words.RenderKey(wordsProvider, vm.SelectedKey.BlockKey);
 		if (vm.SelectedKey.Parameters.Count != 0) {
 			try {
@@ -68,8 +67,7 @@ public partial class MainWindow : Window {
 		if (vm.SelectedKey is null) {
 			throw new InvalidOperationException("Selected Localization Key is null");
 		}
-		string fileName = vm.SelectedKey.BlockKey.Split('.')[0];
-		IWordsProvider wordsProvider = vm.GetWordsProvider(vm.SelectedLanguage.Code, fileName);
+		IWordsProvider wordsProvider = vm.GetWordsProvider(vm.SelectedLanguage.Code);
 		string localizationValue = Words.RenderKey(wordsProvider, vm.SelectedKey.BlockKey);
 		if (vm.SelectedKey.Parameters.Count != 0) {
 			try {

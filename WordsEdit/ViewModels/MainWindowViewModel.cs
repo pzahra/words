@@ -42,6 +42,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public ObservableCollection<WordsKey> Keys { get; } = [];
 	internal readonly Dictionary<string, WordsKey> allKeys = [];
 
+	//file preamble/trailer comment runs, keyed by the file node's label
+	internal readonly Dictionary<string, (string Preamble, string Trailer)> fileComments = [];
+
 	public ObservableCollection<LanguageEntry> KnownLanguages { get; set => ChangeProperty(ref field, value); } = [];
 
 	public HashSet<string> FileNames { get; set => ChangeProperty(ref field, value); } = [];
@@ -336,6 +339,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		WordsParserToLocalizationProvider consumer = new();
 		WordsParser parser = new(consumer);
 		parser.Load(reader);
+		fileComments[fileName] = (consumer.Preamble, consumer.Trailer);
 		// TODO: explain?
 		if (usingDefaultLanguage && consumer.WordKeys.Count > 0) {
 			KnownLanguages.Clear();
@@ -499,6 +503,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		NeedsReviewFilter = false;
 		SelectedKeyNode = null;
 		FileNames.Clear();
+		fileComments.Clear();
 		IsDirty = false;
 	}
 
@@ -511,7 +516,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		foreach (string fileName in FileNames) {
 			KeyNode fileNode = KeyNodes.FirstOrDefault(k => k.FullLabel == fileName)
 				?? throw new InvalidDataException($"Cannot find node with file name: {fileName}");
-			IniWriter.WriteFile(fileNode, fileName, allKeys, KnownLanguages);
+			var (preamble, trailer) = fileComments.GetValueOrDefault(fileNode.FullLabel, ("", ""));
+			IniWriter.WriteFile(fileNode, fileName, allKeys, KnownLanguages, preamble: preamble, trailer: trailer);
 		}
 		IsDirty = false;
 	}
@@ -670,6 +676,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			}
 		}
 		FileNames.RemoveWhere(fileName => Path.GetFileNameWithoutExtension(fileName) == fileNodeToRemove.FullLabel);
+		fileComments.Remove(fileNodeToRemove.FullLabel);
 		KeyNodes.Remove(fileNodeToRemove);
 		AllKeyNodes.RemoveWhere(keyNode => keyNode.FullLabel.StartsWith(fileNodeToRemove.Label + '.') || keyNode.FullLabel == fileNodeToRemove.FullLabel);
 		if (!KeyNodes.IsNullOrEmpty()) {
@@ -939,9 +946,13 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 
 	//WordsProvider
-	public IWordsProvider GetWordsProvider(string fileName)
-		=> new DefaultWordsProvider(allKeys, fileName);
+	//file nodes in load order; later files win bare-reference lookups,
+	//like a host app stacking dictionaries
+	private IEnumerable<string> FileLabels => KeyNodes.Select(node => node.FullLabel);
 
-	public IWordsProvider GetWordsProvider(string languageCode, string fileName)
-		=> new LanguageWordsProvider(allKeys, languageCode, fileName);
+	public IWordsProvider GetWordsProvider()
+		=> new DefaultWordsProvider(allKeys, FileLabels);
+
+	public IWordsProvider GetWordsProvider(string languageCode)
+		=> new LanguageWordsProvider(allKeys, languageCode, FileLabels);
 }

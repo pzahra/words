@@ -8,6 +8,13 @@ namespace PatTech.Localization.Authoring {
 	public class WordsKey : ViewModelBase {
 		public string BlockKey { get; set => ChangeProperty(ref field, value); }
 
+		/// <summary>
+		///     The freeform <c>;</c> comment run sitting above this block's header,
+		///     one line per <c>\n</c>. The editor shows it as an organizer node in
+		///     front of the key; the writer re-emits it above the block.
+		/// </summary>
+		public string Banner { get; set => ChangeProperty(ref field, value); } = "";
+
 		public bool IsConstant { get; set => ChangeProperty(ref field, value); }
 
 		public string DefaultValue { get; set => ChangeProperty(ref field, value); }
@@ -31,6 +38,7 @@ namespace PatTech.Localization.Authoring {
 
 		public WordsKey(WordsKey original) {
 			BlockKey = original.BlockKey;
+			Banner = original.Banner;
 			IsConstant = original.IsConstant;
 			DefaultValue = original.DefaultValue;
 			Context = original.Context;
@@ -40,6 +48,7 @@ namespace PatTech.Localization.Authoring {
 
 		public bool IsEmpty()
 			=> IsConstant == false
+			&& Banner == ""
 			&& DefaultValue == ""
 			&& Context == ""
 			&& Comment == ""
@@ -157,76 +166,63 @@ namespace PatTech.Localization.Authoring {
 		public object Parse(string key, string value) => ParseCore(key, value);
 	}
 
-	public class DefaultWordsProvider(Dictionary<string, WordsKey> keys, string fileName) : IWordsProvider {
+	/// <summary>
+	///     Resolves a key against every loaded file the way a host app stacking
+	///     dictionaries would: an exact (already-prefixed) key hits directly; a bare
+	///     reference like <c>{&gt;group.key}</c> or <c>{$constant}</c> probes each
+	///     file's prefix, later-loaded files winning.
+	/// </summary>
+	public abstract class WordsProviderBase(Dictionary<string, WordsKey> keys, IEnumerable<string> fileNames) : IWordsProvider {
+		private readonly string[] fileNames = [.. fileNames.Reverse()];
+
 		public string this[string key] => throw new NotImplementedException();
 
-		public bool ContainsKey(string key) => keys.ContainsKey(key);
+		public bool ContainsKey(string key) => TryFind(key, out _);
 
-		public bool TryGetValue(string key, [MaybeNullWhen(false)] out string value) {
-			if (keys.TryGetValue(key, out var word)
-				|| keys.TryGetValue($"{fileName}.{key}", out word)
-			) {
+		protected bool TryFind(string key, [MaybeNullWhen(false)] out WordsKey word) {
+			if (keys.TryGetValue(key, out word)) {
+				return true;
+			}
+			foreach (var fileName in fileNames) {
+				if (keys.TryGetValue($"{fileName}.{key}", out word)) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		public abstract bool TryGetValue(string key, [MaybeNullWhen(false)] out string value);
+	}
+
+	public class DefaultWordsProvider(Dictionary<string, WordsKey> keys, IEnumerable<string> fileNames)
+			: WordsProviderBase(keys, fileNames) {
+		public override bool TryGetValue(string key, [MaybeNullWhen(false)] out string value) {
+			if (TryFind(key, out var word)) {
 				value = word.DefaultValue;
 				return true;
 			}
-			else {
-				value = null;
-				return false;
-			}
+			value = null;
+			return false;
 		}
 	}
 
-	public class LanguageWordsProvider : IWordsProvider {
-		readonly Dictionary<string, WordsKey> keys;
-		readonly string code;
-		readonly string? family = null;
-		readonly string fileName;
+	public class LanguageWordsProvider(Dictionary<string, WordsKey> keys, string code, IEnumerable<string> fileNames)
+			: WordsProviderBase(keys, fileNames) {
+		private readonly string? family = code.Contains('-') ? code[..code.IndexOf('-')] : null;
 
-		public LanguageWordsProvider(Dictionary<string, WordsKey> keys, string code, string fileName) {
-			this.keys = keys;
-			this.code = code;
-			if (code.Contains('-')) {
-				family = code[..code.IndexOf('-')];
-			}
-			this.fileName = fileName;
-		}
-		public string this[string key] => throw new NotImplementedException();
-
-		public bool ContainsKey(string key) {
-			if (keys.TryGetValue(key, out var words)) {
-				if (words.Entries.ContainsKey(code)) {
-					return true;
-				}
-				if (family is not null && keys[key].Entries.ContainsKey(family)) {
-					return true;
-				}
-			}
-
-			// CHECK: why throw away the earlier checks against langauge code?
-			if (keys.ContainsKey(key)) {
-				return true;
-			}
-			else {
-				return false;
-			}
-		}
-		public bool TryGetValue(string key, [MaybeNullWhen(false)] out string value) {
-			if (keys.TryGetValue(key, out var words)
-				|| keys.TryGetValue($"{fileName}.{key}", out words)
-			) {
-				value = words.Entries[code].Value;
+		public override bool TryGetValue(string key, [MaybeNullWhen(false)] out string value) {
+			if (TryFind(key, out var word)) {
+				value = word.Entries.GetValueOrDefault(code)?.Value ?? "";
 				if (value is "" && family is not null) {
-					value = words.Entries[family].Value;
+					value = word.Entries.GetValueOrDefault(family)?.Value ?? "";
 				}
 				if (value is "") {
-					value = words.DefaultValue;
+					value = word.DefaultValue;
 				}
 				return true;
 			}
-			else {
-				value = null;
-				return false;
-			}
+			value = null;
+			return false;
 		}
 	}
 }
