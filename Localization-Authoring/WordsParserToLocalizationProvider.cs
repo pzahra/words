@@ -10,11 +10,19 @@ namespace PatTech.Localization.Authoring {
 		public string Preamble { get; private set; } = "";
 		/// <summary>The comment run after the last block, at the very end of the file.</summary>
 		public string Trailer => string.Join('\n', pendingComments);
+		/// <summary>
+		///     The codes declared by top-of-file labels, in declaration order — the
+		///     file's own language table. Languages that only appear on fields are
+		///     in <see cref="KnownLanguages"/> (with a <c>!code</c> placeholder
+		///     label and a gripe in <see cref="Errors"/>) but not here.
+		/// </summary>
+		public IReadOnlyList<string> DeclaredLanguages => declaredLanguages;
 
 		private readonly List<string> errors = [];
 		private readonly Dictionary<string, LanguageEntry> knownLanguages = [];
 		private readonly Dictionary<string, WordsKey> wordKeys = [];
 		private readonly List<string> pendingComments = [];
+		private readonly List<string> declaredLanguages = [];
 
 		public WordsParserToLocalizationProvider() { }
 
@@ -45,6 +53,9 @@ namespace PatTech.Localization.Authoring {
 				switch (fieldType) {
 					case "value":
 						knownLanguages[languageCode] = new LanguageEntry(languageCode, value);
+						if (!declaredLanguages.Contains(languageCode)) {
+							declaredLanguages.Add(languageCode);
+						}
 						break;
 					case "comment":
 						if (knownLanguages.TryGetValue(languageCode, out var language)) {
@@ -59,6 +70,7 @@ namespace PatTech.Localization.Authoring {
 			else {
 				if (languageCode != "" && !knownLanguages.ContainsKey(languageCode) && fieldType != "param") {
 					knownLanguages[languageCode] = new LanguageEntry(languageCode);
+					errors.Add($"language '{languageCode}' has entries but no top-of-file label; declare it with value-{languageCode}= (a !Label declares without listing)");
 					foreach (WordsKey localizationKeyToUpdate in wordKeys.Values) {
 						localizationKeyToUpdate.Entries[languageCode] = new WordsEntry();
 					}

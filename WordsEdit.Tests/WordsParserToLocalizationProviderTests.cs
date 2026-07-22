@@ -98,6 +98,28 @@ value=other
 	}
 
 	[Fact]
+	public void WordsParserToLocalizationProvider_UndeclaredLanguageGetsPlaceholderAndGripe() {
+		// a code used on fields without a top-of-file label is auto-added with a
+		// `!code` placeholder (still selectable) and a gripe; it is NOT part of
+		// the file's declared table
+		WordsParserToLocalizationProvider consumer = new();
+		new WordsParser(consumer).Load(new StringReader(@"
+value-en=English
+
+[k]
+value=x
+value-de=de-x
+"));
+
+		Assert.Equal(["en"], consumer.DeclaredLanguages);
+		Assert.True(consumer.KnownLanguages["de"].IsPlaceholder);
+		Assert.Equal("!de", consumer.KnownLanguages["de"].NativeName);
+		Assert.False(consumer.KnownLanguages["en"].IsPlaceholder);
+		Assert.Contains(consumer.Errors, error => error.Contains("'de'"));
+		Assert.Equal("de-x", consumer.WordKeys["k"].Entries["de"].Value);
+	}
+
+	[Fact]
 	public void WordsParserToLocalizationProvider_CommentsAnchorByPosition() {
 		// runs in the language section join the preamble; a run above a header
 		// banners that block; a run between fields hoists to its block's banner;

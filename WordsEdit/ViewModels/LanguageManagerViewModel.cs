@@ -32,13 +32,13 @@ public class LanguageManagerViewModel : ViewModelBase {
 		EditLanguageCommand = new DelegateCommand(DoEditLanguage);
 	}
 
-	private bool CanRemoveLanguage() => KnownLanguages.Count < 2;
+	private bool CanRemoveLanguage() => KnownLanguages.Count > 1;
 	private void DoRemoveLanguage() {
-		foreach (var key in Parent.Keys) {
-			key.Entries.Remove(SelectedLanguage.Code);
-		}
 		if (KnownLanguages.Count <= 1) {
 			throw new InvalidOperationException("Must have at least two languages to remove one.");
+		}
+		foreach (var key in Parent.Keys) {
+			key.Entries.Remove(SelectedLanguage.Code);
 		}
 		var remove = SelectedLanguage;
 		int i = KnownLanguages.IndexOf(remove);
@@ -49,6 +49,7 @@ public class LanguageManagerViewModel : ViewModelBase {
 			SelectedLanguage = KnownLanguages[i - 1];
 		}
 		KnownLanguages.Remove(remove);
+		Parent.RemoveLanguageCode(remove.Code);
 		Parent.IsDirty = true;
 	}
 
@@ -61,6 +62,7 @@ public class LanguageManagerViewModel : ViewModelBase {
 			key.Entries[lang.Code] = new WordsEntry();
 		}
 		KnownLanguages.Add(lang);
+		Parent.AddLanguageCode(lang.Code);
 		SelectedLanguage = lang;
 		Parent.IsDirty = true;
 	}
@@ -72,6 +74,13 @@ public class LanguageManagerViewModel : ViewModelBase {
 	public void EditLanguage(LanguageEntry lang) {
 		foreach (var key in Parent.Keys) {
 			key.Entries[lang.Code] = key.Entries[SelectedLanguage.Code];
+			if (lang.Code != SelectedLanguage.Code) {
+				//re-coding: the entries moved, don't leave orphans under the old code
+				key.Entries.Remove(SelectedLanguage.Code);
+			}
+		}
+		if (lang.Code != SelectedLanguage.Code) {
+			Parent.ReplaceLanguageCode(SelectedLanguage.Code, lang.Code);
 		}
 		KnownLanguages.Insert(KnownLanguages.IndexOf(SelectedLanguage), lang);
 		for (int i = 0; i < KnownLanguages.Count; i++) {

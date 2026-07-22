@@ -142,7 +142,6 @@ prompts. Reset returns to the empty session (one default `en` language).
 - Descendant-aware `ICutStrategy` (task chip exists).
 - Migrating `MainWindowViewModelTests` fully onto the authoring API as
   document operations move out of the ViewModels.
-- Aligning `IniWriter`'s library-file handling with the `!` label model: the
-  writer currently skips the language header entirely for a node flagged
-  `IsLibraryFile`, but a library file should write its own `!` labels so it
-  stays workable solo.
+- Surfacing the provider's gripes (undeclared languages, unrecognized fields)
+  in the editor UI; today they only accumulate on
+  `WordsParserToLocalizationProvider.Errors`.

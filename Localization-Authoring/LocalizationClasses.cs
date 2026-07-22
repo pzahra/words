@@ -103,11 +103,18 @@ namespace PatTech.Localization.Authoring {
 			EnglishName = nativeName;
 		}
 
+		/// <summary>
+		///     A placeholder for a language that has entries but no top-of-file
+		///     label: shown as <c>!code</c> so it stays selectable, never written
+		///     back as a label. <see cref="IsPlaceholder"/> recognizes it.
+		/// </summary>
 		public LanguageEntry(string code) {
 			Code = code;
-			NativeName = "MISSING NAME: " + code;
-			EnglishName = "MISSING NAME: " + code;
+			NativeName = "!" + code;
+			EnglishName = "!" + code;
 		}
+
+		public bool IsPlaceholder => NativeName == $"!{Code}";
 
 		public LanguageEntry(LanguageEntry other) {
 			Code = other.Code;

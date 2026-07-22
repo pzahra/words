@@ -10,8 +10,6 @@ namespace PatTech.Localization.Authoring {
 	public interface IKeyTreeNode {
 		/// <summary>The full dotted key this node stands for, e.g. <c>file.group.key</c>.</summary>
 		string FullLabel { get; }
-		/// <summary>Library files skip the language header; their languages belong to the main file.</summary>
-		bool IsLibraryFile { get; }
 		/// <summary>The nodes below this one, in write order.</summary>
 		IEnumerable<IKeyTreeNode> Children { get; }
 	}
@@ -54,9 +52,7 @@ namespace PatTech.Localization.Authoring {
 			if (preamble != "") {
 				writer.WriteComment(preamble);
 			}
-			if (!fileNode.IsLibraryFile) {
-				writer.WriteLanguages(languages);
-			}
+			writer.WriteLanguages(languages);
 			writer.WriteKeys(fileNode, allKeys);
 			if (trailer != "") {
 				writer.WriteComment(trailer);
@@ -64,6 +60,10 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		public void WriteLanguages(IReadOnlyCollection<LanguageEntry> languages) {
+			//a file that declares no languages (a bare library file) has no header
+			if (languages.Count == 0) {
+				return;
+			}
 			foreach (var lang in languages) {
 				WritePair($"value-{lang.Code}", lang.NativeName);
 				WritePair($"comment-{lang.Code}", lang.EnglishName);

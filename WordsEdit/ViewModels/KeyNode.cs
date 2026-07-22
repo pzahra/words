@@ -25,7 +25,9 @@ namespace WordsEdit.ViewModels {
 		public ObservableCollection<KeyNode> Children { get; set => ChangeProperty(ref field, value); } = [];
 		IEnumerable<IKeyTreeNode> IKeyTreeNode.Children => Children;
 		public bool IsExpanded { get; set => ChangeProperty(ref field, value); }
-		public bool IsVisible { get; set => ChangeProperty(ref field, value); }
+		//visible by default: the tree renders Visibility from this, and a fresh
+		//load or a newly added node must show without waiting for a filter pass
+		public bool IsVisible { get; set => ChangeProperty(ref field, value); } = true;
 		public bool IsSelected { get; set => ChangeProperty(ref field, value); }
 		public bool IsFile { get; set => ChangeProperty(ref field, value); }
 		public bool IsBaseFile { get; set => ChangeProperty(ref field, value); }

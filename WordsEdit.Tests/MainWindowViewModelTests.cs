@@ -59,7 +59,7 @@ public class MainWindowViewModelTests {
 		var writer = new StringWriter();
 		var fileNode = mainWindowViewModel.KeyNodes.First(k => k.FullLabel == fileName);
 		var (preamble, trailer) = mainWindowViewModel.fileComments.GetValueOrDefault(fileName, ("", ""));
-		IniWriter.WriteFile(fileNode, writer, mainWindowViewModel.allKeys, mainWindowViewModel.KnownLanguages, preamble: preamble, trailer: trailer);
+		IniWriter.WriteFile(fileNode, writer, mainWindowViewModel.allKeys, mainWindowViewModel.LanguagesFor(fileName), preamble: preamble, trailer: trailer);
 		var modifiedFileContents = writer.ToString();
 
 		//Assert
@@ -79,7 +79,7 @@ public class MainWindowViewModelTests {
 		// Act
 		var writer = new StringWriter();
 		KeyNode fileNode = mainWindowViewModel1.KeyNodes.First(k => k.FullLabel == fileName);
-		IniWriter.WriteFile(fileNode, writer, mainWindowViewModel1.allKeys, mainWindowViewModel1.KnownLanguages);
+		IniWriter.WriteFile(fileNode, writer, mainWindowViewModel1.allKeys, mainWindowViewModel1.LanguagesFor(fileName));
 		string generatedFileContents = writer.ToString();
 
 		MainWindowViewModel mainWindowViewModel2 = new MainWindowViewModel();
@@ -161,6 +161,139 @@ public class MainWindowViewModelTests {
 		//Assert
 		Assert.True(mainWindowViewModel.SelectedKey.IsConstant);
 		Assert.True(mainWindowViewModel.SelectedKeyNode?.IsConstant);
+	}
+
+	[Fact]
+	public void MainWindowViewModel_ToggleConstantMarksOnlyLastSegment() {
+		// the $ marker belongs on the last segment alone:
+		// Example.view.section-name.key <-> Example.view.section-name.$key
+		MainWindowViewModel mainWindowViewModel = new MainWindowViewModel();
+		mainWindowViewModel.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
+		mainWindowViewModel.SelectedKeyNode = mainWindowViewModel.KeyNodes[0].Children[0].Children[0].Children[0]; //Example.view.section-name.key
+
+		mainWindowViewModel.ToggleLocalizationKeyIsConstantCommand.Execute(null);
+
+		Assert.Equal("Example.view.section-name.$key", mainWindowViewModel.SelectedKey?.BlockKey);
+		Assert.Equal("Example.view.section-name.$key", mainWindowViewModel.SelectedKeyNode.FullLabel);
+		Assert.True(mainWindowViewModel.allKeys.ContainsKey("Example.view.section-name.$key"));
+		Assert.False(mainWindowViewModel.allKeys.ContainsKey("Example.view.section-name.key"));
+
+		mainWindowViewModel.ToggleLocalizationKeyIsConstantCommand.Execute(null);
+
+		Assert.Equal("Example.view.section-name.key", mainWindowViewModel.SelectedKey?.BlockKey);
+		Assert.True(mainWindowViewModel.allKeys.ContainsKey("Example.view.section-name.key"));
+	}
+
+	[Fact]
+	public void MainWindowViewModel_RemoveKeyAndNodeLeavesSimilarSiblings() {
+		// removing `view` must not catch `viewer`, and every removed
+		// descendant must leave allKeys too
+		MainWindowViewModel mainWindowViewModel = new MainWindowViewModel();
+		mainWindowViewModel.LoadFile(new StringReader(@"
+value-en=English
+
+[view]
+value=v
+[view.a]
+value=va
+[viewer]
+value=w
+"), "T");
+		mainWindowViewModel.SelectedKeyNode = mainWindowViewModel.KeyNodes[0].Children[0]; //T.view
+
+		mainWindowViewModel.RemoveLocalizationKeyAndNodeCommand.Execute(null);
+
+		Assert.False(mainWindowViewModel.allKeys.ContainsKey("T.view"));
+		Assert.False(mainWindowViewModel.allKeys.ContainsKey("T.view.a"));
+		Assert.True(mainWindowViewModel.allKeys.ContainsKey("T.viewer"));
+		Assert.Contains(mainWindowViewModel.Keys, k => k.BlockKey == "T.viewer");
+		Assert.DoesNotContain(mainWindowViewModel.Keys, k => k.BlockKey.StartsWith("T.view."));
+	}
+
+	[Fact]
+	public void MainWindowViewModel_SaveWritesFilesLoadedByPath() {
+		// FileNames holds full paths; Save must still find the file node
+		// (named without directory or extension) and write back canonically
+		var path = Path.Combine(Path.GetTempPath(), $"WordsEditSaveTest-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(path);
+		var filePath = Path.Combine(path, "Example.ini");
+		try {
+			using (var resource = GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini")) {
+				File.WriteAllText(filePath, resource.ReadToEnd());
+			}
+			MainWindowViewModel mainWindowViewModel = new MainWindowViewModel();
+			mainWindowViewModel.LoadFile(filePath);
+
+			mainWindowViewModel.Save();
+
+			using var reader = GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini");
+			Assert.Equal(reader.ReadToEnd(), File.ReadAllText(filePath));
+			Assert.False(mainWindowViewModel.IsDirty);
+		}
+		finally {
+			Directory.Delete(path, recursive: true);
+		}
+	}
+
+	[Fact]
+	public void MainWindowViewModel_FilesKeepTheirOwnLanguageTables() {
+		// the session dropdown is the union, but each file writes back only the
+		// languages it declared — a main file never absorbs a library's extras
+		MainWindowViewModel mainWindowViewModel = new MainWindowViewModel();
+		mainWindowViewModel.LoadFile(new StringReader(@"value-en=English
+
+[a]
+value=A
+"), "Main");
+		mainWindowViewModel.LoadFile(new StringReader(@"value-en=English
+value-fr=Français
+
+[b]
+value=B
+value-fr=Bé
+"), "Extra");
+
+		Assert.Contains(mainWindowViewModel.KnownLanguages, l => l.Code == "fr");
+		Assert.Equal(["en"], mainWindowViewModel.LanguagesFor("Main").Select(l => l.Code));
+		Assert.Equal(["en", "fr"], mainWindowViewModel.LanguagesFor("Extra").Select(l => l.Code));
+
+		var writer = new StringWriter();
+		var fileNode = mainWindowViewModel.KeyNodes.First(k => k.FullLabel == "Main");
+		IniWriter.WriteFile(fileNode, writer, mainWindowViewModel.allKeys, mainWindowViewModel.LanguagesFor("Main"));
+		var mainOutput = writer.ToString();
+		Assert.Contains("value-en=English", mainOutput);
+		Assert.DoesNotContain("value-fr=Français", mainOutput);
+	}
+
+	[Fact]
+	public void MainWindowViewModel_LibraryFileKeepsItsBangLabels() {
+		// a library file (only !Labels) is flagged, still populates the language
+		// list when opened solo, and writes its own !Labels back
+		MainWindowViewModel mainWindowViewModel = new MainWindowViewModel();
+		mainWindowViewModel.LoadFile(new StringReader(@"value-en=!English
+value-eo=!Esperanto
+
+[k]
+value=x
+"), "Lib");
+
+		Assert.True(mainWindowViewModel.KeyNodes[0].IsLibraryFile);
+		Assert.Contains(mainWindowViewModel.KnownLanguages, l => l.Code == "eo");
+
+		var writer = new StringWriter();
+		IniWriter.WriteFile(mainWindowViewModel.KeyNodes[0], writer, mainWindowViewModel.allKeys, mainWindowViewModel.LanguagesFor("Lib"));
+		Assert.Contains("value-en=!English", writer.ToString());
+		Assert.Contains("value-eo=!Esperanto", writer.ToString());
+	}
+
+	[Fact]
+	public void MainWindowViewModel_TreeIsVisibleAfterLoad() {
+		// the tree styles Visibility from IsVisible; a fresh load with no
+		// filters must show every node
+		MainWindowViewModel mainWindowViewModel = new MainWindowViewModel();
+		mainWindowViewModel.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
+
+		Assert.All(GetAllKeyNodes(mainWindowViewModel.KeyNodes), node => Assert.True(node.IsVisible));
 	}
 
 	[Fact]
@@ -516,6 +649,7 @@ public class MainWindowViewModelTests {
 		Assert.Empty(mainWindowViewModel.KeyNodes);
 		Assert.Empty(mainWindowViewModel.FileNames);
 		Assert.Empty(mainWindowViewModel.Keys);
+		Assert.Empty(mainWindowViewModel.allKeys);
 	}
 
 	[Fact]

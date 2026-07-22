@@ -45,6 +45,10 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	//file preamble/trailer comment runs, keyed by the file node's label
 	internal readonly Dictionary<string, (string Preamble, string Trailer)> fileComments = [];
 
+	//each file's own declared language codes in declaration order — files never
+	//gain each other's languages on save; KnownLanguages is the session union
+	internal readonly Dictionary<string, List<string>> fileLanguages = [];
+
 	public ObservableCollection<LanguageEntry> KnownLanguages { get; set => ChangeProperty(ref field, value); } = [];
 
 	public HashSet<string> FileNames { get; set => ChangeProperty(ref field, value); } = [];
@@ -208,7 +212,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	private void OnSelectedKeyValueChanged(object? sender, PropertyChangedEventArgs e) {
-		if (SelectedKey is null || SelectedKeyNode is null || SelectedEntry is null) {
+		if (SelectedKey is null || SelectedKeyNode is null) {
 			throw new InvalidOperationException("Phantom Key Value Change");
 		}
 		IsDirty = true;
@@ -217,7 +221,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			SelectedKeyNode.NeedsReview = true;
 		}
 		if (e.PropertyName == nameof(SelectedKey.DefaultValue)) {
-			SelectedKeyNode.EmptyValue = SelectedKey.DefaultValue.Trim() == "" && SelectedEntry.Value.Trim() == "";
+			//SelectedEntry is legitimately null while a constant is selected
+			SelectedKeyNode.EmptyValue = SelectedKey.DefaultValue.Trim() == ""
+				&& (SelectedEntry?.Value.Trim() ?? "") == "";
 		}
 	}
 
@@ -295,7 +301,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		node.IsOverwritten = false;
 		if (allKeys.TryGetValue(node.FullLabel, out var key)) {
 			IEnumerable<string> regionalLanguages = key.Entries.Keys
-				.Where(language => language.Contains(SelectedLanguage.Code) && language != SelectedLanguage.Code);
+				.Where(language => language.StartsWith(SelectedLanguage.Code + '-', StringComparison.Ordinal));
 			foreach (string language in regionalLanguages) {
 				if (!string.IsNullOrEmpty(key.Entries[language].Value)) {
 					node.IsOverwritten = true;
@@ -340,6 +346,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		WordsParser parser = new(consumer);
 		parser.Load(reader);
 		fileComments[fileName] = (consumer.Preamble, consumer.Trailer);
+		fileLanguages[fileName] = [.. consumer.DeclaredLanguages];
 		// TODO: explain?
 		if (usingDefaultLanguage && consumer.WordKeys.Count > 0) {
 			KnownLanguages.Clear();
@@ -350,8 +357,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			)) {
 				KnownLanguages.Add(language);
 			}
-			else if (!language.NativeName.StartsWith("MISSING")
-				&& KnownLanguages.Any(l => l.Code == language.Code && l.NativeName.StartsWith("MISSING"))
+			else if (!language.IsPlaceholder
+				&& KnownLanguages.Any(l => l.Code == language.Code && l.IsPlaceholder)
 			) {
 				LanguageEntry edit = KnownLanguages.First(l => l.Code == language.Code);
 				edit.NativeName = language.NativeName;
@@ -392,7 +399,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 				}
 			}
 			var add = GetFileNode(keys.Values);
-			if (!consumer.KnownLanguages.Values.Any(l => !l.NativeName.StartsWith("MISSING"))) {
+			//a library file lists nothing: every declared label is a !Label
+			//(or there are no labels at all)
+			if (!consumer.DeclaredLanguages.Any(code => !consumer.KnownLanguages[code].NativeName.StartsWith('!'))) {
 				add.IsLibraryFile = true;
 			}
 			int remove = KeyNodes.FindIndex(file => file.FullLabel == add.FullLabel);
@@ -417,6 +426,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 					|| key.Entries[SelectedLanguage.Code].Value.Trim() == "";
 			}
 		}
+		ApplyFilters();
 	}
 
 	private KeyNode GetFileNode(IEnumerable<WordsKey> keys) {
@@ -504,6 +514,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		SelectedKeyNode = null;
 		FileNames.Clear();
 		fileComments.Clear();
+		fileLanguages.Clear();
 		IsDirty = false;
 	}
 
@@ -514,12 +525,25 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 	public override void Save() {
 		foreach (string fileName in FileNames) {
-			KeyNode fileNode = KeyNodes.FirstOrDefault(k => k.FullLabel == fileName)
+			//FileNames holds the paths given to LoadFile; nodes go by the bare name
+			string label = Path.GetFileNameWithoutExtension(fileName);
+			KeyNode fileNode = KeyNodes.FirstOrDefault(k => k.FullLabel == label)
 				?? throw new InvalidDataException($"Cannot find node with file name: {fileName}");
-			var (preamble, trailer) = fileComments.GetValueOrDefault(fileNode.FullLabel, ("", ""));
-			IniWriter.WriteFile(fileNode, fileName, allKeys, KnownLanguages, preamble: preamble, trailer: trailer);
+			var (preamble, trailer) = fileComments.GetValueOrDefault(label, ("", ""));
+			IniWriter.WriteFile(fileNode, fileName, allKeys, LanguagesFor(label), preamble: preamble, trailer: trailer);
 		}
 		IsDirty = false;
+	}
+
+	//the file's own language table: its declared codes carrying the session's
+	//current labels; files we did not load (e.g. brand new) get the session union
+	internal IReadOnlyCollection<LanguageEntry> LanguagesFor(string label) {
+		if (!fileLanguages.TryGetValue(label, out var codes)) {
+			return KnownLanguages;
+		}
+		return [.. codes
+			.Select(code => KnownLanguages.FirstOrDefault(language => language.Code == code))
+			.OfType<LanguageEntry>()];
 	}
 
 
@@ -646,14 +670,20 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			RemoveFileNodePopup(SelectedKeyNode);
 			return;
 		}
-		string blockKeyToRemove = SelectedKeyNode.FullLabel;
+		RemoveKeysUnder(SelectedKeyNode.FullLabel);
+		RemoveKeyNode(SelectedKeyNode);
+	}
+
+	//removes the key at blockKey and every descendant key, from both
+	//collections; exact-or-prefix so `view` never catches `viewer`
+	private void RemoveKeysUnder(string blockKey) {
 		for (int i = Keys.Count - 1; i >= 0; i--) {
-			if (Keys[i].BlockKey.Contains(blockKeyToRemove)) {
+			string candidate = Keys[i].BlockKey;
+			if (candidate == blockKey || candidate.StartsWith(blockKey + '.', StringComparison.Ordinal)) {
 				Keys.RemoveAt(i);
-				allKeys.Remove(blockKeyToRemove);
+				allKeys.Remove(candidate);
 			}
 		}
-		RemoveKeyNode(SelectedKeyNode);
 	}
 
 	private void RemoveFileNodePopup(KeyNode fileNodeToRemove) {
@@ -665,18 +695,10 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	public void RemoveFileNodeCore(KeyNode fileNodeToRemove) {
-		if (SelectedKeyNode is null) {
-			throw new InvalidDataException("SelectedKeyNode is null");
-		}
-		string blockKeyToRemove = SelectedKeyNode.FullLabel;
-		for (int i = Keys.Count - 1; i >= 0; i--) {
-			if (Keys[i].BlockKey.Contains(blockKeyToRemove)) {
-				Keys.RemoveAt(i);
-				allKeys.Remove(blockKeyToRemove);
-			}
-		}
+		RemoveKeysUnder(fileNodeToRemove.FullLabel);
 		FileNames.RemoveWhere(fileName => Path.GetFileNameWithoutExtension(fileName) == fileNodeToRemove.FullLabel);
 		fileComments.Remove(fileNodeToRemove.FullLabel);
+		fileLanguages.Remove(fileNodeToRemove.FullLabel);
 		KeyNodes.Remove(fileNodeToRemove);
 		AllKeyNodes.RemoveWhere(keyNode => keyNode.FullLabel.StartsWith(fileNodeToRemove.Label + '.') || keyNode.FullLabel == fileNodeToRemove.FullLabel);
 		if (!KeyNodes.IsNullOrEmpty()) {
@@ -685,7 +707,6 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		else {
 			SelectedKeyNode = null;
 		}
-		return;
 	}
 
 	private void RemoveKeyNode(KeyNode keyNodeToRemove) {
@@ -800,7 +821,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			WordsKey? selectedLocalizationKey = Keys.FirstOrDefault(key => key.BlockKey == selectedKeyLabel);
 			if (selectedLocalizationKey != null) {
 				foreach (var languageData in selectedLocalizationKey.Entries.Values) {
-					languageData.Stale = DateTimeOffset.Now.ToString();
+					languageData.Stale = DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture);
 				}
 				AffectProperty(nameof(SelectedLanguage));
 			}
@@ -820,7 +841,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 			if (selectedLocalizationKey != null) {
 				if (selectedLocalizationKey.Entries[languageCode].Stale is null) {
-					selectedLocalizationKey.Entries[languageCode].Stale = DateTimeOffset.Now.ToString();
+					selectedLocalizationKey.Entries[languageCode].Stale = DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture);
 					SelectedKeyNode.IsStale = true;
 				}
 				else {
@@ -847,33 +868,36 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 	}
 
+	//adds or strips the constant marker on the LAST segment only:
+	//"Example.view.key" <-> "Example.view.$key"
+	private static string SetConstantMarker(string key, bool isConstant) {
+		int start = key.LastIndexOf('.') + 1;
+		string name = key[start..].TrimStart('$');
+		return key[..start] + (isConstant ? "$" + name : name);
+	}
+
 	private void DoToggleLocalizationKeyIsConstant() {
 		if (SelectedKey is null || SelectedKeyNode is null) {
 			return;
 		}
 		IsDirty = true;
-		if (SelectedKey.IsConstant) {
-			SelectedKeyNode.IsConstant = false;
-			SelectedKey.IsConstant = false;
-			allKeys.Remove(SelectedKey.BlockKey);
-			SelectedKey.BlockKey = SelectedKey.BlockKey.Replace(".$", ".");
-			allKeys.Add(SelectedKey.BlockKey, SelectedKey);
-			SelectedKeyNode.FullLabel = SelectedKeyNode.FullLabel.Replace(".$", ".");
-			SelectedEntry = SelectedKey.Entries[SelectedLanguage.Code];
-		}
-		else {
-			SelectedKeyNode.IsConstant = true;
+		bool makeConstant = !SelectedKey.IsConstant;
+		SelectedKey.IsConstant = makeConstant;
+		SelectedKeyNode.IsConstant = makeConstant;
+		allKeys.Remove(SelectedKey.BlockKey);
+		SelectedKey.BlockKey = SetConstantMarker(SelectedKey.BlockKey, makeConstant);
+		allKeys.Add(SelectedKey.BlockKey, SelectedKey);
+		SelectedKeyNode.FullLabel = SetConstantMarker(SelectedKeyNode.FullLabel, makeConstant);
+		if (makeConstant) {
 			SelectedKeyNode.IsStale = false;
 			SelectedKeyNode.IsOverwritten = false;
-			SelectedKey.IsConstant = true;
-			allKeys.Remove(SelectedKey.BlockKey);
-			SelectedKey.BlockKey = SelectedKey.BlockKey.Replace(".", ".$");
-			allKeys.Add(SelectedKey.BlockKey, SelectedKey);
-			SelectedKeyNode.FullLabel = SelectedKeyNode.FullLabel.Replace(".", ".$");
 			SelectedEntry = null;
-			foreach (string key in allKeys[SelectedKeyNode.FullLabel].Entries.Keys) {
-				allKeys[SelectedKeyNode.FullLabel].Entries[key] = new WordsEntry();
+			foreach (string language in SelectedKey.Entries.Keys) {
+				SelectedKey.Entries[language] = new WordsEntry();
 			}
+		}
+		else {
+			SelectedEntry = SelectedKey.Entries[SelectedLanguage.Code];
 		}
 	}
 
@@ -922,6 +946,38 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			}
 		}
 	}
+
+	//Language table upkeep, used by the language manager: the manager operates
+	//session-wide, so its changes apply to every file's declared table
+	internal void AddLanguageCode(string code) {
+		foreach (var codes in fileLanguages.Values) {
+			if (!codes.Contains(code)) {
+				codes.Add(code);
+			}
+		}
+	}
+
+	internal void RemoveLanguageCode(string code) {
+		foreach (var codes in fileLanguages.Values) {
+			codes.Remove(code);
+		}
+	}
+
+	internal void ReplaceLanguageCode(string oldCode, string newCode) {
+		foreach (var codes in fileLanguages.Values) {
+			int i = codes.IndexOf(oldCode);
+			if (i < 0) {
+				continue;
+			}
+			if (codes.Contains(newCode)) {
+				codes.RemoveAt(i);
+			}
+			else {
+				codes[i] = newCode;
+			}
+		}
+	}
+
 
 	//DragDrop
 	internal void MoveKey(string oldKey, string newKey) {

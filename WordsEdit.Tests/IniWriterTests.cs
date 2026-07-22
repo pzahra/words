@@ -7,7 +7,6 @@ public class IniWriterTests {
 
 	private sealed class FakeNode(string fullLabel, params FakeNode[] children) : IKeyTreeNode {
 		public string FullLabel { get; } = fullLabel;
-		public bool IsLibraryFile => false;
 		public IEnumerable<IKeyTreeNode> Children => children;
 	}
 
