@@ -144,8 +144,11 @@ prompts. Reset returns to the empty session (one default `en` language).
 ## Out of scope for the rewrite (known future work)
 
 - Descendant-aware `ICutStrategy` (task chip exists).
-- Migrating `MainWindowViewModelTests` fully onto the authoring API as
-  document operations move out of the ViewModels.
+- Split/merge/shift move into Localization-Authoring with their tests; the
+  ViewModels keep only intent-gathering.
+- Test restructure: WPF/Ava/Core tests build off the API assemblies alone
+  (one shared test project if they can co-exist); the only tests referencing
+  Wordsmith are the editor's own.
 - Surfacing the provider's gripes (undeclared languages, unrecognized fields)
   in the editor UI; today they only accumulate on
   `WordsParserToLocalizationProvider.Errors`.
