@@ -1,7 +1,7 @@
 using PatTech.Localization.Authoring;
 using Xunit;
 
-namespace WordsEdit.Tests;
+namespace PatTech.Localization.Tests;
 public class WordsOperationsTests {
 
 	private static WordsKey Key(string blockKey, string defaultValue, params (string Code, string Value)[] entries) {

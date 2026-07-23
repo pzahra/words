@@ -171,9 +171,6 @@ prompts. Reset returns to the empty session (one default `en` language).
 - A split UI: the engine lives in `WordsOperations.Split` (its output is
   exactly the shape `Merge` consumes back), but nothing in the editor calls
   it yet — wire it up during the front-end rewrite.
-- Test restructure: WPF/Ava/Core tests build off the API assemblies alone
-  (one shared test project if they can co-exist); the only tests referencing
-  Wordsmith are the editor's own.
 - Surfacing the provider's gripes (undeclared languages, unrecognized fields)
   in the editor UI; today they only accumulate on
   `WordsParserToLocalizationProvider.Errors`.

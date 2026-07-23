@@ -2,7 +2,7 @@ using PatTech.Localization;
 using PatTech.Localization.Authoring;
 using Xunit;
 
-namespace WordsEdit.Tests;
+namespace PatTech.Localization.Tests;
 public class WordsProviderTests {
 
 	// two loaded files: bare references must resolve across both,

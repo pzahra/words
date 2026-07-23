@@ -35,8 +35,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Localization-Authoring\Localization-Authoring.csproj" />
-    <ProjectReference Include="..\Localization-Core\Localization-Core.csproj" />
+    <!-- the app's own tests are the only ones allowed to depend on Wordsmith;
+         API-level tests live in Localization-Tests -->
     <ProjectReference Include="..\WordsEdit\WordsEdit.csproj" />
   </ItemGroup>
 

@@ -6,13 +6,15 @@ using System.Windows.Media;
 using PatTech.Localization.Wpf;
 using Xunit;
 
-namespace WordsEdit.Tests;
+namespace PatTech.Localization.Tests;
 
 /// <summary>
 /// Covers the WPF image-scheme registry: custom scheme registration, options
 /// parsing, uniform size/background/tooltip handling, and alt-text fallback.
-/// (The Avalonia twin mirrors the same design; it has no test host here.)
+/// <see cref="AvaImageSchemeTests"/> is the Avalonia twin; both swap the
+/// Words.Logger global, hence the shared collection.
 /// </summary>
+[Collection("Words globals")]
 public class ImageSchemeTests {
 
 	/// <summary>WPF elements insist on an STA thread; xunit runs MTA. Bridge the gap.</summary>

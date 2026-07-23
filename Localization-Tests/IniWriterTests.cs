@@ -2,7 +2,7 @@ using PatTech.Localization;
 using PatTech.Localization.Authoring;
 using Xunit;
 
-namespace WordsEdit.Tests;
+namespace PatTech.Localization.Tests;
 public class IniWriterTests {
 
 	private sealed class FakeNode(string fullLabel, params IKeyTreeNode[] children) : IKeyTreeNode {

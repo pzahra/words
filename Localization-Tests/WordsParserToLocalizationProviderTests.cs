@@ -2,7 +2,7 @@
 using PatTech.Localization.Authoring;
 using Xunit;
 
-namespace WordsEdit.Tests;
+namespace PatTech.Localization.Tests;
 public class WordsParserToLocalizationProviderTests {
 
 	public static WordsParserToLocalizationProvider CreateProvider() {

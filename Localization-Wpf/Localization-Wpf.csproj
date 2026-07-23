@@ -27,6 +27,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="WordsEdit.Tests" />
+    <InternalsVisibleTo Include="Localization-Tests" />
   </ItemGroup>
   </Project>

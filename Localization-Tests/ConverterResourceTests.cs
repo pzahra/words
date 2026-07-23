@@ -3,7 +3,7 @@ using System.Windows;
 using PatTech.Localization.Wpf;
 using Xunit;
 
-namespace WordsEdit.Tests;
+namespace PatTech.Localization.Tests;
 
 /// <summary>
 /// Covers the ready-made converter resources shipped as Converters.xaml: the

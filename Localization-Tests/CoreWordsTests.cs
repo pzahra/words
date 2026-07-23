@@ -1,7 +1,7 @@
 using PatTech.Localization;
 using Xunit;
 
-namespace WordsEdit.Tests;
+namespace PatTech.Localization.Tests;
 
 /// <summary>
 /// Covers Localization-Core behavior that has no UI: named formatting and the

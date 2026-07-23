@@ -1,7 +1,7 @@
 using PatTech.Localization;
 using Xunit;
 
-namespace WordsEdit.Tests;
+namespace PatTech.Localization.Tests;
 
 /// <summary>
 /// Covers the terminal renderer: ANSI styling, OSC 8 hyperlinks, Unicode
