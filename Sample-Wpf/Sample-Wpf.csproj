@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -10,11 +10,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="Assets\words.ini" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Resource Include="Assets\words.ini" />
+    <!-- embedded: the dictionary and the pack: image -->
+    <Resource Include="Assets\sample.ini" />
+    <Resource Include="Assets\3d.png" />
+    <!-- loose file: the assets: scheme reads from the Assets folder on disk -->
+    <Content Include="Assets\slice.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

@@ -1,0 +1,67 @@
+<Window x:Class="Sample_Wpf.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="pattech.words"
+        Title="{l:Words main.title}"
+        Width="700" Height="760">
+
+  <Window.Resources>
+    <Style x:Key="h" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="15"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Margin" Value="0,18,0,4"/>
+    </Style>
+    <Style x:Key="demo" TargetType="TextBlock">
+      <Setter Property="TextWrapping" Value="Wrap"/>
+      <Setter Property="Margin" Value="0,2"/>
+    </Style>
+  </Window.Resources>
+
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="24,16" MaxWidth="640">
+
+      <!-- {l:Words key} resolves plain localized text; the app asked for Italian
+           at startup, so keys with a value-it render it and the rest fall back -->
+      <TextBlock FontSize="22" FontWeight="Bold" Text="{l:Words main.title}"/>
+      <TextBlock FontStyle="Italic" Text="{l:Words main.greeting}"/>
+
+      <!-- the languages come from the top-of-file `value-xx=` labels in sample.ini;
+           the appcmd: link relaunches the app with the selection on the command line -->
+      <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+        <ComboBox MinWidth="140"
+                  ItemsSource="{Binding Languages}"
+                  DisplayMemberPath="Value"
+                  SelectedValuePath="Key"
+                  SelectedValue="{Binding SelectedLanguage}"/>
+        <TextBlock VerticalAlignment="Center" Margin="12,0,0,0"><l:WordsInline Key="main.change-lang"/></TextBlock>
+      </StackPanel>
+
+      <TextBlock Style="{StaticResource h}" Text="{l:Words section.formatting}"/>
+      <!-- WordsInline renders a key's Words as rich inline content, markdown and all -->
+      <TextBlock Style="{StaticResource demo}"><l:WordsInline Key="demo.formatting"/></TextBlock>
+      <TextBlock Style="{StaticResource demo}"><l:WordsInline Key="demo.entities"/></TextBlock>
+
+      <TextBlock Style="{StaticResource h}" Text="{l:Words section.links}"/>
+      <TextBlock Style="{StaticResource demo}"><l:WordsInline Key="demo.links"/></TextBlock>
+      <!-- clicking the appcmd: link above updates this line through the view model -->
+      <TextBlock Style="{StaticResource demo}"><l:WordsInline Key="demo.appcmd-report" Params="{Binding AppCommandParams}"/></TextBlock>
+
+      <TextBlock Style="{StaticResource h}" Text="{l:Words section.images}"/>
+      <TextBlock Style="{StaticResource demo}"><l:WordsInline Key="demo.images"/></TextBlock>
+
+      <TextBlock Style="{StaticResource h}" Text="{l:Words section.params}"/>
+      <TextBlock Style="{StaticResource demo}"><l:WordsInline Key="demo.params-positional" Params="{Binding UnreadParams}"/></TextBlock>
+      <Slider Minimum="0" Maximum="42" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Unread}"/>
+      <TextBlock Style="{StaticResource demo}"><l:WordsInline Key="demo.params-named" Params="{Binding Profile}"/></TextBlock>
+
+      <TextBlock Style="{StaticResource h}" Text="{l:Words section.kitchen}"/>
+      <TextBlock Style="{StaticResource demo}"><l:WordsInline Key="main.markdown"/></TextBlock>
+
+      <TextBlock Style="{StaticResource h}" Text="{l:Words section.playground}"/>
+      <TextBox Text="{Binding Playground, UpdateSourceTrigger=PropertyChanged}"/>
+      <!-- WordsMarkdown comes from the package's Converters.xaml, merged in App.xaml -->
+      <ContentControl Margin="0,4,0,16" Content="{Binding Playground, Converter={StaticResource WordsMarkdown}}"/>
+
+    </StackPanel>
+  </ScrollViewer>
+</Window>

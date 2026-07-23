@@ -51,7 +51,8 @@ when several files are open.
 Load → save must never lose data; it may (and does) normalize formatting.
 
 Preserved exactly: every field and language entry, key order, freeform
-comments, preamble, trailer, constants, `!` labels, stale values.
+comments, preamble, trailer, constants, `!` labels, stale values, and the
+top-of-file `param-` settings fields (see Markdown previews).
 
 Canonicalized by the writer (`IniWriter`): line wrapping (~50 columns),
 escaping (`__`, `''`, leading-whitespace `_` marker), newline continuations,
@@ -99,7 +100,8 @@ flags — constant (only a leaf directly under a file), and needs-review
 (`stale=`, the raise-hand). This is the developer's side of the conversation.
 
 - **Preview**: the default value can be rendered through the Words markdown
-  dialect (the same renderer the host apps use) in place of the raw text.
+  dialect in place of the raw text (image handling is the editor's own — see
+  Markdown previews).
 - **Parameter testing**: keys with `param-` declarations can run their sample
   values through `Format` to prove the placeholders work before shipping. `{>reference}` and `{$constant}` tokens work across files for this purpose, simulating a host app loading multiple dictionaries.
 - **Stale-all-languages**: one action for "I changed the default, every
@@ -118,6 +120,27 @@ and the markdown preview.
 - Changing the dropdown re-contextualizes the whole window: tree badges and
   empty-value emphasis refresh to the new language, and the stale filter
   re-evaluates against it.
+
+## Markdown previews
+
+Both panes' previews render the Words markdown dialect, but the editor is not
+the host app: the renderer's stock image resolvers (`staticres:`, `pack:`,
+`resx:`, `assets:`) would resolve against *Wordsmith's own* resources — wrong
+app, wrong answers. The preview parser therefore carries its own resolver
+registry instead of the pre-loaded set:
+
+- By default the registry is empty, so every image scheme falls back to the
+  image's alt text (the renderer already does this for unknown schemes). This
+  also means the editor never fetches remote images on its own.
+- The user can map a scheme to a folder; the URI's path is then looked up as
+  an image file under that folder. Unmapped schemes keep the alt-text
+  fallback.
+- The mappings are stored per file, recycling the otherwise-unused keyless
+  `param-` fields of the top-of-file language section —
+  `param-<scheme>=<folder>`, with the folder relative to the ini file so the
+  mapping travels with it. The provider currently drops those fields and the
+  writer never re-emits them; capturing them and round-tripping them
+  byte-stable is part of this work.
 
 ## Languages
 

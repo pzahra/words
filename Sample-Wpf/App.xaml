@@ -1,10 +1,16 @@
-﻿<Application x:Class="Sample_Wpf.App"
+<Application x:Class="Sample_Wpf.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:Sample_Wpf"
-			 Startup="Application_Startup"
-             StartupUri="MainWindow.xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- no StartupUri: OnStartup builds the window so it can hand over the view model -->
     <Application.Resources>
-         
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- the package's ready-made converters: WordsMarkdown, WordsFormat,
+                     WordsEnumDescription, WordsFlagsDescription(List), WordsParamsArray -->
+                <ResourceDictionary Source="pack://application:,,,/PatTech.Localization.WPF;component/Converters.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <!-- resolved by markdown images through the staticres: scheme -->
+            <Geometry x:Key="StarGeometry">M 8,0 L 10.47,5.53 16,6.11 11.8,9.88 13.06,16 8,12.94 2.94,16 4.2,9.88 0,6.11 5.53,5.53 Z</Geometry>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>
