@@ -40,7 +40,11 @@ intellijPlatform {
     pluginConfiguration {
         ideaVersion {
             sinceBuild = "253"
-            untilBuild = "253.*"
+            // no upper bound: teammates update Rider faster than we cut plugin builds, and a
+            // pinned until-build refuses to install on anything newer. The backend still
+            // compiles against one ReSharper SDK — if a Rider update breaks its API surface,
+            // the fix is bumping the SDK + riderSdkVersion, not re-pinning here.
+            untilBuild = provider { null }
         }
     }
 }

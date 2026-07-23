@@ -2,7 +2,8 @@
 
 A local Rider plugin that gives Avalonia XAML **autocomplete + tooltip preview** (and an optional
 unknown-key warning) for the `pattech.words` markup extension (`{l:Words some.dotted.key}`), resolved
-against the solution's `*-words.ini` files. Targets the installed **Rider 2025.3**.
+against the solution's `*-words.ini` files. Built against the **Rider 2025.3** SDK and
+installable on anything newer (`since-build=253`, no upper bound).
 
 ## Why not Roslyn?
 
@@ -139,6 +140,12 @@ installed Rider. It must match the `JetBrains.ReSharper.SDK` version the backend
 (`src/dotnet/WordsXaml/WordsXaml.csproj`): **SDK 2025.3.4.1 ↔ Rider 2025.3.4**. Change both together, or
 the host will refuse to load the backend. If `runIde` can't find that exact Rider build, set
 `riderSdkVersion` to an available `2025.3.x` and re-pin the nupkg to match.
+
+The **installed** plugin is deliberately not pinned upward: the zip declares `since-build=253` with no
+`until-build`, so teammates on newer Rider versions can install it without waiting for a rebuild. The
+backend still binds to one SDK's API surface — if a Rider update ever breaks it (load errors or
+MissingMethodException in the backend log), bump `JetBrains.ReSharper.SDK` + `riderSdkVersion`
+together and rebuild rather than re-pinning `until-build`.
 
 ## Packaging for install (optional)
 
