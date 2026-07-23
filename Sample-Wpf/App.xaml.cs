@@ -4,8 +4,6 @@ using Sample_Wpf.ViewModels;
 using Sample_Wpf.Views;
 using System.Diagnostics;
 using System.Windows;
-using System.Windows.Documents;
-using System.Windows.Navigation;
 
 namespace Sample_Wpf;
 
@@ -25,19 +23,15 @@ public partial class App : Application {
 
 		var viewModel = new MainWindowViewModel(langs, lang);
 
-		// WPF's take on a global navigate handler: one class handler catches
-		// every hyperlink click the markdown renders
-		EventManager.RegisterClassHandler(typeof(Hyperlink), Hyperlink.RequestNavigateEvent,
-			new RequestNavigateEventHandler((_, args) => {
-				if (args.Uri.Scheme is "appcmd") {
-					// application-command links stay inside the app
-					viewModel.TakeAppCommand(args.Uri);
-				}
-				else {
-					Process.Start(new ProcessStartInfo(args.Uri.ToString()) { UseShellExecute = true });
-				}
-				args.Handled = true;
-			}));
+		Hyperlink.RegisterGlobalNavigateHandler(uri => {
+			if (uri.Scheme is "appcmd") {
+				// application-command links stay inside the app
+				viewModel.TakeAppCommand(uri);
+			}
+			else {
+				Process.Start(new ProcessStartInfo(uri.ToString()) { UseShellExecute = true });
+			}
+		});
 
 		new MainWindow { DataContext = viewModel }.Show();
 	}

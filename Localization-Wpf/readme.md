@@ -41,6 +41,27 @@ an array for positional `{0}` tags, or any other object for `{Name}` tags read
 off its public fields and properties. The inlines re-render whenever `Key` or
 `Params` changes.
 
+## Make hyperlinks go somewhere
+
+WPF hyperlinks raise `RequestNavigate` and then do nothing. Register the
+application-wide handler once at startup and every link the markdown renders
+routes through it — custom schemes make in-app commands:
+
+``` csharp
+Hyperlink.RegisterGlobalNavigateHandler(uri => {
+	if (uri.Scheme is "appcmd") {
+		// Handle application command hyperlinks.
+	}
+	else {
+		// Handle URL hyperlinks.
+		Process.Start(new ProcessStartInfo(uri.ToString()) { UseShellExecute = true });
+	}
+});
+```
+
+There is one global handler: registering again replaces it, and disposing the
+returned subscription unregisters it.
+
 ## Put pictures in your Words
 
 Markdown images work in any rendered value, with the URI scheme deciding where

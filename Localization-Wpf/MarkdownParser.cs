@@ -68,7 +68,8 @@ namespace PatTech.Localization.Wpf {
 		protected override Inline Hyperlink(Inline content, Uri target, string? tooltip) {
 			content.TextDecorations = TextDecorations.Underline;
 			content.Foreground = Brushes.Blue;
-			return new Hyperlink {
+			// qualified: the namespace's own Hyperlink (the navigate-handler helper) shadows the using
+			return new System.Windows.Documents.Hyperlink {
 				Inlines = { content },
 				NavigateUri = target,
 				ToolTip = tooltip,

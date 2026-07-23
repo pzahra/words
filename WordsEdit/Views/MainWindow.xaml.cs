@@ -11,6 +11,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using WordsEdit.Utils;
 using WordsEdit.ViewModels;
+//the flow-document type, not the package's navigate-handler helper
+using Hyperlink = System.Windows.Documents.Hyperlink;
 
 namespace WordsEdit;
 public partial class MainWindow : Window {
