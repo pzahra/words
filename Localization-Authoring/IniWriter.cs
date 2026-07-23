@@ -43,15 +43,50 @@ namespace PatTech.Localization.Authoring {
 		bool Cuts(IKeyTreeNode node, int depth);
 	}
 
+	/// <summary>
+	///     The writer's default strategy: cuts at keyless group nodes whose subtree
+	///     carries at least <paramref name="minimumKeys"/> keyed blocks — the shape a
+	///     hand-author writes as a bare <c>[group]</c> header followed by
+	///     <c>[.child]</c> blocks. Keyed nodes never cut (their own header re-bases
+	///     the chain already), and keys beyond a deeper cut don't count here: they
+	///     chain off that base, not this one. A single keyed descendant isn't worth
+	///     the bare header (which reloads as an empty key) — it keeps its full header.
+	/// </summary>
+	/// <param name="keys">Every key the writer is working from, block key to data.</param>
+	/// <param name="minimumKeys">Keyed blocks a group must gather before it pays for its header.</param>
+	public sealed class GroupCuts(IReadOnlyDictionary<string, WordsKey> keys, int minimumKeys = 2) : ICutStrategy {
+		private readonly Dictionary<IKeyTreeNode, int> counted = [];
+
+		/// <inheritdoc/>
+		public bool Cuts(IKeyTreeNode node, int depth)
+			=> !keys.ContainsKey(node.FullLabel) && ChainingKeys(node) >= minimumKeys;
+
+		/// <summary>Keyed blocks below <paramref name="node"/> that would chain off its header.</summary>
+		private int ChainingKeys(IKeyTreeNode node) {
+			if (!counted.TryGetValue(node, out int count)) {
+				foreach (var child in node.Children) {
+					if (child is ICommentNode) {
+						continue;
+					}
+					if (keys.ContainsKey(child.FullLabel)) {
+						count++;
+					}
+					if (!Cuts(child, 0)) {
+						count += ChainingKeys(child);
+					}
+				}
+				counted[node] = count;
+			}
+			return count;
+		}
+	}
+
 	public sealed class IniWriter(TextWriter writer, ICutStrategy? cutStrategy = null) : IDisposable, IAsyncDisposable {
-		// TODO: the default strategy never cuts, so only parent→child chains
-		// compress ([enum] then [.two]); replace with one that inspects the
-		// descendants and cuts at keyless group nodes with enough keyed children
-		// to pay for the bare header.
 		private sealed class ChainOnly : ICutStrategy {
 			public bool Cuts(IKeyTreeNode node, int depth) => false;
 		}
-		private static readonly ICutStrategy chainOnly = new ChainOnly();
+		/// <summary>A strategy that never cuts: only parent→child chains compress.</summary>
+		public static ICutStrategy NeverCuts { get; } = new ChainOnly();
 
 		public static void WriteFile(IKeyTreeNode fileNode, string fileName, Dictionary<string, WordsKey> allKeys, IReadOnlyCollection<LanguageEntry> languages, ICutStrategy? cutStrategy = null, string preamble = "", string trailer = "") {
 			using var stream = new StreamWriter(fileName);
@@ -81,9 +116,9 @@ namespace PatTech.Localization.Authoring {
 			WriteLine();
 		}
 		public void WriteKeys(IKeyTreeNode node, in Dictionary<string, WordsKey> allKeys) {
-			WriteKeys(node, allKeys, depth: -1);
+			WriteKeys(node, allKeys, depth: -1, cuts ?? new GroupCuts(allKeys));
 		}
-		private void WriteKeys(IKeyTreeNode node, Dictionary<string, WordsKey> allKeys, int depth) {
+		private void WriteKeys(IKeyTreeNode node, Dictionary<string, WordsKey> allKeys, int depth, ICutStrategy cuts) {
 			if (node is ICommentNode comment) {
 				if (comment.Text != "") {
 					WriteComment(comment.Text);
@@ -96,16 +131,16 @@ namespace PatTech.Localization.Authoring {
 			}
 			else if (cut) {
 				// a bare header: establishes the base for the descendants, and
-				// becomes an empty key the next time the file is loaded
+				// becomes an empty key the next time the file is loaded — which
+				// writes back as this same bare header, so no blank line here
 				StartBase(node.FullLabel);
-				WriteLine();
 			}
 			foreach (var child in node.Children) {
-				WriteKeys(child, allKeys, depth + 1);
+				WriteKeys(child, allKeys, depth + 1, cuts);
 			}
 		}
 
-		private readonly ICutStrategy cuts = cutStrategy ?? chainOnly;
+		private readonly ICutStrategy? cuts = cutStrategy;
 		private string baseKey = "";
 
 		public void WriteBlockHeader(string name) => writer.WriteLine("[" + name + "]");

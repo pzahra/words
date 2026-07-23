@@ -58,10 +58,13 @@ Canonicalized by the writer (`IniWriter`): line wrapping (~50 columns),
 escaping (`__`, `''`, leading-whitespace `_` marker), newline continuations,
 and block headers — a block extending the last full header is written as one
 dot-relative `[.suffix]`; an `ICutStrategy` decides where extra full-header
-cuts go (the descendant-aware strategy is a known TODO; until then, keyless
-groups reload flattened). Comment placement is canonicalized too: a `;` run
-between fields hoists above its block; comments in the language section
-join the preamble.
+cuts go. The default (`GroupCuts`) writes a bare `[group]` header at a keyless
+group gathering two or more keyed blocks, the shape a hand-author uses; the
+bare header reloads as an empty key (accepted tradeoff), and a group whose
+keys all sit under a deeper cut keeps no header of its own. Pass
+`IniWriter.NeverCuts` for plain chaining. Comment placement is canonicalized
+too: a `;` run between fields hoists above its block; comments in the
+language section join the preamble.
 
 Save→load→save is byte-stable (pinned by `MainWindowViewModel_IdempotencyTest_FileContents`).
 
@@ -167,7 +170,6 @@ prompts. Reset returns to the empty session (one default `en` language).
 
 ## Out of scope for the rewrite (known future work)
 
-- Descendant-aware `ICutStrategy` (task chip exists).
 - A split UI: the engine lives in `WordsOperations.Split` (its output is
   exactly the shape `Merge` consumes back), but nothing in the editor calls
   it yet — wire it up during the front-end rewrite.

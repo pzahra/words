@@ -319,8 +319,8 @@ value=w
 		var writer = new StringWriter();
 		IniWriter.WriteFile(mainWindowViewModel.KeyNodes[0], writer, mainWindowViewModel.allKeys, mainWindowViewModel.LanguagesFor("Example"));
 		var output = writer.ToString();
-		Assert.True(output.IndexOf("; a banner:") < output.IndexOf("[main.circle-1]"));
-		Assert.DoesNotContain("[main.title]", output);
+		Assert.True(output.IndexOf("; a banner:") < output.IndexOf("[.circle-1]"));
+		Assert.DoesNotContain("[.title]", output);
 	}
 
 	[Fact]

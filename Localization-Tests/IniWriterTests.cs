@@ -142,10 +142,117 @@ public class IniWriterTests {
 			["F.two.a"] = new WordsKey("F.two.a") { DefaultValue = "2A" },
 		};
 
-		var ini = Write(tree, allKeys);
+		var ini = Write(tree, allKeys, IniWriter.NeverCuts);
 
 		var reloaded = Reload(ini);
 		Assert.Equal("1A", reloaded["one.a"].DefaultValue);
 		Assert.Equal("2A", reloaded["two.a"].DefaultValue);
+	}
+
+	[Fact]
+	public void GroupCuts_IsTheDefault_CutsKeylessGroupsWithEnoughKeys() {
+		// no strategy passed: a keyless group gathering two keyed blocks gets a
+		// bare header and its children shorten to [.suffix]
+		var tree = new FakeNode("F",
+			new FakeNode("F.deep",
+				new FakeNode("F.deep.a"),
+				new FakeNode("F.deep.b")));
+		Dictionary<string, WordsKey> allKeys = new() {
+			["F.deep.a"] = new WordsKey("F.deep.a") { DefaultValue = "A" },
+			["F.deep.b"] = new WordsKey("F.deep.b") { DefaultValue = "B" },
+		};
+
+		var ini = Write(tree, allKeys);
+
+		var lines = ini.Split(Environment.NewLine);
+		Assert.Contains("[deep]", lines);
+		Assert.Contains("[.a]", lines);
+		Assert.Contains("[.b]", lines);
+	}
+
+	[Fact]
+	public void GroupCuts_OneKeyedDescendant_KeepsItsFullHeader() {
+		// a single block doesn't pay for the bare header (which would reload as
+		// an extra empty key)
+		var tree = new FakeNode("F",
+			new FakeNode("F.deep",
+				new FakeNode("F.deep.only")));
+		Dictionary<string, WordsKey> allKeys = new() {
+			["F.deep.only"] = new WordsKey("F.deep.only") { DefaultValue = "O" },
+		};
+
+		var ini = Write(tree, allKeys);
+
+		var lines = ini.Split(Environment.NewLine);
+		Assert.Contains("[deep.only]", lines);
+		Assert.DoesNotContain("[deep]", lines);
+	}
+
+	[Fact]
+	public void GroupCuts_KeyedGroups_NeverCut() {
+		// a keyed group re-bases the chain with its own header; forcing a cut
+		// there would gain nothing
+		var tree = new FakeNode("F",
+			new FakeNode("F.group",
+				new FakeNode("F.group.a"),
+				new FakeNode("F.group.b")));
+		Dictionary<string, WordsKey> allKeys = new() {
+			["F.group"] = new WordsKey("F.group") { DefaultValue = "G" },
+			["F.group.a"] = new WordsKey("F.group.a") { DefaultValue = "A" },
+			["F.group.b"] = new WordsKey("F.group.b") { DefaultValue = "B" },
+		};
+
+		Assert.False(new GroupCuts(allKeys).Cuts(tree.Children.First(), 0));
+
+		var reloaded = Reload(Write(tree, allKeys));
+		Assert.Equal("G", reloaded["group"].DefaultValue);
+	}
+
+	[Fact]
+	public void GroupCuts_KeysBeyondADeeperCut_DontCountForTheOuterGroup() {
+		// all keys sit under the inner group, which cuts and re-bases; a bare
+		// header on the outer group would shorten nothing
+		var tree = new FakeNode("F",
+			new FakeNode("F.outer",
+				new FakeNode("F.outer.inner",
+					new FakeNode("F.outer.inner.x"),
+					new FakeNode("F.outer.inner.y"))));
+		Dictionary<string, WordsKey> allKeys = new() {
+			["F.outer.inner.x"] = new WordsKey("F.outer.inner.x") { DefaultValue = "X" },
+			["F.outer.inner.y"] = new WordsKey("F.outer.inner.y") { DefaultValue = "Y" },
+		};
+
+		var ini = Write(tree, allKeys);
+
+		var lines = ini.Split(Environment.NewLine);
+		Assert.Contains("[outer.inner]", lines);
+		Assert.DoesNotContain("[outer]", lines);
+		Assert.Contains("[.x]", lines);
+		Assert.Contains("[.y]", lines);
+	}
+
+	[Fact]
+	public void GroupCuts_BareHeader_IsSaveLoadSaveStable() {
+		// the bare header reloads as an empty key, and that empty key writes
+		// back as the same bare header — the second save matches the first byte
+		// for byte
+		var tree = new FakeNode("F",
+			new FakeNode("F.deep",
+				new FakeNode("F.deep.a"),
+				new FakeNode("F.deep.b")));
+		Dictionary<string, WordsKey> allKeys = new() {
+			["F.deep.a"] = new WordsKey("F.deep.a") { DefaultValue = "A" },
+			["F.deep.b"] = new WordsKey("F.deep.b") { DefaultValue = "B" },
+		};
+
+		var firstSave = Write(tree, allKeys);
+
+		Dictionary<string, WordsKey> reloaded = Reload(firstSave).ToDictionary(
+			pair => "F." + pair.Key,
+			pair => new WordsKey(pair.Value) { BlockKey = "F." + pair.Value.BlockKey });
+		Assert.Equal("", reloaded["F.deep"].DefaultValue);
+		var secondSave = Write(tree, reloaded);
+
+		Assert.Equal(firstSave, secondSave);
 	}
 }
