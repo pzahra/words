@@ -170,6 +170,46 @@ def
 	}
 
 	[Fact]
+	public void WordsParserToLocalizationProvider_TopOfFileParamIsCapturedAsImageSchemeMapping() {
+		// keyless param- fields in the language section are an authoring tool's
+		// scheme→folder mappings: captured, not dropped, and not turned into keys
+		WordsParserToLocalizationProvider consumer = new();
+		new WordsParser(consumer).Load(new StringReader(@"
+value-en=English
+param-md=icons
+param-shot=../captures
+
+[k]
+value=x
+"));
+
+		Assert.Equal("icons", consumer.ImageSchemeMappings["md"]);
+		Assert.Equal("icons", consumer.ImageSchemeMappings["MD"]); // scheme lookup is case-insensitive
+		Assert.Equal("../captures", consumer.ImageSchemeMappings["shot"]);
+		Assert.Single(consumer.WordKeys);
+		Assert.False(consumer.WordKeys.ContainsKey("md"));
+		Assert.Empty(consumer.Errors);
+	}
+
+	[Fact]
+	public void WordsParserToLocalizationProvider_TopOfFileParamContinuationAppends() {
+		// a folder path long enough to have wrapped comes back in one piece — the
+		// continuation lands in the language section, where there is no block yet
+		WordsParserToLocalizationProvider consumer = new();
+		new WordsParser(consumer).Load(new StringReader(@"
+value-en=English
+param-md=first/part_
+second/part
+
+[k]
+value=x
+"));
+
+		Assert.Equal("first/partsecond/part", consumer.ImageSchemeMappings["md"]);
+		Assert.Empty(consumer.Errors);
+	}
+
+	[Fact]
 	public void WordsParserToLocalizationProvider_CreateLanguages() {
 		//Arrange+Act
 		var provider = CreateProvider();

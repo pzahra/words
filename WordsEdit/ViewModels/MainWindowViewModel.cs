@@ -51,6 +51,11 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	//gain each other's languages on save; KnownLanguages is the session union
 	internal readonly Dictionary<string, List<string>> fileLanguages = [];
 
+		//each file's image scheme->folder mappings (folders relative to the file),
+		//recycled from the top-of-file param-<scheme> fields. Keyed by file label;
+		//preserved on save and used to school the preview's image resolver
+		internal readonly Dictionary<string, Dictionary<string, string>> fileImageSchemes = [];
+
 	public ObservableCollection<LanguageEntry> KnownLanguages { get; set => ChangeProperty(ref field, value); } = [];
 
 	public HashSet<string> FileNames { get; set => ChangeProperty(ref field, value); } = [];
@@ -126,6 +131,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public ICommand SaveCommand { get; }
 	public ICommand MergeFilesCommand { get; }
 	public ICommand ManageLanguagesCommand { get; }
+	public ICommand ManageImageSchemesCommand { get; }
 	public ICommand TestParametersCommand { get; }
 	public ICommand RemoveLocalizationKeyAndNodeCommand { get; }
 	public ICommand RenameLocalizationKeyAndNodeCommand { get; }
@@ -147,6 +153,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		SaveCommand = new DelegateCommand(DoSave);
 		MergeFilesCommand = new DelegateCommand(DoMergeFiles);
 		ManageLanguagesCommand = new DelegateCommand(DoManageLanguages);
+		ManageImageSchemesCommand = new DelegateCommand(DoManageImageSchemes, CanManageImageSchemes);
 		RemoveLocalizationKeyAndNodeCommand = new DelegateCommand(DoRemoveLocalizationKeyAndNode);
 		RenameLocalizationKeyAndNodeCommand = new DelegateCommand(DoRenameNode);
 		AddLocalizationKeyNodeCommand = new DelegateCommand(DoAddLocalizationKeyNode);
@@ -370,6 +377,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		parser.Load(reader);
 		filePreambles[fileName] = consumer.Preamble;
 		fileLanguages[fileName] = [.. consumer.DeclaredLanguages];
+		fileImageSchemes[fileName] = new(consumer.ImageSchemeMappings, StringComparer.OrdinalIgnoreCase);
 		// TODO: explain?
 		if (usingDefaultLanguage && consumer.WordKeys.Count > 0) {
 			KnownLanguages.Clear();
@@ -566,6 +574,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		FileNames.Clear();
 		filePreambles.Clear();
 		fileLanguages.Clear();
+		fileImageSchemes.Clear();
 		IsDirty = false;
 	}
 
@@ -582,7 +591,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 				?? throw new InvalidDataException($"Cannot find node with file name: {fileName}");
 			//comments in the tree write themselves in place; only the preamble
 			//needs passing, since it precedes the language table
-			IniWriter.WriteFile(fileNode, fileName, allKeys, LanguagesFor(label), preamble: filePreambles.GetValueOrDefault(label, ""));
+			IniWriter.WriteFile(fileNode, fileName, allKeys, LanguagesFor(label), preamble: filePreambles.GetValueOrDefault(label, ""), imageSchemes: fileImageSchemes.GetValueOrDefault(label));
 		}
 		IsDirty = false;
 	}
@@ -633,6 +642,54 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		PopupDialog.Push(new LanguageManagerView() { DataContext = new LanguageManagerViewModel(this) });
 	}
 
+	//image-scheme mappings are per-file; the dialog edits the file the selection
+	//sits in, so a node must be selected to know which file that is
+	private bool CanManageImageSchemes() => SelectedKeyNode is not null;
+	private void DoManageImageSchemes() {
+		if (SelectedKeyNode is null) {
+			return;
+		}
+		PopupDialog.Push(new ImageSchemesView() {
+			DataContext = new ImageSchemesViewModel(this, FileLabelOf(SelectedKeyNode))
+		});
+	}
+
+	//the file a node belongs to is its first dotted segment (the file node's own
+	//label has no dot, so it is that whole label)
+	private static string FileLabelOf(KeyNode node) => node.FullLabel.Split('.', 2)[0];
+
+	//the file's stored mappings as written (scheme -> folder relative to the file)
+	internal IReadOnlyDictionary<string, string> ImageSchemesFor(string fileLabel)
+		=> fileImageSchemes.TryGetValue(fileLabel, out var mappings)
+			? mappings
+			: new Dictionary<string, string>();
+
+	//replace a file's mappings from the dialog and mark the session dirty
+	internal void SetImageSchemes(string fileLabel, Dictionary<string, string> mappings) {
+		fileImageSchemes[fileLabel] = new(mappings, StringComparer.OrdinalIgnoreCase);
+		IsDirty = true;
+	}
+
+	//scheme -> absolute folder for the file that owns the selected node, the
+	//stored (relative) folders resolved against that file's directory on disk.
+	//This is what the preview's resolver registry is built from.
+	public IReadOnlyDictionary<string, string> ImageSchemeFoldersFor(KeyNode? node) {
+		var resolved = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+		if (node is null) {
+			return resolved;
+		}
+		string label = FileLabelOf(node);
+		if (!fileImageSchemes.TryGetValue(label, out var mappings) || mappings.Count == 0) {
+			return resolved;
+		}
+		string? path = FileNames.FirstOrDefault(f => Path.GetFileNameWithoutExtension(f) == label);
+		string? directory = path is null ? null : Path.GetDirectoryName(Path.GetFullPath(path));
+		foreach (var (scheme, folder) in mappings) {
+			resolved[scheme] = directory is null ? folder : Path.Combine(directory, folder);
+		}
+		return resolved;
+	}
+
 	private void DoRemoveLocalizationKeyAndNode() {
 		if (SelectedKeyNode is null || SelectedKeyNode.FullLabel is null) {
 			return;
@@ -676,6 +733,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		FileNames.RemoveWhere(fileName => Path.GetFileNameWithoutExtension(fileName) == fileNodeToRemove.FullLabel);
 		filePreambles.Remove(fileNodeToRemove.FullLabel);
 		fileLanguages.Remove(fileNodeToRemove.FullLabel);
+		fileImageSchemes.Remove(fileNodeToRemove.FullLabel);
 		KeyNodes.Remove(fileNodeToRemove);
 		AllKeyNodes.RemoveWhere(keyNode => keyNode.FullLabel.StartsWith(fileNodeToRemove.Label + '.') || keyNode.FullLabel == fileNodeToRemove.FullLabel);
 		if (!KeyNodes.IsNullOrEmpty()) {

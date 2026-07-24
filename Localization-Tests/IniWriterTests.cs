@@ -129,6 +129,64 @@ public class IniWriterTests {
 	}
 
 	[Fact]
+	public void IniWriter_ImageSchemeMappings_RoundTrip() {
+		// scheme→folder mappings write as keyless param- fields in the language
+		// section and come back through the provider's ImageSchemeMappings —
+		// never as keys
+		var tree = new FakeNode("F", new FakeNode("F.k"));
+		Dictionary<string, WordsKey> allKeys = new() {
+			["F.k"] = new WordsKey("F.k") { DefaultValue = "V" },
+		};
+		List<LanguageEntry> languages = [new LanguageEntry("en", "English")];
+		var mappings = new Dictionary<string, string> { ["md"] = "icons", ["shot"] = "../captures" };
+
+		var output = new StringWriter();
+		IniWriter.WriteFile(tree, output, allKeys, languages, imageSchemes: mappings);
+		var ini = output.ToString();
+
+		var lines = ini.Split(Environment.NewLine);
+		Assert.Contains("param-md=icons", lines);
+		Assert.Contains("param-shot=../captures", lines);
+
+		WordsParserToLocalizationProvider consumer = new();
+		new WordsParser(consumer).Load(new StringReader(ini));
+		Assert.Empty(consumer.Errors);
+		Assert.Equal("icons", consumer.ImageSchemeMappings["md"]);
+		Assert.Equal("../captures", consumer.ImageSchemeMappings["shot"]);
+		Assert.False(consumer.WordKeys.ContainsKey("md"));
+		Assert.False(consumer.WordKeys.ContainsKey("shot"));
+	}
+
+	[Fact]
+	public void IniWriter_ImageSchemeMappings_SaveLoadSaveStable() {
+		// the second save matches the first byte for byte: capture order is
+		// preserved, so the param- block comes back in the same shape
+		var tree = new FakeNode("F", new FakeNode("F.k"));
+		Dictionary<string, WordsKey> allKeys = new() {
+			["F.k"] = new WordsKey("F.k") { DefaultValue = "V" },
+		};
+		List<LanguageEntry> languages = [new LanguageEntry("en", "English")];
+		var mappings = new Dictionary<string, string> { ["md"] = "icons", ["shot"] = "shots/here" };
+
+		var firstOut = new StringWriter();
+		IniWriter.WriteFile(tree, firstOut, allKeys, languages, imageSchemes: mappings);
+		var firstSave = firstOut.ToString();
+
+		WordsParserToLocalizationProvider consumer = new();
+		new WordsParser(consumer).Load(new StringReader(firstSave));
+		var reloadedKeys = consumer.WordKeys.ToDictionary(
+			pair => "F." + pair.Key,
+			pair => new WordsKey(pair.Value) { BlockKey = "F." + pair.Value.BlockKey });
+		var reloadedMappings = consumer.ImageSchemeMappings.ToDictionary(p => p.Key, p => p.Value);
+
+		var secondOut = new StringWriter();
+		IniWriter.WriteFile(tree, secondOut, reloadedKeys, [.. consumer.KnownLanguages.Values],
+			imageSchemes: reloadedMappings);
+
+		Assert.Equal(firstSave, secondOut.ToString());
+	}
+
+	[Fact]
 	public void IniWriter_CutStrategyCannotBreakTheChain() {
 		// a strategy that never cuts where it should still yields a correct file:
 		// blocks outside the current base always force a full header

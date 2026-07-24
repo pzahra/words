@@ -86,6 +86,7 @@
                         Visibility="{Binding KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}">
                     <TreeView ItemsSource="{Binding KeyNodes}"
 					          SelectedItemChanged="TreeView_OnSelectedItemChanged"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                               AllowDrop="True"
                               dd:DragDrop.DragHandler="{Binding KeyDragDropHandler}"
                               dd:DragDrop.DropHandler="{Binding KeyDragDropHandler}"
@@ -117,19 +118,22 @@
                                                  Visibility="{Binding IsStale, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                     <md:PackIcon Kind="Eraser" 
                                                  Visibility="{Binding IsOverwritten, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                    <TextBlock Text="{Binding Label}" 
-                                               FontWeight="{Binding EmptyValue, Converter={StaticResource BooleanToBoldConverter}}" 
+                                    <TextBlock Text="{Binding Label}"
+                                               FontWeight="{Binding EmptyValue, Converter={StaticResource BooleanToBoldConverter}}"
+                                               TextTrimming="CharacterEllipsis"
                                                VerticalAlignment="Center"/>
                                 </StackPanel>
                             </HierarchicalDataTemplate>
                             <DataTemplate DataType="{x:Type vm:OrganizerNode}">
-                                <StackPanel Orientation="Horizontal" Opacity="0.7">
-                                    <md:PackIcon Kind="CommentTextOutline" VerticalAlignment="Center"/>
+                                <DockPanel Opacity="0.7" LastChildFill="True">
+                                    <md:PackIcon Kind="CommentTextOutline" VerticalAlignment="Center" DockPanel.Dock="Left"/>
                                     <TextBlock Text="{Binding Caption}"
                                                FontStyle="Italic"
                                                VerticalAlignment="Center"
-                                               Margin="4 0 0 0"/>
-                                </StackPanel>
+                                               Margin="4 0 0 0"
+                                               TextTrimming="CharacterEllipsis"
+                                               ToolTip="{Binding Caption}"/>
+                                </DockPanel>
                             </DataTemplate>
                         </TreeView.Resources>
                     </TreeView>
@@ -513,6 +517,12 @@
                         Margin="2.5px"
                         ToolTip="Manage Languages">
                     <md:PackIcon Kind="Translate"/>
+                </Button>
+                <Button Command="{Binding ManageImageSchemesCommand}"
+                        Visibility="{Binding KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                        Margin="2.5px"
+                        ToolTip="Image Scheme Folders">
+                    <md:PackIcon Kind="ImageMultiple"/>
                 </Button>
                 <Button Command="{Binding MergeFilesCommand}"
                         Visibility="{Binding KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"

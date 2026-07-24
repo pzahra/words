@@ -7,7 +7,11 @@ using System.Windows.Controls;
 namespace WordsEdit.ViewModels;
 
 public static class PopupDialog {
-	public static void Push(Control content) => Task.Run(() => DialogHost.Show(content));
+	// DialogHost.Show must run on the UI thread — that is where the loaded
+	// DialogHost lives. Dispatching (not Task.Run) is the difference between the
+	// dialog opening and the call quietly throwing on a threadpool thread.
+	public static void Push(Control content)
+		=> Application.Current.Dispatcher.InvokeAsync(() => DialogHost.Show(content));
 	public static void Push(string message) => MessageBox.Show(message);
 	public static MessageBoxResult ShowDialog(string message, MessageBoxButton buttons) => MessageBox.Show(message, "Wordsmith Editor", button: buttons);
 	public static void Close() => DialogHost.Close(null);

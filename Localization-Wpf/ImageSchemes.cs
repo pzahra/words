@@ -233,17 +233,19 @@ namespace PatTech.Localization.Wpf {
 	}
 
 	/// <summary>
-	///     Resolves <c>assets:path</c> from files under the <c>Assets</c> folder next to
-	///     the application — and only that folder: the path is canonicalized and clamped,
-	///     so <c>../</c> trickery, rooted paths and UNC shares resolve to nothing.
-	///     Environment variables are never expanded; a <c>%</c> is just a filename
-	///     character. A missing (or clamped) file resolves to nothing, which the parser
-	///     renders as the alt text.
+	///     Resolves <c>scheme:path</c> to an image file under a fixed <paramref name="root"/>
+	///     folder. Same discipline as <see cref="AssetsImageResolver"/> — the path is
+	///     canonicalized and clamped, so <c>../</c> trickery, rooted paths and UNC shares
+	///     resolve to nothing, and environment variables are never expanded — but the root
+	///     is the caller's to choose. A tool can point a scheme at any directory this way
+	///     (an editor mapping a preview scheme to a folder beside the file it is editing,
+	///     say). A missing (or clamped) file resolves to nothing, rendered as the alt text.
 	/// </summary>
-	public class AssetsImageResolver : IImageSchemeResolver {
+	/// <param name="root">The one folder paths are allowed to resolve under.</param>
+	public class FolderImageResolver(string root) : IImageSchemeResolver {
 		/// <inheritdoc/>
 		public FrameworkElement? Resolve(Uri source, ImageOptions options) {
-			var filePath = ResolveAssetPath(source);
+			var filePath = ResolvePath(source, root);
 			if (filePath is null || !File.Exists(filePath)) return null;
 
 			var bitmap = new BitmapImage();
@@ -255,20 +257,39 @@ namespace PatTech.Localization.Wpf {
 		}
 
 		/// <summary>
-		///     Canonicalizes the URI's path under the <c>Assets</c> root and returns it,
-		///     or <see langword="null"/> if it would land anywhere else.
+		///     Canonicalizes the URI's path under <paramref name="root"/> and returns the
+		///     absolute file path, or <see langword="null"/> if it would land anywhere else.
 		/// </summary>
-		internal static string? ResolveAssetPath(Uri source) {
+		internal static string? ResolvePath(Uri source, string root) {
 			var relative = Uri.UnescapeDataString((source.AbsolutePath ?? source.OriginalString).TrimStart('/'));
-			var root = AppDomain.CurrentDomain.BaseDirectory ?? Environment.CurrentDirectory;
-			var assetsRoot = System.IO.Path.GetFullPath(System.IO.Path.Combine(root, "Assets"))
-				+ System.IO.Path.DirectorySeparatorChar;
+			var fullRoot = System.IO.Path.GetFullPath(root) + System.IO.Path.DirectorySeparatorChar;
 			// GetFullPath resolves any ../ and ./ segments; a rooted or UNC path survives
 			// Path.Combine untouched. Either way, anything outside the root is refused.
 			var filePath = System.IO.Path.GetFullPath(System.IO.Path.Combine(
-				assetsRoot,
+				fullRoot,
 				relative.Replace('/', System.IO.Path.DirectorySeparatorChar)));
-			return filePath.StartsWith(assetsRoot, StringComparison.Ordinal) ? filePath : null;
+			return filePath.StartsWith(fullRoot, StringComparison.Ordinal) ? filePath : null;
 		}
+	}
+
+	/// <summary>
+	///     Resolves <c>assets:path</c> from files under the <c>Assets</c> folder next to
+	///     the application — and only that folder. A <see cref="FolderImageResolver"/>
+	///     rooted at that fixed <c>Assets</c> directory, with all the same clamping.
+	/// </summary>
+	public class AssetsImageResolver : IImageSchemeResolver {
+		private static string AssetsRoot => System.IO.Path.Combine(
+			AppDomain.CurrentDomain.BaseDirectory ?? Environment.CurrentDirectory, "Assets");
+
+		/// <inheritdoc/>
+		public FrameworkElement? Resolve(Uri source, ImageOptions options)
+			=> new FolderImageResolver(AssetsRoot).Resolve(source, options);
+
+		/// <summary>
+		///     Canonicalizes the URI's path under the <c>Assets</c> root and returns it,
+		///     or <see langword="null"/> if it would land anywhere else.
+		/// </summary>
+		internal static string? ResolveAssetPath(Uri source)
+			=> FolderImageResolver.ResolvePath(source, AssetsRoot);
 	}
 }

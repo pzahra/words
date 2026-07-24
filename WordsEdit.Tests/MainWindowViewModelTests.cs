@@ -70,6 +70,59 @@ public class MainWindowViewModelTests {
 	}
 
 	[Fact]
+	public void MainWindowViewModel_ImageSchemeMappings_CapturedOnLoadAndWrittenBack() {
+		// the top-of-file param-<scheme> mappings are captured per file on load,
+		// threaded back through the writer on save, and captured again on reload
+		MainWindowViewModel vm1 = new();
+		vm1.LoadFile(new StringReader(@"
+value-en=English
+param-md=icons
+param-shot=../captures
+
+[k]
+value=x
+"), "Example");
+
+		Assert.Equal("icons", vm1.fileImageSchemes["Example"]["md"]);
+		Assert.Equal("../captures", vm1.fileImageSchemes["Example"]["shot"]);
+
+		//write exactly the way Save does, then reload into a fresh session
+		var writer = new StringWriter();
+		KeyNode fileNode = vm1.KeyNodes.First(k => k.FullLabel == "Example");
+		IniWriter.WriteFile(fileNode, writer, vm1.allKeys, vm1.LanguagesFor("Example"),
+			preamble: vm1.filePreambles.GetValueOrDefault("Example", ""),
+			imageSchemes: vm1.fileImageSchemes.GetValueOrDefault("Example"));
+
+		MainWindowViewModel vm2 = new();
+		vm2.LoadFile(new StringReader(writer.ToString()), "Example");
+
+		Assert.Equal("icons", vm2.fileImageSchemes["Example"]["md"]);
+		Assert.Equal("../captures", vm2.fileImageSchemes["Example"]["shot"]);
+	}
+
+	[Fact]
+	public void MainWindowViewModel_ImageSchemeFolders_ResolveRelativeToTheFile() {
+		// the preview's registry is built from folders resolved against the file's
+		// own directory, so a scheme points at a folder beside the ini it came from
+		MainWindowViewModel vm = new();
+		string path = Path.Combine(Path.GetTempPath(), "WordsEditSchemes", "strings.ini");
+		vm.LoadFile(new StringReader(@"
+value-en=English
+param-md=icons
+
+[k]
+value=x
+"), path);
+
+		KeyNode node = Node(vm, "strings.k");
+		var folders = vm.ImageSchemeFoldersFor(node);
+
+		Assert.Equal(
+			Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, "icons"),
+			folders["md"]);
+	}
+
+	[Fact]
 	public void MainWindowViewModel_IdempotencyTest_Data() {
 		// Arrange
 		MainWindowViewModel mainWindowViewModel1 = new MainWindowViewModel();

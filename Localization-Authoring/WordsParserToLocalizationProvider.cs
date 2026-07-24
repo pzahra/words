@@ -23,6 +23,16 @@ namespace PatTech.Localization.Authoring {
 		///     label and a gripe in <see cref="Errors"/>) but not here.
 		/// </summary>
 		public IReadOnlyList<string> DeclaredLanguages => declaredLanguages;
+		/// <summary>
+		///     Image-scheme→folder mappings recovered from keyless
+		///     <c>param-&lt;scheme&gt;=&lt;folder&gt;</c> fields in the top-of-file
+		///     language section — an authoring tool's private use of that otherwise
+		///     idle slot to point a preview's image schemes at folders (the folders
+		///     travel with the file, so they are relative to it). This consumer only
+		///     captures and preserves them; it neither validates the folders nor
+		///     resolves any images. Ordered by first appearance.
+		/// </summary>
+		public IReadOnlyDictionary<string, string> ImageSchemeMappings => imageSchemeMappings;
 
 		private readonly List<string> errors = [];
 		private readonly Dictionary<string, LanguageEntry> knownLanguages = [];
@@ -30,6 +40,7 @@ namespace PatTech.Localization.Authoring {
 		private readonly List<string> pendingComments = [];
 		private readonly List<string> declaredLanguages = [];
 		private readonly Dictionary<string, string> blockComments = [];
+		private readonly Dictionary<string, string> imageSchemeMappings = new(StringComparer.OrdinalIgnoreCase);
 
 		public WordsParserToLocalizationProvider() { }
 
@@ -71,6 +82,11 @@ namespace PatTech.Localization.Authoring {
 						else {
 							throw new Exception("Name for language never declared");
 						}
+						break;
+					case "param" when languageCode != "":
+						// keyless top-of-file param- is an authoring tool's image
+						// scheme→folder mapping; capture it so it round-trips
+						imageSchemeMappings[languageCode] = value;
 						break;
 				}
 			}
@@ -129,6 +145,24 @@ namespace PatTech.Localization.Authoring {
 		}
 		public void VisitFieldContinuation(FieldKey key, string value) {
 			var (blockKey, fieldType, languageCode) = key;
+
+			if (wordKeys.Count == 0) {
+				// still in the top-of-file language section — no block to attach to.
+				// These fields wrap too (a long folder path, a long label), so
+				// continue them here rather than fault on the missing block key.
+				switch (fieldType) {
+					case "param" when imageSchemeMappings.ContainsKey(languageCode):
+						imageSchemeMappings[languageCode] += value;
+						break;
+					case "value" when knownLanguages.TryGetValue(languageCode, out var labelValue):
+						labelValue.NativeName += value;
+						break;
+					case "comment" when knownLanguages.TryGetValue(languageCode, out var labelComment):
+						labelComment.EnglishName += value;
+						break;
+				}
+				return;
+			}
 
 			var localizationKey = wordKeys[blockKey];
 			switch ((languageCode, fieldType)) {

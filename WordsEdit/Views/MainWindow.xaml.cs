@@ -16,7 +16,19 @@ using Hyperlink = System.Windows.Documents.Hyperlink;
 
 namespace WordsEdit;
 public partial class MainWindow : Window {
+	//the preview parser starts schemeless on purpose: the editor is not the host
+	//app, so the stock resolvers (staticres/pack/resx/assets) would resolve
+	//against Wordsmith's own resources. Only the file's own scheme→folder
+	//mappings are registered, rebuilt per render for the selected file; anything
+	//unmapped falls back to alt text, and nothing is fetched remotely.
 	private static readonly MarkdownParser markdownParser = new();
+
+	private static void ConfigureImageSchemes(MainWindowViewModel vm) {
+		markdownParser.ImageSchemes.Clear();
+		foreach (var (scheme, folder) in vm.ImageSchemeFoldersFor(vm.SelectedKeyNode)) {
+			markdownParser.ImageSchemes[scheme] = new FolderImageResolver(folder);
+		}
+	}
 
 	public MainWindow() {
 
@@ -51,6 +63,7 @@ public partial class MainWindow : Window {
 				PopupDialog.Push(ex.Message);
 			}
 		}
+		ConfigureImageSchemes(vm);
 		DefaultValuePreview.Inlines.Clear();
 		DefaultValuePreview.Inlines.Add(markdownParser.ToInline(defaultValue));
 		DefaultValue.Visibility = Visibility.Collapsed;
@@ -79,6 +92,7 @@ public partial class MainWindow : Window {
 				PopupDialog.Push(ex.Message);
 			}
 		}
+		ConfigureImageSchemes(vm);
 		LocalizationValuePreview.Inlines.Clear();
 		LocalizationValuePreview.Inlines.Add(markdownParser.ToInline(localizationValue));
 		LocalizationValue.Visibility = Visibility.Collapsed;

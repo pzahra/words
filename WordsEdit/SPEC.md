@@ -141,9 +141,11 @@ registry instead of the pre-loaded set:
 - The mappings are stored per file, recycling the otherwise-unused keyless
   `param-` fields of the top-of-file language section —
   `param-<scheme>=<folder>`, with the folder relative to the ini file so the
-  mapping travels with it. The provider currently drops those fields and the
-  writer never re-emits them; capturing them and round-tripping them
-  byte-stable is part of this work.
+  mapping travels with it. `WordsParserToLocalizationProvider.ImageSchemeMappings`
+  captures them on load and `IniWriter.WriteLanguages` re-emits them
+  byte-stable; the editor holds them per file (`fileImageSchemes`) and the
+  preview builds a `FolderImageResolver` per mapping, rooted at the file's own
+  directory. A per-file manager dialog edits them.
 
 ## Languages
 
