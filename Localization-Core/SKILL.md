@@ -6,7 +6,8 @@ description: Work with the PatTech Words localization library — the words.ini 
 # Words (PatTech.Localization)
 
 Words keeps every user-facing string in a `words.ini` file, keyed and
-per-language, and renders a markdown dialect wherever the string lands.
+per-language. Values may carry a markdown dialect, rendered by the library's
+markdown-aware consumers (see below).
 
 **The golden rule: never hardcode a user-facing string.** Add it to the
 project's `words.ini` and reference it by key. Parameters marked
@@ -32,7 +33,7 @@ value-en=Language-family text
 value-en-GB=Region text
 comment=notes for translators
 context=notes from the programmer
-stale=marks the value as needing re-translation (logs a warning)
+stale=marks the value as needing re-translation (gripes to the builder's logger)
 
 ; `[.name]` is dot-relative: nests under the last full header → group.key.sub
 [.sub]
@@ -54,7 +55,8 @@ Language resolution per key: exact (`en-GB`) → family (`en`) → default.
 ## Load once, look up anywhere
 
 ```csharp
-Words.Known = WordsBuilder.Create()        // or Words.Builder()
+Words.Logger = logger;                     // runtime gripes — see Logging
+Words.Known = WordsBuilder.Create(logger)  // load-time gripes; or Words.Builder()
     .Load("path/to/words.ini")             // stack as many as needed; later wins
     .ToWords("en");                        // also sets thread cultures
 
@@ -69,7 +71,37 @@ Formatting: `Words.Known.Format("key", args)` works like `string.Format`;
 `[Words("key")]` on enum members plus `Enum.Describe` provides `key`,
 `key.tooltip`, `key.sub`, `key.desc`, `key.unit` variants.
 
-## The markdown dialect (rendered in every value)
+## Logging — silent unless you wire it
+
+Words gripes through two channels, and **both discard everything by default**:
+the logger passed to `WordsBuilder.Create(logger)` receives load-time warnings
+(parse problems, value overwrites, `stale=` marks), and the `Words.Logger`
+static receives runtime ones (missing keys and references, unresolvable
+images, markdown gripes). Wire both at startup or stale translations and
+missing keys ship unnoticed.
+
+Adapt whatever logging the host app already has (NLog is a good default when
+it has none) with a small `ITakeException` adapter — two members:
+
+```csharp
+class WordsLog : ITakeException {
+    private static readonly NLog.Logger log = NLog.LogManager.GetLogger("Words");
+    public void Warn(string text) => log.Warn(text);
+    public void Error(Exception exception, string message) => log.Error(exception, message);
+}
+```
+
+Any output the app has works the same way — an `ILogger`, a diagnostics pane,
+even `Console.Error` — the adapter is the pattern, NLog just the suggestion.
+
+## The markdown dialect (in values)
+
+Values may contain markdown, but **only markdown-aware consumers render it**:
+`WordsInline`, `MarkdownConverter`, and `ConsoleMarkdownParser`. Plain-string
+surfaces — `Words.Known[key]`, `Format`/`FormatByName`, and the `{l:Words}`
+markup extension — return the text with the markup intact, so keep markdown
+out of values destined for window titles, tooltips-as-text, accessibility
+properties, or logs.
 
 - `*italic*`, `**bold**`, `***both***`, `^superscript^`, `~subscript~`
 - Links: `[label](url "tooltip")` — label may be styled markdown — and `<url>`
@@ -77,8 +109,10 @@ Formatting: `Words.Known.Format("key", args)` works like `string.Format`;
 - Images: `![alt](scheme:path?width=W&height=H&background=B&foreground=F)`.
   The query carries display options only — it is parsed off before the scheme
   resolver sees the URI. Raster images render at natural size unless sized;
-  geometry defaults to the font height. Unresolvable images degrade to
-  `[🖼️!alt]` — they never throw.
+  geometry defaults to the font height. Unresolvable images — unknown scheme,
+  missing asset, even a malformed URI — degrade to `[🖼️!alt]` and gripe to
+  the logger; they never throw. A link whose URI won't parse renders its
+  label as plain unlinked content.
 - HTML entities (`&copy;`, `&#8482;`, `&#x41;`) and `:emoji:` shortcodes.
 
 ## Avalonia (`PatTech.Localization.Avalonia`)

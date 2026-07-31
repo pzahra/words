@@ -190,7 +190,12 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 		if (match.TryGetGroup("text", out var altGroup)) {
 			altText = DecodeText(altGroup.Value);
 		}
-		return Image(new(url), altText, toolTip);
+		if (!Uri.TryCreate(url, UriKind.Absolute, out var source)) {
+			// a malformed URI degrades like an unresolvable image: alt text, not a throw
+			logger.Warn("IMG:URI:" + url);
+			return Run($"[🖼️!{altText}]");
+		}
+		return Image(source, altText, toolTip);
 	}
 
 	private TInline DecodeHyperlink(MarkdownElementType disallowedElements, Match match, string url) {
@@ -210,7 +215,12 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 		if (match.TryGetGroup("title", out var titleGroup)) {
 			toolTip = DecodeText(titleGroup.Value);
 		}
-		return Hyperlink(content, new(url), toolTip);
+		if (!Uri.TryCreate(url, UriKind.Absolute, out var target)) {
+			// a malformed URI leaves the label standing as plain content, unlinked
+			logger.Warn("MD:HURI:" + url);
+			return content;
+		}
+		return Hyperlink(content, target, toolTip);
 	}
 
 	private static string DecodeText(string text) {

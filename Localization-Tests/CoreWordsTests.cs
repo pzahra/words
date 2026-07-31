@@ -34,7 +34,7 @@ public class CoreWordsTests {
 	/// Renders inlines as plain strings so the abstract parser can be tested
 	/// without a UI framework.
 	/// </summary>
-	private sealed class TextMarkdownParser() : MarkdownParser<string>(null) {
+	private sealed class TextMarkdownParser(ITakeException? logger = null) : MarkdownParser<string>(logger) {
 		protected override string Span(IEnumerable<string> inlines) => string.Concat(inlines);
 		protected override string Run(string text) => text;
 		protected override string Hyperlink(string content, Uri target, string? tooltip) => $"link({content}|{target}|{tooltip})";
@@ -70,6 +70,36 @@ public class CoreWordsTests {
 		var inline = parser.ToInline("go <https://example.test/> now");
 
 		Assert.Equal("link(https://example.test/|https://example.test/|) now", inline[3..]);
+	}
+
+	private sealed class CaptureLogger : ITakeException {
+		public readonly List<string> Messages = [];
+		public void Warn(string text) => Messages.Add(text);
+		public void Error(Exception exception, string message) => Messages.Add(message);
+	}
+
+	[Fact]
+	public void Markdown_MalformedImageUri_DegradesToAltText() {
+		// translator-authored garbage must never take the paragraph down: a URI
+		// that fails to parse renders like an unresolvable image and gripes
+		var capture = new CaptureLogger();
+		var parser = new TextMarkdownParser(capture);
+
+		var inline = parser.ToInline("an ![icon](http://[) here");
+
+		Assert.Equal("an [🖼️!icon] here", inline);
+		Assert.Contains(capture.Messages, m => m.Contains("IMG:URI") && m.Contains("http://["));
+	}
+
+	[Fact]
+	public void Markdown_MalformedLinkUri_LeavesTheLabelUnlinked() {
+		var capture = new CaptureLogger();
+		var parser = new TextMarkdownParser(capture);
+
+		var inline = parser.ToInline("go [**there**](http://[) now");
+
+		Assert.Equal("go <b>there</b> now", inline);
+		Assert.Contains(capture.Messages, m => m.Contains("MD:HURI") && m.Contains("http://["));
 	}
 
 	[Fact]
