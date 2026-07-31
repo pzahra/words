@@ -41,7 +41,9 @@ value=really `group.key.sub`
 
 [$unit]
 value=m2·K/W
-; constants are referenced as {$unit}; regular keys as {>group.key}
+; a `[$constant]` holds a NON-TRANSLATABLE string such as an SI unit or a
+; formula — one value, no per-language entries. Reference it in other values
+; as {$unit}; regular (translatable) keys are referenced as {>group.key}
 
 [multi]
 value=a trailing backslash continues on the next line keeping the newline \
