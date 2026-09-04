@@ -5,7 +5,7 @@ using WordsEdit.Utils;
 
 namespace WordsEdit.ViewModels;
 public class KeyNameViewModel : DataViewModelBase {
-	public override string Title => IsRenameKey ? "Rename Key" : "Add Key";
+	public override string Title => IsRenameKey ? Words.Known["key-name.rename"] : Words.Known["key-name.add"];
 	public MainWindowViewModel Parent { get; }
 	public bool IsAddKey => renaming is null;
 	public bool IsRenameKey => renaming is not null;
@@ -68,7 +68,7 @@ public class KeyNameViewModel : DataViewModelBase {
 
 		if (all || propertyName is nameof(KeyName)) {
 			if (string.IsNullOrWhiteSpace(KeyName)) {
-				SetError("Required", nameof(KeyName));
+				SetError(Words.Known["key-name.required"], nameof(KeyName));
 			}
 			//a rename competes with its siblings; a new node with the children of the
 			//node it goes under
@@ -76,10 +76,10 @@ public class KeyNameViewModel : DataViewModelBase {
 				? renaming.Parent?.Children ?? Parent.Tree.KeyNodes
 				: Parent.Tree.SelectedKeyNode?.Children ?? Parent.Tree.KeyNodes;
 			if (siblings.Any(k => k != renaming && k.Label.Equals(KeyName, StringComparison.CurrentCultureIgnoreCase))) {
-				SetError("Already Exists", nameof(KeyName));
+				SetError(Words.Known["key-name.exists"], nameof(KeyName));
 			}
 			if (!rxValidName.IsMatch(KeyName)) {
-				SetError("Invalid Characters");
+				SetError(Words.Known["key-name.invalid"]);
 			}
 		}
 

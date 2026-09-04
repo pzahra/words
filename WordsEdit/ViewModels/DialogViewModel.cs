@@ -6,7 +6,8 @@ namespace WordsEdit.ViewModels;
 /// </summary>
 public abstract class DialogViewModel : ViewModelBase {
 	/// <summary>The window title.</summary>
-	public virtual string Title => "Wordsmith";
+	[Localized]
+	public virtual string Title => Words.Known["app.name"];
 
 	/// <summary>Raised when the view model is done; the hosting window closes.</summary>
 	public event Action? CloseRequested;

@@ -55,7 +55,7 @@ public class OrganizerNode : KeyNode {
 			var trimmed = Text.TrimStart();
 			int newline = trimmed.IndexOf('\n');
 			var line = (newline >= 0 ? trimmed[..newline] : trimmed).Trim();
-			return line == "" ? "(comment)" : line;
+			return line == "" ? Words.Known["tree.comment"] : line;
 		}
 	}
 }

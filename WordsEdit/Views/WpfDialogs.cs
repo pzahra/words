@@ -13,7 +13,7 @@ namespace WordsEdit.Views;
 ///     questions and notices are message boxes; files go through the shell's.
 /// </summary>
 public sealed class WpfDialogs : IDialogs {
-	private const string Caption = "Wordsmith";
+	private static string Caption => Words.Known["app.name"];
 
 	//the main window once it is up; a dialog raised during startup has no owner
 	private static Window? MainWindow
@@ -40,7 +40,7 @@ public sealed class WpfDialogs : IDialogs {
 			? MessageBox.Show(owner, message, Caption, buttons, image)
 			: MessageBox.Show(message, Caption, buttons, image);
 
-	public bool TryOpenFiles(string title, string filter, [NotNullWhen(true)] out string[]? fileNames) {
+	public bool TryOpenFiles([Localized] string title, [Localized] string filter, [NotNullWhen(true)] out string[]? fileNames) {
 		var dialog = new OpenFileDialog { Title = title, Filter = filter, Multiselect = true };
 		if (Run(dialog) is not true) {
 			fileNames = null;
@@ -50,7 +50,7 @@ public sealed class WpfDialogs : IDialogs {
 		return true;
 	}
 
-	public bool TrySaveFile(string title, string filter, [NotNullWhen(true)] out string? fileName) {
+	public bool TrySaveFile([Localized] string title, [Localized] string filter, [NotNullWhen(true)] out string? fileName) {
 		var dialog = new SaveFileDialog { Title = title, Filter = filter };
 		if (Run(dialog) is not true) {
 			fileName = null;

@@ -14,7 +14,7 @@ public class GripesViewModel : DialogViewModel {
 	public string Text => string.Join(Environment.NewLine, Gripes);
 	public ICommand CloseCommand { get; }
 
-	public GripesViewModel(string title, IReadOnlyList<string> gripes) {
+	public GripesViewModel([Localized] string title, IReadOnlyList<string> gripes) {
 		this.title = title;
 		Gripes = gripes;
 		CloseCommand = new DelegateCommand(Close);

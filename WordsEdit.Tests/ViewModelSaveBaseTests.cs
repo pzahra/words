@@ -1,3 +1,4 @@
+using PatTech.Localization;
 using WordsEdit.ViewModels;
 using Xunit;
 
@@ -20,16 +21,16 @@ public class ViewModelSaveBaseTests {
 
 	[Fact]
 	public void DocumentStateDirtiesViewStateDoesNot() {
-		var document = new Document { Title = "Doc" };
+		var document = new Document { Title = Words.Known["app.name"] };
 		Assert.False(document.IsDirty);
-		Assert.Equal("Doc", document.TitleMarked);
+		Assert.Equal("Wordsmith", document.TitleMarked);
 
 		document.IsExpanded = true;
 		Assert.False(document.IsDirty);
 
 		document.Body = "words";
 		Assert.True(document.IsDirty);
-		Assert.Equal("Doc *", document.TitleMarked);
+		Assert.Equal("Wordsmith *", document.TitleMarked);
 
 		document.Save();
 		Assert.False(document.IsDirty);
@@ -40,6 +41,6 @@ public class ViewModelSaveBaseTests {
 
 		document.MarkDirty(); //a command's edit takes the same door
 		Assert.True(document.IsDirty);
-		Assert.Equal("Doc *", document.TitleMarked);
+		Assert.Equal("Wordsmith *", document.TitleMarked);
 	}
 }

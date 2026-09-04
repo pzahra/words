@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Text;
 using System.Windows.Input;
 using WordsEdit.Utils;
 
@@ -67,7 +66,7 @@ public class MergeFileRow : ViewModelBase {
 ///     languages, written on its own and loaded.
 /// </summary>
 public class MergeControlViewModel : DialogViewModel {
-	public override string Title => "Merge and Split";
+	public override string Title => Words.Known["merge.title"];
 	public MainWindowViewModel Parent { get; }
 
 	/// <summary>Every loaded file, in tree order.</summary>
@@ -157,9 +156,7 @@ public class MergeControlViewModel : DialogViewModel {
 
 	private void FilesChanged() {
 		if (!Parent.Session.HaveSameKeys(Selected.Select(file => file.File), out HashSet<string> conflicts)) {
-			var conflict = new StringBuilder("Files do not share Keys:");
-			conflicts.ForEach(c => conflict.Append("\n" + c));
-			ConflictMessage = conflict.ToString();
+			ConflictMessage = Words.Known.Format("merge.conflict", string.Join("\n", conflicts));
 		}
 		else {
 			ConflictMessage = "";
@@ -172,7 +169,7 @@ public class MergeControlViewModel : DialogViewModel {
 		if (!CanMerge || BaseFile is not { } baseFile) {
 			return;
 		}
-		if (!Parent.Dialogs.TrySaveFile("Merge Location", "INI file (*.ini)|*.ini|All files (*.*)|*.*", out string? mergedFileName)) {
+		if (!Parent.Dialogs.TrySaveFile(Words.Known["file.merge-title"], Words.Known["file.filter"], out string? mergedFileName)) {
 			return;
 		}
 		WordsFile? merged;
@@ -183,7 +180,7 @@ public class MergeControlViewModel : DialogViewModel {
 			merged = Parent.Session.Merge(baseFile.File, Sources, baseFile.Node, mergedFileName, out _);
 		}
 		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-			Parent.Dialogs.Tell($"Could not write {mergedFileName}:\n{ex.Message}");
+			Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", mergedFileName, ex.Message));
 			return;
 		}
 		if (merged is null) {
@@ -199,7 +196,7 @@ public class MergeControlViewModel : DialogViewModel {
 		if (SplitFile is not { } file || SplitLanguage is not { } language) {
 			return;
 		}
-		if (!Parent.Dialogs.TrySaveFile("Split Location", "INI file (*.ini)|*.ini|All files (*.*)|*.*", out string? splitFileName)) {
+		if (!Parent.Dialogs.TrySaveFile(Words.Known["file.split-title"], Words.Known["file.filter"], out string? splitFileName)) {
 			return;
 		}
 		WordsFile split;
@@ -209,7 +206,7 @@ public class MergeControlViewModel : DialogViewModel {
 			split = Parent.Session.Split(file.File, language.Code, file.Node, splitFileName);
 		}
 		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-			Parent.Dialogs.Tell($"Could not write {splitFileName}:\n{ex.Message}");
+			Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", splitFileName, ex.Message));
 			return;
 		}
 		Parent.Tree.Present(split);

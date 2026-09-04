@@ -15,7 +15,7 @@ namespace WordsEdit.ViewModels;
 public class TestParametersViewModel : DialogViewModel {
 	private readonly WordsKey key;
 
-	public override string Title => "Test Parameters";
+	public override string Title => Words.Known["parameters.title"];
 	public MainWindowViewModel Parent { get; }
 
 	public ObservableCollection<WordsParameter> Parameters => key.Parameters;

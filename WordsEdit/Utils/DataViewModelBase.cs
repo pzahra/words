@@ -14,7 +14,7 @@ public abstract class DataViewModelBase : DialogViewModel, INotifyDataErrorInfo 
 	public event EventHandler<DataErrorsChangedEventArgs>? ErrorsChanged;
 
 	/// <summary>Adds an error for the property (a repeat is ignored) and raises <see cref="ErrorsChanged"/>.</summary>
-	protected void SetError(string message, [CallerMemberName] string propertyName = "") {
+	protected void SetError([Localized] string message, [CallerMemberName] string propertyName = "") {
 		ArgumentNullException.ThrowIfNull(message);
 		if (!errors.TryGetValue(propertyName, out var list)) {
 			errors[propertyName] = list = [];

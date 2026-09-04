@@ -10,7 +10,7 @@ namespace WordsEdit.ViewModels;
 ///     does not re-badge the tree behind the dialog.
 /// </summary>
 public class LanguageManagerViewModel : DialogViewModel {
-	public override string Title => "Languages";
+	public override string Title => Words.Known["languages.title"];
 	public LanguageDrag LanguageDrag { get; }
 	public MainWindowViewModel Parent { get; }
 	public ObservableCollection<LanguageEntry> KnownLanguages => Parent.Tree.KnownLanguages;
@@ -36,7 +36,7 @@ public class LanguageManagerViewModel : DialogViewModel {
 			return;
 		}
 		//SPEC (Languages): a removal deletes the entries only after confirmation
-		if (!Parent.Dialogs.Confirm($"Remove language '{SelectedLanguage.Code}' and delete its entries from every key?")) {
+		if (!Parent.Dialogs.Confirm(Words.Known.Format("ask.remove-language", SelectedLanguage.Code))) {
 			return;
 		}
 		var remove = SelectedLanguage;

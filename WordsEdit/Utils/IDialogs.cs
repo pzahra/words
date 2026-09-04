@@ -16,11 +16,11 @@ public interface IDialogs {
 	/// <summary>Shows <paramref name="dialog"/> modally; returns when it closes.</summary>
 	void Show(DialogViewModel dialog);
 	/// <summary>A yes/no question. True on yes.</summary>
-	bool Confirm(string message);
+	bool Confirm([Localized] string message);
 	/// <summary>Save, discard or cancel — for closing with unsaved changes.</summary>
-	CloseAnswer AskToSave(string message);
+	CloseAnswer AskToSave([Localized] string message);
 	/// <summary>A notice the user dismisses.</summary>
-	void Tell(string message);
-	bool TryOpenFiles(string title, string filter, [NotNullWhen(true)] out string[]? fileNames);
-	bool TrySaveFile(string title, string filter, [NotNullWhen(true)] out string? fileName);
+	void Tell([Localized] string message);
+	bool TryOpenFiles([Localized] string title, [Localized] string filter, [NotNullWhen(true)] out string[]? fileNames);
+	bool TrySaveFile([Localized] string title, [Localized] string filter, [NotNullWhen(true)] out string? fileName);
 }

@@ -7,7 +7,7 @@ using WordsEdit.Utils;
 namespace WordsEdit.ViewModels;
 
 public class EditLanguageViewModel : DataViewModelBase {
-	public override string Title => IsEdit ? "Edit Language" : "Add Language";
+	public override string Title => IsEdit ? Words.Known["language.edit"] : Words.Known["language.add"];
 	public LanguageManagerViewModel Parent { get; }
 	public string LanguageCode { get; set => _ = ChangeProperty(ref field, value) && Validate(); } = "";
 	public string NativeName { get; set => _ = ChangeProperty(ref field, value) && Validate(); } = "";
@@ -75,30 +75,30 @@ public class EditLanguageViewModel : DataViewModelBase {
 		if (all || propertyName is nameof(LanguageCode)) {
 			ClearErrors(nameof(LanguageCode));
 			if (!rxLangCode.IsMatch(LanguageCode)) {
-				SetError("Invalid Language Code", nameof(LanguageCode));
+				SetError(Words.Known["language.invalid-code"], nameof(LanguageCode));
 			}
 			else if (Parent.KnownLanguages.Any(known => known != editing && known.Code == LanguageCode)) {
-				SetError("Already exists", nameof(LanguageCode));
+				SetError(Words.Known["language.exists"], nameof(LanguageCode));
 			}
 		}
 
 		if (all || propertyName is nameof(NativeName)) {
 			ClearErrors(nameof(NativeName));
 			if (string.IsNullOrWhiteSpace(NativeName)) {
-				SetError("Value Required", nameof(NativeName));
+				SetError(Words.Known["language.required"], nameof(NativeName));
 			}
 			else if (Parent.KnownLanguages.Any(known => known != editing && known.NativeName == NativeName)) {
-				SetError("Already exists", nameof(NativeName));
+				SetError(Words.Known["language.exists"], nameof(NativeName));
 			}
 		}
 
 		if (all || propertyName is nameof(EnglishName)) {
 			ClearErrors(nameof(EnglishName));
 			if (string.IsNullOrWhiteSpace(EnglishName)) {
-				SetError("Value Required", nameof(EnglishName));
+				SetError(Words.Known["language.required"], nameof(EnglishName));
 			}
 			else if (Parent.KnownLanguages.Any(known => known != editing && known.EnglishName == EnglishName)) {
-				SetError("Already exists", nameof(EnglishName));
+				SetError(Words.Known["language.exists"], nameof(EnglishName));
 			}
 		}
 

@@ -119,11 +119,11 @@ public class KeyDrag : IDragSource, IDropTarget {
 			//the document goes first and may refuse: a same-named sibling, or keys
 			//already at the destination. Nothing is overwritten to make room
 			if (newParent.Children.Any(sibling => sibling.Label == dragged.Label)) {
-				Vm.Dialogs.Tell($"'{newParent.FullLabel}' already has a node named '{dragged.Label}'.");
+				Vm.Dialogs.Tell(Words.Known.Format("tell.node-exists", newParent.FullLabel, dragged.Label));
 				return;
 			}
 			if (!Vm.Session.TryMove(dragged.FullLabel, newParent.FullLabel, out var collisions)) {
-				Vm.Dialogs.Tell($"Cannot move: {string.Join(", ", collisions)} already exist.");
+				Vm.Dialogs.Tell(Words.Known.Format("tell.move-collides", string.Join(", ", collisions)));
 				return;
 			}
 		}

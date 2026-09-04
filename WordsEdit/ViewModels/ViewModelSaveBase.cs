@@ -11,6 +11,7 @@ namespace WordsEdit.ViewModels;
 /// </summary>
 public abstract class ViewModelSaveBase : ViewModelBase {
 	public string TitleMarked => IsDirty ? Title + " *" : Title;
+	[Localized]
 	public string Title { get; set => _ = ChangeProperty(ref field, value) && AffectProperty(nameof(TitleMarked)); } = "";
 	public bool IsDirty { get; set => _ = ChangeProperty(ref field, value) && AffectProperty(nameof(TitleMarked)); }
 

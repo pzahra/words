@@ -82,13 +82,13 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		ManageLanguagesCommand = new DelegateCommand(DoManageLanguages);
 		SettingsCommand = new DelegateCommand(DoSettings, () => Tree.SelectedFile is not null);
 		ShowGripesCommand = new DelegateCommand<PreviewPane>(
-			pane => Dialogs.Show(new GripesViewModel("Preview gripes", pane.Gripes)),
+			pane => Dialogs.Show(new GripesViewModel(Words.Known["gripes.preview"], pane.Gripes)),
 			static pane => pane is { GripeCount: > 0 });
 		//what the parser griped about loading a file, from the badge on its node
 		ShowFileGripesCommand = new DelegateCommand<KeyNode>(
 			node => {
 				if (Session.FileOf(node.FullLabel) is { } file) {
-					Dialogs.Show(new GripesViewModel($"{file.Label}: load gripes", file.Errors));
+					Dialogs.Show(new GripesViewModel(Words.Known.Format("gripes.file", file.Label), file.Errors));
 				}
 			},
 			static node => node is { IsFile: true, GripeCount: > 0 });
@@ -112,11 +112,11 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	//the window title names the loaded files; TitleMarked stars it while dirty
 	private void UpdateTitle()
-		=> Title = Tree.KeyNodes.Count == 0 ? "Wordsmith Editor" : $"Wordsmith Editor — {string.Join(", ", Tree.FileLabels)}";
+		=> Title = Tree.KeyNodes.Count == 0 ? Words.Known["app.title"] : Words.Known.Format("app.title-files", string.Join(", ", Tree.FileLabels));
 
 	//Load
 	private void DoLoadFiles() {
-		if (!Dialogs.TryOpenFiles("Load", "INI file (*.ini)|*.ini|All files (*.*)|*.*", out string[]? fileNames)) {
+		if (!Dialogs.TryOpenFiles(Words.Known["file.load-title"], Words.Known["file.filter"], out string[]? fileNames)) {
 			return;
 		}
 		foreach (string fileName in fileNames) {
@@ -130,7 +130,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			LoadFile(reader, fileName);
 		}
 		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-			Dialogs.Tell($"Could not load {fileName}:\n{ex.Message}");
+			Dialogs.Tell(Words.Known.Format("file.load-failed", fileName, ex.Message));
 		}
 	}
 
@@ -138,7 +138,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	//Reset
 	private void DoReset() {
-		if (Dialogs.Confirm("Reset the session? All unsaved changes will be lost.")) {
+		if (Dialogs.Confirm(Words.Known["ask.reset"])) {
 			ResetCore();
 		}
 	}
@@ -159,7 +159,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 				Session.Save(file, Tree.NodeOf(file));
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-				Dialogs.Tell($"Could not save {file.Path}:\n{ex.Message}");
+				Dialogs.Tell(Words.Known.Format("file.save-failed", file.Path, ex.Message));
 				allSaved = false;
 			}
 		}
@@ -177,7 +177,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (!IsDirty) {
 			return true;
 		}
-		switch (Dialogs.AskToSave("Do you want to save changes to this file before closing?")) {
+		switch (Dialogs.AskToSave(Words.Known["ask.save-before-close"])) {
 			case CloseAnswer.Save:
 				Save();
 				return !IsDirty;
@@ -222,14 +222,14 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			return;
 		}
 		if (node.IsFile) {
-			if (Dialogs.Confirm("Remove the selected file? All unsaved changes will be lost.")) {
+			if (Dialogs.Confirm(Words.Known["ask.remove-file"])) {
 				RemoveFileNodeCore(node);
 			}
 			return;
 		}
 		//an empty node goes quietly; one carrying keys asks, since Delete is a keypress away
 		int keys = Session.Keys.Keys.Count(label => label == node.FullLabel || label.StartsWith(node.FullLabel + ".", StringComparison.Ordinal));
-		if (keys > 0 && !Dialogs.Confirm($"Remove '{node.Label}'? {keys} key{(keys == 1 ? "" : "s")} go with it.")) {
+		if (keys > 0 && !Dialogs.Confirm(keys == 1 ? Words.Known.Format("ask.remove-node-one", node.Label) : Words.Known.Format("ask.remove-node-many", node.Label, keys))) {
 			return;
 		}
 		Session.RemoveKeysUnder(node.FullLabel);
@@ -257,14 +257,14 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 		KeyNode node = Tree.SelectedKeyNode;
 		if (parent.Children.Any(sibling => sibling != node && sibling.Label == newName)) {
-			Dialogs.Tell($"'{parent.FullLabel}' already has a node named '{newName}'.");
+			Dialogs.Tell(Words.Known.Format("tell.node-exists", parent.FullLabel, newName));
 			return;
 		}
 		//the marker is part of the key, not the name
 		string marker = WordsOperations.LastSegment(node.FullLabel).StartsWith('$') ? "$" : "";
 		string newFullLabel = $"{parent.FullLabel}.{marker}{newName}";
 		if (!Session.TryRename(node.FullLabel, newFullLabel, out var collisions)) {
-			Dialogs.Tell($"Cannot rename: {string.Join(", ", collisions)} already exist.");
+			Dialogs.Tell(Words.Known.Format("tell.rename-collides", string.Join(", ", collisions)));
 			return;
 		}
 		node.Label = newName;
@@ -285,7 +285,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 		KeyNode parent = Tree.SelectedKeyNode;
 		if (parent.Children.Any(child => child.Label == newName)) {
-			Dialogs.Tell($"'{parent.FullLabel}' already has a node named '{newName}'.");
+			Dialogs.Tell(Words.Known.Format("tell.node-exists", parent.FullLabel, newName));
 			return;
 		}
 		Tree.Add(parent, newName);
@@ -316,7 +316,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (Tree.SelectedKeyNode is not { } node) {
 			return;
 		}
-		if (!Dialogs.Confirm($"Remove the key information of '{node.Label}'? Its default, notes, parameters and every translation go; the node stays.")) {
+		if (!Dialogs.Confirm(Words.Known.Format("ask.remove-key", node.Label))) {
 			return;
 		}
 		Session.RemoveKey(node.FullLabel);
@@ -366,14 +366,14 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (makeConstant && key.Entries.Values.Any(entry => !entry.IsEmpty())) {
 			//a constant reads the same in every language: its translations go, and
 			//that is the user's call to make
-			if (!Dialogs.Confirm("Make this key a constant? Its translations will be removed.")) {
+			if (!Dialogs.Confirm(Words.Known["ask.make-constant"])) {
 				return;
 			}
 			clearEntries = true;
 		}
 		string? newKey = Session.SetConstant(key.BlockKey, makeConstant, clearEntries);
 		if (newKey is null) {
-			Dialogs.Tell($"A key named {WordsOperations.SetConstantMarker(key.BlockKey, makeConstant)} already exists.");
+			Dialogs.Tell(Words.Known.Format("tell.constant-exists", WordsOperations.SetConstantMarker(key.BlockKey, makeConstant)));
 			return;
 		}
 		node.Relabel(newKey);
@@ -439,14 +439,14 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public void FollowLink(Uri uri) {
 		ProjectSettings settings = Tree.SelectedFile is { } file ? Session.SettingsFor(file, Tree.SelectedLanguage.Code) : ProjectSettings.Empty;
 		string target = settings.Link(uri, out LinkMode mode);
-		string destination = target == uri.OriginalString ? target : $"{target}\n(from {uri.OriginalString})";
+		string destination = target == uri.OriginalString ? target : Words.Known.Format("tell.link-from", target, uri.OriginalString);
 		if (mode == LinkMode.ShellExec) {
-			if (Dialogs.Confirm($"Do you want to follow the link?\n\nDestination: {destination}")) {
+			if (Dialogs.Confirm(Words.Known.Format("ask.follow-link", destination))) {
 				Process.Start(new ProcessStartInfo { FileName = target, UseShellExecute = true });
 			}
 		}
 		else {
-			Dialogs.Tell($"Link destination: {destination}");
+			Dialogs.Tell(Words.Known.Format("tell.link", destination));
 		}
 	}
 }

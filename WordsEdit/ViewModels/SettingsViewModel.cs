@@ -137,7 +137,7 @@ public class SettingsDocument : ViewModelBase {
 ///     every table that was touched to its settings file; Cancel leaves both.
 /// </summary>
 public class SettingsViewModel : DialogViewModel {
-	public override string Title => $"Project Settings — {File.Label}";
+	public override string Title => Words.Known.Format("settings.title", File.Label);
 	public MainWindowViewModel Parent { get; }
 	/// <summary>The dictionary whose settings these are.</summary>
 	public WordsFile File { get; }
@@ -178,11 +178,11 @@ public class SettingsViewModel : DialogViewModel {
 		string? picked = Target?.Path;
 		Targets.Clear();
 		if (Resolve(SettingsFile) is { } path) {
-			Targets.Add(new SettingsTarget($"{File.Label}: {SettingsFile.Trim()}", path));
+			Targets.Add(new SettingsTarget(Words.Known.Format("settings.target", File.Label, SettingsFile.Trim()), path));
 		}
 		foreach (LanguageSettingRow language in Languages ?? []) {
 			if (Resolve(language.Path) is { } languagePath) {
-				Targets.Add(new SettingsTarget($"{language.Code}: {language.Path.Trim()}", languagePath));
+				Targets.Add(new SettingsTarget(Words.Known.Format("settings.target", language.Code, language.Path.Trim()), languagePath));
 			}
 		}
 		Target = Targets.FirstOrDefault(target => string.Equals(target.Path, picked, StringComparison.OrdinalIgnoreCase)) ?? Targets.FirstOrDefault();
@@ -229,7 +229,7 @@ public class SettingsViewModel : DialogViewModel {
 				document.ToSettings().Save(document.Path);
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-				Parent.Dialogs.Tell($"Could not write {document.Path}:\n{ex.Message}");
+				Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", document.Path, ex.Message));
 			}
 		}
 		Close();
