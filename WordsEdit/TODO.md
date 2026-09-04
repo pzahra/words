@@ -243,10 +243,10 @@ badges and command wiring.
 
 ## Phase 4 — UX the spec asks for
 
-- [ ] Surface provider gripes (SPEC: Out of scope → now in): a badge on the
+- [x] Surface provider gripes (SPEC: Out of scope → now in): a badge on the
       file node, a details dialog listing `session.Errors[file]`. Today they
       are collected and thrown away.
-- [ ] Preview gripes (SPEC: Markdown previews → Gripes): a collecting
+- [x] Preview gripes (SPEC: Markdown previews → Gripes): a collecting
       `ITakeException` installed as `Words.Logger` at startup and handed to the
       preview parser (`MarkdownPreview`), drained by the view model around each
       render into `PreviewGripes`; a tool button beside each preview toggle
@@ -254,32 +254,35 @@ badges and command wiring.
       circular references, the renderer's `IMG:RES`/link gripes and the
       `FormatSample` failure all land there (the failure text then leaves the
       red line under the preview, or stays as its first entry).
-- [ ] Missing-translation emphasis per file (SPEC: The tree → Badges): a key
+- [x] Missing-translation emphasis per file (SPEC: The tree → Badges): a key
       reads as missing the selected language only when its file registers that
       language (`WordsFile.Languages`, `!`-hidden included). `TreeViewModel.
       RefreshBadges(node)` asks the node's file; the stale filter's "or empty"
       follows. Tests: hidden language still shows gaps; a second dictionary
       without the language shows none; a stray undeclared code shows none.
-- [ ] Keyboard shortcuts — there are none. Ctrl+O/S, F2 rename, Delete
+- [x] Keyboard shortcuts — there are none. Ctrl+O/S, F2 rename, Delete
       remove, Ctrl+F focus search, Ctrl+Shift+S stale-all.
-- [ ] Tree context menu for the structure edits (today: a button strip).
-- [ ] Title: bind `TitleMarked` (exists, unbound) and include the loaded file
+- [x] Tree context menu for the structure edits (today: a button strip).
+- [x] Title: bind `TitleMarked` (exists, unbound) and include the loaded file
       names.
-- [ ] `IsLibraryFile` badge — computed and tested, bound to nothing. SPEC (The
+- [x] `IsLibraryFile` badge — computed and tested, bound to nothing. SPEC (The
       document): `!` labels are intentional and must read that way.
-- [ ] Language dropdown fed by the selected key's file (SPEC: translation
+- [x] Language dropdown fed by the selected key's file (SPEC: translation
       pane), not the session union.
-- [ ] Filters: match values, context and comments (what a translator searches),
+- [x] Filters: match values, context and comments (what a translator searches),
       not just key names; show a match count / "N hidden"; a clear button;
       stale-only stops silently including empty values.
-- [ ] Test Parameters shows the formatted result (SPEC: parameter testing) and
+- [x] Test Parameters shows the formatted result (SPEC: parameter testing) and
       its "Close" is not a `CancelCommand` that reverts nothing.
-- [ ] Stale timestamp read-only beside the toggle, not a free-text box.
-- [ ] Confirmations on the destructive actions: remove key data (constant
-      toggle asks and collisions are reported since Phase 2). Then consider an
-      undo stack over `WordsSession`.
-- [ ] Split UI, hosted in the merge dialog (its output is what Merge consumes).
-- [ ] Project settings file (SPEC: Markdown previews) replaces the
+- [x] Stale timestamp read-only beside the toggle, not a free-text box.
+- [x] Confirmations on the destructive actions: remove key data (constant
+      toggle asks and collisions are reported since Phase 2), and removing a
+      node that takes keys with it, now that Delete is a keypress away. An
+      undo stack over `WordsSession` was considered and not started — the
+      confirmations cover the destructive actions for now (Phase 5 keeps the
+      note).
+- [x] Split UI, hosted in the merge dialog (its output is what Merge consumes).
+- [x] Project settings file (SPEC: Markdown previews) replaces the
       `param-<scheme>=<folder>` experiment, no compatibility kept:
       - Parser: the keyless top-of-file `param` slot captures a settings-file
         path — bare `param=` for the dictionary, `param-xx=` per language —
@@ -295,25 +298,34 @@ badges and command wiring.
         override key by key; `TryLocate(uri, out folder, out relativePath)`
         and `LinkRule(uri)`. Cached per path in the session, reloaded with the
         dictionary. Pure string work — tested without WPF.
-      - Wpf: `FolderImageResolver` takes a decoded relative path (a `Func<Uri,
-        string?>` or an overload), keeping the `GetFullPath` + `StartsWith`
-        clamp exactly; stem lookups try the usual image extensions.
+      - ~~Wpf: `FolderImageResolver` takes a decoded relative path~~ — landed
+        in Authoring instead, as `ProjectSettings.TryResolveImage` (the same
+        `GetFullPath` + `StartsWith` clamp, stem lookups over the usual image
+        extensions); the Wpf library is untouched. Project settings are the
+        editor's to read and write, so the file is rewritten as two plain
+        tables — comments in a hand-written one do not survive the dialog.
       - Editor: `MarkdownPreview` builds one resolver per image rule from the
-        view model's `PreviewImageRules` (default preview: dictionary rules;
-        translation preview: language rules over them). `FollowLink` consults
-        the hyperlink rules: `shellexec` confirms then starts, `popup` tells,
-        unlisted schemes default as SPEC says. `ImageSchemesViewModel` becomes
-        the settings dialog: which files the `param` slots name, and the two
-        tables.
+        pane's `Settings` (default preview: dictionary rules; translation
+        preview: language rules over them, key by key — folder, decode and
+        link mode each on their own). `FollowLink` consults the hyperlink
+        rules: `shellexec` confirms then starts, `popup` tells, unlisted
+        schemes default as SPEC says; both panes use the selected language's
+        rules, the global handler cannot tell them apart. `SettingsViewModel`
+        replaces `ImageSchemesViewModel`: which files the `param` slots name,
+        and the two tables of whichever is picked. Folders in a settings file
+        resolve relative to that settings file.
       - Tests: capture and round-trip of `param`/`param-xx`; each built-in
         shape; a decode rule; a decode rule overriding a built-in; clamp
         refusals through a decoded path; language override falling through;
         hyperlink modes and defaults.
-- [ ] Language Manager keeps a local selection and commits on OK — clicking
+- [x] Language Manager keeps a local selection and commits on OK — clicking
       down its list currently re-contextualises the whole window behind it.
-- [ ] Merge dialog: a way to clear the base file; no fixed 450×800. (Tree
-      nodes stopped carrying `IsBaseFile` in Phase 3.)
-- [ ] Selection follows the filter: `ApplyFilters` never re-checks that the
+- [x] Merge dialog: a way to clear the base file; no fixed 450×800. (Tree
+      nodes stopped carrying `IsBaseFile` in Phase 3.) The base is a radio
+      over the ticked files: the first ticked holds it, unticking the base
+      passes it to the next — there is nothing left to clear, since a merge
+      always has one.
+- [x] Selection follows the filter: `ApplyFilters` never re-checks that the
       selected node is still visible.
 
 ## Phase 5 — Cleanup (ride along with any phase)
@@ -355,11 +367,12 @@ Dead code, measured by reference count, not guessed:
 
 Naming (SPEC: "Short names"):
 
-- [ ] The `*Localization*` commands and methods (`RemoveLocalizationKeyAndNodeCommand`
+- [x] The `*Localization*` commands and methods (`RemoveLocalizationKeyAndNodeCommand`
       and six siblings, up to 41 chars) name a type that no longer exists.
-      `RemoveNode`, `RenameNode`, `AddNode`, `AddKey`, `RemoveKey`,
-      `ToggleReview`, `ToggleConstant`; variables `selectedKey` →
-      `key`.
+      Now `RemoveNode`, `RenameNode`, `AddNode`, `AddKey`, `RemoveKey`,
+      `ToggleNeedsReview`, `ToggleConstant` (Phase 4).
+- [ ] Undo stack over `WordsSession` — considered in Phase 4, not started;
+      the confirmations cover the destructive actions for now.
 - [ ] `KeyDragDropHandler.MainWindow` is a ViewModel (`LanguageDragDropHandler`
       calls its own `LanguageManager`). `Vm` in both.
 - [ ] `DragDrop.cs` holds two handlers named neither `DragDrop` nor after the

@@ -82,24 +82,36 @@ One tree presents every loaded file:
   comment. The preamble renders as an organizer pinned above the language
   table (the one comment written outside the tree walk); the trailer is just
   a comment standing at the file's end.
-- **Badges** on nodes: file, constant, needs-review, stale (in the selected
-  language), overwritten-by-later-file; keys whose default or selected-language
-  value is empty render emphasized. The selected-language half applies only
+- **Badges** on nodes: file (a library file shows a bookshelf: its `!`
+  languages are intentional), the file's load gripes as a count that opens
+  the list, constant, needs-review, stale (in the selected language),
+  overwritten-by-later-file; keys whose default or selected-language value is
+  empty render emphasized. The selected-language half applies only
   when the key's file **registers** that language — declares it in its
   top-of-file table, listed or `!`-hidden. A hidden language is still a
   promise, so its gaps show; but in a project of several dictionaries, a file
   that does not register the selected language at all has no gap to show, and
   its keys stay plain. A code found only on stray fields is a gripe, not a
   registration — declare it and the gaps appear.
-- **Filters**: substring search, stale-only, needs-review-only — composable;
-  ancestors of a match stay visible so the path is readable. The stale filter
-  is per selected language: this is the translator's work queue. The
+- **Filters**: substring search, stale-only, needs-review-only, missing-only —
+  composable; ancestors of a match stay visible so the path is readable. The
+  search reads what a translator searches for: a key's name, its default and
+  selected-language words, the context and comments around them, and a
+  comment node's text. While a filter narrows the tree it says how many rows
+  it hides and clears in one click; a selection the filter hides moves up to
+  the nearest row still showing. The stale filter is per selected language
+  and means stale, nothing more: this is the translator's work queue. The
+  missing filter takes the empty values (file by file — see Badges). The
   needs-review filter is the programmer's work queue in reverse — the
   translator raises a hand by setting the unlocalised `stale=` flag
   (recycled as the "raise hand" action), and the programmer filters for it.
 - **Structure edits**: add/rename/remove nodes and keys; renames rewrite every
   descendant key; drag-and-drop moves subtrees. A group node can gain key data
   ("add key information") and a key can exist on any node except a file.
+  They are reachable from the button strip, the tree's context menu and the
+  keyboard (F2 rename, Delete remove, Ctrl+Shift+S stale-all; Ctrl+O and
+  Ctrl+S open and save, Ctrl+F the search). Removing a node that takes keys
+  with it, or a key's information, asks first.
 
 ## The baseline pane (middle)
 
@@ -113,16 +125,23 @@ flags — constant (only a leaf directly under a file), and needs-review
   dialect in place of the raw text (image handling is the editor's own — see
   Markdown previews).
 - **Parameter testing**: keys with `param-` declarations can run their sample
-  values through `Format` to prove the placeholders work before shipping. `{>reference}` and `{$constant}` tokens work across files for this purpose, simulating a host app loading multiple dictionaries.
+  values through `Format` to prove the placeholders work before shipping.
+  `{>reference}` and `{$constant}` tokens work across files for this purpose,
+  simulating a host app loading multiple dictionaries. The Test Parameters
+  dialog shows the formatted result as the samples are edited — or why they
+  will not format; its edits land in the key as they are made, and Close
+  only closes.
 - **Stale-all-languages**: one action for "I changed the default, every
   translation needs another look".
 
 ## The translation pane (right)
 
 Starts with the **language dropdown** (fed by the file that owns the selected
-key) and mirrors the baseline's feature set for everything tagged with the
-selected code: value, context, comment, the stale timestamp (with a toggle),
-and the markdown preview.
+key: its declared table, the codes found on its fields, and the language
+selected so the choice always shows; the session union with nothing
+selected) and mirrors the baseline's feature set for everything tagged with
+the selected code: value, context, comment, the stale timestamp (read-only,
+with a toggle that sets and clears it), and the markdown preview.
 
 - Language codes found on fields but not registered at the top of the file are
   auto-added to the list with a `!` label and a gripe — wrong, probably, but
@@ -179,19 +198,27 @@ from a **project settings file** instead of the pre-loaded set:
   `/pattern/options/replacement` — `options` are the usual regex letters or
   empty, the pattern may not contain an unescaped `/`, the replacement may —
   and a decode rule on a built-in scheme overrides its default shape. A scheme
-  with no rule keeps the alt-text fallback. The constraint that does not
-  move: the resulting path stays clamped to the scheme's folder (the
-  `FolderImageResolver` refusal of `..`, rooted and UNC paths, no variable
-  expansion), and nothing is fetched remotely.
+  with no rule keeps the alt-text fallback. A folder is relative to the
+  settings file that names it. The constraint that does not move: the
+  resulting path stays clamped to the scheme's folder — the same refusal of
+  `..`, rooted and UNC paths, and of variable expansion, that the runtime's
+  `FolderImageResolver` makes, kept in Authoring as
+  `ProjectSettings.TryResolveImage` so the runtime library itself is
+  untouched — and nothing is fetched remotely.
 - **Hyperlinks.** A scheme maps to `popup` — report the target, the default
   for anything unlisted — or `shellexec` — confirm, then hand the target to
   the shell, the default for `http`, `https` and `mailto`. A `<scheme>-decode`
   rule, same syntax, rewrites the URI first, so a custom scheme can open as
-  the page or command it stands for, or show that command.
-- **Language rules win key by key.** A scheme listed in `wordsmith-xx.ini`
-  replaces that scheme's rule while previewing `xx`; every other scheme falls
-  through to `wordsmith.ini`, then to the defaults. The default-text preview
-  uses the dictionary file alone.
+  the page or command it stands for, or show that command. A click in either
+  pane consults the selected language's rules — the one link handler cannot
+  tell the panes apart — and the report names the original URI beside a
+  rewritten target.
+- **Language rules win key by key.** A field written in `wordsmith-xx.ini`
+  replaces that field while previewing `xx` — a folder, a decode or a link
+  mode each on its own, so a language file may give only `shot-decode` and
+  keep the dictionary's folder; every other field falls through to
+  `wordsmith.ini`, then to the defaults. The default-text preview uses the
+  dictionary file alone.
 - Field names are `\w+`, so a scheme with a dash in its name cannot be
   written; none of the built-ins has one.
 - **Gripes.** Rendering a preview collects everything Words complains about
@@ -201,9 +228,12 @@ from a **project settings file** instead of the pre-loaded set:
   something, the list on click. The editor installs one collecting logger as
   `Words.Logger` and gives the preview parser the same one, so both channels
   land in the list.
-- A dialog edits the settings files a dictionary names — the image and
-  hyperlink tables, and which files the `param` slots point at. How much of
-  that is a picker and how much a table is the rewrite's to choose.
+- The Project Settings dialog edits what a dictionary names — the paths in
+  its `param` slots, for the dictionary and for each language — and the two
+  tables of whichever of those files is picked, with the rules' gripes shown
+  as they are typed. Settings are the editor's to read and write, so it
+  rewrites a settings file as two plain tables: comments in a hand-written
+  one do not survive the dialog.
 
 ## Languages
 
@@ -213,21 +243,28 @@ confirmation. Consider an option to shift a language (re-code it, e.g. `en-GB`
 absorbing into `en`); where both codes hold a value, keep the target's, park
 the source value in the entry's `context-xx` field where the translator can
 copy/paste from it, and stale-mark the entry so the review filter surfaces
-the collision.
+the collision. The manager's highlighted row is its own while it is open and
+becomes the tree's language on OK, so browsing the list does not
+re-contextualize the window behind it.
 
 ## Merge
 
 The translator round trip in bulk: pick a base file plus a language→file map,
 and produce one merged file taking each language's entries from its source.
 The merged result is written to disk and loaded into the session. Merging
-requires the files to agree on their key sets. This feature can also be used to split one language out of the file so it can be worked on separately.
+requires the files to agree on their key sets. The first file ticked is the
+base until another is chosen; unticking the base passes it on. Split, the
+other direction, shares the dialog: one file and one of its declared
+languages, written on their own — that language's entries with the defaults
+for reference — and loaded, ready to be worked on separately and merged back.
 
 ## Saving
 
 Save rewrites every loaded file through `WordsSession.Save` — `IniWriter.WriteFile`
-with the file's own language table, preamble and image schemes, in the order
-its tree node walks. A file that cannot be written is reported and the others
-still save. The editor tracks dirtiness; closing with unsaved changes prompts.
+with the file's own language table, preamble and settings references, in the
+order its tree node walks. A file that cannot be written is reported and the
+others still save. The editor tracks dirtiness; the window title names the
+loaded files and stars while dirty, and closing with unsaved changes prompts.
 Reset returns to the empty session (one default `en` language).
 
 ## Wordsmith's own words
