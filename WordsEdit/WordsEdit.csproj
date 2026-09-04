@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -10,16 +10,24 @@
     <AssemblyName>Wordsmith</AssemblyName>
   </PropertyGroup>
 
-  
   <ItemGroup>
     <None Update="Resources\*.ini">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- Wordsmith's own words: embedded to load at startup, copied to open in the
+         editor, handed to the analyzer so it knows the keys -->
+    <None Remove="Resources\words.ini" />
+    <EmbeddedResource Include="Resources\words.ini">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <AdditionalFiles Include="Resources\words.ini" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="gong-wpf-dragdrop" Version="3.2.1" />
     <PackageReference Include="MaterialDesignThemes" Version="4.9.0" />
+    <!-- PTL001: a [Localized] seam handed a string that is not — the golden rule, enforced -->
+    <PackageReference Include="PatTech.Localization.Analyzer" Version="[1,)" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
@@ -36,6 +44,8 @@
     <!-- the words.ini document model and round-trip layer live in the authoring
          assembly; the editor's viewmodels use them everywhere -->
     <Using Include="PatTech.Localization.Authoring" />
+    <!-- Words.Known: the editor's own words, everywhere it speaks -->
+    <Using Include="PatTech.Localization" />
   </ItemGroup>
 
 </Project>

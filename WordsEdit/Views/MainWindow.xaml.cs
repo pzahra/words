@@ -1,22 +1,16 @@
-using PatTech.Localization.Wpf;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
-using WordsEdit.Utils;
 using WordsEdit.ViewModels;
-using WordsEdit.Views;
 
 namespace WordsEdit;
 public partial class MainWindow : Window {
+	//the view model is the app's to make and hand over: it outlives the window
+	//when the language changes
 	public MainWindow() {
 		InitializeComponent();
-		var mainvm = new MainWindowViewModel(new WpfDialogs());
-		DataContext = mainvm;
-		//every hyperlink the previews render lands here, whichever pane it is in
-		Hyperlink.RegisterGlobalNavigateHandler(mainvm.FollowLink);
-		((App)Application.Current).StartupFiles.ForEach(mainvm.LoadFile);
 	}
 
 	//TreeView.SelectedItem is read-only: the one gesture WPF will not bind
