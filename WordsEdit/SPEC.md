@@ -178,3 +178,5 @@ prompts. Reset returns to the empty session (one default `en` language).
 - Surfacing the provider's gripes (undeclared languages, unrecognized fields)
   in the editor UI; today they only accumulate on
   `WordsParserToLocalizationProvider.Errors`.
+
+Both are sequenced, with everything else outstanding, in [TODO.md](TODO.md).
