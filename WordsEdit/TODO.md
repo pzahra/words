@@ -28,6 +28,8 @@ Phase 0 is bugs that are minutes each and depend on nothing. Phase 1 (windows
 move. Phase 2 does the extraction — and it is where the drag-drop, rename and
 collision bugs get fixed *once*, in tested operations, instead of patched in
 the ViewModel and then moved. Phases 4–6 are the payoff and the polish.
+Phase 7 localises the editor with its own library — last, once the strings
+have stopped moving.
 
 ---
 
@@ -244,6 +246,20 @@ badges and command wiring.
 - [ ] Surface provider gripes (SPEC: Out of scope → now in): a badge on the
       file node, a details dialog listing `session.Errors[file]`. Today they
       are collected and thrown away.
+- [ ] Preview gripes (SPEC: Markdown previews → Gripes): a collecting
+      `ITakeException` installed as `Words.Logger` at startup and handed to the
+      preview parser (`MarkdownPreview`), drained by the view model around each
+      render into `PreviewGripes`; a tool button beside each preview toggle
+      shows the count and lists them on click. `RenderKey`'s missing and
+      circular references, the renderer's `IMG:RES`/link gripes and the
+      `FormatSample` failure all land there (the failure text then leaves the
+      red line under the preview, or stays as its first entry).
+- [ ] Missing-translation emphasis per file (SPEC: The tree → Badges): a key
+      reads as missing the selected language only when its file registers that
+      language (`WordsFile.Languages`, `!`-hidden included). `TreeViewModel.
+      RefreshBadges(node)` asks the node's file; the stale filter's "or empty"
+      follows. Tests: hidden language still shows gaps; a second dictionary
+      without the language shows none; a stray undeclared code shows none.
 - [ ] Keyboard shortcuts — there are none. Ctrl+O/S, F2 rename, Delete
       remove, Ctrl+F focus search, Ctrl+Shift+S stale-all.
 - [ ] Tree context menu for the structure edits (today: a button strip).
@@ -263,15 +279,40 @@ badges and command wiring.
       toggle asks and collisions are reported since Phase 2). Then consider an
       undo stack over `WordsSession`.
 - [ ] Split UI, hosted in the merge dialog (its output is what Merge consumes).
-- [ ] Image schemes reach past the ini's folder (SPEC: Markdown previews): the
-      manager takes absolute and `..` folders, and location-bearing schemes
-      (`pack:`, `assets:`, `resx:`, `staticres:`) resolve from the URI itself
-      instead of a flat scheme→folder row. The path inside a URI stays
-      clamped to whatever root results; nothing is fetched remotely.
+- [ ] Project settings file (SPEC: Markdown previews) replaces the
+      `param-<scheme>=<folder>` experiment, no compatibility kept:
+      - Parser: the keyless top-of-file `param` slot captures a settings-file
+        path — bare `param=` for the dictionary, `param-xx=` per language —
+        as `WordsParserToLocalizationProvider.Settings`/`LanguageSettings`;
+        `ImageSchemeMappings` goes. `IniWriter.WriteLanguages` re-emits them
+        byte-stable; `WordsFile.ImageSchemes` becomes `Settings` (path) and
+        `LanguageSettings` (code → path), relative to the ini.
+      - `ProjectSettings` in Authoring: an `IWordsParserConsumer` over the
+        settings file reading `[images]` (`scheme=folder`, `scheme-decode=`)
+        and `[hyperlinks]` (`scheme=popup|shellexec`, `scheme-decode=`); the
+        built-in shapes for `assets:`, `avares:`, `pack:`, `resx:`,
+        `staticres:`; `/pattern/options/replacement` parsing; language-file
+        override key by key; `TryLocate(uri, out folder, out relativePath)`
+        and `LinkRule(uri)`. Cached per path in the session, reloaded with the
+        dictionary. Pure string work — tested without WPF.
+      - Wpf: `FolderImageResolver` takes a decoded relative path (a `Func<Uri,
+        string?>` or an overload), keeping the `GetFullPath` + `StartsWith`
+        clamp exactly; stem lookups try the usual image extensions.
+      - Editor: `MarkdownPreview` builds one resolver per image rule from the
+        view model's `PreviewImageRules` (default preview: dictionary rules;
+        translation preview: language rules over them). `FollowLink` consults
+        the hyperlink rules: `shellexec` confirms then starts, `popup` tells,
+        unlisted schemes default as SPEC says. `ImageSchemesViewModel` becomes
+        the settings dialog: which files the `param` slots name, and the two
+        tables.
+      - Tests: capture and round-trip of `param`/`param-xx`; each built-in
+        shape; a decode rule; a decode rule overriding a built-in; clamp
+        refusals through a decoded path; language override falling through;
+        hyperlink modes and defaults.
 - [ ] Language Manager keeps a local selection and commits on OK — clicking
       down its list currently re-contextualises the whole window behind it.
-- [ ] Merge dialog: a way to clear the base file; stop mutating tree nodes
-      (`IsBaseFile`) for display; no fixed 450×800.
+- [ ] Merge dialog: a way to clear the base file; no fixed 450×800. (Tree
+      nodes stopped carrying `IsBaseFile` in Phase 3.)
 - [ ] Selection follows the filter: `ApplyFilters` never re-checks that the
       selected node is still visible.
 
@@ -361,3 +402,33 @@ Naming (SPEC: "Short names"):
       failure names the node.
 - [ ] `WordsEdit.Tests.csproj` still removes an `ExampleFile.ini` that lives
       in `Resources/`.
+
+## Phase 7 — Dogfood: Wordsmith in its own words
+
+Last, once Phases 4–6 have stopped moving the strings around. The how-to is
+[the Core skill](../Localization-Core/SKILL.md); the rule is its golden one:
+never hardcode a user-facing string.
+
+- [ ] `WordsEdit/Resources/words.ini`, embedded, with `value-en=English` and
+      the editor's every string: pane headers (`Context`, `Translator Comment`,
+      `Default English` — which stops being hard-coded English and names the
+      default value), tooltips, dialog titles, button captions, the
+      confirmations and notices the view models compose, the conflict message,
+      the `(comment)` caption, `Start Here`.
+- [ ] Startup: `Words.Known = WordsBuilder.Create(logger).LoadResource(…)
+      .ToWords(lang)` before any window; `Words.Logger` is the preview's
+      collecting logger (Phase 4). The language comes from the OS culture, a
+      `--lang=xx` switch as the sample does, or a menu fed by `GetLanguages()`;
+      a change reloads the window (`{l:Words}` resolves at load).
+- [ ] XAML: `{l:Words key}` for plain text and `WordsInline` where a value
+      carries markdown; `Title` binds a Words string.
+- [ ] Seams: `[Localized]` on `IDialogs` parameters and on every method that
+      takes message text; view models build messages with `Words.Known.Format`
+      and `FormatByName`, never interpolation.
+- [ ] `PatTech.Localization.Analyzer` referenced by `WordsEdit.csproj` (the
+      local feed), so PTL001 flags what is left; the build is warning-free.
+- [ ] Tests: the fake dialogs see keys resolved, not `#key#` — one test greps
+      every rendered string for `#` leakage; the words.ini round-trips through
+      `WordsSession` byte-stable like the fixtures do.
+- [ ] Then open the editor's words.ini in the editor, add a language,
+      translate a screen, relaunch in it.
