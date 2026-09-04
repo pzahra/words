@@ -128,69 +128,74 @@ Verified bugs first. Each is a few lines; none blocks or is blocked.
 The god-class fix, part one. Everything here is testable with a `StringReader`
 and no WPF.
 
-- [ ] **`WordsSession`** (Authoring): the document a session holds.
-      Per file (keyed by **full path**, label kept separately): path, label,
-      preamble, trailer, declared languages, image schemes, load gripes.
-      Session-wide: `Keys` (the one dictionary, prefixed), `KnownLanguages`.
-      `Load(TextReader, path)`, `Unload(path)`, `Save(path)`/`SaveAll()`,
-      `Reset()`. It absorbs `LoadFile`'s 95 lines (prefixing, empty-key drop,
-      replace-on-reload, label reconciliation, library detection) and both
-      copies of the entry-backfill loop, scoped to the loaded file's keys.
+- [x] **`WordsSession`** (Authoring): the document a session holds.
+      Per file (`WordsFile`, keyed by **full path**, label kept separately):
+      path, label, preamble, trailer, declared languages, image schemes, load
+      gripes. Session-wide: `Keys` (the one dictionary, prefixed, insertion
+      ordered), `Languages.Known`. `Load(TextReader, path)`, `Unload(file)`,
+      `Save(file, tree)`, `Reset()`. It absorbed `LoadFile`'s 95 lines
+      (prefixing, empty-key drop, replace-on-reload, label reconciliation —
+      dots replaced, `-2` suffixes — library detection) and both copies of the
+      entry-backfill loop, kept session-wide on purpose: every key carries
+      every known code, which is what makes `Entries[code]` safe anywhere.
       Keying by path fixes same-named files in different folders writing over
       each other; `Unload`/reload removing keys under the prefix first
       (`RemoveKeysUnder` exists) fixes keys deleted on disk surviving a reload.
       `Errors` are kept per file for Phase 4.
-- [ ] `Load` and `Save` catch and report per file; the parser's bare
+- [x] `Load` and `Save` catch and report per file; the parser's bare
       `Exception("Name for language never declared")` becomes a gripe, not a
       crash. A bad file never kills the session.
-- [ ] **Delete `MainWindowViewModel.Keys`.** `session.Keys` is the store; the
-      eight sync sites go; iteration is `.Values`.
-- [ ] **`KeyTree.Build(session, label)`** (Authoring) replaces
+- [x] **Delete `MainWindowViewModel.Keys`.** `session.Keys` is the store; the
+      eight sync sites go; iteration is `.Values`. (`allKeys`, `filePreambles`,
+      `fileLanguages`, `fileImageSchemes` and `AllKeyNodes` went with it.)
+- [x] **`KeyTree.Build(session, file)`** (Authoring) replaces
       `MainWindowViewModel.GetFileNode`: dotted keys → file/group/key nodes,
-      `$` stripping, comment nodes anchored from `BlockComments`, preamble and
-      trailer organizers. Returns structural nodes (`IKeyTreeNode`/`ICommentNode`,
-      already defined for the writer); `KeyNode` in the editor wraps them with
-      UI state (`IsSelected`, `IsExpanded`, `IsVisible`, badges).
-- [ ] `KeyNode.Parent` set on insert/move. Kills `GetParentNode` (the
-      self-flagged "FIXME: this is awful", O(depth×breadth), called twice per
-      `DragOver`) and its duplicate walker `DeepestVisibleKeyNodeInBranch`.
-- [ ] Badges computed once, from the model: `WordsKey.HasStaleValue(code)`
-      exists; add `HasRegionalOverride(code)`; one marker pass replaces the
-      copies in `GetFileNode`, `MarkStaleNodes`, `MarkOverwrittenNodes` and the
-      duplicated loop in `OnSelectedLanguageChanged`.
-- [ ] **`WordsOperations.Rename(keys, oldPrefix, newPrefix, out collisions)`**,
-      **`Move(keys, oldPrefix, newParentPrefix, out collisions)`**,
-      **`SetConstant(keys, blockKey, bool)`**. These replace
-      `RenameLocalizationKeyAndNode`, `UpdateChildFullLabels`, `MoveKey`,
-      `SetConstantMarker` and the key assembly in `DragDrop.Drop`. Collisions
-      are *reported*, never silently deleted (today: colliding key removed,
-      its descendants orphaned in `allKeys`; `foo` + `$foo` throws
-      `ArgumentException`; renaming a file node desyncs four dictionaries and
-      breaks `Save`). `Drop` shrinks to "node X becomes child N of node Y".
-- [ ] Toggling constant wipes every translation: confirm first (via
-      `IDialogs`), and `SetConstant` should preserve entries unless told to
-      clear.
-- [ ] **`LanguageTable`** (Authoring): per-file declared codes in order plus
-      the session union; `Add`/`Remove`/`Rename`/`Reorder` that also backfill
-      or strip `WordsKey.Entries`. Replaces `AddLanguageCode`/`RemoveLanguageCode`/
+      `$` stripping, comment nodes anchored from `BlockComments`, the trailer
+      comment. Returns structural nodes (`KeyTreeNode`/`CommentTreeNode`);
+      `KeyNode.From` presents them with UI state (`IsSelected`, `IsExpanded`,
+      `IsVisible`, badges). The preamble organizer stays an editor concern.
+- [x] `KeyNode.Parent` set on insert/move (`KeyNodeCollection` does it).
+      Killed `GetParentNode` (the self-flagged "FIXME: this is awful",
+      O(depth×breadth), called twice per `DragOver`) and its duplicate walker
+      `DeepestVisibleKeyNodeInBranch`.
+- [x] Badges computed once, from the model: `WordsKey.HasStaleValue(code)`
+      exists; `HasRegionalOverride(code)` added; one pass (`UpdateBadges`)
+      replaced the copies in `GetFileNode`, `MarkStaleNodes`,
+      `MarkOverwrittenNodes` and the duplicated loop in `OnSelectedLanguageChanged`.
+- [x] **`WordsOperations.TryRename(keys, oldKey, newKey, out collisions)`**,
+      **`TryMove(keys, key, newParent, out collisions)`**,
+      **`SetConstant(keys, blockKey, bool, clearEntries)`** — all or nothing.
+      These replaced `RenameLocalizationKeyAndNode`'s guts, `UpdateChildFullLabels`,
+      `MoveKey`, `SetConstantMarker` and the key assembly in `DragDrop.Drop`.
+      Collisions are *reported*, never silently deleted (before: colliding key
+      removed, its descendants orphaned in `allKeys`; `foo` + `$foo` threw
+      `ArgumentException`; renaming a file node desynced four dictionaries and
+      broke `Save` — file nodes no longer rename). `Drop` shrank to "node X
+      becomes child N of node Y".
+- [x] Toggling constant wipes every translation: confirm first (via
+      `IDialogs`), and `SetConstant` preserves entries unless told to clear.
+- [x] **`LanguageTable`** (Authoring, as `session.Languages`): per-file
+      declared codes in order (`WordsFile.Languages`) plus the session union
+      (`Known`); `Add`/`Remove`/`Rename`/`Reorder` that also backfill or strip
+      `WordsKey.Entries`. Replaced `AddLanguageCode`/`RemoveLanguageCode`/
       `ReplaceLanguageCode`/`LanguagesFor`/`fileLanguages` and the hand-rolled
-      entry loops in `LanguageManagerViewModel`. Fixes: reordering languages
-      by drag dirties the session but the writer never sees it; a removed
-      file's languages linger in the dropdown.
-- [ ] `SelectedLanguage` re-pointed after load by code, not identity
-      (`LanguageEntry` has no value equality): today the ComboBox writes
+      entry loops in `LanguageManagerViewModel`. Fixed: reordering languages
+      by drag now reaches every file's table; a removed file's languages are
+      pruned unless another file declares them or a key still has words in them.
+- [x] `SelectedLanguage` re-pointed after load by code, not identity
+      (`LanguageEntry` has no value equality): the ComboBox used to write
       `null` into a non-nullable property and the next language change
-      dereferences it. Make it `LanguageEntry?` or reject null in the setter;
-      never leave `KnownLanguages` empty.
-- [ ] Delete `MainWindow.FormatParameters`. It is a diverging copy of
+      dereferenced it. The setter rejects null; `Known` is never empty.
+- [x] Delete `MainWindow.FormatParameters`. It was a diverging copy of
       `Words.PreFormatByName` (`"g"` default, hard-coded culture, unknown
-      names silently ignored). `WordsOperations.FormatSample(WordsKey, text)`
-      delegates to Core so the preview shows what the host app renders.
-- [ ] `Merge` and `Split` on the session: `session.Merge(basePath,
-      languageSources, outPath)` writes the base file's table/preamble/schemes
-      and loads the result; `Split` is the same call in reverse. Both have
-      tests before either has UI.
-- [ ] Tests, all without WPF: rename cascade over a group with children;
+      names silently ignored). `WordsOperations.FormatSample(WordsKey, text, culture)`
+      delegates to Core (`Words.FormatByName` from a dictionary, added for it)
+      so the preview shows what the host app renders.
+- [x] `Merge` and `Split` on the session: `session.Merge(base, languageSources,
+      baseTree, outPath)` writes the base file's table/preamble/schemes and
+      loads the result; `Split` is the same call in reverse. Both have tests;
+      Split's UI is Phase 4.
+- [x] Tests, all without WPF: rename cascade over a group with children;
       move with collision; constant on a `$`-sibling; reload after a key was
       deleted on disk; two `strings.ini` in different folders; a file with
       keys and no labels; `!`-only file beside a normal one; language
@@ -207,8 +212,8 @@ badges and command wiring.
       `MainWindowViewModel` (session, commands, dirty/title),
       `TreeViewModel` (`KeyNodes`, selection, filters, badges), with the key
       and language commands as thin calls into `WordsOperations`/`LanguageTable`.
-      Delete the five "Sections / Subsections" index comments — the split is
-      the index.
+      (The five "Sections / Subsections" index comments already went with the
+      Phase 2 rewrite.)
 - [ ] Preview moves to the VM: `RenderedDefault`, `RenderedTranslation`,
       `PreviewError` strings; the View binds a `TextBlock` through a
       markdown-inline converter. Removes `DefaultPreview_Checked`/
@@ -246,8 +251,9 @@ badges and command wiring.
 - [ ] Test Parameters shows the formatted result (SPEC: parameter testing) and
       its "Close" is not a `CancelCommand` that reverts nothing.
 - [ ] Stale timestamp read-only beside the toggle, not a free-text box.
-- [ ] Confirmations on the destructive actions: constant toggle, remove key
-      data, collisions. Then consider an undo stack over `WordsSession`.
+- [ ] Confirmations on the destructive actions: remove key data (constant
+      toggle asks and collisions are reported since Phase 2). Then consider an
+      undo stack over `WordsSession`.
 - [ ] Split UI, hosted in the merge dialog (its output is what Merge consumes).
 - [ ] Image schemes reach past the ini's folder (SPEC: Markdown previews): the
       manager takes absolute and `..` folders, and location-bearing schemes
@@ -267,8 +273,8 @@ Dead code, measured by reference count, not guessed:
 
 - [ ] `Utils/DateTimeOffsetToStringConverter.cs` — 0 refs (`Stale` is a
       `string?`). Delete.
-- [ ] `KeyNode.DeepestVisibleKeyNodeInBranch` — 0 callers (or wire it for the
-      selection-follows-filter item, then delete `GetParentNode` instead).
+- [x] `KeyNode.DeepestVisibleKeyNodeInBranch` — 0 callers. Gone with
+      `GetParentNode` in Phase 2.
 - [ ] `DelegateCommand` and `DelegateCommand<T>`: `SafeExecute`,
       `RaiseCanExecuteChanged`, `CanExecute(T)` — 0 uses; the null-vs-value-type
       ceremony guards nothing the app does.
@@ -285,10 +291,11 @@ Dead code, measured by reference count, not guessed:
 - [x] Commented-out code: `//Words.Known = …` (`MainWindow.xaml.cs`),
       `//FollowLink(…).SafeFireAndForget` (same), `//ResetPopup().SafeFireAndForget`
       (`MainWindowViewModel`).
-- [ ] `AffectProperty(nameof(SelectedLanguage))` refresh hacks after stale
+- [x] `AffectProperty(nameof(SelectedLanguage))` refresh hacks after stale
       changes — `WordsEntry.Stale` already raises `PropertyChanged` and is
-      bound directly.
-- [ ] `LanguageManagerViewModel.DoOkay` assigns two properties to themselves.
+      bound directly. (Replaced by the badge pass in Phase 2.)
+- [x] `LanguageManagerViewModel.DoOkay` assigns two properties to themselves.
+      (It closes the dialog since Phase 1.)
 - [ ] `DataViewModelBase`: a `Lock` and five `lock` blocks around a
       UI-thread-only dictionary. `ViewModelSaveBase.ChangeProperty(…, bool
       dirty)`: never called with `true`.
@@ -314,9 +321,9 @@ Naming (SPEC: "Short names"):
 - [ ] `Utils/PopupDialog.cs` declares `namespace WordsEdit.ViewModels` (moot
       after Phase 1); `Utils/DateTimeOffsetToStringConverter.cs` declares
       `WordsEdit.Views` (moot after deletion).
-- [ ] `AllKeyNodes` (PascalCase private field) beside `allKeys`; `result2` ×4
-      with no `result1`; hard-coded "Default English". ("Lanuage" and "reset
-      the Language Manager" went in Phases 0 and 1.)
+- [ ] `result2` ×4 with no `result1`; hard-coded "Default English".
+      ("Lanuage" and "reset the Language Manager" went in Phases 0 and 1;
+      `AllKeyNodes` and `allKeys` in Phase 2.)
 - [ ] `ApplyFilters()` returns a constant `true` so a setter can `&&` it.
 - [ ] Organizers use synthetic dotted keys (`file.;preamble`, `parent.;comment`)
       as identity, so two under one parent share a `FullLabel` and
@@ -333,15 +340,16 @@ Naming (SPEC: "Short names"):
 - [ ] Filters: `NeedsReviewFilter` alone; needs-review + search; stale +
       needs-review; filter then clear; organizer text matched by search;
       selection vs visibility.
-- [ ] `RemoveFileNodeCore` with two files: selection moves to the survivor,
+- [x] `RemoveFileNodeCore` with two files: selection moves to the survivor,
       the survivor is untouched.
 - [ ] `ImageSchemesViewModel.DoOkay`: blank rows dropped, duplicate scheme
       last-wins, case-insensitive, dirties; `Save` threading schemes for two files.
-- [ ] `MainWindowViewModel_AddLocalizationKeyTest` asserts a key is created
+- [x] `MainWindowViewModel_AddLocalizationKeyTest` asserts a key is created
       **on a file node**, which SPEC (The tree) forbids. Fix the test, add the
       guard.
-- [ ] Hygiene: `MergeTest`'s 24 assertions appear twice verbatim; the
+- [x] Hygiene: `MergeTest`'s 24 assertions appear twice verbatim; the
       accumulate-a-bool pattern (`CanBeConstantTest`, `StaleAllLanguagesTest`,
       `AddLocalizationKeyTest`) becomes `Assert.All`/`Assert.Contains` so a
-      failure names the node. `WordsEdit.Tests.csproj` still removes an
-      `ExampleFile.ini` that lives in `Resources/`.
+      failure names the node.
+- [ ] `WordsEdit.Tests.csproj` still removes an `ExampleFile.ini` that lives
+      in `Resources/`.

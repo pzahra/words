@@ -29,8 +29,9 @@ A session holds one or more files. Each file contributes:
   declares a language without listing it — subordinate dictionaries legally
   support more languages than the host app offers. The editor must show these
   as intentional, never as errors, and never strip the `!`.
-- A **key tree**: dotted block keys (`view.section.key`), prefixed with the
-  file name in memory. `$keys` are constants (no translations). A key carries:
+- A **key tree**: dotted block keys (`view.section.key`), prefixed in memory
+  with the file's label — its name, disambiguated when two loaded files
+  share one (`strings`, `strings-2`), since files are identified by path. `$keys` are constants (no translations). A key carries:
   default value, context (programmer → translator), comment (translator-facing),
   format parameters (`param-x=Type:sample`), a needs-review flag, and a
   **banner** (the freeform `;` comment run above its header).
@@ -156,9 +157,9 @@ registry instead of the pre-loaded set:
   `param-<scheme>=<folder>`, with the folder relative to the ini file so the
   mapping travels with it. `WordsParserToLocalizationProvider.ImageSchemeMappings`
   captures them on load and `IniWriter.WriteLanguages` re-emits them
-  byte-stable; the editor holds them per file (`fileImageSchemes`) and the
-  preview builds a `FolderImageResolver` per mapping, rooted at the file's own
-  directory. A per-file manager dialog edits them.
+  byte-stable; the session holds them per file (`WordsFile.ImageSchemes`) and
+  the preview builds a `FolderImageResolver` per mapping, rooted at the
+  file's own directory. A per-file manager dialog edits them.
 
 ## Languages
 
@@ -179,17 +180,18 @@ requires the files to agree on their key sets. This feature can also be used to 
 
 ## Saving
 
-Save rewrites every loaded file through `IniWriter.WriteFile` with its stored
-preamble/trailer. The session tracks dirtiness; closing with unsaved changes
-prompts. Reset returns to the empty session (one default `en` language).
+Save rewrites every loaded file through `WordsSession.Save` — `IniWriter.WriteFile`
+with the file's own language table, preamble and image schemes, in the order
+its tree node walks. A file that cannot be written is reported and the others
+still save. The editor tracks dirtiness; closing with unsaved changes prompts.
+Reset returns to the empty session (one default `en` language).
 
 ## Out of scope for the rewrite (known future work)
 
-- A split UI: the engine lives in `WordsOperations.Split` (its output is
+- A split UI: the engine lives in `WordsSession.Split` (its output is
   exactly the shape `Merge` consumes back), but nothing in the editor calls
   it yet — wire it up during the front-end rewrite.
 - Surfacing the provider's gripes (undeclared languages, unrecognized fields)
-  in the editor UI; today they only accumulate on
-  `WordsParserToLocalizationProvider.Errors`.
+  in the editor UI; today they only accumulate on `WordsFile.Errors`.
 
 Both are sequenced, with everything else outstanding, in [TODO.md](TODO.md).
