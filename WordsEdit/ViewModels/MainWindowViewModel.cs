@@ -41,6 +41,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public ICommand SaveCommand { get; }
 	public ICommand MergeFilesCommand { get; }
 	public ICommand ManageLanguagesCommand { get; }
+	public ICommand SettingsCommand { get; }
 	public ICommand TestParametersCommand { get; }
 	public ICommand RemoveLocalizationKeyAndNodeCommand { get; }
 	public ICommand RenameLocalizationKeyAndNodeCommand { get; }
@@ -73,6 +74,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		SaveCommand = new DelegateCommand(DoSave);
 		MergeFilesCommand = new DelegateCommand(DoMergeFiles);
 		ManageLanguagesCommand = new DelegateCommand(DoManageLanguages);
+		SettingsCommand = new DelegateCommand(DoSettings, () => Tree.SelectedFile is not null);
 		RemoveLocalizationKeyAndNodeCommand = new DelegateCommand(DoRemoveLocalizationKeyAndNode);
 		RenameLocalizationKeyAndNodeCommand = new DelegateCommand(DoRenameNode);
 		AddLocalizationKeyNodeCommand = new DelegateCommand(DoAddLocalizationKeyNode);
@@ -171,6 +173,17 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	//Languages
 	private void DoManageLanguages() {
 		Dialogs.Show(new LanguageManagerViewModel(this));
+	}
+
+	//the settings are a dictionary's own; the dialog edits the file the selection
+	//sits in, so a node must be selected to know which file that is
+	private void DoSettings() {
+		if (Tree.SelectedFile is not { } file) {
+			return;
+		}
+		Dialogs.Show(new SettingsViewModel(this, file));
+		//the slots or the tables may have changed under the previews
+		RenderPreviews();
 	}
 
 	//Structure edits

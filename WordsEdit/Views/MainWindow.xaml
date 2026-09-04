@@ -522,6 +522,12 @@
                         ToolTip="Manage Languages">
                     <md:PackIcon Kind="Translate"/>
                 </Button>
+                <Button Command="{Binding SettingsCommand}"
+                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                        Margin="2.5px"
+                        ToolTip="Project Settings (preview images and links)">
+                    <md:PackIcon Kind="Cog"/>
+                </Button>
                 <Button Command="{Binding MergeFilesCommand}"
                         Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
                         Margin="2.5px"

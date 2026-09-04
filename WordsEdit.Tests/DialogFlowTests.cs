@@ -271,6 +271,106 @@ value-de=y
 	}
 
 	[Fact]
+	public void Settings_NamesTheFilesAndWritesTheTables() {
+		// the dialog fills the file's param slots (a document change) and writes
+		// the tables of whichever named file is picked, to that file
+		string folder = Path.Combine(Path.GetTempPath(), $"WordsEditSettingsDialog-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		try {
+			var dialogs = new FakeDialogs();
+			var vm = new MainWindowViewModel(dialogs);
+			vm.LoadFile(new StringReader(Ini), Path.Combine(folder, "strings.ini"));
+			WordsFile file = vm.Session.Files[0];
+			vm.Tree.SelectedKeyNode = vm.Tree.KeyNodes[0];
+			dialogs.OnShow = shown => {
+				var settings = Assert.IsType<SettingsViewModel>(shown);
+				Assert.Empty(settings.Targets);
+				Assert.Null(settings.Document);
+
+				settings.SettingsFile = "wordsmith.ini";
+				Assert.Equal(Path.Combine(folder, "wordsmith.ini"), Assert.Single(settings.Targets).Path);
+				SettingsDocument document = Assert.IsType<SettingsDocument>(settings.Document);
+				document.AddImageCommand.Execute(null);
+				document.Images[0].Scheme = "shot";
+				document.Images[0].Folder = "shots";
+				Assert.Contains(document.Errors, error => error.Contains("shot-decode")); //seen before it is saved
+				document.Images[0].Decode = @"/^shot:(\w+)$//$1.png";
+				Assert.Empty(document.Errors);
+				document.AddImageCommand.Execute(null); //a blank row is dropped
+				document.AddLinkCommand.Execute(null);
+				document.Links[0].Scheme = "help";
+				document.Links[0].Mode = "shellexec";
+
+				settings.Languages.First(language => language.Code == "de").Path = "de/wordsmith.ini";
+				Assert.Equal(2, settings.Targets.Count);
+				Assert.Same(settings.Targets[0], settings.Target); //the pick survives the list turning over
+				settings.Target = settings.Targets[1];
+				Assert.NotSame(document, settings.Document);
+				settings.Document!.AddImageCommand.Execute(null);
+				settings.Document.Images[0].Scheme = "shot";
+				settings.Document.Images[0].Folder = "shots-de";
+
+				settings.OkayCommand.Execute(null);
+			};
+
+			vm.SettingsCommand.Execute(null);
+
+			Assert.Single(dialogs.Shown);
+			Assert.Empty(dialogs.Notices);
+			Assert.Equal("wordsmith.ini", file.Settings);
+			Assert.Equal("de/wordsmith.ini", file.LanguageSettings["de"]);
+			Assert.True(vm.IsDirty);
+			ProjectSettings written = ProjectSettings.Load(Path.Combine(folder, "wordsmith.ini"));
+			Assert.Empty(written.Errors);
+			Assert.Equal("shots", Assert.Single(written.Images).Folder);
+			Assert.Equal(LinkMode.ShellExec, Assert.Single(written.Links).Mode);
+			Assert.True(File.Exists(Path.Combine(folder, "de", "wordsmith.ini"))); //its folder was made
+			//the previews see the new rules at once
+			Assert.True(vm.DefaultPreviewSettings.TryLocate(new Uri("shot:Login"), out string root, out _));
+			Assert.Equal(Path.GetFullPath(Path.Combine(folder, "shots")), root);
+			vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.First(language => language.Code == "de");
+			Assert.True(vm.TranslationPreviewSettings.TryLocate(new Uri("shot:Login"), out root, out string path));
+			Assert.Equal(Path.GetFullPath(Path.Combine(folder, "de", "shots-de")), root); //relative to the language's own file
+			Assert.Equal("Login.png", path); //the decode from the dictionary's file
+			//and the slots save with the dictionary
+			var saved = new StringWriter();
+			vm.Session.Save(file, vm.Tree.NodeOf(file), saved);
+			Assert.Contains("param=wordsmith.ini", saved.ToString());
+			Assert.Contains("param-de=de/wordsmith.ini", saved.ToString());
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
+	public void Settings_CancelLeavesFileAndDiskAlone() {
+		string folder = Path.Combine(Path.GetTempPath(), $"WordsEditSettingsCancel-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		try {
+			var (vm, _) = Load();
+			vm.LoadFile(new StringReader(Ini), Path.Combine(folder, "strings.ini"));
+			WordsFile file = vm.Session.Files[1];
+			var settings = new SettingsViewModel(vm, file) { SettingsFile = "wordsmith.ini" };
+			settings.Document!.AddImageCommand.Execute(null);
+			settings.Document.Images[0].Scheme = "pack";
+			settings.Document.Images[0].Folder = "pics";
+			bool closed = false;
+			settings.CloseRequested += () => closed = true;
+
+			settings.CancelCommand.Execute(null);
+
+			Assert.True(closed);
+			Assert.Equal("", file.Settings);
+			Assert.False(vm.IsDirty);
+			Assert.False(File.Exists(Path.Combine(folder, "wordsmith.ini")));
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
 	public void KeyNameDialog_CancelIsAlwaysAvailable_AndRequestsClose() {
 		// opens with an empty (invalid) name; Cancel must still work
 		var (vm, _) = Load();

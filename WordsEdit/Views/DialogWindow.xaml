@@ -27,6 +27,9 @@
         <DataTemplate DataType="{x:Type vm:MergeControlViewModel}">
             <v:MergeControlView/>
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
+            <v:SettingsView/>
+        </DataTemplate>
     </Window.Resources>
     <ContentPresenter Content="{Binding}"/>
 </Window>
