@@ -24,7 +24,7 @@ public partial class MainWindow : Window {
 
 	private static void ConfigureImageSchemes(MainWindowViewModel vm) {
 		markdownParser.ImageSchemes.Clear();
-		foreach (var (scheme, folder) in vm.ImageSchemeFoldersFor(vm.SelectedKeyNode)) {
+		foreach (var (scheme, folder) in vm.ImageSchemeFoldersFor(vm.Tree.SelectedKeyNode)) {
 			markdownParser.ImageSchemes[scheme] = new FolderImageResolver(folder);
 		}
 	}
@@ -41,21 +41,21 @@ public partial class MainWindow : Window {
 		if (DataContext is not MainWindowViewModel vm) {
 			return;
 		}
-		vm.SelectedKeyNode = (KeyNode)e.NewValue;
+		vm.Tree.SelectedKeyNode = (KeyNode)e.NewValue;
 	}
 
 	private void DefaultPreview_Checked(object sender, RoutedEventArgs e) {
 		if (DataContext is not MainWindowViewModel vm) {
 			return;
 		}
-		if (vm.SelectedKey is null) {
+		if (vm.Tree.SelectedKey is null) {
 			return;
 		}
 		IWordsProvider wordsProvider = vm.GetWordsProvider();
-		string defaultValue = Words.RenderKey(wordsProvider, vm.SelectedKey.BlockKey);
-		if (vm.SelectedKey.Parameters.Count != 0) {
+		string defaultValue = Words.RenderKey(wordsProvider, vm.Tree.SelectedKey.BlockKey);
+		if (vm.Tree.SelectedKey.Parameters.Count != 0) {
 			try {
-				defaultValue = FormatSample(vm.SelectedKey, defaultValue, null);
+				defaultValue = FormatSample(vm.Tree.SelectedKey, defaultValue, null);
 			}
 			catch (Exception ex) {
 				vm.Dialogs.Tell(ex.Message);
@@ -77,14 +77,14 @@ public partial class MainWindow : Window {
 		if (DataContext is not MainWindowViewModel vm) {
 			return;
 		}
-		if (vm.SelectedKey is null) {
+		if (vm.Tree.SelectedKey is null) {
 			return;
 		}
-		IWordsProvider wordsProvider = vm.GetWordsProvider(vm.SelectedLanguage.Code);
-		string localizationValue = Words.RenderKey(wordsProvider, vm.SelectedKey.BlockKey);
-		if (vm.SelectedKey.Parameters.Count != 0) {
+		IWordsProvider wordsProvider = vm.GetWordsProvider(vm.Tree.SelectedLanguage.Code);
+		string localizationValue = Words.RenderKey(wordsProvider, vm.Tree.SelectedKey.BlockKey);
+		if (vm.Tree.SelectedKey.Parameters.Count != 0) {
 			try {
-				localizationValue = FormatSample(vm.SelectedKey, localizationValue, vm.SelectedLanguage.Code);
+				localizationValue = FormatSample(vm.Tree.SelectedKey, localizationValue, vm.Tree.SelectedLanguage.Code);
 			}
 			catch (Exception ex) {
 				vm.Dialogs.Tell(ex.Message);

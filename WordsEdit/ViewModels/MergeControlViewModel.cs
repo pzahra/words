@@ -38,8 +38,8 @@ public class MergeControlViewModel : DialogViewModel {
 
 		ConflictMessage = "";
 		Parent = parent;
-		AvailableFiles = parent.KeyNodes;
-		Languages = parent.KnownLanguages;
+		AvailableFiles = parent.Tree.KeyNodes;
+		Languages = parent.Tree.KnownLanguages;
 	}
 
 	private void DoMerge() {
@@ -49,13 +49,13 @@ public class MergeControlViewModel : DialogViewModel {
 		if (!Parent.Dialogs.TrySaveFile("Merge Location", "INI file (*.ini)|*.ini|All files (*.*)|*.*", out string? mergedFileName)) {
 			return;
 		}
-		var sources = LanguageCodeFilePair.ToDictionary(pair => pair.Key, pair => Parent.FileOf(pair.Value));
+		var sources = LanguageCodeFilePair.ToDictionary(pair => pair.Key, pair => Parent.Tree.FileOf(pair.Value));
 		WordsFile? merged;
 		try {
 			//the merged file declares the base file's languages plus the ones merged
 			//in, and keeps the base file's preamble and image schemes — the round
 			//trip SPEC guarantees, not the session union
-			merged = Parent.Session.Merge(Parent.FileOf(BaseFile), sources, BaseFile, mergedFileName, out _);
+			merged = Parent.Session.Merge(Parent.Tree.FileOf(BaseFile), sources, BaseFile, mergedFileName, out _);
 		}
 		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
 			Parent.Dialogs.Tell($"Could not write {mergedFileName}:\n{ex.Message}");
@@ -66,7 +66,7 @@ public class MergeControlViewModel : DialogViewModel {
 			FilesChanged();
 			return;
 		}
-		Parent.Present(merged);
+		Parent.Tree.Present(merged);
 		Close();
 	}
 
@@ -81,7 +81,7 @@ public class MergeControlViewModel : DialogViewModel {
 	}
 
 	public void FilesChanged() {
-		if (!Parent.Session.HaveSameKeys(FilesToMerge.Select(Parent.FileOf), out HashSet<string> conflicts)) {
+		if (!Parent.Session.HaveSameKeys(FilesToMerge.Select(Parent.Tree.FileOf), out HashSet<string> conflicts)) {
 			var conflict = new StringBuilder("Files do not share Keys:");
 			conflicts.ForEach(c => conflict.Append("\n" + c));
 			ConflictMessage = conflict.ToString();

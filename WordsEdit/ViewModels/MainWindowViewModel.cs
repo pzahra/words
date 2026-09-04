@@ -1,6 +1,5 @@
 using PatTech.Localization;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Windows.Input;
@@ -10,79 +9,16 @@ using WordsEdit.Views;
 namespace WordsEdit.ViewModels;
 
 /// <summary>
-///     The main window's intent: which node, key, entry and language are
-///     selected, which filters are on, and what each button does. The document
-///     is <see cref="Session"/>; the tree (<see cref="KeyNodes"/>) presents it
-///     and decides write order. Processing lives in the session and
-///     <see cref="WordsOperations"/>; this class only asks.
+///     The main window: the document (<see cref="Session"/>), the tree that
+///     presents it (<see cref="Tree"/>), what each button does, and whether there
+///     is anything to save. Commands read the selection off the tree, ask the
+///     session, and let the tree follow; processing lives in the session and
+///     <see cref="WordsOperations"/>.
 /// </summary>
 public class MainWindowViewModel : ViewModelSaveBase {
 	public WordsSession Session { get; } = new();
+	public TreeViewModel Tree { get; }
 	public KeyDragDropHandler KeyDragDropHandler { get; }
-	public KeyNodeCollection KeyNodes { get; } = new(null);
-	public ObservableCollection<LanguageEntry> KnownLanguages => Session.Languages.Known;
-
-	public KeyNode? SelectedKeyNode {
-		get;
-		set {
-			if (ChangeProperty(ref field, value)) {
-				OnSelectedKeyNodeChanged();
-			}
-		}
-	}
-
-	public WordsKey? SelectedKey {
-		get;
-		set {
-			WordsKey? oldValue = field;
-			if (ChangeProperty(ref field, value)) {
-				oldValue?.PropertyChanged -= OnSelectedKeyValueChanged;
-				value?.PropertyChanged += OnSelectedKeyValueChanged;
-			}
-		}
-	}
-
-	public WordsEntry? SelectedEntry {
-		get;
-		set {
-			WordsEntry? oldValue = field;
-			if (ChangeProperty(ref field, value)) {
-				oldValue?.PropertyChanged -= OnSelectedEntryChanged;
-				value?.PropertyChanged += OnSelectedEntryChanged;
-			}
-		}
-	}
-
-	public OrganizerNode? SelectedOrganizer {
-		get;
-		set {
-			OrganizerNode? oldValue = field;
-			if (ChangeProperty(ref field, value)) {
-				oldValue?.PropertyChanged -= OnSelectedOrganizerChanged;
-				value?.PropertyChanged += OnSelectedOrganizerChanged;
-			}
-		}
-	}
-
-	public LanguageEntry SelectedLanguage {
-		get;
-		set {
-			//the ComboBox pushes null while its items turn over; the session always
-			//has a language, so the selection never goes without one
-			if (value is null) {
-				return;
-			}
-			if (ChangeProperty(ref field, value)) {
-				OnSelectedLanguageChanged();
-				ApplyFilters();
-			}
-		}
-	}
-
-	//Filters
-	public bool IsStaleFilter { get; set => _ = ChangeProperty(ref field, value) && ApplyFilters(); }
-	public bool NeedsReviewFilter { get; set => _ = ChangeProperty(ref field, value) && ApplyFilters(); }
-	public string SearchFilterText { get; set => _ = ChangeProperty(ref field, value) && ApplyFilters(); } = "";
 
 	//Previews
 	public bool ShowDefaultPreview { get; set => ChangeProperty(ref field, value); }
@@ -112,6 +48,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	public MainWindowViewModel(IDialogs? dialogs = null) {
 		Dialogs = dialogs ?? new WpfDialogs();
+		Tree = new TreeViewModel(Session);
+		Tree.Edited += () => IsDirty = true;
 		LoadFileCommand = new DelegateCommand(DoLoadFiles);
 		ResetCommand = new DelegateCommand(DoReset);
 		SaveCommand = new DelegateCommand(DoSave);
@@ -131,144 +69,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		TestParametersCommand = new DelegateCommand<ObservableCollection<WordsParameter>>(DoTestParameters);
 
 		Title = "Wordsmith Editor";
-		SelectedLanguage = KnownLanguages[0];
 		KeyDragDropHandler = new KeyDragDropHandler() { MainWindow = this };
-	}
-
-	//Selection
-	private void OnSelectedLanguageChanged() {
-		RefreshBadges();
-		if (SelectedKeyNode is null || SelectedKey is null || SelectedKey.IsConstant) {
-			SelectedEntry = null;
-			return;
-		}
-		SelectedEntry = SelectedKey.Entries[SelectedLanguage.Code];
-		ShowLocalizationPreview = false;
-	}
-
-	private void OnSelectedKeyNodeChanged() {
-		SelectedOrganizer = SelectedKeyNode as OrganizerNode;
-		ShowDefaultPreview = false;
-		ShowLocalizationPreview = false;
-		if (SelectedKeyNode is not null && Session.Keys.TryGetValue(SelectedKeyNode.FullLabel, out var key)) {
-			SelectedKey = key;
-			SelectedEntry = key.IsConstant ? null : key.Entries[SelectedLanguage.Code];
-		}
-		else {
-			SelectedKey = null;
-			SelectedEntry = null;
-		}
-	}
-
-	private void OnSelectedKeyValueChanged(object? sender, PropertyChangedEventArgs e) {
-		if (SelectedKey is null || SelectedKeyNode is null) {
-			return; //selection and model briefly disagree while the selection is changing
-		}
-		IsDirty = true;
-		if (e.PropertyName == nameof(SelectedKey.Comment) && SelectedKey.Comment.Trim() != "") {
-			SelectedKey.NeedsReview = true;
-		}
-		if (e.PropertyName is nameof(SelectedKey.DefaultValue) or nameof(SelectedKey.NeedsReview)) {
-			UpdateBadges(SelectedKeyNode);
-		}
-	}
-
-	private void OnSelectedOrganizerChanged(object? sender, PropertyChangedEventArgs e) {
-		if (e.PropertyName == nameof(OrganizerNode.Text)) {
-			IsDirty = true;
-		}
-	}
-
-	private void OnSelectedEntryChanged(object? sender, PropertyChangedEventArgs e) {
-		if (SelectedEntry is null || SelectedKey is null || SelectedKeyNode is null) {
-			return; //selection and model briefly disagree while the selection is changing
-		}
-		IsDirty = true;
-		if (e.PropertyName == nameof(SelectedEntry.Comment) && SelectedEntry.Comment.Trim() != "") {
-			SelectedKey.NeedsReview = true;
-		}
-		if (e.PropertyName is nameof(SelectedEntry.Value) or nameof(SelectedEntry.Stale)) {
-			UpdateBadges(SelectedKeyNode);
-		}
-	}
-
-	//Visibility
-	private IEnumerable<KeyNode> AllNodes => KeyNodes.SelectMany(root => root.SelfAndDescendants());
-
-	public bool ApplyFilters() {
-		foreach (KeyNode node in AllNodes) {
-			node.IsVisible = PassesVisibilityFilters(node);
-		}
-		foreach (KeyNode node in AllNodes) {
-			if (!node.IsVisible) {
-				node.IsVisible = EnsureVisibleDescendant(node);
-			}
-		}
-		return true;
-	}
-
-	private bool PassesVisibilityFilters(KeyNode node) {
-		bool passesFilter = true;
-
-		if (IsStaleFilter) {
-			passesFilter &= node.IsStale || node.EmptyValue;
-		}
-		if (NeedsReviewFilter) {
-			passesFilter &= node.NeedsReview;
-		}
-		if (!string.IsNullOrEmpty(SearchFilterText)) {
-			passesFilter &= node.FullLabel.Contains(SearchFilterText, StringComparison.OrdinalIgnoreCase)
-				|| (node is OrganizerNode organizer && organizer.Text.Contains(SearchFilterText, StringComparison.OrdinalIgnoreCase));
-		}
-
-		return passesFilter;
-	}
-
-	private static bool EnsureVisibleDescendant(KeyNode node) {
-		if (node.IsVisible) return true;
-		foreach (var child in node.Children) {
-			if (EnsureVisibleDescendant(child)) {
-				node.IsVisible = true;
-				return true;
-			}
-		}
-		return false;
-	}
-
-	//Badges: computed from the document, for the selected language, in one pass
-	internal void RefreshBadges() {
-		foreach (KeyNode node in AllNodes) {
-			UpdateBadges(node);
-		}
-	}
-
-	private void UpdateBadges(KeyNode node) {
-		if (node is OrganizerNode) {
-			return;
-		}
-		if (!Session.Keys.TryGetValue(node.FullLabel, out var key)) {
-			node.IsConstant = false;
-			node.NeedsReview = false;
-			node.IsStale = false;
-			node.IsOverwritten = false;
-			node.EmptyValue = false;
-			return;
-		}
-		string code = SelectedLanguage.Code;
-		node.IsConstant = key.IsConstant;
-		node.NeedsReview = key.NeedsReview;
-		node.IsStale = key.HasStaleValue(code);
-		node.IsOverwritten = key.HasRegionalOverride(code);
-		//a key wanting words in either the default or the selected language reads emphasized
-		node.EmptyValue = !key.IsConstant
-			&& (key.DefaultValue.Trim() == "" || (key.Entries.GetValueOrDefault(code)?.Value.Trim() ?? "") == "");
-	}
-
-	//only a leaf directly under a file may become a constant (SPEC: baseline pane)
-	internal static void UpdateCanBeConstant(KeyNode fileNode) {
-		foreach (KeyNode node in fileNode.Descendants()) {
-			node.CanBeConstant = node is not OrganizerNode && node.Parent == fileNode && node.Children.Count == 0;
-		}
 	}
 
 	//Load
@@ -291,43 +92,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 	}
 
-	public void LoadFile(TextReader reader, string fileName) => Present(Session.Load(reader, fileName));
-
-	/// <summary>Puts a loaded file in the tree; a reload takes the old node's place.</summary>
-	public void Present(WordsFile file) {
-		KeyNode node = KeyNode.From(KeyTree.Build(Session, file));
-		node.IsLibraryFile = file.IsLibrary;
-		if (file.Preamble != "") {
-			//the preamble shows as an organizer pinned to the file's start; its text
-			//is the file's own, which Save writes above the language table
-			node.Children.Insert(0, new OrganizerNode($"{file.Label}.;preamble",
-				() => file.Preamble,
-				text => file.Preamble = text));
-		}
-		int existing = KeyNodes.FindIndex(root => root.FullLabel == file.Label);
-		if (existing >= 0) {
-			KeyNodes[existing] = node;
-		}
-		else {
-			KeyNodes.Add(node);
-		}
-		if (SelectedKeyNode is not null && !KeyNodes.Contains(SelectedKeyNode.Root)) {
-			SelectedKeyNode = null;
-		}
-		UpdateCanBeConstant(node);
-		FollowLanguage();
-		RefreshBadges();
-		ApplyFilters();
-	}
-
-	//the dropdown's entry may have been replaced or pruned: follow the code, never go without
-	private void FollowLanguage()
-		=> SelectedLanguage = KnownLanguages.FirstOrDefault(language => language.Code == SelectedLanguage.Code) ?? KnownLanguages[0];
-
-	/// <summary>The file a tree node belongs to.</summary>
-	public WordsFile FileOf(KeyNode node)
-		=> Session.FileOf(node.Root.FullLabel)
-			?? throw new InvalidOperationException($"no loaded file for node {node.FullLabel}");
+	public void LoadFile(TextReader reader, string fileName) => Tree.Present(Session.Load(reader, fileName));
 
 	//Reset
 	private void DoReset() {
@@ -338,12 +103,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	public void ResetCore() {
 		Session.Reset();
-		KeyNodes.Clear();
-		SelectedKeyNode = null;
-		SelectedLanguage = KnownLanguages[0];
-		SearchFilterText = "";
-		IsStaleFilter = false;
-		NeedsReviewFilter = false;
+		Tree.Clear();
 		IsDirty = false;
 	}
 
@@ -353,10 +113,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public override void Save() {
 		bool allSaved = true;
 		foreach (WordsFile file in Session.Files) {
-			KeyNode node = KeyNodes.FirstOrDefault(root => root.FullLabel == file.Label)
-				?? throw new InvalidOperationException($"no tree for loaded file {file.Label}");
 			try {
-				Session.Save(file, node);
+				Session.Save(file, Tree.NodeOf(file));
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
 				Dialogs.Tell($"Could not save {file.Path}:\n{ex.Message}");
@@ -380,12 +138,12 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	//image-scheme mappings are per-file; the dialog edits the file the selection
 	//sits in, so a node must be selected to know which file that is
-	private bool CanManageImageSchemes() => SelectedKeyNode is not null;
+	private bool CanManageImageSchemes() => Tree.SelectedFile is not null;
 	private void DoManageImageSchemes() {
-		if (SelectedKeyNode is null) {
+		if (Tree.SelectedFile is not { } file) {
 			return;
 		}
-		Dialogs.Show(new ImageSchemesViewModel(this, FileOf(SelectedKeyNode)));
+		Dialogs.Show(new ImageSchemesViewModel(this, file));
 	}
 
 	/// <summary>
@@ -393,62 +151,50 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	///     what the preview's resolver registry is built from.
 	/// </summary>
 	public IReadOnlyDictionary<string, string> ImageSchemeFoldersFor(KeyNode? node)
-		=> node is null ? new Dictionary<string, string>() : FileOf(node).ImageSchemeFolders();
+		=> node is null ? new Dictionary<string, string>() : Tree.FileOf(node).ImageSchemeFolders();
 
 	//Structure edits
 	private void DoRemoveLocalizationKeyAndNode() {
-		if (SelectedKeyNode is null) {
+		if (Tree.SelectedKeyNode is not { } node) {
 			return;
 		}
-		if (SelectedKeyNode is OrganizerNode organizer) {
+		if (node is OrganizerNode organizer) {
 			//deleting the organizer deletes the comment it presents
 			organizer.Text = "";
-			RemoveKeyNode(organizer);
+			Tree.Remove(organizer);
+			IsDirty = true;
 			return;
 		}
-		if (SelectedKeyNode.IsFile) {
+		if (node.IsFile) {
 			if (Dialogs.Confirm("Remove the selected file? All unsaved changes will be lost.")) {
-				RemoveFileNodeCore(SelectedKeyNode);
+				RemoveFileNodeCore(node);
 			}
 			return;
 		}
-		Session.RemoveKeysUnder(SelectedKeyNode.FullLabel);
-		RemoveKeyNode(SelectedKeyNode);
+		Session.RemoveKeysUnder(node.FullLabel);
+		Tree.Remove(node);
+		IsDirty = true;
 	}
 
 	public void RemoveFileNodeCore(KeyNode fileNode) {
 		if (Session.FileOf(fileNode.FullLabel) is { } file) {
 			Session.Unload(file);
 		}
-		KeyNodes.Remove(fileNode);
-		SelectedKeyNode = KeyNodes.FirstOrDefault();
-		FollowLanguage();
-		RefreshBadges();
-	}
-
-	private void RemoveKeyNode(KeyNode node) {
-		//a removed key leaves any comment above it standing; on the next load
-		//the comment anchors to whatever block follows it
-		KeyNode? parent = node.Parent;
-		KeyNode root = node.Root;
-		parent?.Children.Remove(node);
-		UpdateCanBeConstant(root);
-		SelectedKeyNode = parent;
-		IsDirty = true;
+		Tree.RemoveFile(fileNode);
 	}
 
 	private void DoRenameNode() {
-		if (SelectedKeyNode is null or OrganizerNode || SelectedKeyNode.IsFile) {
+		if (Tree.SelectedKeyNode is null or OrganizerNode || Tree.SelectedKeyNode.IsFile) {
 			return;
 		}
-		Dialogs.Show(new KeyNameViewModel(this, SelectedKeyNode));
+		Dialogs.Show(new KeyNameViewModel(this, Tree.SelectedKeyNode));
 	}
 
 	public void RenameLocalizationKeyAndNode(string newName) {
-		if (SelectedKeyNode is null or OrganizerNode || SelectedKeyNode.Parent is not { } parent) {
+		if (Tree.SelectedKeyNode is null or OrganizerNode || Tree.SelectedKeyNode.Parent is not { } parent) {
 			return; //files keep the name of the file
 		}
-		KeyNode node = SelectedKeyNode;
+		KeyNode node = Tree.SelectedKeyNode;
 		if (parent.Children.Any(sibling => sibling != node && sibling.Label == newName)) {
 			Dialogs.Tell($"'{parent.FullLabel}' already has a node named '{newName}'.");
 			return;
@@ -466,114 +212,94 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	private void DoAddLocalizationKeyNode() {
-		if (SelectedKeyNode is null or OrganizerNode) {
+		if (Tree.SelectedKeyNode is null or OrganizerNode) {
 			return;
 		}
 		Dialogs.Show(new KeyNameViewModel(this, null));
 	}
 
 	public void AddLocalizationKeyNode(string newName) {
-		if (SelectedKeyNode is null or OrganizerNode) {
+		if (Tree.SelectedKeyNode is null or OrganizerNode) {
 			return;
 		}
-		KeyNode parent = SelectedKeyNode;
+		KeyNode parent = Tree.SelectedKeyNode;
 		if (parent.Children.Any(child => child.Label == newName)) {
 			Dialogs.Tell($"'{parent.FullLabel}' already has a node named '{newName}'.");
 			return;
 		}
-		KeyNode node = new(newName, $"{parent.FullLabel}.{newName}") {
-			IsSelected = true,
-		};
-		parent.IsExpanded = true;
-		parent.IsSelected = false;
-		parent.Children.Add(node);
-		UpdateCanBeConstant(parent.Root);
-		SelectedKeyNode = node;
+		Tree.Add(parent, newName);
 		IsDirty = true;
 	}
 
 	private void DoAddLocalizationKey() {
 		//SPEC (The tree): a key can exist on any node except a file
-		if (SelectedKeyNode is null or OrganizerNode || SelectedKeyNode.IsFile) {
+		if (Tree.SelectedKeyNode is null or OrganizerNode || Tree.SelectedKeyNode.IsFile) {
 			return;
 		}
-		WordsKey key = Session.AddKey(SelectedKeyNode.FullLabel);
-		SelectedKey = key;
-		SelectedEntry = key.IsConstant ? null : key.Entries[SelectedLanguage.Code];
-		UpdateBadges(SelectedKeyNode);
+		Session.AddKey(Tree.SelectedKeyNode.FullLabel);
+		Tree.FollowSelectedKey();
+		Tree.RefreshBadges(Tree.SelectedKeyNode);
 		IsDirty = true;
 	}
 
 	private void DoAddOrganizer() {
-		if (SelectedKeyNode is null or OrganizerNode || SelectedKeyNode.IsFile || SelectedKeyNode.Parent is not { } parent) {
+		if (Tree.SelectedKeyNode is null or OrganizerNode || Tree.SelectedKeyNode.IsFile) {
 			return;
 		}
-		int index = parent.Children.IndexOf(SelectedKeyNode);
-		KeyNode select;
-		if (index > 0 && parent.Children[index - 1] is OrganizerNode existing) {
-			select = existing;
-		}
-		else {
-			var organizer = new CommentNode($"{SelectedKeyNode.FullLabel}.;comment");
-			parent.Children.Insert(index, organizer);
-			select = organizer;
+		if (Tree.CommentAhead(Tree.SelectedKeyNode)) {
 			IsDirty = true;
 		}
-		SelectedKeyNode.IsSelected = false;
-		select.IsSelected = true;
-		SelectedKeyNode = select;
 	}
 
 	private void DoRemoveLocalizationKey() {
-		if (SelectedKeyNode is null) {
+		if (Tree.SelectedKeyNode is not { } node) {
 			return;
 		}
-		Session.RemoveKey(SelectedKeyNode.FullLabel);
-		SelectedKey = null;
-		SelectedEntry = null;
-		UpdateBadges(SelectedKeyNode);
+		Session.RemoveKey(node.FullLabel);
+		Tree.FollowSelectedKey();
+		Tree.RefreshBadges(node);
 		IsDirty = true;
 	}
 
 	//Flags
 	private void DoStaleAllLanguages() {
-		if (SelectedKey is null || SelectedKeyNode is null) {
+		if (Tree.SelectedKey is not { } key || Tree.SelectedKeyNode is not { } node) {
 			return;
 		}
 		string stamp = DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture);
-		foreach (WordsEntry entry in SelectedKey.Entries.Values) {
+		foreach (WordsEntry entry in key.Entries.Values) {
 			entry.Stale = stamp;
 		}
-		UpdateBadges(SelectedKeyNode);
+		Tree.RefreshBadges(node);
 		IsDirty = true;
 	}
 
 	private void DoToggleStaleLanguage(string? languageCode) {
-		if (languageCode is null || SelectedKey is null || SelectedKeyNode is null
-				|| !SelectedKey.Entries.TryGetValue(languageCode, out var entry)) {
+		if (languageCode is null || Tree.SelectedKey is not { } key || Tree.SelectedKeyNode is not { } node
+				|| !key.Entries.TryGetValue(languageCode, out var entry)) {
 			return;
 		}
 		entry.Stale = entry.Stale is null ? DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture) : null;
-		UpdateBadges(SelectedKeyNode);
+		Tree.RefreshBadges(node);
 		IsDirty = true;
 	}
 
 	private void DoToggleKeyNeedsReview() {
-		if (SelectedKey is null || SelectedKeyNode is null) {
+		if (Tree.SelectedKey is not { } key || Tree.SelectedKeyNode is not { } node) {
 			return;
 		}
-		SelectedKey.NeedsReview = !SelectedKey.NeedsReview;
-		UpdateBadges(SelectedKeyNode);
+		key.NeedsReview = !key.NeedsReview;
+		Tree.RefreshBadges(node);
 		IsDirty = true;
 	}
 
 	private void DoToggleLocalizationKeyIsConstant() {
-		if (SelectedKey is null || SelectedKeyNode is null) {
+		if (Tree.SelectedKey is not { } key || Tree.SelectedKeyNode is not { } node) {
 			return;
 		}
-		bool makeConstant = !SelectedKey.IsConstant;
+		bool makeConstant = !key.IsConstant;
 		bool clearEntries = false;
-		if (makeConstant && SelectedKey.Entries.Values.Any(entry => !entry.IsEmpty())) {
+		if (makeConstant && key.Entries.Values.Any(entry => !entry.IsEmpty())) {
 			//a constant reads the same in every language: its translations go, and
 			//that is the user's call to make
 			if (!Dialogs.Confirm("Make this key a constant? Its translations will be removed.")) {
@@ -581,14 +307,14 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			}
 			clearEntries = true;
 		}
-		string? newKey = Session.SetConstant(SelectedKey.BlockKey, makeConstant, clearEntries);
+		string? newKey = Session.SetConstant(key.BlockKey, makeConstant, clearEntries);
 		if (newKey is null) {
-			Dialogs.Tell($"A key named {WordsOperations.SetConstantMarker(SelectedKey.BlockKey, makeConstant)} already exists.");
+			Dialogs.Tell($"A key named {WordsOperations.SetConstantMarker(key.BlockKey, makeConstant)} already exists.");
 			return;
 		}
-		SelectedKeyNode.Relabel(newKey);
-		UpdateBadges(SelectedKeyNode);
-		SelectedEntry = makeConstant ? null : SelectedKey.Entries[SelectedLanguage.Code];
+		node.Relabel(newKey);
+		Tree.FollowSelectedKey();
+		Tree.RefreshBadges(node);
 		IsDirty = true;
 	}
 
@@ -597,11 +323,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	//Previews
-	//file nodes in tree order; later files win bare-reference lookups, like a
-	//host app stacking dictionaries
-	private IEnumerable<string> FileLabels => KeyNodes.Select(node => node.FullLabel);
+	public IWordsProvider GetWordsProvider() => Session.Provider(Tree.FileLabels);
 
-	public IWordsProvider GetWordsProvider() => Session.Provider(FileLabels);
-
-	public IWordsProvider GetWordsProvider(string languageCode) => Session.Provider(FileLabels, languageCode);
+	public IWordsProvider GetWordsProvider(string languageCode) => Session.Provider(Tree.FileLabels, languageCode);
 }

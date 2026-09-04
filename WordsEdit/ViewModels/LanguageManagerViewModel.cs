@@ -7,17 +7,16 @@ public class LanguageManagerViewModel : DialogViewModel {
 	public override string Title => "Languages";
 	public LanguageDragDropHandler LanguageDragDropHandler { get; }
 	public MainWindowViewModel Parent { get; }
-	public ObservableCollection<LanguageEntry> KnownLanguages => Parent.KnownLanguages;
+	public ObservableCollection<LanguageEntry> KnownLanguages => Parent.Tree.KnownLanguages;
 	public LanguageEntry SelectedLanguage {
-		get => Parent.SelectedLanguage;
+		get => Parent.Tree.SelectedLanguage;
 		set {
-			if (value == Parent.SelectedLanguage) return;
+			if (value == Parent.Tree.SelectedLanguage) return;
 
-			Parent.SelectedLanguage = value;
+			Parent.Tree.SelectedLanguage = value;
 			AffectProperty(nameof(SelectedLanguage));
 		}
 	}
-
 
 	public DelegateCommand RemoveLanguageCommand { get; }
 	public DelegateCommand AddLanguageCommand { get; }
@@ -45,7 +44,7 @@ public class LanguageManagerViewModel : DialogViewModel {
 		int i = KnownLanguages.IndexOf(remove);
 		SelectedLanguage = KnownLanguages[i == 0 ? 1 : i - 1];
 		Parent.Session.Languages.Remove(remove.Code);
-		Parent.RefreshBadges();
+		Parent.Tree.RefreshBadges();
 		Parent.IsDirty = true;
 	}
 
@@ -69,7 +68,7 @@ public class LanguageManagerViewModel : DialogViewModel {
 		//park the displaced one in context, in copy/paste reach of the translator.
 		//Shifted onto a language that already exists, the two entries become one
 		SelectedLanguage = Parent.Session.Languages.Rename(SelectedLanguage.Code, lang);
-		Parent.RefreshBadges();
+		Parent.Tree.RefreshBadges();
 		Parent.IsDirty = true;
 	}
 

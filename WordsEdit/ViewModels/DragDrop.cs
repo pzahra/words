@@ -86,7 +86,7 @@ public class KeyDragDropHandler : IDragSource, IDropTarget {
 			if (!target.IsFile) {
 				return;
 			}
-			var roots = MainWindow.KeyNodes;
+			var roots = MainWindow.Tree.KeyNodes;
 			int from = roots.IndexOf(dragged);
 			int to = roots.IndexOf(target) + (after ? 1 : 0);
 			if (to > from) {
@@ -136,9 +136,9 @@ public class KeyDragDropHandler : IDragSource, IDropTarget {
 		if (newParent != oldParent) {
 			dragged.Relabel(newFullLabel);
 		}
-		MainWindowViewModel.UpdateCanBeConstant(newParent.Root);
+		TreeViewModel.UpdateCanBeConstant(newParent.Root);
 		if (oldParent.Root != newParent.Root) {
-			MainWindowViewModel.UpdateCanBeConstant(oldParent.Root);
+			TreeViewModel.UpdateCanBeConstant(oldParent.Root);
 		}
 		MainWindow.IsDirty = true;
 	}

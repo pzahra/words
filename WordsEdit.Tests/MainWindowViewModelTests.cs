@@ -26,11 +26,11 @@ public class MainWindowViewModelTests {
 		=> rootNodes.SelectMany(node => node.SelfAndDescendants());
 
 	public static KeyNode Node(MainWindowViewModel viewModel, string fullLabel)
-		=> GetAllKeyNodes(viewModel.KeyNodes).First(node => node.FullLabel == fullLabel);
+		=> GetAllKeyNodes(viewModel.Tree.KeyNodes).First(node => node.FullLabel == fullLabel);
 
 	private static string Save(MainWindowViewModel vm, string label) {
 		var writer = new StringWriter();
-		vm.Session.Save(vm.Session.FileOf(label)!, vm.KeyNodes.First(k => k.FullLabel == label), writer);
+		vm.Session.Save(vm.Session.FileOf(label)!, vm.Tree.KeyNodes.First(k => k.FullLabel == label), writer);
 		return writer.ToString();
 	}
 
@@ -38,9 +38,9 @@ public class MainWindowViewModelTests {
 	public void MainWindowViewModel_LoadTest() {
 		var vm = LoadExample();
 
-		Assert.NotEmpty(vm.KeyNodes);
+		Assert.NotEmpty(vm.Tree.KeyNodes);
 		Assert.NotEmpty(vm.Session.Keys);
-		Assert.True(vm.KnownLanguages.Count > 1);
+		Assert.True(vm.Tree.KnownLanguages.Count > 1);
 		Assert.Single(vm.Session.Files);
 	}
 
@@ -129,7 +129,7 @@ value=x
 		var keys1 = vm1.Session.Keys.Values.ToList();
 		var keys2 = vm2.Session.Keys.Values.ToList();
 		Assert.Equal(keys1.Count, keys2.Count);
-		Assert.Equal(vm1.KnownLanguages.Count, vm2.KnownLanguages.Count);
+		Assert.Equal(vm1.Tree.KnownLanguages.Count, vm2.Tree.KnownLanguages.Count);
 		foreach (var (key1, key2) in keys1.Zip(keys2)) {
 			Assert.Equal(key1.BlockKey, key2.BlockKey);
 			Assert.Equal(key1.Comment, key2.Comment);
@@ -152,7 +152,7 @@ value=x
 				Assert.Equal(entry1.Comment, entry2.Comment);
 			}
 		}
-		foreach (var (language1, language2) in vm1.KnownLanguages.Zip(vm2.KnownLanguages)) {
+		foreach (var (language1, language2) in vm1.Tree.KnownLanguages.Zip(vm2.Tree.KnownLanguages)) {
 			Assert.Equal(language1.Code, language2.Code);
 			Assert.Equal(language1.NativeName, language2.NativeName);
 			Assert.Equal(language1.EnglishName, language2.EnglishName);
@@ -164,32 +164,32 @@ value=x
 		// the badge is per selected language (SPEC: badges), so toggling en-CA
 		// shows on the node while en-CA is the language shown
 		var vm = LoadExample();
-		vm.SelectedLanguage = vm.KnownLanguages.First(l => l.Code == "en-CA");
-		vm.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
+		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.First(l => l.Code == "en-CA");
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
 
 		vm.ToggleStaleLanguageCommand.Execute("en-CA");
 
 		Assert.NotNull(vm.Session.Keys["Example.view.section-name.key"].Entries["en-CA"].Stale);
-		Assert.True(vm.SelectedKeyNode?.IsStale);
+		Assert.True(vm.Tree.SelectedKeyNode?.IsStale);
 		Assert.True(vm.IsDirty);
 
 		vm.ToggleStaleLanguageCommand.Execute("en-CA");
 		Assert.Null(vm.Session.Keys["Example.view.section-name.key"].Entries["en-CA"].Stale);
-		Assert.False(vm.SelectedKeyNode?.IsStale);
+		Assert.False(vm.Tree.SelectedKeyNode?.IsStale);
 	}
 
 	[Fact]
 	public void MainWindowViewModel_ToggleConstantTest() {
 		var vm = NewVm();
 		vm.Session.AddKey("fullLabel");
-		vm.KeyNodes.Add(new KeyNode("label", "fullLabel"));
-		vm.SelectedKeyNode = vm.KeyNodes[0];
+		vm.Tree.KeyNodes.Add(new KeyNode("label", "fullLabel"));
+		vm.Tree.SelectedKeyNode = vm.Tree.KeyNodes[0];
 
 		vm.ToggleLocalizationKeyIsConstantCommand.Execute(null);
 
-		Assert.True(vm.SelectedKey?.IsConstant);
-		Assert.True(vm.SelectedKeyNode?.IsConstant);
-		Assert.Null(vm.SelectedEntry);
+		Assert.True(vm.Tree.SelectedKey?.IsConstant);
+		Assert.True(vm.Tree.SelectedKeyNode?.IsConstant);
+		Assert.Null(vm.Tree.SelectedEntry);
 	}
 
 	[Fact]
@@ -197,20 +197,20 @@ value=x
 		// the $ marker belongs on the last segment alone:
 		// Example.view.section-name.key <-> Example.view.section-name.$key
 		var vm = LoadExample();
-		vm.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
 
 		vm.ToggleLocalizationKeyIsConstantCommand.Execute(null);
 
-		Assert.Equal("Example.view.section-name.$key", vm.SelectedKey?.BlockKey);
-		Assert.Equal("Example.view.section-name.$key", vm.SelectedKeyNode.FullLabel);
-		Assert.Equal("Example.view.section-name.$key.tooltip", vm.SelectedKeyNode.Children[0].FullLabel); //descendants follow
+		Assert.Equal("Example.view.section-name.$key", vm.Tree.SelectedKey?.BlockKey);
+		Assert.Equal("Example.view.section-name.$key", vm.Tree.SelectedKeyNode.FullLabel);
+		Assert.Equal("Example.view.section-name.$key.tooltip", vm.Tree.SelectedKeyNode.Children[0].FullLabel); //descendants follow
 		Assert.True(vm.Session.Keys.ContainsKey("Example.view.section-name.$key"));
 		Assert.True(vm.Session.Keys.ContainsKey("Example.view.section-name.$key.tooltip"));
 		Assert.False(vm.Session.Keys.ContainsKey("Example.view.section-name.key"));
 
 		vm.ToggleLocalizationKeyIsConstantCommand.Execute(null);
 
-		Assert.Equal("Example.view.section-name.key", vm.SelectedKey?.BlockKey);
+		Assert.Equal("Example.view.section-name.key", vm.Tree.SelectedKey?.BlockKey);
 		Assert.True(vm.Session.Keys.ContainsKey("Example.view.section-name.key"));
 	}
 
@@ -220,19 +220,19 @@ value=x
 		var dialogs = new FakeDialogs { ConfirmAnswer = false };
 		var vm = new MainWindowViewModel(dialogs);
 		vm.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
-		vm.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
 
 		vm.ToggleLocalizationKeyIsConstantCommand.Execute(null);
 
 		Assert.Single(dialogs.Confirmations);
-		Assert.False(vm.SelectedKey!.IsConstant);
-		Assert.Equal("Base", vm.SelectedKey.Entries["en"].Value);
+		Assert.False(vm.Tree.SelectedKey!.IsConstant);
+		Assert.Equal("Base", vm.Tree.SelectedKey.Entries["en"].Value);
 
 		dialogs.ConfirmAnswer = true;
 		vm.ToggleLocalizationKeyIsConstantCommand.Execute(null);
 
-		Assert.True(vm.SelectedKey.IsConstant);
-		Assert.All(vm.SelectedKey.Entries.Values, entry => Assert.True(entry.IsEmpty()));
+		Assert.True(vm.Tree.SelectedKey.IsConstant);
+		Assert.All(vm.Tree.SelectedKey.Entries.Values, entry => Assert.True(entry.IsEmpty()));
 	}
 
 	[Fact]
@@ -250,15 +250,15 @@ value=va
 [viewer]
 value=w
 "), "T");
-		vm.SelectedKeyNode = vm.KeyNodes[0].Children[0]; //T.view
+		vm.Tree.SelectedKeyNode = vm.Tree.KeyNodes[0].Children[0]; //T.view
 
 		vm.RemoveLocalizationKeyAndNodeCommand.Execute(null);
 
 		Assert.False(vm.Session.Keys.ContainsKey("T.view"));
 		Assert.False(vm.Session.Keys.ContainsKey("T.view.a"));
 		Assert.True(vm.Session.Keys.ContainsKey("T.viewer"));
-		Assert.Equal(["viewer"], vm.KeyNodes[0].Children.Select(n => n.Label));
-		Assert.Same(vm.KeyNodes[0], vm.SelectedKeyNode);
+		Assert.Equal(["viewer"], vm.Tree.KeyNodes[0].Children.Select(n => n.Label));
+		Assert.Same(vm.Tree.KeyNodes[0], vm.Tree.SelectedKeyNode);
 	}
 
 	[Fact]
@@ -297,16 +297,16 @@ value=w
 			var vm = NewVm();
 			vm.LoadFile(filePath);
 			vm.LoadFile(new StringReader("value-en=English\n\n[b]\nvalue=B\n"), "B");
-			vm.SelectedKeyNode = Node(vm, "A.two");
+			vm.Tree.SelectedKeyNode = Node(vm, "A.two");
 
 			File.WriteAllText(filePath, "value-en=English\n\n[one]\nvalue=uno\n");
 			vm.LoadFile(filePath);
 
-			Assert.Equal(["A", "B"], vm.KeyNodes.Select(n => n.FullLabel));
-			Assert.Equal(["one"], vm.KeyNodes[0].Children.Select(n => n.Label)); //the key deleted on disk is gone
+			Assert.Equal(["A", "B"], vm.Tree.KeyNodes.Select(n => n.FullLabel));
+			Assert.Equal(["one"], vm.Tree.KeyNodes[0].Children.Select(n => n.Label)); //the key deleted on disk is gone
 			Assert.False(vm.Session.Keys.ContainsKey("A.two"));
 			Assert.Equal("uno", vm.Session.Keys["A.one"].DefaultValue);
-			Assert.Null(vm.SelectedKeyNode); //it pointed into the replaced tree
+			Assert.Null(vm.Tree.SelectedKeyNode); //it pointed into the replaced tree
 		}
 		finally {
 			Directory.Delete(path, recursive: true);
@@ -318,7 +318,7 @@ value=w
 		// preamble pins to the file's start, trailer to its end, and a banner
 		// shows as an organizer node in front of the key it precedes
 		var vm = LoadExample();
-		KeyNode file = vm.KeyNodes[0];
+		KeyNode file = vm.Tree.KeyNodes[0];
 
 		var preamble = Assert.IsType<OrganizerNode>(file.Children[0]);
 		Assert.Equal(" ExampleFile preamble — kept above the language labels", preamble.Text);
@@ -330,19 +330,19 @@ value=w
 		var banner = Assert.IsType<CommentNode>(main.Children[titleIndex - 1]);
 		Assert.Equal(" a banner: freeform comments above a header ride the block", banner.Text);
 		Assert.StartsWith("a banner:", banner.Caption);
-		Assert.All(GetAllKeyNodes(vm.KeyNodes).Where(n => n != file), n => Assert.NotNull(n.Parent));
+		Assert.All(GetAllKeyNodes(vm.Tree.KeyNodes).Where(n => n != file), n => Assert.NotNull(n.Parent));
 	}
 
 	[Fact]
 	public void MainWindowViewModel_OrganizerEditsFlowToTheDocument() {
 		var vm = LoadExample();
-		KeyNode file = vm.KeyNodes[0];
+		KeyNode file = vm.Tree.KeyNodes[0];
 		KeyNode main = file.Children.First(n => n.Label == "main");
 		var banner = main.Children.OfType<OrganizerNode>().First();
 
-		vm.SelectedKeyNode = banner;
-		Assert.Same(banner, vm.SelectedOrganizer);
-		Assert.Null(vm.SelectedKey);
+		vm.Tree.SelectedKeyNode = banner;
+		Assert.Same(banner, vm.Tree.SelectedOrganizer);
+		Assert.Null(vm.Tree.SelectedKey);
 
 		banner.Text = " rewritten";
 		Assert.True(vm.IsDirty);
@@ -359,10 +359,10 @@ value=w
 	[Fact]
 	public void MainWindowViewModel_RemovingAnOrganizerDeletesTheComment() {
 		var vm = LoadExample();
-		KeyNode main = vm.KeyNodes[0].Children.First(n => n.Label == "main");
+		KeyNode main = vm.Tree.KeyNodes[0].Children.First(n => n.Label == "main");
 		var banner = main.Children.OfType<OrganizerNode>().First();
 
-		vm.SelectedKeyNode = banner;
+		vm.Tree.SelectedKeyNode = banner;
 		vm.RemoveLocalizationKeyAndNodeCommand.Execute(null);
 
 		Assert.DoesNotContain(banner, main.Children);
@@ -375,11 +375,11 @@ value=w
 		// the organizer is standalone: deleting the key beneath it leaves the
 		// comment in place, riding above whatever block comes next
 		var vm = LoadExample();
-		KeyNode main = vm.KeyNodes[0].Children.First(n => n.Label == "main");
+		KeyNode main = vm.Tree.KeyNodes[0].Children.First(n => n.Label == "main");
 		KeyNode title = main.Children.First(n => n.Label == "title");
 		var banner = main.Children.OfType<OrganizerNode>().First();
 
-		vm.SelectedKeyNode = title;
+		vm.Tree.SelectedKeyNode = title;
 		vm.RemoveLocalizationKeyAndNodeCommand.Execute(null);
 
 		Assert.DoesNotContain(title, main.Children);
@@ -393,21 +393,21 @@ value=w
 	[Fact]
 	public void MainWindowViewModel_AddOrganizerInsertsAheadOfTheKey() {
 		var vm = LoadExample();
-		KeyNode main = vm.KeyNodes[0].Children.First(n => n.Label == "main");
+		KeyNode main = vm.Tree.KeyNodes[0].Children.First(n => n.Label == "main");
 		KeyNode circle = main.Children.First(n => n.Label == "circle-1");
-		vm.SelectedKeyNode = circle;
+		vm.Tree.SelectedKeyNode = circle;
 
 		vm.AddOrganizerCommand.Execute(null);
 
-		var organizer = Assert.IsType<CommentNode>(vm.SelectedKeyNode);
+		var organizer = Assert.IsType<CommentNode>(vm.Tree.SelectedKeyNode);
 		Assert.Same(organizer, main.Children[main.Children.IndexOf(circle) - 1]);
 		Assert.Same(main, organizer.Parent);
 		organizer.Text = " note to self";
 
 		// running the command again on the key reuses the existing organizer
-		vm.SelectedKeyNode = circle;
+		vm.Tree.SelectedKeyNode = circle;
 		vm.AddOrganizerCommand.Execute(null);
-		Assert.Same(organizer, vm.SelectedKeyNode);
+		Assert.Same(organizer, vm.Tree.SelectedKeyNode);
 
 		Assert.Contains("; note to self", Save(vm, "Example"));
 	}
@@ -430,7 +430,7 @@ value=B
 value-fr=Bé
 "), "Extra");
 
-		Assert.Contains(vm.KnownLanguages, l => l.Code == "fr");
+		Assert.Contains(vm.Tree.KnownLanguages, l => l.Code == "fr");
 		Assert.Equal(["en"], vm.Session.FileOf("Main")!.Languages);
 		Assert.Equal(["en", "fr"], vm.Session.FileOf("Extra")!.Languages);
 
@@ -458,7 +458,7 @@ value=y
 value-en-GB=only regional
 "), "Main");
 		LanguageManagerViewModel manager = new(vm) {
-			SelectedLanguage = vm.KnownLanguages.First(l => l.Code == "en-GB"),
+			SelectedLanguage = vm.Tree.KnownLanguages.First(l => l.Code == "en-GB"),
 		};
 
 		manager.EditLanguage(new LanguageEntry("en", "English"));
@@ -493,8 +493,8 @@ value-eo=!Esperanto
 value=x
 "), "Lib");
 
-		Assert.True(vm.KeyNodes[0].IsLibraryFile);
-		Assert.Contains(vm.KnownLanguages, l => l.Code == "eo");
+		Assert.True(vm.Tree.KeyNodes[0].IsLibraryFile);
+		Assert.Contains(vm.Tree.KnownLanguages, l => l.Code == "eo");
 
 		string output = Save(vm, "Lib");
 		Assert.Contains("value-en=!English", output);
@@ -507,7 +507,7 @@ value=x
 		// filters must show every node
 		var vm = LoadExample();
 
-		Assert.All(GetAllKeyNodes(vm.KeyNodes), node => Assert.True(node.IsVisible));
+		Assert.All(GetAllKeyNodes(vm.Tree.KeyNodes), node => Assert.True(node.IsVisible));
 	}
 
 	[Fact]
@@ -515,7 +515,7 @@ value=x
 		// only a leaf directly under a file may become a constant
 		var vm = LoadExample();
 
-		Assert.All(GetAllKeyNodes(vm.KeyNodes).Where(node => node is not OrganizerNode), node =>
+		Assert.All(GetAllKeyNodes(vm.Tree.KeyNodes).Where(node => node is not OrganizerNode), node =>
 			Assert.Equal(node.Parent is { IsFile: true } && node.Children.Count == 0, node.CanBeConstant));
 		Assert.True(Node(vm, "Example.$rsi-unit").CanBeConstant);
 		Assert.False(Node(vm, "Example.view").CanBeConstant);
@@ -525,81 +525,81 @@ value=x
 	[Fact]
 	public void MainWindowViewModel_StaleAllLanguagesTest() {
 		var vm = LoadExample();
-		vm.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
 
 		vm.StaleAllLanguagesCommand.Execute(null);
 
-		Assert.NotNull(vm.SelectedKey);
-		Assert.All(vm.SelectedKey.Entries.Values, entry => Assert.NotNull(entry.Stale));
-		Assert.True(vm.SelectedKeyNode.IsStale);
+		Assert.NotNull(vm.Tree.SelectedKey);
+		Assert.All(vm.Tree.SelectedKey.Entries.Values, entry => Assert.NotNull(entry.Stale));
+		Assert.True(vm.Tree.SelectedKeyNode.IsStale);
 		Assert.True(vm.IsDirty);
 	}
 
 	[Fact]
 	public void MainWindowViewModel_ResetCoreTest() {
 		var vm = LoadExample();
-		vm.SelectedKeyNode = Node(vm, "Example.view.section-name");
-		vm.SelectedLanguage = vm.KnownLanguages[1];
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name");
+		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages[1];
 
 		vm.ResetCore();
 
-		Assert.Null(vm.SelectedKeyNode);
-		Assert.Null(vm.SelectedKey);
-		Assert.Null(vm.SelectedEntry);
-		Assert.Single(vm.KnownLanguages);
+		Assert.Null(vm.Tree.SelectedKeyNode);
+		Assert.Null(vm.Tree.SelectedKey);
+		Assert.Null(vm.Tree.SelectedEntry);
+		Assert.Single(vm.Tree.KnownLanguages);
 		Assert.Empty(vm.Session.Keys);
 		Assert.Empty(vm.Session.Files);
-		Assert.Empty(vm.KeyNodes);
-		Assert.Equal("", vm.SearchFilterText);
-		Assert.False(vm.IsStaleFilter);
-		Assert.Equal("en", vm.SelectedLanguage.Code);
+		Assert.Empty(vm.Tree.KeyNodes);
+		Assert.Equal("", vm.Tree.SearchFilterText);
+		Assert.False(vm.Tree.IsStaleFilter);
+		Assert.Equal("en", vm.Tree.SelectedLanguage.Code);
 	}
 
 	[Fact]
 	public void MainWindowViewModel_RemoveLocalizationKeyTest() {
 		var vm = LoadExample();
-		vm.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
-		WordsKey? selectedKey = vm.SelectedKey;
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
+		WordsKey? selectedKey = vm.Tree.SelectedKey;
 		Assert.NotNull(selectedKey);
 
 		vm.RemoveLocalizationKeyCommand.Execute(null);
 
-		Assert.Null(vm.SelectedKey);
-		Assert.Null(vm.SelectedEntry);
+		Assert.Null(vm.Tree.SelectedKey);
+		Assert.Null(vm.Tree.SelectedEntry);
 		Assert.DoesNotContain(selectedKey, vm.Session.Keys.Values);
 		Assert.False(vm.Session.Keys.ContainsKey("Example.view.section-name.key"));
 		Assert.True(vm.Session.Keys.ContainsKey("Example.view.section-name.key.tooltip")); //descendants stay
-		Assert.False(vm.SelectedKeyNode!.IsStale); //the node still stands, badgeless
+		Assert.False(vm.Tree.SelectedKeyNode!.IsStale); //the node still stands, badgeless
 		Assert.True(vm.IsDirty);
 	}
 
 	[Fact]
 	public void MainWindowViewModel_RemoveLocalizationKeyAndNodeTest() {
 		var vm = LoadExample();
-		vm.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
-		string blockKey = vm.SelectedKey?.BlockKey ?? throw new InvalidOperationException();
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
+		string blockKey = vm.Tree.SelectedKey?.BlockKey ?? throw new InvalidOperationException();
 
 		vm.RemoveLocalizationKeyAndNodeCommand.Execute(null);
 
 		Assert.DoesNotContain(vm.Session.Keys.Keys, k => k.StartsWith(blockKey));
-		Assert.DoesNotContain(GetAllKeyNodes(vm.KeyNodes), k => k.FullLabel.StartsWith(blockKey));
+		Assert.DoesNotContain(GetAllKeyNodes(vm.Tree.KeyNodes), k => k.FullLabel.StartsWith(blockKey));
 	}
 
 	[Fact]
 	public void MainWindowViewModel_RenameLocalizationKeyNodeTest() {
 		var vm = LoadExample();
-		vm.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
-		string blockKey = vm.SelectedKey?.BlockKey ?? throw new InvalidOperationException();
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
+		string blockKey = vm.Tree.SelectedKey?.BlockKey ?? throw new InvalidOperationException();
 
 		vm.RenameLocalizationKeyAndNode("test");
 
-		Assert.Equal("test", vm.SelectedKeyNode.Label);
-		Assert.Equal("Example.view.section-name.test", vm.SelectedKeyNode.FullLabel);
-		Assert.Equal("Example.view.section-name.test", vm.SelectedKey.BlockKey);
-		Assert.Equal("Example.view.section-name.test.tooltip", vm.SelectedKeyNode.Children[0].FullLabel);
+		Assert.Equal("test", vm.Tree.SelectedKeyNode.Label);
+		Assert.Equal("Example.view.section-name.test", vm.Tree.SelectedKeyNode.FullLabel);
+		Assert.Equal("Example.view.section-name.test", vm.Tree.SelectedKey.BlockKey);
+		Assert.Equal("Example.view.section-name.test.tooltip", vm.Tree.SelectedKeyNode.Children[0].FullLabel);
 		Assert.True(vm.Session.Keys.ContainsKey("Example.view.section-name.test.tooltip"));
 		Assert.DoesNotContain(vm.Session.Keys.Keys, k => k.StartsWith(blockKey));
-		Assert.DoesNotContain(GetAllKeyNodes(vm.KeyNodes), k => k.FullLabel.StartsWith(blockKey));
+		Assert.DoesNotContain(GetAllKeyNodes(vm.Tree.KeyNodes), k => k.FullLabel.StartsWith(blockKey));
 	}
 
 	[Fact]
@@ -608,12 +608,12 @@ value=x
 		var dialogs = new FakeDialogs();
 		var vm = new MainWindowViewModel(dialogs);
 		vm.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
-		vm.SelectedKeyNode = Node(vm, "Example.enum.none");
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.enum.none");
 
 		vm.RenameLocalizationKeyAndNode("two");
 
 		Assert.Single(dialogs.Notices);
-		Assert.Equal("Example.enum.none", vm.SelectedKeyNode.FullLabel);
+		Assert.Equal("Example.enum.none", vm.Tree.SelectedKeyNode.FullLabel);
 		Assert.True(vm.Session.Keys.ContainsKey("Example.enum.none"));
 		Assert.Equal("Two Selection", vm.Session.Keys["Example.enum.two"].DefaultValue);
 	}
@@ -621,28 +621,28 @@ value=x
 	[Fact]
 	public void MainWindowViewModel_AddLocalizationKeyTest() {
 		var vm = LoadExample();
-		vm.SelectedKeyNode = Node(vm, "Example.view"); //a group: it has no key yet
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view"); //a group: it has no key yet
 
 		vm.AddLocalizationKeyCommand.Execute(null);
 
 		WordsKey newKey = vm.Session.Keys["Example.view"];
-		Assert.Same(newKey, vm.SelectedKey);
-		Assert.Same(newKey.Entries[vm.SelectedLanguage.Code], vm.SelectedEntry);
-		Assert.All(vm.KnownLanguages, language => Assert.True(newKey.Entries.ContainsKey(language.Code)));
-		Assert.True(vm.SelectedKeyNode.EmptyValue);
+		Assert.Same(newKey, vm.Tree.SelectedKey);
+		Assert.Same(newKey.Entries[vm.Tree.SelectedLanguage.Code], vm.Tree.SelectedEntry);
+		Assert.All(vm.Tree.KnownLanguages, language => Assert.True(newKey.Entries.ContainsKey(language.Code)));
+		Assert.True(vm.Tree.SelectedKeyNode.EmptyValue);
 		Assert.True(vm.IsDirty);
 
 		//SPEC (The tree): a key can exist on any node except a file
-		vm.SelectedKeyNode = vm.KeyNodes[0];
+		vm.Tree.SelectedKeyNode = vm.Tree.KeyNodes[0];
 		vm.AddLocalizationKeyCommand.Execute(null);
 		Assert.False(vm.Session.Keys.ContainsKey("Example"));
-		Assert.Null(vm.SelectedKey);
+		Assert.Null(vm.Tree.SelectedKey);
 	}
 
 	[Fact]
 	public void MainWindowViewModel_AddLocalizationKeyNodeTest() {
 		var vm = LoadExample();
-		vm.SelectedKeyNode = Node(vm, "Example.view");
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view");
 
 		vm.AddLocalizationKeyNode("test");
 
@@ -655,14 +655,14 @@ value=x
 		Assert.True(newKeyNode.IsSelected);
 		Assert.False(view.IsSelected);
 		Assert.True(view.IsExpanded);
-		Assert.Same(newKeyNode, vm.SelectedKeyNode);
-		Assert.Null(vm.SelectedKey);
-		Assert.Null(vm.SelectedEntry);
+		Assert.Same(newKeyNode, vm.Tree.SelectedKeyNode);
+		Assert.Null(vm.Tree.SelectedKey);
+		Assert.Null(vm.Tree.SelectedEntry);
 
 		//a leaf added under the file may become a constant; its parent no longer can
-		vm.SelectedKeyNode = vm.KeyNodes[0];
+		vm.Tree.SelectedKeyNode = vm.Tree.KeyNodes[0];
 		vm.AddLocalizationKeyNode("leaf");
-		Assert.True(vm.SelectedKeyNode.CanBeConstant);
+		Assert.True(vm.Tree.SelectedKeyNode.CanBeConstant);
 	}
 
 	[Fact]
@@ -708,23 +708,23 @@ value=x
 		vm.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.MergeTestFile2.ini"), "MergeTestFile2");
 
 		Assert.Equal(["Example", "MergeTestFile", "MergeTestFile2"], vm.Session.Files.Select(f => f.Path));
-		Assert.Equal(["Example", "MergeTestFile", "MergeTestFile2"], vm.KeyNodes.Select(n => n.FullLabel));
+		Assert.Equal(["Example", "MergeTestFile", "MergeTestFile2"], vm.Tree.KeyNodes.Select(n => n.FullLabel));
 	}
 
 	[Fact]
 	public void MainWindowViewModel_RemoveFileNodeTest() {
 		var vm = LoadExample();
-		vm.SelectedKeyNode = vm.KeyNodes[0];
+		vm.Tree.SelectedKeyNode = vm.Tree.KeyNodes[0];
 
-		vm.RemoveFileNodeCore(vm.SelectedKeyNode);
+		vm.RemoveFileNodeCore(vm.Tree.SelectedKeyNode);
 
-		Assert.Null(vm.SelectedKeyNode);
-		Assert.Null(vm.SelectedKey);
-		Assert.Null(vm.SelectedEntry);
-		Assert.Empty(vm.KeyNodes);
+		Assert.Null(vm.Tree.SelectedKeyNode);
+		Assert.Null(vm.Tree.SelectedKey);
+		Assert.Null(vm.Tree.SelectedEntry);
+		Assert.Empty(vm.Tree.KeyNodes);
 		Assert.Empty(vm.Session.Files);
 		Assert.Empty(vm.Session.Keys);
-		Assert.Equal("en", vm.SelectedLanguage.Code); //the pruned dropdown still has a selection
+		Assert.Equal("en", vm.Tree.SelectedLanguage.Code); //the pruned dropdown still has a selection
 	}
 
 	[Fact]
@@ -732,24 +732,24 @@ value=x
 		var vm = LoadExample();
 		vm.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.MergeTestFile.ini"), "MergeTestFile");
 		int survivorKeys = vm.Session.KeysOf(vm.Session.FileOf("MergeTestFile")!).Count();
-		vm.SelectedKeyNode = vm.KeyNodes[0];
+		vm.Tree.SelectedKeyNode = vm.Tree.KeyNodes[0];
 
-		vm.RemoveFileNodeCore(vm.KeyNodes[0]);
+		vm.RemoveFileNodeCore(vm.Tree.KeyNodes[0]);
 
-		Assert.Equal(["MergeTestFile"], vm.KeyNodes.Select(n => n.FullLabel));
-		Assert.Same(vm.KeyNodes[0], vm.SelectedKeyNode);
+		Assert.Equal(["MergeTestFile"], vm.Tree.KeyNodes.Select(n => n.FullLabel));
+		Assert.Same(vm.Tree.KeyNodes[0], vm.Tree.SelectedKeyNode);
 		Assert.Equal(survivorKeys, vm.Session.Keys.Count);
-		Assert.Contains(vm.KnownLanguages, l => l.Code == vm.SelectedLanguage.Code);
+		Assert.Contains(vm.Tree.KnownLanguages, l => l.Code == vm.Tree.SelectedLanguage.Code);
 	}
 
 	[Fact]
 	public void MainWindowViewModel_StaleViewTest() {
 		var vm = LoadExample();
-		vm.SelectedLanguage = vm.KnownLanguages[4]; //zh - Chinese (Simplified)
+		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages[4]; //zh - Chinese (Simplified)
 
-		vm.IsStaleFilter = true;
+		vm.Tree.IsStaleFilter = true;
 
-		Assert.True(vm.KeyNodes[0].IsVisible); //Example
+		Assert.True(vm.Tree.KeyNodes[0].IsVisible); //Example
 		Assert.True(Node(vm, "Example.view").IsVisible);
 		Assert.True(Node(vm, "Example.view.section-name").IsVisible);
 		Assert.True(Node(vm, "Example.view.section-name.key").IsVisible);
@@ -763,11 +763,11 @@ value=x
 	[Fact]
 	public void MainWindowViewModel_SearchTest() {
 		var vm = LoadExample();
-		vm.SelectedLanguage = vm.KnownLanguages[4]; //zh - Chinese (Simplified)
+		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages[4]; //zh - Chinese (Simplified)
 
-		vm.SearchFilterText = "tooltip";
+		vm.Tree.SearchFilterText = "tooltip";
 
-		Assert.True(vm.KeyNodes[0].IsVisible); //Example
+		Assert.True(vm.Tree.KeyNodes[0].IsVisible); //Example
 		Assert.True(Node(vm, "Example.view").IsVisible);
 		Assert.True(Node(vm, "Example.view.section-name").IsVisible);
 		Assert.True(Node(vm, "Example.view.section-name.key").IsVisible);
@@ -785,12 +785,12 @@ value=x
 	[Fact]
 	public void MainWindowViewModel_StaleAndSearchTest() {
 		var vm = LoadExample();
-		vm.SelectedLanguage = vm.KnownLanguages[4]; //zh - Chinese (Simplified)
+		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages[4]; //zh - Chinese (Simplified)
 
-		vm.IsStaleFilter = true;
-		vm.SearchFilterText = "tooltip";
+		vm.Tree.IsStaleFilter = true;
+		vm.Tree.SearchFilterText = "tooltip";
 
-		Assert.False(vm.KeyNodes[0].IsVisible); //Example
+		Assert.False(vm.Tree.KeyNodes[0].IsVisible); //Example
 	}
 
 	[Fact]
@@ -806,7 +806,7 @@ value=x
 		Assert.True(key.IsOverwritten); //en-CA overrides en
 		Assert.False(title.EmptyValue); //value-en present
 
-		vm.SelectedLanguage = vm.KnownLanguages.First(l => l.Code == "zh");
+		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.First(l => l.Code == "zh");
 
 		Assert.True(key.IsStale);
 		Assert.False(key.IsOverwritten); //no zh-HK value on the key itself…

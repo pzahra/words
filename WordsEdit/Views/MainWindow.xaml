@@ -45,7 +45,7 @@
 
 			<Grid   Grid.Column="0"
                     Grid.Row="0"
-                    Visibility="{Binding KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                    Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
                     Margin="3 0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -58,7 +58,7 @@
                              Height="20"
                              Width="20"
                              VerticalAlignment="Center"/>
-                <TextBox Text="{Binding SearchFilterText, UpdateSourceTrigger=PropertyChanged}" 
+                <TextBox Text="{Binding Tree.SearchFilterText, UpdateSourceTrigger=PropertyChanged}" 
                          Grid.Column="1"
                          VerticalAlignment="Center"
                          Margin="2.5px"/>
@@ -66,12 +66,12 @@
                     <ToggleButton Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=ClockAlert,Size=25}"
                                   ToolTip="Stale View"
-                                  IsChecked="{Binding IsStaleFilter}" 
+                                  IsChecked="{Binding Tree.IsStaleFilter}" 
                                   Margin="2.5px"/>
                     <ToggleButton Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=HandFrontLeft,Size=25}"
                                   ToolTip="Review View"
-                                  IsChecked="{Binding NeedsReviewFilter}" 
+                                  IsChecked="{Binding Tree.NeedsReviewFilter}" 
                                   Margin="2.5px"/>
                 </DockPanel>
             </Grid>
@@ -82,8 +82,8 @@
                 <Border CornerRadius="3" 
                         BorderThickness="1" 
                         BorderBrush="{DynamicResource PrimaryHueDarkBrush}"
-                        Visibility="{Binding KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}">
-                    <TreeView ItemsSource="{Binding KeyNodes}"
+                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}">
+                    <TreeView ItemsSource="{Binding Tree.KeyNodes}"
 					          SelectedItemChanged="TreeView_OnSelectedItemChanged"
                               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                               AllowDrop="True"
@@ -146,13 +146,13 @@
 				<TextBlock Margin="2.5px"
                            FontWeight="SemiBold"
                            FontSize="18"
-						   Text="{Binding SelectedKeyNode.Path, Mode=OneWay}"
-						   ToolTip="{Binding SelectedKeyNode.Path}"/>
+						   Text="{Binding Tree.SelectedKeyNode.Path, Mode=OneWay}"
+						   ToolTip="{Binding Tree.SelectedKeyNode.Path}"/>
 				<Button Padding="0 0 1 0" 
                         Margin="2 0 0 0" 
                         Height="16" 
                         Command="{Binding RenameLocalizationKeyAndNodeCommand}" 
-                        Visibility="{Binding SelectedKeyNode.IsFile, Converter={StaticResource IsFalseAndNotNull},FallbackValue=Collapsed}"
+                        Visibility="{Binding Tree.SelectedKeyNode.IsFile, Converter={StaticResource IsFalseAndNotNull},FallbackValue=Collapsed}"
                         ToolTip="Edit Name">
                     <md:PackIcon Kind="RenameBox"/>
                 </Button>
@@ -162,7 +162,7 @@
                           Grid.Column="1"
                           Margin="3 0">
                 <StackPanel>
-                <StackPanel Visibility="{Binding SelectedKey, Converter={StaticResource IsNotNull}}">
+                <StackPanel Visibility="{Binding Tree.SelectedKey, Converter={StaticResource IsNotNull}}">
                     <TextBlock TextWrapping="Wrap"
                                Margin="2.5px"
                                Text="Context"
@@ -172,7 +172,7 @@
                             BorderThickness="1" 
                             Margin="0 0 30px 2.5px" 
                             BorderBrush="Green">
-                        <TextBox Text="{Binding SelectedKey.Context, UpdateSourceTrigger=PropertyChanged}" 
+                        <TextBox Text="{Binding Tree.SelectedKey.Context, UpdateSourceTrigger=PropertyChanged}" 
                                  TextWrapping="Wrap"
                                  AcceptsReturn="True"
                                  SpellCheck.IsEnabled="True"
@@ -189,7 +189,7 @@
                             BorderThickness="1" 
                             Margin="30px 0 0 2.5px" 
                             BorderBrush="Black">
-                        <TextBox Text="{Binding SelectedKey.Comment, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox Text="{Binding Tree.SelectedKey.Comment, UpdateSourceTrigger=PropertyChanged}"
                                  TextWrapping="Wrap"
                                  AcceptsReturn="True"
                                  SpellCheck.IsEnabled="True"
@@ -197,7 +197,7 @@
                                  Margin="2.5px"/>
                     </Border>
                 </StackPanel>
-                <StackPanel Visibility="{Binding SelectedOrganizer, Converter={StaticResource IsNotNull}}">
+                <StackPanel Visibility="{Binding Tree.SelectedOrganizer, Converter={StaticResource IsNotNull}}">
                     <TextBlock TextWrapping="Wrap"
                                Margin="2.5px"
                                Text="Freeform Comment"
@@ -207,7 +207,7 @@
                             BorderThickness="1"
                             Margin="0 0 30px 2.5px"
                             BorderBrush="Gray">
-                        <TextBox Text="{Binding SelectedOrganizer.Text, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox Text="{Binding Tree.SelectedOrganizer.Text, UpdateSourceTrigger=PropertyChanged}"
                                  TextWrapping="Wrap"
                                  AcceptsReturn="True"
                                  SpellCheck.IsEnabled="True"
@@ -220,7 +220,7 @@
             </ScrollViewer>
             <Grid Grid.Column="1"
                   Grid.Row="2"
-                  Visibility="{Binding SelectedKey, Converter={StaticResource IsNotNull}}"
+                  Visibility="{Binding Tree.SelectedKey, Converter={StaticResource IsNotNull}}"
                   Margin="3 0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -246,7 +246,7 @@
                             Grid.Column="1" 
                             VerticalAlignment="Center">
                     <Button Command="{Binding TestParametersCommand}"
-                            CommandParameter="{Binding SelectedKey.Parameters}"
+                            CommandParameter="{Binding Tree.SelectedKey.Parameters}"
                             Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
                             ToolTip="Test Parameters"
                             Margin="2.5px">
@@ -257,14 +257,14 @@
                     <ToggleButton Command="{Binding ToggleLocalizationKeyIsConstantCommand}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=TranslateOff, Size=25}"
-                                  IsChecked="{Binding SelectedKeyNode.IsConstant, Mode=OneWay}"
-                                  Visibility="{Binding SelectedKeyNode.CanBeConstant, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                  IsChecked="{Binding Tree.SelectedKeyNode.IsConstant, Mode=OneWay}"
+                                  Visibility="{Binding Tree.SelectedKeyNode.CanBeConstant, Converter={StaticResource BooleanToVisibilityConverter}}"
                                   ToolTip=" Toggle Constant (Does not need translation)"
                                   Margin="2.5px"/>
                     <ToggleButton Command="{Binding ToggleLocalizationKeyNeedsReviewCommand}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=HandFrontLeft, Size=25}"
-                                  IsChecked="{Binding SelectedKeyNode.NeedsReview, Mode=OneWay}"
+                                  IsChecked="{Binding Tree.SelectedKeyNode.NeedsReview, Mode=OneWay}"
                                   ToolTip="Toggle needs review"
                                   Margin="2.5px"/>
                     <ToggleButton Checked="DefaultPreview_Checked" 
@@ -283,7 +283,7 @@
                         Grid.Column="0" 
                         Grid.ColumnSpan="2">
                     <Grid>
-                        <TextBox Text="{Binding SelectedKey.DefaultValue, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox Text="{Binding Tree.SelectedKey.DefaultValue, UpdateSourceTrigger=PropertyChanged}"
                                  VerticalScrollBarVisibility="Auto"
                                  AcceptsReturn="True"
                                  TextWrapping="Wrap"
@@ -303,10 +303,10 @@
                     </Grid>
                 </Border>
             </Grid>
-            <ComboBox ItemsSource="{Binding KnownLanguages}"
-                      SelectedItem="{Binding SelectedLanguage}"
+            <ComboBox ItemsSource="{Binding Tree.KnownLanguages}"
+                      SelectedItem="{Binding Tree.SelectedLanguage}"
                       DisplayMemberPath="NativeName"
-                      Visibility="{Binding KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                      Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
                       Grid.Column="2" 
                       Grid.Row="0"
                       FontWeight="SemiBold"
@@ -327,7 +327,7 @@
             <ScrollViewer Grid.Column="2"
                           Grid.Row="1"
                           VerticalScrollBarVisibility="Auto"
-                          Visibility="{Binding SelectedEntry, Converter={StaticResource IsNotNull}}"
+                          Visibility="{Binding Tree.SelectedEntry, Converter={StaticResource IsNotNull}}"
                           Margin="3 0">
                 <StackPanel>
                     <TextBlock Text="Translation Context"
@@ -338,7 +338,7 @@
                             BorderThickness="1" 
                             Margin="0 0 30px 2.5px" 
                             BorderBrush="Green">
-                        <TextBox Text="{Binding SelectedEntry.Context, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox Text="{Binding Tree.SelectedEntry.Context, UpdateSourceTrigger=PropertyChanged}"
                                  TextWrapping="Wrap"
                                  TextAlignment="Left"
                                  AcceptsReturn="True"
@@ -354,7 +354,7 @@
                             BorderThickness="1" 
                             Margin="30px 0 0 2.5px" 
                             BorderBrush="Black">
-                        <TextBox Text="{Binding SelectedEntry.Comment, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox Text="{Binding Tree.SelectedEntry.Comment, UpdateSourceTrigger=PropertyChanged}"
                                  TextWrapping="Wrap"
                                  TextAlignment="Left"
                                  AcceptsReturn="True"
@@ -365,7 +365,7 @@
             </ScrollViewer>
             <Grid Grid.Column="2"
                   Grid.Row="2"
-                  Visibility="{Binding SelectedEntry, Converter={StaticResource IsNotNull}}"
+                  Visibility="{Binding Tree.SelectedEntry, Converter={StaticResource IsNotNull}}"
                   Margin="3 0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -383,14 +383,14 @@
                             Grid.Column="0"  
                             VerticalAlignment="Center">
 					<Grid Margin="2.5px"
-						  Visibility="{Binding SelectedEntry.Stale, Converter={StaticResource IsNotNull}}">
+						  Visibility="{Binding Tree.SelectedEntry.Stale, Converter={StaticResource IsNotNull}}">
 						<Grid.ColumnDefinitions>
 							<ColumnDefinition Width="Auto"/>
 							<ColumnDefinition Width="*"/>
 						</Grid.ColumnDefinitions>
 
 						<Label Content="Stale: "/>
-						<TextBox Grid.Column="1" Text="{Binding SelectedEntry.Stale}" />
+						<TextBox Grid.Column="1" Text="{Binding Tree.SelectedEntry.Stale}" />
                     </Grid>
                     <TextBlock Text="Translation"
                                Margin="2.5px"
@@ -401,7 +401,7 @@
                             Grid.Row="0" 
                             Grid.Column="2">
                     <Button Command="{Binding TestParametersCommand}"
-                            CommandParameter="{Binding SelectedKey.Parameters}"
+                            CommandParameter="{Binding Tree.SelectedKey.Parameters}"
                             Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
                             ToolTip="Test Parameters"
                             Margin="2.5px">
@@ -410,8 +410,8 @@
                                      Width="20"/>
                     </Button>
                     <ToggleButton Command="{Binding ToggleStaleLanguageCommand}"
-                                  CommandParameter="{Binding SelectedLanguage.Code}"
-                                  IsChecked="{Binding SelectedKeyNode.IsStale, Mode=OneWay}"
+                                  CommandParameter="{Binding Tree.SelectedLanguage.Code}"
+                                  IsChecked="{Binding Tree.SelectedKeyNode.IsStale, Mode=OneWay}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=ClockAlert,Size=30}"
                                   ToolTip="Toggle Language is stale"
@@ -432,7 +432,7 @@
                         Grid.Column="0" 
                         Grid.ColumnSpan="2">
                     <Grid>
-                        <TextBox Text="{Binding SelectedEntry.Value, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox Text="{Binding Tree.SelectedEntry.Value, UpdateSourceTrigger=PropertyChanged}"
                                  TextWrapping="Wrap"
                                  VerticalScrollBarVisibility="Auto"
                                  AcceptsReturn="True"
@@ -458,22 +458,22 @@
 			<StackPanel Grid.Column="0" 
                         Grid.Row="3"
                         VerticalAlignment="Bottom"
-                        Visibility="{Binding SelectedKeyNode, Converter={StaticResource IsNotNull}}"
+                        Visibility="{Binding Tree.SelectedKeyNode, Converter={StaticResource IsNotNull}}"
                         Orientation="Horizontal">
                 <Button Command="{Binding AddLocalizationKeyNodeCommand}"
-                        Visibility="{Binding SelectedKeyNode.IsConstant, Converter={StaticResource IsFalseAndNotNull}, FallbackValue=Visible}"
+                        Visibility="{Binding Tree.SelectedKeyNode.IsConstant, Converter={StaticResource IsFalseAndNotNull}, FallbackValue=Visible}"
                         ToolTip="Add Key"
                         Margin="2.5px">
                     <md:PackIcon Kind="PlusThick"/>
                 </Button>
                 <Button Command="{Binding RemoveLocalizationKeyAndNodeCommand}"
-                        Visibility="{Binding SelectedKeyNode, Converter={StaticResource IsNotNull}}"
+                        Visibility="{Binding Tree.SelectedKeyNode, Converter={StaticResource IsNotNull}}"
                         ToolTip="Remove Key"
                         Margin="2.5px">
                     <md:PackIcon Kind="Delete"/>
                 </Button>
                 <Button Command="{Binding AddOrganizerCommand}"
-                        Visibility="{Binding SelectedKeyNode.IsFile, Converter={StaticResource IsFalseAndNotNull}, FallbackValue=Collapsed}"
+                        Visibility="{Binding Tree.SelectedKeyNode.IsFile, Converter={StaticResource IsFalseAndNotNull}, FallbackValue=Collapsed}"
                         ToolTip="Add Comment"
                         Margin="2.5px">
                     <md:PackIcon Kind="CommentPlus"/>
@@ -484,22 +484,22 @@
                         VerticalAlignment="Bottom"
                         HorizontalAlignment="Center"
                         Orientation="Horizontal"
-                        Visibility="{Binding SelectedKeyNode, Converter={StaticResource IsNotNull}}">
+                        Visibility="{Binding Tree.SelectedKeyNode, Converter={StaticResource IsNotNull}}">
                 <Button Command="{Binding StaleAllLanguagesCommand}" 
-                        Visibility="{Binding SelectedEntry, Converter={StaticResource IsNotNull}}"
+                        Visibility="{Binding Tree.SelectedEntry, Converter={StaticResource IsNotNull}}"
                         ToolTip="Set all localizations as stale"
                         Margin="2.5px">
                     <md:PackIcon Kind="ClockAlert"/>
                 </Button>
                 <Button Command="{Binding RemoveLocalizationKeyCommand}"
-                        Visibility="{Binding SelectedKey, Converter={StaticResource IsNotNull}}"
+                        Visibility="{Binding Tree.SelectedKey, Converter={StaticResource IsNotNull}}"
                         ToolTip="Delete Key Information"
                         Margin="2.5px">
                     <md:PackIcon Kind="Delete"/>
                 </Button>
-                <StackPanel Visibility="{Binding SelectedKeyNode.IsFile, Converter={StaticResource IsFalseAndNotNull}, FallbackValue=Visible}">
+                <StackPanel Visibility="{Binding Tree.SelectedKeyNode.IsFile, Converter={StaticResource IsFalseAndNotNull}, FallbackValue=Visible}">
                     <Button Command="{Binding AddLocalizationKeyCommand}"
-                            Visibility="{Binding SelectedKey, Converter={StaticResource Equals}, ConverterParameter={x:Null}}"
+                            Visibility="{Binding Tree.SelectedKey, Converter={StaticResource Equals}, ConverterParameter={x:Null}}"
                             ToolTip="Add Key Information"
                             Margin="2.5px">
                         <md:PackIcon Kind="PlusThick"/>
@@ -512,19 +512,19 @@
                         HorizontalAlignment="Right"
                         VerticalAlignment="Bottom">
                 <Button Command="{Binding ManageLanguagesCommand}"
-                        Visibility="{Binding KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
                         Margin="2.5px"
                         ToolTip="Manage Languages">
                     <md:PackIcon Kind="Translate"/>
                 </Button>
                 <Button Command="{Binding ManageImageSchemesCommand}"
-                        Visibility="{Binding KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
                         Margin="2.5px"
                         ToolTip="Image Scheme Folders">
                     <md:PackIcon Kind="ImageMultiple"/>
                 </Button>
                 <Button Command="{Binding MergeFilesCommand}"
-                        Visibility="{Binding KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
                         Margin="2.5px"
                         ToolTip="Merge Files">
                     <md:PackIcon Kind="Merge"/>
@@ -535,13 +535,13 @@
                     <md:PackIcon Kind="FolderUpload"/>
                 </Button>
                 <Button Command="{Binding SaveCommand}"
-                        Visibility="{Binding KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
                         Margin="2.5px"
                         ToolTip="Save To Files">
                     <md:PackIcon Kind="ContentSave"/>
                 </Button>
                 <Button Command="{Binding ResetCommand}"
-                        Visibility="{Binding KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
                         ToolTip="Reset"
                         Margin="2.5px">
                     <md:PackIcon Kind="Reload"/>
@@ -553,7 +553,7 @@
 					   VerticalAlignment="Bottom"
 					   HorizontalAlignment="Right"
 					   Foreground="{DynamicResource MaterialDesignLightForeground}"
-					   Visibility="{Binding KeyNodes.Count, Converter={StaticResource Equals}, ConverterParameter=0}">
+					   Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource Equals}, ConverterParameter=0}">
 				<Run FontSize="24" FontWeight="DemiBold" BaselineAlignment="Top">Start Here</Run>
 				<md:PackIcon Kind="ArrowBottomRightBoldOutline" Width="96" Height="96"/>
 				<Run Text="         "/>

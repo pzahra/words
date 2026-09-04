@@ -33,26 +33,26 @@ value-de=y
 		dialogs.ConfirmAnswer = false;
 		vm.ResetCommand.Execute(null);
 		Assert.Single(dialogs.Confirmations);
-		Assert.NotEmpty(vm.KeyNodes);
+		Assert.NotEmpty(vm.Tree.KeyNodes);
 
 		dialogs.ConfirmAnswer = true;
 		vm.ResetCommand.Execute(null);
-		Assert.Empty(vm.KeyNodes);
+		Assert.Empty(vm.Tree.KeyNodes);
 		Assert.False(vm.IsDirty);
 	}
 
 	[Fact]
 	public void RemoveFile_AsksFirst() {
 		var (vm, dialogs) = Load();
-		vm.SelectedKeyNode = vm.KeyNodes[0];
+		vm.Tree.SelectedKeyNode = vm.Tree.KeyNodes[0];
 
 		dialogs.ConfirmAnswer = false;
 		vm.RemoveLocalizationKeyAndNodeCommand.Execute(null);
-		Assert.Single(vm.KeyNodes);
+		Assert.Single(vm.Tree.KeyNodes);
 
 		dialogs.ConfirmAnswer = true;
 		vm.RemoveLocalizationKeyAndNodeCommand.Execute(null);
-		Assert.Empty(vm.KeyNodes);
+		Assert.Empty(vm.Tree.KeyNodes);
 		Assert.Equal(2, dialogs.Confirmations.Count);
 	}
 
@@ -65,18 +65,18 @@ value-de=y
 		try {
 			//cancelled: nothing happens
 			vm.LoadFileCommand.Execute(null);
-			Assert.Empty(vm.KeyNodes);
+			Assert.Empty(vm.Tree.KeyNodes);
 
 			dialogs.FilesToOpen = [path];
 			vm.LoadFileCommand.Execute(null);
 			Assert.Contains(vm.Session.Files, file => file.Path == path);
-			Assert.Single(vm.KeyNodes);
+			Assert.Single(vm.Tree.KeyNodes);
 
 			//a path that isn't there is told, not thrown
 			dialogs.FilesToOpen = [Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.ini")];
 			vm.LoadFileCommand.Execute(null);
 			Assert.Single(dialogs.Notices);
-			Assert.Single(vm.KeyNodes);
+			Assert.Single(vm.Tree.KeyNodes);
 		}
 		finally {
 			File.Delete(path);
@@ -111,7 +111,7 @@ value-de=y
 		manager.AddLanguageCommand.Execute(null);
 
 		Assert.IsType<EditLanguageViewModel>(Assert.Single(dialogs.Shown));
-		Assert.Contains(vm.KnownLanguages, l => l.Code == "fr");
+		Assert.Contains(vm.Tree.KnownLanguages, l => l.Code == "fr");
 		Assert.All(vm.Session.Keys.Values, key => Assert.True(key.Entries.ContainsKey("fr")));
 		Assert.Equal(["en", "de", "fr"], vm.Session.Files[0].Languages);
 		Assert.True(vm.IsDirty);
@@ -121,19 +121,19 @@ value-de=y
 	public void RemoveLanguage_AsksFirst() {
 		var (vm, dialogs) = Load();
 		var manager = new LanguageManagerViewModel(vm) {
-			SelectedLanguage = vm.KnownLanguages.First(l => l.Code == "de"),
+			SelectedLanguage = vm.Tree.KnownLanguages.First(l => l.Code == "de"),
 		};
 
 		dialogs.ConfirmAnswer = false;
 		manager.RemoveLanguageCommand.Execute(null);
-		Assert.Contains(vm.KnownLanguages, l => l.Code == "de");
+		Assert.Contains(vm.Tree.KnownLanguages, l => l.Code == "de");
 
 		dialogs.ConfirmAnswer = true;
 		manager.RemoveLanguageCommand.Execute(null);
-		Assert.DoesNotContain(vm.KnownLanguages, l => l.Code == "de");
+		Assert.DoesNotContain(vm.Tree.KnownLanguages, l => l.Code == "de");
 		Assert.All(vm.Session.Keys.Values, key => Assert.False(key.Entries.ContainsKey("de")));
 		Assert.Equal(["en"], vm.Session.Files[0].Languages);
-		Assert.Equal("en", vm.SelectedLanguage.Code);
+		Assert.Equal("en", vm.Tree.SelectedLanguage.Code);
 	}
 
 	[Fact]
@@ -145,10 +145,10 @@ value-de=y
 			var vm = new MainWindowViewModel(dialogs);
 			vm.LoadFile(new StringReader("value-en=English\n\n[a]\nvalue=1\nvalue-en=one\n"), Path.Combine(folder, "Base.ini"));
 			vm.LoadFile(new StringReader("value-fr=Français\n\n[a]\nvalue-fr=un\n"), Path.Combine(folder, "French.ini"));
-			var merge = new MergeControlViewModel(vm) { BaseFile = vm.KeyNodes[0] };
-			merge.FilesToMerge.Add(vm.KeyNodes[0]);
-			merge.FilesToMerge.Add(vm.KeyNodes[1]);
-			merge.LanguageCodeFilePair["fr"] = vm.KeyNodes[1];
+			var merge = new MergeControlViewModel(vm) { BaseFile = vm.Tree.KeyNodes[0] };
+			merge.FilesToMerge.Add(vm.Tree.KeyNodes[0]);
+			merge.FilesToMerge.Add(vm.Tree.KeyNodes[1]);
+			merge.LanguageCodeFilePair["fr"] = vm.Tree.KeyNodes[1];
 			string outPath = Path.Combine(folder, "Merged.ini");
 			dialogs.FileToSave = outPath;
 			bool closed = false;
@@ -158,7 +158,7 @@ value-de=y
 
 			Assert.True(closed);
 			Assert.True(File.Exists(outPath));
-			Assert.Equal(["Base", "French", "Merged"], vm.KeyNodes.Select(n => n.FullLabel));
+			Assert.Equal(["Base", "French", "Merged"], vm.Tree.KeyNodes.Select(n => n.FullLabel));
 			Assert.Equal("un", vm.Session.Keys["Merged.a"].Entries["fr"].Value);
 			Assert.Equal("one", vm.Session.Keys["Merged.a"].Entries["en"].Value);
 			Assert.Equal(["en", "fr"], vm.Session.FileOf("Merged")!.Languages);
@@ -174,12 +174,12 @@ value-de=y
 		var vm = new MainWindowViewModel(dialogs);
 		vm.LoadFile(new StringReader("value-en=English\n\n[a]\nvalue=1\n"), "One");
 		vm.LoadFile(new StringReader("value-en=English\n\n[b]\nvalue=2\n"), "Two");
-		var merge = new MergeControlViewModel(vm) { BaseFile = vm.KeyNodes[0] };
-		merge.FilesToMerge.Add(vm.KeyNodes[0]);
-		merge.FilesToMerge.Add(vm.KeyNodes[1]);
+		var merge = new MergeControlViewModel(vm) { BaseFile = vm.Tree.KeyNodes[0] };
+		merge.FilesToMerge.Add(vm.Tree.KeyNodes[0]);
+		merge.FilesToMerge.Add(vm.Tree.KeyNodes[1]);
 		//the key sets are compared against the files that supply a language, so
 		//"en" must come from the other file for the disagreement to matter
-		merge.LanguageCodeFilePair["en"] = vm.KeyNodes[1];
+		merge.LanguageCodeFilePair["en"] = vm.Tree.KeyNodes[1];
 		string path = Path.Combine(Path.GetTempPath(), $"WordsEditMerge-{Guid.NewGuid():N}.ini");
 		dialogs.FileToSave = path;
 		try {
@@ -187,7 +187,7 @@ value-de=y
 
 			Assert.True(merge.HasConflict);
 			Assert.False(File.Exists(path));
-			Assert.Equal(2, vm.KeyNodes.Count);
+			Assert.Equal(2, vm.Tree.KeyNodes.Count);
 		}
 		finally {
 			File.Delete(path);
