@@ -1,9 +1,7 @@
 ﻿using PatTech.Localization;
 using PatTech.Localization.Wpf;
-using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
-using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -57,7 +55,7 @@ public partial class MainWindow : Window {
 		string defaultValue = Words.RenderKey(wordsProvider, vm.SelectedKey.BlockKey);
 		if (vm.SelectedKey.Parameters.Count != 0) {
 			try {
-				defaultValue = FormatParameters(defaultValue, vm.SelectedKey.Parameters);
+				defaultValue = FormatSample(vm.SelectedKey, defaultValue, null);
 			}
 			catch (Exception ex) {
 				vm.Dialogs.Tell(ex.Message);
@@ -86,7 +84,7 @@ public partial class MainWindow : Window {
 		string localizationValue = Words.RenderKey(wordsProvider, vm.SelectedKey.BlockKey);
 		if (vm.SelectedKey.Parameters.Count != 0) {
 			try {
-				localizationValue = FormatParameters(localizationValue, vm.SelectedKey.Parameters);
+				localizationValue = FormatSample(vm.SelectedKey, localizationValue, vm.SelectedLanguage.Code);
 			}
 			catch (Exception ex) {
 				vm.Dialogs.Tell(ex.Message);
@@ -104,23 +102,19 @@ public partial class MainWindow : Window {
 		LocalizationValuePreview.Visibility = Visibility.Collapsed;
 	}
 
-	public static string FormatParameters(string value, ObservableCollection<WordsParameter> parameters) {
-		foreach (WordsParameter parameter in parameters) {
-			string placeholder = @"\{" + Regex.Escape(parameter.Key) + @"(:[^}]+)?\}";
-			value = Regex.Replace(
-				value,
-				placeholder,
-				m => parameter.ToObject() switch {
-					IFormattable f => m.Groups[1].Value is string { Length: >1 } g
-						? f.ToString(g[1..], CultureInfo.InvariantCulture)
-						: f.ToString("g", CultureInfo.InvariantCulture),
-					object s => s.ToString()!,
-					_ => "",
-				}
-			);
+	//the sample parameters through the same formatting a host app applies, in the
+	//language's culture where there is one (the default preview is invariant)
+	private static string FormatSample(WordsKey key, string text, string? languageCode) {
+		CultureInfo culture = CultureInfo.InvariantCulture;
+		if (languageCode is not null) {
+			try {
+				culture = CultureInfo.GetCultureInfo(languageCode, predefinedOnly: true);
+			}
+			catch (CultureNotFoundException) {
+				//a made-up code renders invariant rather than not at all
+			}
 		}
-
-		return value;
+		return WordsOperations.FormatSample(key, text, culture);
 	}
 
 	private void Preview_Clicked(object sender, MouseButtonEventArgs e) {

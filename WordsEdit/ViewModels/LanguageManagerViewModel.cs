@@ -41,19 +41,11 @@ public class LanguageManagerViewModel : DialogViewModel {
 		if (!Parent.Dialogs.Confirm($"Remove language '{SelectedLanguage.Code}' and delete its entries from every key?")) {
 			return;
 		}
-		foreach (var key in Parent.Keys) {
-			key.Entries.Remove(SelectedLanguage.Code);
-		}
 		var remove = SelectedLanguage;
 		int i = KnownLanguages.IndexOf(remove);
-		if (i == 0) {
-			SelectedLanguage = KnownLanguages[1];
-		}
-		else {
-			SelectedLanguage = KnownLanguages[i - 1];
-		}
-		KnownLanguages.Remove(remove);
-		Parent.RemoveLanguageCode(remove.Code);
+		SelectedLanguage = KnownLanguages[i == 0 ? 1 : i - 1];
+		Parent.Session.Languages.Remove(remove.Code);
+		Parent.RefreshBadges();
 		Parent.IsDirty = true;
 	}
 
@@ -62,11 +54,8 @@ public class LanguageManagerViewModel : DialogViewModel {
 	}
 
 	public void AddLanguage(LanguageEntry lang) {
-		foreach (var key in Parent.Keys) {
-			key.Entries[lang.Code] = new WordsEntry();
-		}
-		KnownLanguages.Add(lang);
-		Parent.AddLanguageCode(lang.Code);
+		//the table backfills every key and every file's declared languages
+		Parent.Session.Languages.Add(lang);
 		SelectedLanguage = lang;
 		Parent.IsDirty = true;
 	}
@@ -76,23 +65,11 @@ public class LanguageManagerViewModel : DialogViewModel {
 	}
 
 	public void EditLanguage(LanguageEntry lang) {
-		var edited = SelectedLanguage;
-		if (lang.Code != edited.Code) {
-			//re-coding shifts the entries; collisions keep the target's value and
-			//park the displaced one in context, in copy/paste reach of the translator
-			WordsOperations.Shift(Parent.Keys, edited.Code, lang.Code);
-			Parent.ReplaceLanguageCode(edited.Code, lang.Code);
-		}
-		LanguageEntry? absorbedInto = KnownLanguages.FirstOrDefault(known => known.Code == lang.Code && known != edited);
-		if (absorbedInto is not null) {
-			//shifted onto a language that already exists: no new list entry
-			SelectedLanguage = absorbedInto;
-			KnownLanguages.Remove(edited);
-		}
-		else {
-			KnownLanguages[KnownLanguages.IndexOf(edited)] = lang;
-			SelectedLanguage = lang;
-		}
+		//re-coding shifts the entries; collisions keep the target's value and
+		//park the displaced one in context, in copy/paste reach of the translator.
+		//Shifted onto a language that already exists, the two entries become one
+		SelectedLanguage = Parent.Session.Languages.Rename(SelectedLanguage.Code, lang);
+		Parent.RefreshBadges();
 		Parent.IsDirty = true;
 	}
 

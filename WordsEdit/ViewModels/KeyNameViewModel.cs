@@ -70,7 +70,11 @@ public class KeyNameViewModel : DataViewModelBase {
 			if (string.IsNullOrWhiteSpace(KeyName)) {
 				SetError("Required", nameof(KeyName));
 			}
-			var siblings = renaming?.GetParentNode(Parent.KeyNodes)?.Children ?? Parent.KeyNodes;
+			//a rename competes with its siblings; a new node with the children of the
+			//node it goes under
+			IEnumerable<KeyNode> siblings = renaming is not null
+				? renaming.Parent?.Children ?? Parent.KeyNodes
+				: Parent.SelectedKeyNode?.Children ?? Parent.KeyNodes;
 			if (siblings.Any(k => k != renaming && k.Label.Equals(KeyName, StringComparison.CurrentCultureIgnoreCase))) {
 				SetError("Already Exists", nameof(KeyName));
 			}

@@ -22,18 +22,20 @@ public class ImageSchemeMapping : ViewModelBase {
 public class ImageSchemesViewModel : DialogViewModel {
 	public override string Title => $"Image Schemes — {FileLabel}";
 	public MainWindowViewModel Parent { get; }
-	/// <summary>The file whose mappings are being edited (its tree label).</summary>
-	public string FileLabel { get; }
+	/// <summary>The file whose mappings are being edited.</summary>
+	public WordsFile File { get; }
+	/// <summary>The file's tree label, for the title.</summary>
+	public string FileLabel => File.Label;
 	public ObservableCollection<ImageSchemeMapping> Mappings { get; } = [];
 
 	public ICommand AddCommand { get; }
 	public ICommand RemoveCommand { get; }
 	public ICommand OkayCommand { get; }
 
-	public ImageSchemesViewModel(MainWindowViewModel parent, string fileLabel) {
+	public ImageSchemesViewModel(MainWindowViewModel parent, WordsFile file) {
 		Parent = parent;
-		FileLabel = fileLabel;
-		foreach (var (scheme, folder) in parent.ImageSchemesFor(fileLabel)) {
+		File = file;
+		foreach (var (scheme, folder) in file.ImageSchemes) {
 			Mappings.Add(new ImageSchemeMapping { Scheme = scheme, Folder = folder });
 		}
 		AddCommand = new DelegateCommand(DoAdd);
@@ -47,14 +49,14 @@ public class ImageSchemesViewModel : DialogViewModel {
 
 	private void DoOkay() {
 		//blank-scheme rows are dropped; a later row wins a duplicated scheme
-		var mappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+		File.ImageSchemes.Clear();
 		foreach (var row in Mappings) {
 			var scheme = row.Scheme.Trim();
 			if (scheme != "") {
-				mappings[scheme] = row.Folder.Trim();
+				File.ImageSchemes[scheme] = row.Folder.Trim();
 			}
 		}
-		Parent.SetImageSchemes(FileLabel, mappings);
+		Parent.IsDirty = true;
 		Close();
 	}
 }

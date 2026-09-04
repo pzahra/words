@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Text;
 using System.Windows.Input;
@@ -31,7 +31,7 @@ public class MergeControlViewModel : DialogViewModel {
 
 	public MergeControlViewModel(MainWindowViewModel parent) {
 		ArgumentNullException.ThrowIfNull(parent);
-		
+
 		MergeCommand = new DelegateCommand(DoMerge);
 		SetBaseFileCommand = new DelegateCommand<KeyNode>(DoSetBaseFile);
 		CancelCommand = new DelegateCommand(DoCancel);
@@ -49,26 +49,24 @@ public class MergeControlViewModel : DialogViewModel {
 		if (!Parent.Dialogs.TrySaveFile("Merge Location", "INI file (*.ini)|*.ini|All files (*.*)|*.*", out string? mergedFileName)) {
 			return;
 		}
-		KeyNode? mergedFile = Parent.GetMergedKeyNode(BaseFile, LanguageCodeFilePair, Path.GetFileNameWithoutExtension(mergedFileName), out var mergedKeys);
-		if (mergedFile is null) {
+		var sources = LanguageCodeFilePair.ToDictionary(pair => pair.Key, pair => Parent.FileOf(pair.Value));
+		WordsFile? merged;
+		try {
+			//the merged file declares the base file's languages plus the ones merged
+			//in, and keeps the base file's preamble and image schemes — the round
+			//trip SPEC guarantees, not the session union
+			merged = Parent.Session.Merge(Parent.FileOf(BaseFile), sources, BaseFile, mergedFileName, out _);
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+			Parent.Dialogs.Tell($"Could not write {mergedFileName}:\n{ex.Message}");
+			return;
+		}
+		if (merged is null) {
 			//the files disagree on their keys: say so rather than fail
 			FilesChanged();
 			return;
 		}
-		//the merged file declares the base file's languages plus the ones merged
-		//in, and keeps the base file's preamble and image schemes — the round
-		//trip SPEC guarantees, not the session union
-		string baseLabel = BaseFile.FullLabel;
-		var codes = Parent.LanguagesFor(baseLabel).Select(l => l.Code)
-			.Concat(LanguageCodeFilePair.Keys)
-			.Distinct();
-		List<LanguageEntry> languages = [.. codes
-			.Select(code => Parent.KnownLanguages.FirstOrDefault(l => l.Code == code))
-			.OfType<LanguageEntry>()];
-		IniWriter.WriteFile(mergedFile, mergedFileName, mergedKeys, languages,
-			preamble: Parent.filePreambles.GetValueOrDefault(baseLabel, ""),
-			imageSchemes: Parent.fileImageSchemes.GetValueOrDefault(baseLabel));
-		Parent.LoadFile(mergedFileName);
+		Parent.Present(merged);
 		Close();
 	}
 
@@ -83,7 +81,7 @@ public class MergeControlViewModel : DialogViewModel {
 	}
 
 	public void FilesChanged() {
-		if (Parent.FilesHaveConflict(FilesToMerge, out HashSet<string> conflicts)) {
+		if (!Parent.Session.HaveSameKeys(FilesToMerge.Select(Parent.FileOf), out HashSet<string> conflicts)) {
 			var conflict = new StringBuilder("Files do not share Keys:");
 			conflicts.ForEach(c => conflict.Append("\n" + c));
 			ConflictMessage = conflict.ToString();
