@@ -11,7 +11,7 @@ namespace WordsEdit.ViewModels;
 /// </summary>
 public class LanguageManagerViewModel : DialogViewModel {
 	public override string Title => "Languages";
-	public LanguageDragDropHandler LanguageDragDropHandler { get; }
+	public LanguageDrag LanguageDrag { get; }
 	public MainWindowViewModel Parent { get; }
 	public ObservableCollection<LanguageEntry> KnownLanguages => Parent.Tree.KnownLanguages;
 	public LanguageEntry SelectedLanguage { get; set => ChangeProperty(ref field, value); }
@@ -21,7 +21,7 @@ public class LanguageManagerViewModel : DialogViewModel {
 	public DelegateCommand EditLanguageCommand { get; }
 	public DelegateCommand OkayCommand { get; }
 	public LanguageManagerViewModel(MainWindowViewModel parent) {
-		LanguageDragDropHandler = new LanguageDragDropHandler() { LanguageManager = this };
+		LanguageDrag = new LanguageDrag { Vm = this };
 		Parent = parent;
 		SelectedLanguage = parent.Tree.SelectedLanguage;
 		OkayCommand = new DelegateCommand(DoOkay);

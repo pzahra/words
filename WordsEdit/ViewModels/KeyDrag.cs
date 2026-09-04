@@ -9,8 +9,8 @@ namespace WordsEdit.ViewModels;
 ///     the tree only changes when the document did. Nothing is ever deleted to
 ///     make room.
 /// </summary>
-public class KeyDragDropHandler : IDragSource, IDropTarget {
-	public MainWindowViewModel? MainWindow { get; set; } = null;
+public class KeyDrag : IDragSource, IDropTarget {
+	public MainWindowViewModel? Vm { get; set; }
 
 	public bool CanStartDrag(IDragInfo dragInfo) {
 		//standalone comments move freely; the pinned preamble does not
@@ -24,8 +24,8 @@ public class KeyDragDropHandler : IDragSource, IDropTarget {
 	}
 
 	public void DragOver(IDropInfo dropInfo) {
-		if (MainWindow is null) {
-			throw new InvalidOperationException("No Main Window");
+		if (Vm is null) {
+			throw new InvalidOperationException("No view model");
 		}
 		dropInfo.Effects = DragDropEffects.Move;
 		if (dropInfo.Data is not KeyNode dragged || dropInfo.TargetItem is not KeyNode target) {
@@ -67,8 +67,8 @@ public class KeyDragDropHandler : IDragSource, IDropTarget {
 		=> !dragged.IsFile && !target.IsConstant && (!dragged.IsConstant || target.IsFile);
 
 	public void Drop(IDropInfo dropInfo) {
-		if (MainWindow is null) {
-			throw new InvalidOperationException("No Main Window");
+		if (Vm is null) {
+			throw new InvalidOperationException("No view model");
 		}
 		if (dropInfo.Data is not KeyNode dragged || dropInfo.TargetItem is not KeyNode target) {
 			return;
@@ -86,7 +86,7 @@ public class KeyDragDropHandler : IDragSource, IDropTarget {
 			if (!target.IsFile) {
 				return;
 			}
-			var roots = MainWindow.Tree.KeyNodes;
+			var roots = Vm.Tree.KeyNodes;
 			int from = roots.IndexOf(dragged);
 			int to = roots.IndexOf(target) + (after ? 1 : 0);
 			if (to > from) {
@@ -119,11 +119,11 @@ public class KeyDragDropHandler : IDragSource, IDropTarget {
 			//the document goes first and may refuse: a same-named sibling, or keys
 			//already at the destination. Nothing is overwritten to make room
 			if (newParent.Children.Any(sibling => sibling.Label == dragged.Label)) {
-				MainWindow.Dialogs.Tell($"'{newParent.FullLabel}' already has a node named '{dragged.Label}'.");
+				Vm.Dialogs.Tell($"'{newParent.FullLabel}' already has a node named '{dragged.Label}'.");
 				return;
 			}
-			if (!MainWindow.Session.TryMove(dragged.FullLabel, newParent.FullLabel, out var collisions)) {
-				MainWindow.Dialogs.Tell($"Cannot move: {string.Join(", ", collisions)} already exist.");
+			if (!Vm.Session.TryMove(dragged.FullLabel, newParent.FullLabel, out var collisions)) {
+				Vm.Dialogs.Tell($"Cannot move: {string.Join(", ", collisions)} already exist.");
 				return;
 			}
 		}
@@ -140,7 +140,7 @@ public class KeyDragDropHandler : IDragSource, IDropTarget {
 		if (oldParent.Root != newParent.Root) {
 			TreeViewModel.UpdateCanBeConstant(oldParent.Root);
 		}
-		MainWindow.IsDirty = true;
+		Vm.IsDirty = true;
 	}
 
 	public void Dropped(IDropInfo dropInfo) {
@@ -148,60 +148,6 @@ public class KeyDragDropHandler : IDragSource, IDropTarget {
 
 	public void StartDrag(IDragInfo dragInfo) {
 		if (dragInfo?.SourceItem is KeyNode sourceItem) {
-			dragInfo.Data = sourceItem;
-			dragInfo.Effects = DragDropEffects.Move;
-		}
-	}
-
-	public bool TryCatchOccurredException(Exception exception) {
-		return false;
-	}
-}
-
-public class LanguageDragDropHandler : IDragSource, IDropTarget {
-	public LanguageManagerViewModel? LanguageManager { get; set; } = null;
-
-	public bool CanStartDrag(IDragInfo dragInfo) {
-		return dragInfo?.SourceItem != null;
-	}
-
-	public void DragCancelled() {
-	}
-
-	public void DragDropOperationFinished(DragDropEffects operationResult, IDragInfo dragInfo) {
-	}
-
-	public void DragOver(IDropInfo dropInfo) {
-		if (LanguageManager is null) {
-			throw new InvalidOperationException("No LanguageManager");
-		}
-		dropInfo.Effects = DragDropEffects.Move;
-		if (dropInfo.Data is LanguageEntry && dropInfo.TargetItem is LanguageEntry) {
-			dropInfo.DropTargetAdorner = typeof(DropTargetInsertionAdorner);
-		}
-	}
-
-	public void Drop(IDropInfo dropInfo) {
-		if (LanguageManager is null) {
-			throw new InvalidOperationException("No LanguageManager");
-		}
-		if (dropInfo.Data is not LanguageEntry dragged || dropInfo.TargetItem is not LanguageEntry target || dragged.Code == target.Code) {
-			return;
-		}
-		int draggedIndex = LanguageManager.KnownLanguages.IndexOf(dragged);
-		int targetIndex = LanguageManager.KnownLanguages.IndexOf(target);
-		if (targetIndex == draggedIndex) {
-			return;
-		}
-		//the new order reaches every file's table, so the writer sees it
-		LanguageManager.Parent.Session.Languages.Reorder(draggedIndex, targetIndex);
-		LanguageManager.Parent.IsDirty = true;
-	}
-
-	public void Dropped(IDropInfo dropInfo) { }
-
-	public void StartDrag(IDragInfo dragInfo) {
-		if (dragInfo?.SourceItem is LanguageEntry sourceItem) {
 			dragInfo.Data = sourceItem;
 			dragInfo.Effects = DragDropEffects.Move;
 		}

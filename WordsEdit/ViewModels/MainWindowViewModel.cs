@@ -19,7 +19,7 @@ namespace WordsEdit.ViewModels;
 public class MainWindowViewModel : ViewModelSaveBase {
 	public WordsSession Session { get; } = new();
 	public TreeViewModel Tree { get; }
-	public KeyDragDropHandler KeyDragDropHandler { get; }
+	public KeyDrag KeyDrag { get; }
 
 	//Previews: rendered the way a host app would show the selected key, kept
 	//current while shown, each with what went wrong along the way. The default
@@ -107,7 +107,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		TestParametersCommand = new DelegateCommand<WordsKey>(DoTestParameters, static key => key is not null);
 
 		UpdateTitle();
-		KeyDragDropHandler = new KeyDragDropHandler() { MainWindow = this };
+		KeyDrag = new KeyDrag { Vm = this };
 	}
 
 	//the window title names the loaded files; TitleMarked stars it while dirty

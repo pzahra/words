@@ -23,8 +23,8 @@
                      AllowDrop="True"
                      MaxHeight="200px"
                      ScrollViewer.CanContentScroll="false"
-                     dd:DragDrop.DragHandler="{Binding LanguageDragDropHandler}"
-                     dd:DragDrop.DropHandler="{Binding LanguageDragDropHandler}"
+                     dd:DragDrop.DragHandler="{Binding LanguageDrag}"
+                     dd:DragDrop.DropHandler="{Binding LanguageDrag}"
                      dd:DragDrop.IsDragSource="True"
                      dd:DragDrop.IsDropTarget="True">
                 <ListBox.Style>

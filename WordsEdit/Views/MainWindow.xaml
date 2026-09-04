@@ -121,8 +121,8 @@
                               PreviewMouseRightButtonDown="TreeView_OnPreviewMouseRightButtonDown"
                               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                               AllowDrop="True"
-                              dd:DragDrop.DragHandler="{Binding KeyDragDropHandler}"
-                              dd:DragDrop.DropHandler="{Binding KeyDragDropHandler}"
+                              dd:DragDrop.DragHandler="{Binding KeyDrag}"
+                              dd:DragDrop.DropHandler="{Binding KeyDrag}"
                               dd:DragDrop.IsDragSource="True"
                               dd:DragDrop.IsDropTarget="True">
                         <TreeView.ContextMenu>
