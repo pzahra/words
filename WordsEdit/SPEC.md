@@ -5,8 +5,9 @@ the **developer**, who creates keys, writes default text, and annotates intent;
 and the **translator**, who receives a file, works through what changed, and
 sends it back. Everything the tool does serves that round trip.
 
-The front-end is open for rewriting. This spec fixes the behavior; layout and
-controls are the rewrite's to choose.
+This spec fixes the behavior; layout and controls are the implementation's to
+choose. Everything up to *Planned upgrades* describes what the editor does
+today; that last part describes what it does not do yet.
 
 ## Architecture rules
 
@@ -71,7 +72,8 @@ keys all sit under a deeper cut keeps no header of its own. Pass
 too: a `;` run between fields hoists above its block; comments in the
 language section join the preamble.
 
-Save→load→save is byte-stable (pinned by `MainWindowViewModel_IdempotencyTest_FileContents`).
+Save→load→save is byte-stable; the tests pin it, for the fixtures and for the
+editor's own words file.
 
 ## The tree
 
@@ -174,8 +176,7 @@ from a **project settings file** instead of the pre-loaded set:
   only while previewing language `xx` (localized screenshots in a folder of
   their own, say). Paths are relative to the ini, so the settings travel with
   it; the several dictionaries of one project will usually name the same
-  file. The earlier `param-<scheme>=<folder>` experiment is gone, without a
-  compatibility path.
+  file.
 - The settings file is Words ini syntax, read with the same parser — so it
   wraps, continues, comments and escapes (`__`, `''`, `\\`) like any ini —
   and carries editor metadata only; the runtime never reads it:
@@ -244,11 +245,12 @@ from a **project settings file** instead of the pre-loaded set:
 
 A language manager adds, removes, and relabels languages. Adding one backfills
 an empty entry on every key; removing one deletes its entries after
-confirmation. Consider an option to shift a language (re-code it, e.g. `en-GB`
-absorbing into `en`); where both codes hold a value, keep the target's, park
-the source value in the entry's `context-xx` field where the translator can
-copy/paste from it, and stale-mark the entry so the review filter surfaces
-the collision. The manager's highlighted row is its own while it is open and
+confirmation. Relabelling may re-code a language (`en-GB` absorbing into `en`,
+say), which shifts its entries; where both codes hold a value the target's is
+kept, the source value is parked in the entry's `context-xx` field where the
+translator can copy/paste from it, and the entry is stale-marked so the review
+filter surfaces the collision. Every file's table follows the change. The
+manager's highlighted row is its own while it is open and
 becomes the tree's language on OK, so browsing the list does not
 re-contextualize the window behind it.
 
@@ -294,12 +296,17 @@ language, translate, relaunch in it. What stays hard-coded is file syntax and
 key caps, not words: `[images]`, `shellexec`, `F2`.
 [The Core skill](../Localization-Core/SKILL.md) is the how-to.
 
-## Future work: undo
+---
 
-The rewrite shipped without an undo stack; the confirmations on the
-destructive actions (removing a node that takes keys with it, removing key
-information, making a key a constant, removing a language) stand in for it.
-When undo comes, this is the shape it takes.
+# Planned upgrades
+
+Not built yet. Each section here is the shape the feature takes when it is.
+
+## Undo
+
+There is no undo stack; the confirmations on the destructive actions
+(removing a node that takes keys with it, removing key information, making a
+key a constant, removing a language) stand in for it.
 
 **One door, again.** Every document change already passes through
 `ViewModelSaveBase.MarkDirty` (Architecture rules: dirtiness has one door), so
@@ -314,10 +321,9 @@ settings references) plus the selection's full label, taken before the edit
 lands. Undo reloads those strings in place through `WordsSession.Load` (the
 same path as loading from disk, which replaces a file by path and drops what
 is gone), re-presents the tree, and reselects the label; redo mirrors it with
-the snapshot taken before the undo. Command objects per mutation — one for
-each of the twenty-odd edit sites, with tree reorders and drags among them —
-were considered and rejected: the snapshot is correct by construction and
-costs one write of an ini-sized document per edit.
+the snapshot taken before the undo. Not command objects per mutation — one
+for each edit site, tree reorders and drags among them: the snapshot is
+correct by construction and costs one write of an ini-sized document per edit.
 
 **Coalescing.** Typing into a value, context or comment box raises
 `Tree.Edited` per keystroke; consecutive edits to the same field of the same
@@ -335,7 +341,7 @@ a pair of buttons in the tool strip and entries in the tree's context menu,
 their captions in `words.ini`. Language edits made in the Language Manager
 are entries like any other, taken when the manager marks the parent dirty.
 
-**Tests.** Every mutation `EveryMutationDirtiesAndSaveOrResetCleans` drives
-gets an undo twin: the saved text after undo equals the text before the edit,
-and redo brings the edit back. The drag tests and the merge and split flows
-check the stack is cleared or kept as this section says.
+**Tests.** Every mutation the dirtiness test drives gets an undo twin: the
+saved text after undo equals the text before the edit, and redo brings the
+edit back. The drag tests and the merge and split flows check the stack is
+cleared or kept as this section says.
