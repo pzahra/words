@@ -250,7 +250,7 @@ value-fr=Ouvrir
 		Directory.CreateDirectory(folder);
 		try {
 			var session = new WordsSession();
-			WordsFile basis = session.Load(new StringReader("; the base\nvalue-en=English\nparam-md=icons\n\n[k]\nvalue=x\nvalue-en=ex\n\n[k.sub]\nvalue=s\n"), Path.Combine(folder, "Base.ini"));
+			WordsFile basis = session.Load(new StringReader("; the base\nvalue-en=English\nparam=wordsmith.ini\n\n[k]\nvalue=x\nvalue-en=ex\n\n[k.sub]\nvalue=s\n"), Path.Combine(folder, "Base.ini"));
 			WordsFile french = session.Load(new StringReader("value-fr=Français\n\n[k]\nvalue-fr=ix\n\n[k.sub]\nvalue-fr=esse\n"), Path.Combine(folder, "French.ini"));
 			string outPath = Path.Combine(folder, "Merged.ini");
 
@@ -266,7 +266,7 @@ value-fr=Ouvrir
 			Assert.StartsWith("; the base", text);
 			Assert.Contains("value-en=English", text);
 			Assert.Contains("value-fr=Français", text);
-			Assert.Contains("param-md=icons", text);
+			Assert.Contains("param=wordsmith.ini", text);
 			Assert.Equal(["en", "fr"], merged.Languages);
 
 			//a disagreement writes nothing
@@ -275,6 +275,56 @@ value-fr=Ouvrir
 			Assert.Null(session.Merge(basis, new Dictionary<string, WordsFile> { ["de"] = session.Files[3] }, KeyTree.Build(session, basis), refused, out conflicts));
 			Assert.Contains("extra", conflicts);
 			Assert.False(File.Exists(refused));
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
+	public void SettingsFor_LayersTheLanguageFileOverTheDictionarysAndFollowsChanges() {
+		string folder = Path.Combine(Path.GetTempPath(), $"WordsSessionSettings-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		try {
+			string projectFile = Path.Combine(folder, "wordsmith.ini");
+			File.WriteAllText(projectFile, "[images]\nshot=shots\nshot-decode=/^shot:(\\w+)$//$1.png\n[hyperlinks]\nhelp=popup\n");
+			File.WriteAllText(Path.Combine(folder, "wordsmith-de.ini"), "[images]\nshot=shots-de\n");
+			var session = new WordsSession();
+			WordsFile file = session.Load(new StringReader("value-en=English\nvalue-de=Deutsch\nparam=wordsmith.ini\nparam-de=wordsmith-de.ini\n\n[k]\nvalue=x\n"), Path.Combine(folder, "strings.ini"));
+			Assert.Equal(projectFile, file.SettingsPath());
+			Assert.Equal(Path.Combine(folder, "wordsmith-de.ini"), file.SettingsPath("de"));
+			Assert.Null(file.SettingsPath("fr"));
+			Assert.Empty(file.Errors);
+
+			ProjectSettings plain = session.SettingsFor(file);
+			Assert.True(plain.TryLocate(new Uri("shot:Login"), out string root, out string path));
+			Assert.Equal(Path.GetFullPath(Path.Combine(folder, "shots")), root);
+			Assert.Equal("Login.png", path);
+			Assert.Same(plain, session.SettingsFor(file)); //the same rules while nothing changed
+			Assert.Same(plain, session.SettingsFor(file, "fr")); //no file for fr: the dictionary's alone
+
+			ProjectSettings german = session.SettingsFor(file, "de");
+			Assert.True(german.TryLocate(new Uri("shot:Login"), out root, out path));
+			Assert.Equal(Path.GetFullPath(Path.Combine(folder, "shots-de")), root); //the folder from the language's file…
+			Assert.Equal("Login.png", path); //…the decode from the dictionary's
+			Assert.Same(german, session.SettingsFor(file, "de"));
+
+			//the settings file changes on disk: the next ask sees it, layered or not
+			File.WriteAllText(projectFile, "[images]\nshot=elsewhere\nshot-decode=/^shot:(\\w+)$//$1.png\n");
+			File.SetLastWriteTimeUtc(projectFile, DateTime.UtcNow.AddMinutes(1));
+			Assert.True(session.SettingsFor(file).TryLocate(new Uri("shot:Login"), out root, out _));
+			Assert.Equal(Path.GetFullPath(Path.Combine(folder, "elsewhere")), root);
+			Assert.NotSame(german, session.SettingsFor(file, "de"));
+			Assert.True(session.SettingsFor(file, "de").TryLocate(new Uri("shot:Login"), out root, out _));
+			Assert.Equal(Path.GetFullPath(Path.Combine(folder, "shots-de")), root);
+
+			//a file naming no settings has none; one naming a file that is not there has a gripe
+			WordsFile bare = session.Load(new StringReader("value-en=English\n\n[j]\nvalue=y\n"), Path.Combine(folder, "bare.ini"));
+			Assert.Same(ProjectSettings.Empty, session.SettingsFor(bare));
+			Assert.Same(ProjectSettings.Empty, session.SettingsFor(bare, "de"));
+			WordsFile lost = session.Load(new StringReader("value-en=English\nparam=nowhere.ini\nparam-fr=fr.ini\n\n[j]\nvalue=y\n"), Path.Combine(folder, "lost.ini"));
+			Assert.Single(session.SettingsFor(lost).Errors);
+			Assert.Contains(lost.Errors, error => error.Contains("param-fr")); //a settings file for an undeclared language
 		}
 		finally {
 			Directory.Delete(folder, recursive: true);

@@ -57,52 +57,70 @@ public class MainWindowViewModelTests {
 	}
 
 	[Fact]
-	public void MainWindowViewModel_ImageSchemeMappings_CapturedOnLoadAndWrittenBack() {
-		// the top-of-file param-<scheme> mappings are captured per file on load,
-		// threaded back through the writer on save, and captured again on reload
+	public void MainWindowViewModel_SettingsReferences_CapturedOnLoadAndWrittenBack() {
+		// the top-of-file param slots name the settings files: captured per file
+		// on load, threaded back through the writer on save, captured again on reload
 		var vm1 = NewVm();
 		vm1.LoadFile(new StringReader(@"
 value-en=English
-param-md=icons
-param-shot=../captures
+value-de=Deutsch
+param=wordsmith.ini
+param-de=../de/wordsmith.ini
 
 [k]
 value=x
 "), "Example");
 
 		WordsFile file = vm1.Session.FileOf("Example")!;
-		Assert.Equal("icons", file.ImageSchemes["md"]);
-		Assert.Equal("../captures", file.ImageSchemes["shot"]);
+		Assert.Equal("wordsmith.ini", file.Settings);
+		Assert.Equal("../de/wordsmith.ini", file.LanguageSettings["de"]);
 
 		var vm2 = NewVm();
 		vm2.LoadFile(new StringReader(Save(vm1, "Example")), "Example");
 
-		Assert.Equal("icons", vm2.Session.FileOf("Example")!.ImageSchemes["md"]);
-		Assert.Equal("../captures", vm2.Session.FileOf("Example")!.ImageSchemes["shot"]);
+		Assert.Equal("wordsmith.ini", vm2.Session.FileOf("Example")!.Settings);
+		Assert.Equal("../de/wordsmith.ini", vm2.Session.FileOf("Example")!.LanguageSettings["de"]);
 	}
 
 	[Fact]
-	public void MainWindowViewModel_PreviewImageFolders_ResolveRelativeToTheSelectedFile() {
-		// the preview's registry is built from folders resolved against the file's
-		// own directory, so a scheme points at a folder beside the ini it came from
-		var vm = NewVm();
-		string path = Path.Combine(Path.GetTempPath(), "WordsEditSchemes", "strings.ini");
-		vm.LoadFile(new StringReader(@"
-value-en=English
-param-md=icons
+	public void MainWindowViewModel_PreviewSettingsFollowTheSelectedFileAndLanguage() {
+		// the previews take their rules from the selected key's file: the default
+		// pane the dictionary's settings alone, the translation pane the selected
+		// language's layered over them; links go by the same rules
+		string folder = Path.Combine(Path.GetTempPath(), $"WordsEditSettings-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		try {
+			File.WriteAllText(Path.Combine(folder, "wordsmith.ini"), "[images]\nshot=shots\nshot-decode=/^shot:(\\w+)$//$1.png\n[hyperlinks]\nhelp=shellexec\nhelp-decode=/^help:(\\w+)$//https://example.com/help/$1.html\n");
+			File.WriteAllText(Path.Combine(folder, "wordsmith-de.ini"), "[images]\nshot=shots-de\n");
+			var dialogs = new FakeDialogs { ConfirmAnswer = false };
+			var vm = new MainWindowViewModel(dialogs);
+			vm.LoadFile(new StringReader("value-en=English\nvalue-de=Deutsch\nparam=wordsmith.ini\nparam-de=wordsmith-de.ini\n\n[k]\nvalue=x\n"), Path.Combine(folder, "strings.ini"));
+			vm.LoadFile(new StringReader("value-en=English\n\n[j]\nvalue=y\n"), "Other");
 
-[k]
-value=x
-"), path);
-		vm.LoadFile(new StringReader("value-en=English\n\n[j]\nvalue=y\n"), "Other");
+			vm.Tree.SelectedKeyNode = Node(vm, "strings.k");
+			Assert.Equal(Path.GetFullPath(Path.Combine(folder, "shots")), Assert.Single(vm.DefaultPreviewSettings.Images).Root);
+			Assert.Same(vm.DefaultPreviewSettings, vm.TranslationPreviewSettings); //en has no file of its own
 
-		vm.Tree.SelectedKeyNode = Node(vm, "strings.k");
-		Assert.Equal(
-			Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, "icons"),
-			vm.PreviewImageFolders["md"]);
+			vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.First(l => l.Code == "de");
+			Assert.Equal(Path.GetFullPath(Path.Combine(folder, "shots")), Assert.Single(vm.DefaultPreviewSettings.Images).Root);
+			Assert.True(vm.TranslationPreviewSettings.TryLocate(new Uri("shot:Login"), out string root, out string path));
+			Assert.Equal(Path.GetFullPath(Path.Combine(folder, "shots-de")), root);
+			Assert.Equal("Login.png", path);
 
-		vm.Tree.SelectedKeyNode = Node(vm, "Other.j");
-		Assert.Empty(vm.PreviewImageFolders);
+			//a decoded shellexec link confirms with what it will launch
+			vm.FollowLink(new Uri("help:merge"));
+			Assert.Contains("https://example.com/help/merge.html", Assert.Single(dialogs.Confirmations));
+			Assert.Empty(dialogs.Notices);
+
+			vm.Tree.SelectedKeyNode = Node(vm, "Other.j");
+			Assert.Same(ProjectSettings.Empty, vm.DefaultPreviewSettings);
+			Assert.Same(ProjectSettings.Empty, vm.TranslationPreviewSettings);
+			vm.FollowLink(new Uri("help:merge")); //no rules here: reported as it is
+			Assert.Contains("help:merge", Assert.Single(dialogs.Notices));
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
 	}
 
 	[Fact]
@@ -184,23 +202,6 @@ value-de=n={0:N1}
 
 		vm.FollowLink(new Uri("appcmd:do-something"));
 		Assert.Contains("appcmd:do-something", Assert.Single(dialogs.Notices));
-	}
-
-	[Fact]
-	public void MainWindowViewModel_ImageSchemeDialog_EditsTheFilesMappings() {
-		var vm = LoadExample();
-		var dialog = new ImageSchemesViewModel(vm, vm.Session.FileOf("Example")!);
-		dialog.AddCommand.Execute(null);
-		dialog.Mappings[^1].Scheme = " md ";
-		dialog.Mappings[^1].Folder = "icons";
-		dialog.AddCommand.Execute(null); //a blank row is dropped
-
-		dialog.OkayCommand.Execute(null);
-
-		Assert.Equal("icons", vm.Session.FileOf("Example")!.ImageSchemes["md"]);
-		Assert.Single(vm.Session.FileOf("Example")!.ImageSchemes);
-		Assert.True(vm.IsDirty);
-		Assert.Contains("param-md=icons", Save(vm, "Example"));
 	}
 
 	[Fact]

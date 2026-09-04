@@ -30,8 +30,16 @@ namespace PatTech.Localization.Authoring {
 		///     main file never absorbs a library's extras.
 		/// </summary>
 		public List<string> Languages { get; }
-		/// <summary>Image scheme→folder mappings (folders relative to the file), preserved on save.</summary>
-		public Dictionary<string, string> ImageSchemes { get; }
+		/// <summary>
+		///     The project settings file named by <c>param=</c>, as written (relative
+		///     to the file), or empty; <see cref="SettingsPath()"/> resolves it.
+		/// </summary>
+		public string Settings { get; set; }
+		/// <summary>
+		///     The per-language settings files named by <c>param-xx=</c>, code → path
+		///     as written; <see cref="SettingsPath(string)"/> resolves one.
+		/// </summary>
+		public Dictionary<string, string> LanguageSettings { get; }
 		/// <summary>What the parser griped about while loading; the file loaded regardless.</summary>
 		public IReadOnlyList<string> Errors { get; }
 		/// <summary>
@@ -52,8 +60,15 @@ namespace PatTech.Localization.Authoring {
 			Preamble = loaded.Preamble;
 			Trailer = loaded.Trailer;
 			Languages = [.. loaded.DeclaredLanguages];
-			ImageSchemes = new(loaded.ImageSchemeMappings, StringComparer.OrdinalIgnoreCase);
-			Errors = [.. loaded.Errors];
+			Settings = loaded.Settings;
+			LanguageSettings = new(loaded.LanguageSettings);
+			List<string> errors = [.. loaded.Errors];
+			foreach (string code in loaded.LanguageSettings.Keys) {
+				if (!loaded.DeclaredLanguages.Contains(code)) {
+					errors.Add($"param-{code} names a settings file for a language the file does not declare");
+				}
+			}
+			Errors = errors;
 			IsLibrary = loaded.DeclaredLanguages.All(code => loaded.KnownLanguages[code].NativeName.StartsWith('!'));
 			BlockComments = loaded.BlockComments.ToDictionary(pair => $"{label}.{pair.Key}", pair => pair.Value);
 		}
@@ -62,18 +77,14 @@ namespace PatTech.Localization.Authoring {
 		public string Directory
 			=> System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(Path)) ?? "";
 
-		/// <summary>
-		///     <see cref="ImageSchemes"/> with each folder resolved against
-		///     <see cref="Directory"/>: what a preview's image resolvers are built from.
-		/// </summary>
-		public IReadOnlyDictionary<string, string> ImageSchemeFolders() {
-			string directory = Directory;
-			var resolved = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-			foreach (var (scheme, folder) in ImageSchemes) {
-				resolved[scheme] = System.IO.Path.Combine(directory, folder);
-			}
-			return resolved;
-		}
+		/// <summary>The settings file <see cref="Settings"/> names, as an absolute path; <see langword="null"/> when it names none.</summary>
+		public string? SettingsPath() => Resolve(Settings);
+
+		/// <summary>The settings file <see cref="LanguageSettings"/> names for <paramref name="languageCode"/>, as an absolute path; <see langword="null"/> when it names none.</summary>
+		public string? SettingsPath(string languageCode) => Resolve(LanguageSettings.GetValueOrDefault(languageCode, ""));
+
+		private string? Resolve(string relative)
+			=> relative == "" ? null : System.IO.Path.GetFullPath(System.IO.Path.Combine(Directory, relative));
 
 		/// <summary>The label, for the debugger and for tests that print one.</summary>
 		public override string ToString() => Label;

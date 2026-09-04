@@ -129,47 +129,49 @@ public class IniWriterTests {
 	}
 
 	[Fact]
-	public void IniWriter_ImageSchemeMappings_RoundTrip() {
-		// scheme→folder mappings write as keyless param- fields in the language
-		// section and come back through the provider's ImageSchemeMappings —
-		// never as keys
+	public void IniWriter_SettingsReferences_RoundTrip() {
+		// the settings-file references write as keyless param fields in the
+		// language section and come back through the provider's Settings and
+		// LanguageSettings — never as keys, never as languages
 		var tree = new FakeNode("F", new FakeNode("F.k"));
 		Dictionary<string, WordsKey> allKeys = new() {
 			["F.k"] = new WordsKey("F.k") { DefaultValue = "V" },
 		};
 		List<LanguageEntry> languages = [new LanguageEntry("en", "English")];
-		var mappings = new Dictionary<string, string> { ["md"] = "icons", ["shot"] = "../captures" };
+		var perLanguage = new Dictionary<string, string> { ["de"] = "wordsmith-de.ini", ["fr"] = "" };
 
 		var output = new StringWriter();
-		IniWriter.WriteFile(tree, output, allKeys, languages, imageSchemes: mappings);
+		IniWriter.WriteFile(tree, output, allKeys, languages, settings: "wordsmith.ini", languageSettings: perLanguage);
 		var ini = output.ToString();
 
 		var lines = ini.Split(Environment.NewLine);
-		Assert.Contains("param-md=icons", lines);
-		Assert.Contains("param-shot=../captures", lines);
+		Assert.Contains("param=wordsmith.ini", lines);
+		Assert.Contains("param-de=wordsmith-de.ini", lines);
+		Assert.DoesNotContain(lines, line => line.StartsWith("param-fr")); //an empty path is no reference
 
 		WordsParserToLocalizationProvider consumer = new();
 		new WordsParser(consumer).Load(new StringReader(ini));
 		Assert.Empty(consumer.Errors);
-		Assert.Equal("icons", consumer.ImageSchemeMappings["md"]);
-		Assert.Equal("../captures", consumer.ImageSchemeMappings["shot"]);
-		Assert.False(consumer.WordKeys.ContainsKey("md"));
-		Assert.False(consumer.WordKeys.ContainsKey("shot"));
+		Assert.Equal("wordsmith.ini", consumer.Settings);
+		Assert.Equal(["de"], consumer.LanguageSettings.Keys);
+		Assert.Equal("wordsmith-de.ini", consumer.LanguageSettings["de"]);
+		Assert.False(consumer.WordKeys.ContainsKey("param"));
+		Assert.Equal(["en"], consumer.KnownLanguages.Keys);
 	}
 
 	[Fact]
-	public void IniWriter_ImageSchemeMappings_SaveLoadSaveStable() {
+	public void IniWriter_SettingsReferences_SaveLoadSaveStable() {
 		// the second save matches the first byte for byte: capture order is
-		// preserved, so the param- block comes back in the same shape
+		// preserved, so the param lines come back in the same shape
 		var tree = new FakeNode("F", new FakeNode("F.k"));
 		Dictionary<string, WordsKey> allKeys = new() {
 			["F.k"] = new WordsKey("F.k") { DefaultValue = "V" },
 		};
 		List<LanguageEntry> languages = [new LanguageEntry("en", "English")];
-		var mappings = new Dictionary<string, string> { ["md"] = "icons", ["shot"] = "shots/here" };
+		var perLanguage = new Dictionary<string, string> { ["de"] = "wordsmith-de.ini", ["fr"] = "fr/wordsmith.ini" };
 
 		var firstOut = new StringWriter();
-		IniWriter.WriteFile(tree, firstOut, allKeys, languages, imageSchemes: mappings);
+		IniWriter.WriteFile(tree, firstOut, allKeys, languages, settings: "../wordsmith.ini", languageSettings: perLanguage);
 		var firstSave = firstOut.ToString();
 
 		WordsParserToLocalizationProvider consumer = new();
@@ -177,11 +179,10 @@ public class IniWriterTests {
 		var reloadedKeys = consumer.WordKeys.ToDictionary(
 			pair => "F." + pair.Key,
 			pair => new WordsKey(pair.Value) { BlockKey = "F." + pair.Value.BlockKey });
-		var reloadedMappings = consumer.ImageSchemeMappings.ToDictionary(p => p.Key, p => p.Value);
 
 		var secondOut = new StringWriter();
 		IniWriter.WriteFile(tree, secondOut, reloadedKeys, [.. consumer.KnownLanguages.Values],
-			imageSchemes: reloadedMappings);
+			settings: consumer.Settings, languageSettings: consumer.LanguageSettings);
 
 		Assert.Equal(firstSave, secondOut.ToString());
 	}

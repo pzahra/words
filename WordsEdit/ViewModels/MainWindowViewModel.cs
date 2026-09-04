@@ -30,10 +30,10 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public string? DefaultPreviewError { get; private set => ChangeProperty(ref field, value); }
 	public string RenderedTranslation { get; private set => ChangeProperty(ref field, value); } = "";
 	public string? TranslationPreviewError { get; private set => ChangeProperty(ref field, value); }
-	/// <summary>Scheme → absolute folder for the selected key's file: what the preview resolves images through.</summary>
-	public IReadOnlyDictionary<string, string> PreviewImageFolders { get; private set => ChangeProperty(ref field, value); } = NoFolders;
-	private static readonly IReadOnlyDictionary<string, string> NoFolders = new Dictionary<string, string>();
-	private WordsFile? previewFile;
+	/// <summary>The project rules the default preview resolves images through: the selected key's file's own settings.</summary>
+	public ProjectSettings DefaultPreviewSettings { get; private set => ChangeProperty(ref field, value); } = ProjectSettings.Empty;
+	/// <summary>The rules for the translation preview: the selected language's settings layered over the file's.</summary>
+	public ProjectSettings TranslationPreviewSettings { get; private set => ChangeProperty(ref field, value); } = ProjectSettings.Empty;
 
 	//Commands
 	public ICommand LoadFileCommand { get; }
@@ -41,7 +41,6 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public ICommand SaveCommand { get; }
 	public ICommand MergeFilesCommand { get; }
 	public ICommand ManageLanguagesCommand { get; }
-	public ICommand ManageImageSchemesCommand { get; }
 	public ICommand TestParametersCommand { get; }
 	public ICommand RemoveLocalizationKeyAndNodeCommand { get; }
 	public ICommand RenameLocalizationKeyAndNodeCommand { get; }
@@ -74,7 +73,6 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		SaveCommand = new DelegateCommand(DoSave);
 		MergeFilesCommand = new DelegateCommand(DoMergeFiles);
 		ManageLanguagesCommand = new DelegateCommand(DoManageLanguages);
-		ManageImageSchemesCommand = new DelegateCommand(DoManageImageSchemes, CanManageImageSchemes);
 		RemoveLocalizationKeyAndNodeCommand = new DelegateCommand(DoRemoveLocalizationKeyAndNode);
 		RenameLocalizationKeyAndNodeCommand = new DelegateCommand(DoRenameNode);
 		AddLocalizationKeyNodeCommand = new DelegateCommand(DoAddLocalizationKeyNode);
@@ -173,19 +171,6 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	//Languages
 	private void DoManageLanguages() {
 		Dialogs.Show(new LanguageManagerViewModel(this));
-	}
-
-	//image-scheme mappings are per-file; the dialog edits the file the selection
-	//sits in, so a node must be selected to know which file that is
-	private bool CanManageImageSchemes() => Tree.SelectedFile is not null;
-	private void DoManageImageSchemes() {
-		if (Tree.SelectedFile is not { } file) {
-			return;
-		}
-		Dialogs.Show(new ImageSchemesViewModel(this, file));
-		//the mappings may have changed under the preview
-		previewFile = null;
-		RenderPreviews();
 	}
 
 	//Structure edits
@@ -361,11 +346,11 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	//Previews
 	private bool RenderPreviews() {
+		//the session hands back the same rules while nothing changed, so the
+		//previews only rebuild their resolvers when a settings file did
 		WordsFile? file = Tree.SelectedFile;
-		if (file != previewFile) {
-			previewFile = file;
-			PreviewImageFolders = file?.ImageSchemeFolders() ?? NoFolders;
-		}
+		DefaultPreviewSettings = file is null ? ProjectSettings.Empty : Session.SettingsFor(file);
+		TranslationPreviewSettings = file is null ? ProjectSettings.Empty : Session.SettingsFor(file, Tree.SelectedLanguage.Code);
 		if (Tree.SelectedKey is not { } key) {
 			(RenderedDefault, DefaultPreviewError) = ("", null);
 			(RenderedTranslation, TranslationPreviewError) = ("", null);
@@ -398,18 +383,23 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	/// <summary>
-	///     A hyperlink in a preview was clicked. Web and mail links open in the
-	///     shell once the user agrees; anything else is the host app's business and
-	///     is only reported.
+	///     A hyperlink in a preview was clicked. The project's hyperlink rules
+	///     decide (SPEC: Markdown previews): a decode rule rewrites the target
+	///     first, then <c>shellexec</c> confirms and hands it to the shell while
+	///     <c>popup</c> only reports it — web and mail links launch by default,
+	///     anything else is the host app's business and is shown.
 	/// </summary>
 	public void FollowLink(Uri uri) {
-		if (uri.Scheme is "http" or "https" or "mailto") {
-			if (Dialogs.Confirm($"Do you want to follow the link?\n\nDestination: {uri.AbsoluteUri}")) {
-				Process.Start(new ProcessStartInfo { FileName = uri.AbsoluteUri, UseShellExecute = true });
+		ProjectSettings settings = Tree.SelectedFile is { } file ? Session.SettingsFor(file, Tree.SelectedLanguage.Code) : ProjectSettings.Empty;
+		string target = settings.Link(uri, out LinkMode mode);
+		string destination = target == uri.OriginalString ? target : $"{target}\n(from {uri.OriginalString})";
+		if (mode == LinkMode.ShellExec) {
+			if (Dialogs.Confirm($"Do you want to follow the link?\n\nDestination: {destination}")) {
+				Process.Start(new ProcessStartInfo { FileName = target, UseShellExecute = true });
 			}
 		}
 		else {
-			Dialogs.Tell($"Internal link detected. Destination: {uri.OriginalString}");
+			Dialogs.Tell($"Link destination: {destination}");
 		}
 	}
 }

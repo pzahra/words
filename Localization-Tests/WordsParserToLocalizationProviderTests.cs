@@ -170,42 +170,47 @@ def
 	}
 
 	[Fact]
-	public void WordsParserToLocalizationProvider_TopOfFileParamIsCapturedAsImageSchemeMapping() {
-		// keyless param- fields in the language section are an authoring tool's
-		// scheme→folder mappings: captured, not dropped, and not turned into keys
+	public void WordsParserToLocalizationProvider_TopOfFileParamNamesTheSettingsFiles() {
+		// the keyless param slot names the project settings file — bare for the
+		// dictionary, with a code per language: captured, not dropped, not a key,
+		// and not a language declaration either
 		WordsParserToLocalizationProvider consumer = new();
 		new WordsParser(consumer).Load(new StringReader(@"
 value-en=English
-param-md=icons
-param-shot=../captures
+param=wordsmith.ini
+param-DE=../de/wordsmith.ini
 
 [k]
 value=x
 "));
 
-		Assert.Equal("icons", consumer.ImageSchemeMappings["md"]);
-		Assert.Equal("icons", consumer.ImageSchemeMappings["MD"]); // scheme lookup is case-insensitive
-		Assert.Equal("../captures", consumer.ImageSchemeMappings["shot"]);
+		Assert.Equal("wordsmith.ini", consumer.Settings);
+		Assert.Equal("../de/wordsmith.ini", consumer.LanguageSettings["de"]); //codes normalize like any field's
 		Assert.Single(consumer.WordKeys);
-		Assert.False(consumer.WordKeys.ContainsKey("md"));
+		Assert.False(consumer.WordKeys.ContainsKey("param"));
+		Assert.Equal(["en"], consumer.DeclaredLanguages);
+		Assert.Equal(["en"], consumer.KnownLanguages.Keys);
 		Assert.Empty(consumer.Errors);
 	}
 
 	[Fact]
 	public void WordsParserToLocalizationProvider_TopOfFileParamContinuationAppends() {
-		// a folder path long enough to have wrapped comes back in one piece — the
+		// a path long enough to have wrapped comes back in one piece — the
 		// continuation lands in the language section, where there is no block yet
 		WordsParserToLocalizationProvider consumer = new();
 		new WordsParser(consumer).Load(new StringReader(@"
 value-en=English
-param-md=first/part_
+param=first/part_
 second/part
+param-de=de/first_
+second
 
 [k]
 value=x
 "));
 
-		Assert.Equal("first/partsecond/part", consumer.ImageSchemeMappings["md"]);
+		Assert.Equal("first/partsecond/part", consumer.Settings);
+		Assert.Equal("de/firstsecond", consumer.LanguageSettings["de"]);
 		Assert.Empty(consumer.Errors);
 	}
 

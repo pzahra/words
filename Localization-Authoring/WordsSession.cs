@@ -123,13 +123,15 @@ namespace PatTech.Localization.Authoring {
 		public void Reset() {
 			keys.Clear();
 			files.Clear();
+			settingsCache.Clear();
+			layeredCache.Clear();
 			Languages.Reset();
 		}
 
 		/// <summary>
 		///     Writes <paramref name="file"/> to its <see cref="WordsFile.Path"/>:
-		///     its own language table, preamble and image schemes, and its keys in
-		///     the order <paramref name="tree"/> walks them. I/O failures propagate.
+		///     its own language table, preamble and settings references, and its
+		///     keys in the order <paramref name="tree"/> walks them. I/O failures propagate.
 		/// </summary>
 		/// <param name="file">The file to write.</param>
 		/// <param name="tree">The file's node: the walk decides block order, comments write themselves in place.</param>
@@ -146,7 +148,7 @@ namespace PatTech.Localization.Authoring {
 		/// <param name="tree">The file's node: the walk decides block order, comments write themselves in place.</param>
 		/// <param name="writer">Where the text goes.</param>
 		public void Save(WordsFile file, IKeyTreeNode tree, TextWriter writer)
-			=> IniWriter.WriteFile(tree, writer, keys, Languages.For(file), preamble: file.Preamble, imageSchemes: file.ImageSchemes);
+			=> IniWriter.WriteFile(tree, writer, keys, Languages.For(file), preamble: file.Preamble, settings: file.Settings, languageSettings: file.LanguageSettings);
 
 		/// <summary>The keys of <paramref name="file"/>, in store order (document order after a load).</summary>
 		public IEnumerable<WordsKey> KeysOf(WordsFile file) {
@@ -212,8 +214,8 @@ namespace PatTech.Localization.Authoring {
 		///     <paramref name="outPath"/> taking every key and the unlocalised fields
 		///     from <paramref name="baseFile"/> and each language's entries from the
 		///     file mapped to it, declaring the base file's languages plus the merged
-		///     ones and keeping the base file's preamble and image schemes; then loads
-		///     it. Returns <see langword="null"/> — and writes nothing — when the files
+		///     ones and keeping the base file's preamble and settings references; then
+		///     loads it. Returns <see langword="null"/> — and writes nothing — when the files
 		///     disagree on their key sets; the disagreements come back in
 		///     <paramref name="conflicts"/>.
 		/// </summary>
@@ -235,7 +237,7 @@ namespace PatTech.Localization.Authoring {
 				.Select(Languages.Find)
 				.OfType<LanguageEntry>()];
 			IniWriter.WriteFile(KeyTree.Relabel(baseTree, outLabel), outPath, merged, languages,
-				preamble: baseFile.Preamble, imageSchemes: baseFile.ImageSchemes);
+				preamble: baseFile.Preamble, settings: baseFile.Settings, languageSettings: baseFile.LanguageSettings);
 			return Load(outPath);
 		}
 
@@ -243,16 +245,52 @@ namespace PatTech.Localization.Authoring {
 		///     The inverse of <see cref="Merge"/>: writes <paramref name="languageCode"/>'s
 		///     entries from <paramref name="source"/> into their own file at
 		///     <paramref name="outPath"/> — unlocalised fields kept for reference, that
-		///     one language declared, the source's shape, preamble and image schemes —
-		///     and loads it. Exactly what <see cref="Merge"/> consumes back.
+		///     one language declared, the source's shape, preamble and settings
+		///     references — and loads it. Exactly what <see cref="Merge"/> consumes back.
 		/// </summary>
 		public WordsFile Split(WordsFile source, string languageCode, IKeyTreeNode sourceTree, string outPath) {
 			string outLabel = UniqueLabel(System.IO.Path.GetFileNameWithoutExtension(outPath));
 			var split = WordsOperations.Split(keys, source.Label, languageCode, outLabel);
 			List<LanguageEntry> languages = Languages.Find(languageCode) is { } language ? [language] : [];
 			IniWriter.WriteFile(KeyTree.Relabel(sourceTree, outLabel), outPath, split, languages,
-				preamble: source.Preamble, imageSchemes: source.ImageSchemes);
+				preamble: source.Preamble, settings: source.Settings, languageSettings: source.LanguageSettings);
 			return Load(outPath);
+		}
+
+		//the project settings files by path, as last read; re-read when the file
+		//on disk changes, so an edit made elsewhere shows on the next render
+		private readonly Dictionary<string, (ProjectSettings settings, DateTime stamp)> settingsCache = new(StringComparer.OrdinalIgnoreCase);
+		private readonly Dictionary<(string, string), (ProjectSettings over, ProjectSettings under, ProjectSettings layered)> layeredCache = [];
+
+		/// <summary>
+		///     The preview rules for <paramref name="file"/> (SPEC: Markdown previews):
+		///     its settings file's, with the file it names for
+		///     <paramref name="languageCode"/> layered over them when there is one;
+		///     <see cref="ProjectSettings.Empty"/> when it names none. Read on first
+		///     use and again whenever a settings file changes on disk; the same
+		///     instance comes back in between, so a caller can tell nothing moved.
+		/// </summary>
+		public ProjectSettings SettingsFor(WordsFile file, string? languageCode = null) {
+			ProjectSettings settings = file.SettingsPath() is { } path ? Cached(path) : ProjectSettings.Empty;
+			if (languageCode is null || file.SettingsPath(languageCode) is not { } languagePath) {
+				return settings;
+			}
+			ProjectSettings language = Cached(languagePath);
+			var key = (languagePath, settings.Path);
+			if (!layeredCache.TryGetValue(key, out var entry) || entry.over != language || entry.under != settings) {
+				entry = (language, settings, language.Over(settings));
+				layeredCache[key] = entry;
+			}
+			return entry.layered;
+		}
+
+		private ProjectSettings Cached(string path) {
+			DateTime stamp = File.Exists(path) ? File.GetLastWriteTimeUtc(path) : DateTime.MinValue;
+			if (!settingsCache.TryGetValue(path, out var entry) || entry.stamp != stamp) {
+				entry = (ProjectSettings.Load(path), stamp);
+				settingsCache[path] = entry;
+			}
+			return entry.settings;
 		}
 
 		/// <summary>

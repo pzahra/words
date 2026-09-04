@@ -27,9 +27,6 @@
         <DataTemplate DataType="{x:Type vm:MergeControlViewModel}">
             <v:MergeControlView/>
         </DataTemplate>
-        <DataTemplate DataType="{x:Type vm:ImageSchemesViewModel}">
-            <v:ImageSchemesView/>
-        </DataTemplate>
     </Window.Resources>
     <ContentPresenter Content="{Binding}"/>
 </Window>

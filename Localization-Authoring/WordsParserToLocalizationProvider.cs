@@ -24,15 +24,19 @@ namespace PatTech.Localization.Authoring {
 		/// </summary>
 		public IReadOnlyList<string> DeclaredLanguages => declaredLanguages;
 		/// <summary>
-		///     Image-scheme→folder mappings recovered from keyless
-		///     <c>param-&lt;scheme&gt;=&lt;folder&gt;</c> fields in the top-of-file
-		///     language section — an authoring tool's private use of that otherwise
-		///     idle slot to point a preview's image schemes at folders (the folders
-		///     travel with the file, so they are relative to it). This consumer only
-		///     captures and preserves them; it neither validates the folders nor
-		///     resolves any images. Ordered by first appearance.
+		///     The project settings file named by a keyless <c>param=</c> in the
+		///     top-of-file language section — an authoring tool's use of that
+		///     otherwise idle slot (SPEC: Markdown previews); the path as written,
+		///     relative to the file, or empty. Captured and preserved only: reading
+		///     it is <see cref="ProjectSettings"/>' job.
 		/// </summary>
-		public IReadOnlyDictionary<string, string> ImageSchemeMappings => imageSchemeMappings;
+		public string Settings { get; private set; } = "";
+		/// <summary>
+		///     The per-language settings files named by keyless <c>param-xx=</c>
+		///     lines, code → path as written, in order of appearance. A code here
+		///     declares no language.
+		/// </summary>
+		public IReadOnlyDictionary<string, string> LanguageSettings => languageSettings;
 
 		private readonly List<string> errors = [];
 		private readonly Dictionary<string, LanguageEntry> knownLanguages = [];
@@ -40,7 +44,7 @@ namespace PatTech.Localization.Authoring {
 		private readonly List<string> pendingComments = [];
 		private readonly List<string> declaredLanguages = [];
 		private readonly Dictionary<string, string> blockComments = [];
-		private readonly Dictionary<string, string> imageSchemeMappings = new(StringComparer.OrdinalIgnoreCase);
+		private readonly Dictionary<string, string> languageSettings = [];
 
 		public WordsParserToLocalizationProvider() { }
 
@@ -93,10 +97,15 @@ namespace PatTech.Localization.Authoring {
 							errors.Add($"language '{languageCode}' has a comment-{languageCode} label before (or without) its value-{languageCode} label");
 						}
 						break;
-					case "param" when languageCode != "":
-						// keyless top-of-file param- is an authoring tool's image
-						// scheme→folder mapping; capture it so it round-trips
-						imageSchemeMappings[languageCode] = value;
+					case "param":
+						// the keyless param slot names the project settings file:
+						// param= for the dictionary, param-xx= for language xx
+						if (languageCode == "") {
+							Settings = value;
+						}
+						else {
+							languageSettings[languageCode] = value;
+						}
 						break;
 				}
 			}
@@ -161,8 +170,11 @@ namespace PatTech.Localization.Authoring {
 				// These fields wrap too (a long folder path, a long label), so
 				// continue them here rather than fault on the missing block key.
 				switch (fieldType) {
-					case "param" when imageSchemeMappings.ContainsKey(languageCode):
-						imageSchemeMappings[languageCode] += value;
+					case "param" when languageCode == "":
+						Settings += value;
+						break;
+					case "param" when languageSettings.ContainsKey(languageCode):
+						languageSettings[languageCode] += value;
 						break;
 					case "value" when knownLanguages.TryGetValue(languageCode, out var labelValue):
 						labelValue.NativeName += value;

@@ -88,16 +88,16 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>A strategy that never cuts: only parent→child chains compress.</summary>
 		public static ICutStrategy NeverCuts { get; } = new ChainOnly();
 
-		public static void WriteFile(IKeyTreeNode fileNode, string fileName, IReadOnlyDictionary<string, WordsKey> allKeys, IReadOnlyCollection<LanguageEntry> languages, ICutStrategy? cutStrategy = null, string preamble = "", string trailer = "", IReadOnlyDictionary<string, string>? imageSchemes = null) {
+		public static void WriteFile(IKeyTreeNode fileNode, string fileName, IReadOnlyDictionary<string, WordsKey> allKeys, IReadOnlyCollection<LanguageEntry> languages, ICutStrategy? cutStrategy = null, string preamble = "", string trailer = "", string settings = "", IReadOnlyDictionary<string, string>? languageSettings = null) {
 			using var stream = new StreamWriter(fileName);
-			WriteFile(fileNode, stream, allKeys, languages, cutStrategy, preamble, trailer, imageSchemes);
+			WriteFile(fileNode, stream, allKeys, languages, cutStrategy, preamble, trailer, settings, languageSettings);
 		}
-		public static void WriteFile(IKeyTreeNode fileNode, TextWriter stream, IReadOnlyDictionary<string, WordsKey> allKeys, IReadOnlyCollection<LanguageEntry> languages, ICutStrategy? cutStrategy = null, string preamble = "", string trailer = "", IReadOnlyDictionary<string, string>? imageSchemes = null) {
+		public static void WriteFile(IKeyTreeNode fileNode, TextWriter stream, IReadOnlyDictionary<string, WordsKey> allKeys, IReadOnlyCollection<LanguageEntry> languages, ICutStrategy? cutStrategy = null, string preamble = "", string trailer = "", string settings = "", IReadOnlyDictionary<string, string>? languageSettings = null) {
 			using var writer = new IniWriter(stream, cutStrategy);
 			if (preamble != "") {
 				writer.WriteComment(preamble);
 			}
-			writer.WriteLanguages(languages, imageSchemes);
+			writer.WriteLanguages(languages, settings, languageSettings);
 			writer.WriteKeys(fileNode, allKeys);
 			if (trailer != "") {
 				writer.WriteComment(trailer);
@@ -106,25 +106,34 @@ namespace PatTech.Localization.Authoring {
 
 		/// <summary>
 		///     Writes the top-of-file language table: a <c>value-</c>/<c>comment-</c>
-		///     pair per language, then any image scheme→folder mappings as keyless
-		///     <c>param-&lt;scheme&gt;=&lt;folder&gt;</c> fields (recovered by
-		///     <see cref="WordsParserToLocalizationProvider.ImageSchemeMappings"/> on the
-		///     next load). A file with neither languages nor mappings writes no header.
+		///     pair per language, then the project settings references as keyless
+		///     <c>param=</c> and <c>param-xx=</c> fields (recovered by
+		///     <see cref="WordsParserToLocalizationProvider.Settings"/> and
+		///     <see cref="WordsParserToLocalizationProvider.LanguageSettings"/> on the
+		///     next load). A file with neither languages nor settings writes no header.
 		/// </summary>
-		public void WriteLanguages(IReadOnlyCollection<LanguageEntry> languages, IReadOnlyDictionary<string, string>? imageSchemes = null) {
-			bool hasSchemes = imageSchemes is { Count: > 0 };
+		/// <param name="languages">The file's own table.</param>
+		/// <param name="settings">The dictionary's settings file, relative to it, or empty.</param>
+		/// <param name="languageSettings">Per-language settings files, code → relative path; empty paths are skipped.</param>
+		public void WriteLanguages(IReadOnlyCollection<LanguageEntry> languages, string settings = "", IReadOnlyDictionary<string, string>? languageSettings = null) {
+			bool hasSettings = settings != "" || languageSettings?.Values.Any(path => path != "") is true;
 			//a file that declares no languages (a bare library file) has no header —
-			//unless it carries image-scheme mappings, which live in this same section
-			if (languages.Count == 0 && !hasSchemes) {
+			//unless it names settings files, which live in this same section
+			if (languages.Count == 0 && !hasSettings) {
 				return;
 			}
 			foreach (var lang in languages) {
 				WritePair($"value-{lang.Code}", lang.NativeName);
 				WritePair($"comment-{lang.Code}", lang.EnglishName);
 			}
-			if (hasSchemes) {
-				foreach (var (scheme, folder) in imageSchemes!) {
-					WritePair($"param-{scheme}", folder);
+			if (settings != "") {
+				WritePair("param", settings);
+			}
+			if (languageSettings is not null) {
+				foreach (var (code, path) in languageSettings) {
+					if (path != "") {
+						WritePair($"param-{code}", path);
+					}
 				}
 			}
 			WriteLine();
