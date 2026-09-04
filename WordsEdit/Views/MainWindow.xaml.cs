@@ -22,19 +22,11 @@ public partial class MainWindow : Window {
 		}
 	}
 
+	//answered synchronously: the close then proceeds or is cancelled, so there
+	//is no Shutdown() to re-raise Closing and prompt again
 	private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e) {
-		if (DataContext is not MainWindowViewModel vm || !vm.IsDirty) {
-			return;
-		}
-		//answered here, synchronously: the close then proceeds or is cancelled,
-		//so there is no Shutdown() to re-raise Closing and prompt again
-		switch (vm.Dialogs.AskToSave("Do you want to save changes to this file before closing?")) {
-			case CloseAnswer.Save:
-				vm.Save();
-				break;
-			case CloseAnswer.Cancel:
-				e.Cancel = true;
-				break;
+		if (DataContext is MainWindowViewModel vm) {
+			e.Cancel = !vm.TryClose();
 		}
 	}
 }

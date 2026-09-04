@@ -1,4 +1,5 @@
 using PatTech.Localization.Authoring;
+using WordsEdit.Utils;
 using WordsEdit.ViewModels;
 using Xunit;
 
@@ -227,6 +228,46 @@ value-de=y
 		first.IsSelected = false;
 		Assert.Null(merge.BaseFile);
 		Assert.False(merge.CanMerge);
+	}
+
+	[Fact]
+	public void TryClose_CleanGoes_DirtyAsks() {
+		var (vm, dialogs) = Load();
+		Assert.True(vm.TryClose());
+
+		vm.IsDirty = true;
+		dialogs.SaveAnswer = CloseAnswer.Cancel;
+		Assert.False(vm.TryClose());
+		Assert.True(vm.IsDirty);
+
+		dialogs.SaveAnswer = CloseAnswer.Discard;
+		Assert.True(vm.TryClose());
+	}
+
+	[Fact]
+	public void TryClose_SaveWaitsOnTheFilesBeingWritten() {
+		string folder = Path.Combine(Path.GetTempPath(), $"WordsEditClose-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		try {
+			var dialogs = new FakeDialogs { SaveAnswer = CloseAnswer.Save };
+			var vm = new MainWindowViewModel(dialogs);
+			string path = Path.Combine(folder, "Example.ini");
+			vm.LoadFile(new StringReader(Ini), path);
+			vm.IsDirty = true;
+
+			Assert.True(vm.TryClose());
+			Assert.True(File.Exists(path));
+			Assert.False(vm.IsDirty);
+
+			//a file that cannot be written keeps the window open
+			vm.LoadFile(new StringReader(Ini), Path.Combine(folder, "missing", "Nowhere.ini"));
+			vm.IsDirty = true;
+			Assert.False(vm.TryClose());
+			Assert.Single(dialogs.Notices);
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
 	}
 
 	[Fact]

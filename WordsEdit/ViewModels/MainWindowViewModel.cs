@@ -145,6 +145,26 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 	}
 
+	/// <summary>
+	///     The window wants to close. Clean, it may; dirty, the user chooses to
+	///     save (and the close waits on every file being written), discard, or
+	///     stay. True when the window may go.
+	/// </summary>
+	public bool TryClose() {
+		if (!IsDirty) {
+			return true;
+		}
+		switch (Dialogs.AskToSave("Do you want to save changes to this file before closing?")) {
+			case CloseAnswer.Save:
+				Save();
+				return !IsDirty;
+			case CloseAnswer.Discard:
+				return true;
+			default:
+				return false;
+		}
+	}
+
 	//Merge
 	private void DoMergeFiles() {
 		Dialogs.Show(new MergeControlViewModel(this));
