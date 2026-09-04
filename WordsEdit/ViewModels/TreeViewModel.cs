@@ -249,13 +249,14 @@ public class TreeViewModel : ViewModelBase {
 
 	//what a translator searches for: a name, the words in the default and the
 	//selected language, and the notes around them; for a comment row, its text
+	//alone — its label is a synthetic marker, not something anyone typed
 	private bool Matches(KeyNode node, string text) {
 		const StringComparison ignoreCase = StringComparison.OrdinalIgnoreCase;
-		if (node.FullLabel.Contains(text, ignoreCase)) {
-			return true;
-		}
 		if (node is OrganizerNode organizer) {
 			return organizer.Text.Contains(text, ignoreCase);
+		}
+		if (node.FullLabel.Contains(text, ignoreCase)) {
+			return true;
 		}
 		if (!session.Keys.TryGetValue(node.FullLabel, out var key)) {
 			return false;

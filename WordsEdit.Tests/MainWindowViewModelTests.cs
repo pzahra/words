@@ -1020,6 +1020,48 @@ value=x
 	}
 
 	[Fact]
+	public void MainWindowViewModel_CommentsAreTheirOwnIdentity() {
+		// a comment's label is a synthetic marker the writer ignores; after the
+		// parent is renamed every comment under it carries the same one, and
+		// nothing minds: the rows stay apart, search reads their text, and both
+		// are written where they stand
+		var vm = LoadExample();
+		KeyNode main = vm.Tree.KeyNodes[0].Children.First(n => n.Label == "main");
+		vm.Tree.SelectedKeyNode = main.Children.First(n => n.Label == "circle-1");
+		vm.AddOrganizerCommand.Execute(null);
+		var first = Assert.IsType<CommentNode>(vm.Tree.SelectedKeyNode);
+		first.Text = " first note";
+		vm.Tree.SelectedKeyNode = main.Children.First(n => n.Label == "single-line");
+		vm.AddOrganizerCommand.Execute(null);
+		var second = Assert.IsType<CommentNode>(vm.Tree.SelectedKeyNode);
+		second.Text = " second note";
+		Assert.NotSame(first, second);
+
+		vm.Tree.SelectedKeyNode = main;
+		vm.RenameNode("renamed");
+		Assert.Equal("Example.renamed.;comment", first.FullLabel);
+		Assert.Equal(first.FullLabel, second.FullLabel); //shared by design
+		Assert.Contains(first, main.Children);
+		Assert.Contains(second, main.Children);
+
+		vm.Tree.SearchFilterText = "second note";
+		Assert.False(first.IsVisible);
+		Assert.True(second.IsVisible);
+		vm.Tree.SearchFilterText = ";comment"; //the marker is not text anyone typed
+		Assert.False(first.IsVisible);
+		Assert.False(second.IsVisible);
+		vm.Tree.SearchFilterText = "";
+
+		vm.Tree.Select(first);
+		first.Text = " first note, edited";
+		Assert.Equal(" second note", second.Text);
+
+		string saved = Save(vm, "Example");
+		Assert.True(saved.IndexOf("; first note, edited", StringComparison.Ordinal) < saved.IndexOf("circle-1]", StringComparison.Ordinal));
+		Assert.True(saved.IndexOf("; second note", StringComparison.Ordinal) < saved.IndexOf("single-line]", StringComparison.Ordinal));
+	}
+
+	[Fact]
 	public void MainWindowViewModel_MissingTranslationEmphasisFollowsTheFilesTable() {
 		// SPEC (Badges): a key reads as missing the selected language only when its
 		// file registers that language — !-hidden counts, a stray code does not,
