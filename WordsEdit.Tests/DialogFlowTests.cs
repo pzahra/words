@@ -431,4 +431,55 @@ value-de=y
 
 	private static KeyNode Find(MainWindowViewModel vm, string fullLabel)
 		=> MainWindowViewModelTests.GetAllKeyNodes(vm.Tree.KeyNodes).First(node => node.FullLabel == fullLabel);
+
+	[Fact]
+	public void LanguageManager_CommitsItsSelectionOnOk() {
+		var (vm, _) = Load();
+		Assert.Equal("en", vm.Tree.SelectedLanguage.Code);
+		var manager = new LanguageManagerViewModel(vm);
+		Assert.Same(vm.Tree.SelectedLanguage, manager.SelectedLanguage); //starts where the tree is
+
+		manager.SelectedLanguage = vm.Tree.KnownLanguages.First(l => l.Code == "de");
+		Assert.Equal("en", vm.Tree.SelectedLanguage.Code); //browsing the list moves the tree nothing
+
+		bool closed = false;
+		manager.CloseRequested += () => closed = true;
+		manager.OkayCommand.Execute(null);
+		Assert.True(closed);
+		Assert.Equal("de", vm.Tree.SelectedLanguage.Code);
+	}
+
+	[Fact]
+	public void Split_WritesOneLanguageAndLoadsIt() {
+		string folder = Path.Combine(Path.GetTempPath(), $"WordsEditSplit-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		try {
+			var dialogs = new FakeDialogs();
+			var vm = new MainWindowViewModel(dialogs);
+			vm.LoadFile(new StringReader("value-en=English\nvalue-de=Deutsch\n\n[a]\nvalue=1\nvalue-en=one\nvalue-de=eins\n"), Path.Combine(folder, "Main.ini"));
+			var merge = new MergeControlViewModel(vm);
+			Assert.False(merge.SplitCommand.CanExecute(null));
+
+			merge.SplitFile = merge.Files[0];
+			Assert.Equal(["en", "de"], merge.SplitLanguages.Select(l => l.Code)); //the file's own table
+			merge.SplitLanguage = merge.SplitLanguages[1];
+			Assert.True(merge.SplitCommand.CanExecute(null));
+			string outPath = Path.Combine(folder, "German.ini");
+			dialogs.FileToSave = outPath;
+			bool closed = false;
+			merge.CloseRequested += () => closed = true;
+
+			merge.SplitCommand.Execute(null);
+
+			Assert.True(closed);
+			Assert.True(File.Exists(outPath));
+			Assert.Equal(["Main", "German"], vm.Tree.KeyNodes.Select(n => n.FullLabel));
+			Assert.Equal(["de"], vm.Session.FileOf("German")!.Languages);
+			Assert.Equal("eins", vm.Session.Keys["German.a"].Entries["de"].Value);
+			Assert.Equal("1", vm.Session.Keys["German.a"].DefaultValue); //the reference the translator reads
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
 }

@@ -59,13 +59,15 @@ public class MergeFileRow : ViewModelBase {
 }
 
 /// <summary>
-///     The translator round trip in bulk (SPEC: Merge): pick the files, a base
-///     among them, and which file supplies each language; the merged file is
-///     written and loaded. The rules — one base, one file per language, the
+///     The translator round trip in bulk (SPEC: Merge, Split): pick the files, a
+///     base among them, and which file supplies each language; the merged file
+///     is written and loaded. The rules — one base, one file per language, the
 ///     files agreeing on their keys — are kept here, whatever the view does.
+///     Split, the other direction, shares the dialog: one file, one of its
+///     languages, written on its own and loaded.
 /// </summary>
 public class MergeControlViewModel : DialogViewModel {
-	public override string Title => "Merge Files";
+	public override string Title => "Merge and Split";
 	public MainWindowViewModel Parent { get; }
 
 	/// <summary>Every loaded file, in tree order.</summary>
@@ -79,12 +81,28 @@ public class MergeControlViewModel : DialogViewModel {
 	public bool CanMerge => !HasConflict && Selected.Count > 0;
 
 	public ICommand MergeCommand { get; }
+	public ICommand SplitCommand { get; }
 	public ICommand CancelCommand { get; }
+
+	//Split: the file to take one language out of, and which of its languages
+	public MergeFileRow? SplitFile {
+		get;
+		set {
+			if (ChangeProperty(ref field, value)) {
+				SplitLanguages = value is null ? [] : Parent.Session.Languages.For(value.File);
+				SplitLanguage = SplitLanguages.FirstOrDefault();
+			}
+		}
+	}
+	/// <summary>The languages <see cref="SplitFile"/> declares.</summary>
+	public IReadOnlyList<LanguageEntry> SplitLanguages { get; private set => ChangeProperty(ref field, value); } = [];
+	public LanguageEntry? SplitLanguage { get; set => ChangeProperty(ref field, value); }
 
 	public MergeControlViewModel(MainWindowViewModel parent) {
 		ArgumentNullException.ThrowIfNull(parent);
 		Parent = parent;
 		MergeCommand = new DelegateCommand(DoMerge);
+		SplitCommand = new DelegateCommand(DoSplit, () => SplitFile is not null && SplitLanguage is not null);
 		CancelCommand = new DelegateCommand(Close);
 		Files = [.. parent.Tree.KeyNodes.Select(node => new MergeFileRow(this, node, parent.Tree.FileOf(node), parent.Tree.KnownLanguages))];
 	}
@@ -174,6 +192,27 @@ public class MergeControlViewModel : DialogViewModel {
 			return;
 		}
 		Parent.Tree.Present(merged);
+		Close();
+	}
+
+	private void DoSplit() {
+		if (SplitFile is not { } file || SplitLanguage is not { } language) {
+			return;
+		}
+		if (!Parent.Dialogs.TrySaveFile("Split Location", "INI file (*.ini)|*.ini|All files (*.*)|*.*", out string? splitFileName)) {
+			return;
+		}
+		WordsFile split;
+		try {
+			//that language's entries with the defaults for reference, the source's
+			//shape, preamble and settings references: what Merge takes back
+			split = Parent.Session.Split(file.File, language.Code, file.Node, splitFileName);
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+			Parent.Dialogs.Tell($"Could not write {splitFileName}:\n{ex.Message}");
+			return;
+		}
+		Parent.Tree.Present(split);
 		Close();
 	}
 }

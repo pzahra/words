@@ -1,22 +1,20 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using WordsEdit.Utils;
 
 namespace WordsEdit.ViewModels;
 
+/// <summary>
+///     The language table (SPEC: Languages): add, edit, remove, reorder. Edits
+///     land in the session as they are made; the highlighted row is the
+///     dialog's own and becomes the tree's language on OK, so browsing the list
+///     does not re-badge the tree behind the dialog.
+/// </summary>
 public class LanguageManagerViewModel : DialogViewModel {
 	public override string Title => "Languages";
 	public LanguageDragDropHandler LanguageDragDropHandler { get; }
 	public MainWindowViewModel Parent { get; }
 	public ObservableCollection<LanguageEntry> KnownLanguages => Parent.Tree.KnownLanguages;
-	public LanguageEntry SelectedLanguage {
-		get => Parent.Tree.SelectedLanguage;
-		set {
-			if (value == Parent.Tree.SelectedLanguage) return;
-
-			Parent.Tree.SelectedLanguage = value;
-			AffectProperty(nameof(SelectedLanguage));
-		}
-	}
+	public LanguageEntry SelectedLanguage { get; set => ChangeProperty(ref field, value); }
 
 	public DelegateCommand RemoveLanguageCommand { get; }
 	public DelegateCommand AddLanguageCommand { get; }
@@ -25,6 +23,7 @@ public class LanguageManagerViewModel : DialogViewModel {
 	public LanguageManagerViewModel(MainWindowViewModel parent) {
 		LanguageDragDropHandler = new LanguageDragDropHandler() { LanguageManager = this };
 		Parent = parent;
+		SelectedLanguage = parent.Tree.SelectedLanguage;
 		OkayCommand = new DelegateCommand(DoOkay);
 		RemoveLanguageCommand = new DelegateCommand(DoRemoveLanguage, CanRemoveLanguage);
 		AddLanguageCommand = new DelegateCommand(DoAddLanguage);
@@ -44,8 +43,7 @@ public class LanguageManagerViewModel : DialogViewModel {
 		int i = KnownLanguages.IndexOf(remove);
 		SelectedLanguage = KnownLanguages[i == 0 ? 1 : i - 1];
 		Parent.Session.Languages.Remove(remove.Code);
-		Parent.Tree.RefreshBadges();
-		Parent.IsDirty = true;
+		TreeFollows();
 	}
 
 	private void DoAddLanguage() {
@@ -56,7 +54,7 @@ public class LanguageManagerViewModel : DialogViewModel {
 		//the table backfills every key and every file's declared languages
 		Parent.Session.Languages.Add(lang);
 		SelectedLanguage = lang;
-		Parent.IsDirty = true;
+		TreeFollows();
 	}
 
 	private void DoEditLanguage() {
@@ -68,9 +66,19 @@ public class LanguageManagerViewModel : DialogViewModel {
 		//park the displaced one in context, in copy/paste reach of the translator.
 		//Shifted onto a language that already exists, the two entries become one
 		SelectedLanguage = Parent.Session.Languages.Rename(SelectedLanguage.Code, lang);
+		TreeFollows();
+	}
+
+	//the table changed under the tree: its language may be gone or replaced, and
+	//its badges and dropdown read the table
+	private void TreeFollows() {
+		Parent.Tree.FollowLanguage();
 		Parent.Tree.RefreshBadges();
 		Parent.IsDirty = true;
 	}
 
-	private void DoOkay() => Close();
+	private void DoOkay() {
+		Parent.Tree.SelectedLanguage = SelectedLanguage;
+		Close();
+	}
 }
