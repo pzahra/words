@@ -249,6 +249,11 @@ badges and command wiring.
 - [ ] Confirmations on the destructive actions: constant toggle, remove key
       data, collisions. Then consider an undo stack over `WordsSession`.
 - [ ] Split UI, hosted in the merge dialog (its output is what Merge consumes).
+- [ ] Image schemes reach past the ini's folder (SPEC: Markdown previews): the
+      manager takes absolute and `..` folders, and location-bearing schemes
+      (`pack:`, `assets:`, `resx:`, `staticres:`) resolve from the URI itself
+      instead of a flat scheme→folder row. The path inside a URI stays
+      clamped to whatever root results; nothing is fetched remotely.
 - [ ] Language Manager keeps a local selection and commits on OK — clicking
       down its list currently re-contextualises the whole window behind it.
 - [ ] Merge dialog: a way to clear the base file; stop mutating tree nodes

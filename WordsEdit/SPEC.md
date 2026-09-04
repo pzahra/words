@@ -138,6 +138,19 @@ registry instead of the pre-loaded set:
 - The user can map a scheme to a folder; the URI's path is then looked up as
   an image file under that folder. Unmapped schemes keep the alt-text
   fallback.
+- **A folder relative to the ini is not enough on its own.** A `words.ini`
+  typically already lives in the app's `Assets` folder, so the editor has to
+  navigate more freely than the runtime resolvers do: a mapped folder may be
+  absolute, may climb out with `..`, and should be expressible against
+  something other than the ini's own directory. Beyond folders, the editor
+  should extract the actual location from the specialised URI schemes the
+  host uses — `pack:`, `assets:`, `resx:`, `staticres:` URIs already name a
+  component or an asset root and a path within it, and the manager should
+  turn that into a file location rather than asking for a flat
+  scheme→folder row for each. How the dialog offers this (a project root, a
+  per-scheme rule, a picker) is a UX detail still to be settled; the
+  constraint that does not move is that the path *inside* a URI stays clamped
+  to whatever root it resolves against, and nothing is fetched remotely.
 - The mappings are stored per file, recycling the otherwise-unused keyless
   `param-` fields of the top-of-file language section —
   `param-<scheme>=<folder>`, with the folder relative to the ini file so the
