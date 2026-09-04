@@ -1,5 +1,3 @@
-using PatTech.Localization.Authoring;
-
 namespace WordsEdit.ViewModels;
 
 /// <summary>

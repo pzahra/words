@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using WordsEdit.Utils;
 
 namespace WordsEdit.ViewModels;
@@ -170,12 +171,19 @@ public class TreeViewModel : ViewModelBase {
 
 	//Filters
 	/// <summary>The translator's work queue: keys stale in the selected language.</summary>
-	public bool IsStaleFilter { get; set => _ = ChangeProperty(ref field, value) && ApplyFilters(); }
+	public bool IsStaleFilter { get; set => Filter(ref field, value); }
 	/// <summary>The programmer's: keys a translator raised a hand on.</summary>
-	public bool NeedsReviewFilter { get; set => _ = ChangeProperty(ref field, value) && ApplyFilters(); }
+	public bool NeedsReviewFilter { get; set => Filter(ref field, value); }
 	/// <summary>Keys wanting words in the default, or in the selected language where their file registers it.</summary>
-	public bool MissingFilter { get; set => _ = ChangeProperty(ref field, value) && ApplyFilters(); }
-	public string SearchFilterText { get; set => _ = ChangeProperty(ref field, value) && ApplyFilters(); } = "";
+	public bool MissingFilter { get; set => Filter(ref field, value); }
+	public string SearchFilterText { get; set => Filter(ref field, value); } = "";
+
+	//a filter that changed re-runs the pass
+	private void Filter<T>(ref T field, T value, [CallerMemberName] string propertyName = "") {
+		if (ChangeProperty(ref field, value, propertyName)) {
+			ApplyFilters();
+		}
+	}
 	/// <summary>True while any filter narrows the tree.</summary>
 	public bool IsFiltering => IsStaleFilter || NeedsReviewFilter || MissingFilter || SearchFilterText != "";
 	/// <summary>How many rows the filters hide.</summary>
@@ -190,7 +198,7 @@ public class TreeViewModel : ViewModelBase {
 
 	public IEnumerable<KeyNode> AllNodes => KeyNodes.SelectMany(root => root.SelfAndDescendants());
 
-	public bool ApplyFilters() {
+	public void ApplyFilters() {
 		foreach (KeyNode node in AllNodes) {
 			node.IsVisible = PassesVisibilityFilters(node);
 		}
@@ -209,7 +217,6 @@ public class TreeViewModel : ViewModelBase {
 			}
 			Select(shown);
 		}
-		return true;
 	}
 
 	/// <summary>Selects <paramref name="node"/> (or nothing), the way a click would.</summary>

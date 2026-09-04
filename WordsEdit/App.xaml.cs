@@ -1,27 +1,14 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 
 namespace WordsEdit;
-/// <summary>
-/// Interaction logic for App.xaml
-/// </summary>
 public partial class App : Application {
-	public string[] StartupFiles = [];
+	/// <summary>The files named on the command line that exist; the main window loads them.</summary>
+	public string[] StartupFiles { get; private set; } = [];
 
-	public App() {
-		/*var cl = new CommandLine(0);
-		try {
-			List<string> files = [];
-			if (!cl.Process(p => files.Add(p))) {
-				Environment.Exit(2);
-				return;
-			}
-			StartupFiles = [.. files.Where(File.Exists)];
-		}
-		catch (ArgumentException ex) {
-			StartupFiles = [];
-			MessageBox.Show(ex.Message);
-			return;
-		}//*/
+	protected override void OnStartup(StartupEventArgs e) {
+		//Startup fires before StartupUri opens the window that reads this
+		StartupFiles = [.. e.Args.Where(File.Exists)];
+		base.OnStartup(e);
 	}
 }

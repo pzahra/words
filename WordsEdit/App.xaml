@@ -13,7 +13,6 @@
 
             <sys:Boolean x:Key="True">True</sys:Boolean>
 			<sys:Boolean x:Key="False">False</sys:Boolean>
-			<sys:Int32 x:Key="Zero">0</sys:Int32>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

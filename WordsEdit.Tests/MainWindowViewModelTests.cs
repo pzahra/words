@@ -961,7 +961,7 @@ value=x
 		Assert.False(desc.IsVisible);
 		Assert.False(desc.IsSelected);
 		Assert.Same(Node(vm, "Example.enum.two"), vm.Tree.SelectedKeyNode);
-		Assert.True(vm.Tree.SelectedKeyNode.IsSelected);
+		Assert.True(vm.Tree.SelectedKeyNode!.IsSelected);
 
 		vm.Tree.SearchFilterText = "nothing-like-this";
 		Assert.Null(vm.Tree.SelectedKeyNode);

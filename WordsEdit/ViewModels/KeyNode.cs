@@ -1,4 +1,3 @@
-using PatTech.Localization.Authoring;
 using System.Collections.ObjectModel;
 
 namespace WordsEdit.ViewModels;

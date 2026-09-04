@@ -5,7 +5,6 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 		xmlns:vm="clr-namespace:WordsEdit.ViewModels" 
         xmlns:uc="clr-namespace:WordsEdit.Utils"
-        xmlns:v="clr-namespace:WordsEdit.Views"
         xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:dd="urn:gong-wpf-dragdrop" 
         mc:Ignorable="d"
@@ -302,7 +301,8 @@
 
 				<md:ColorZone Mode="PrimaryLight" Grid.Row="0" Grid.ColumnSpan="2" VerticalAlignment="Stretch" />
 
-				<TextBlock Text="Default English"
+				<TextBlock Text="Default"
+                           ToolTip="The unlocalised fields: what a host app reads when the language has no words"
                            Grid.Row="0"
                            Grid.Column="0"
                            VerticalAlignment="Center"

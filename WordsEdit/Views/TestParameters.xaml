@@ -9,11 +9,6 @@
              mc:Ignorable="d" 
              d:DataContext="{d:DesignInstance vm:TestParametersViewModel}"
              Padding="7px">
-    <UserControl.Resources>
-        <uc:GenericValueConverter x:Key="IsTrue" Else="Collapsed">
-            <uc:ConverterCondition When="{StaticResource True}" Then="Visible"/>
-        </uc:GenericValueConverter>
-    </UserControl.Resources>
     <Grid>
         <StackPanel Grid.IsSharedSizeScope="True">
             <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="250">
