@@ -35,66 +35,68 @@ the ViewModel and then moved. Phases 4–6 are the payoff and the polish.
 
 Verified bugs first. Each is a few lines; none blocks or is blocked.
 
-- [ ] `Views/EditLanguageView.xaml` binds `LanguageNativeName` and
+- [x] `Views/EditLanguageView.xaml` binds `LanguageNativeName` and
       `LanguageEnglishName`; the VM has `NativeName`/`EnglishName`. Both boxes
       are inert, validation demands them, so **a language can never be added**.
-- [ ] `Views/MergeControl.xaml` binds `DataContext.LocalizationLanguages`; the
+- [x] `Views/MergeControl.xaml` binds `DataContext.LocalizationLanguages`; the
       VM has `Languages`. The per-file language list is always empty, so
       **merge cannot be driven from the UI**.
-- [ ] `TestParametersViewModel.DoAddParameter` is `for (i < Count)` with
+- [x] `TestParametersViewModel.DoAddParameter` is `for (i < Count)` with
       `Add` inside: a no-op on an empty list, unbounded growth otherwise.
       `int i = 0; while (Parameters.Any(p => p.Key == $"P{i}")) i++;` then add.
-- [ ] `KeyNameViewModel`: `CancelCommand` is gated on `CanProceed`, so the Add
+- [x] `KeyNameViewModel`: `CancelCommand` is gated on `CanProceed`, so the Add
       dialog opens with both buttons disabled. Cancel is never conditional.
-- [ ] `EditLanguageViewModel.Validate`: only the code branch clears errors;
+- [x] `EditLanguageViewModel.Validate`: only the code branch clears errors;
       one bad keystroke in either name disables Add forever. `ClearErrors` at
       the head of every branch, `ClearAllErrors` on the all-path (as
       `KeyNameViewModel` does).
-- [ ] `DragDrop.KeyDragDropHandler.Drop`, drop onto own descendant: the guard
+- [x] `DragDrop.KeyDragDropHandler.Drop`, drop onto own descendant: the guard
       re-inserts `targetKeyNode` where `draggedKeyNode` was. Subtree vanishes,
       keys linger, descendant duplicated.
-- [ ] `DragDrop.KeyDragDropHandler.Drop`, no `InsertPosition` matched:
+- [x] `DragDrop.KeyDragDropHandler.Drop`, no `InsertPosition` matched:
       `newParentNode` stays null, the subtree is rooted with its file prefix
       stripped and is never saved. Restore and bail; a non-file node never
       sits at the root.
-- [ ] `IsDirty` gaps: `DoToggleKeyNeedsReview` (the raise-hand) never dirties;
+- [x] `IsDirty` gaps: `DoToggleKeyNeedsReview` (the raise-hand) never dirties;
       editing a parameter's key/value/type in the dialog never dirties (the
       `TODO` in `TestParametersViewModel` is real — observe item
       `PropertyChanged`).
-- [ ] `LanguageManagerViewModel.DoRemoveLanguage`: SPEC (Languages) says
-      entries are deleted **after confirmation**; there is none. Also
-      `CanRemoveLanguage` (`> 1`) contradicts its own message ("at least two").
-- [ ] `MainWindow.xaml` toggle buttons carry both `Command` and a two-way
+- [x] `LanguageManagerViewModel.DoRemoveLanguage`: SPEC (Languages) says
+      entries are deleted **after confirmation**; there was none. (The audit's
+      claim that `CanRemoveLanguage` contradicted its message was a misread —
+      `> 1` and "at least two" agree.)
+- [x] `MainWindow.xaml` toggle buttons carry both `Command` and a two-way
       `IsChecked` to the same node flag, so binding and command write the node
       twice and disagree when there is no key data. `IsChecked` one-way; the
       command is the only writer.
-- [ ] `KeyNode()` parameterless ctor: zero call sites, sole source of the three
+- [x] `KeyNode()` parameterless ctor: zero call sites, sole source of the three
       CS9264 warnings, exists only as a throwaway accumulator in `GetFileNode`
       (give it a `List<KeyNode>`). Delete it, then delete the `FullLabel is
       null` guards it made necessary (`GetParentNode`, `DeepestVisible…`).
-- [ ] `MainWindow.MainWindow_Closing`/`ConfirmClose`: "No" calls `Shutdown()`
+- [x] `MainWindow.MainWindow_Closing`/`ConfirmClose`: "No" calls `Shutdown()`
       with `IsDirty` still true, which can re-raise `Closing` (verify); set a
       closing flag first. `ConfirmClose` has no `await` — drop the `async`
       wrapper and the `SafeFireAndForget`.
-- [ ] `MergeControlViewModel.DoMerge`: a normal key-set conflict throws
+- [x] `MergeControlViewModel.DoMerge`: a normal key-set conflict throws
       `"Merge Failed"` although `FilesChanged` already builds the message.
       Show it; bind `HasConflict` (unused) instead of the
       `StringIsEmptyVisibilityConverter` on the panel, which looks inverted
       (verify).
-- [ ] `MergeControlViewModel.DoMerge` writes `Parent.KnownLanguages` (the
+- [x] `MergeControlViewModel.DoMerge` writes `Parent.KnownLanguages` (the
       session union) and no `preamble:`/`imageSchemes:`, so the merged file
       loses the base file's table, preamble and image mappings on the round
       trip SPEC guarantees. Pass `LanguagesFor(base)`, its preamble, its
       schemes. (Phase 2 makes this a one-liner on the session.)
-- [ ] Every `throw` for an ordinary UI state becomes an early return:
+- [x] Every `throw` for an ordinary UI state becomes an early return:
       `MainWindow.xaml.cs` (×7, incl. null `SelectedKey` in the preview
       `Checked` handlers), `MergeControl.xaml.cs` (×2),
       `MainWindowViewModel.OnSelectedKeyValueChanged`/`OnSelectedEntryChanged`
       ("Phantom Key Value Change" — thrown from a keystroke),
       `DoRemoveLocalizationKey`/`DoAddLocalizationKey` (`InvalidDataException`
       for "nothing selected"), `LanguageManagerViewModel.DoRemoveLanguage`,
-      `DragDrop` (×5). Exceptions are for broken invariants.
-- [ ] `MainWindow.FormatParameters`: `Regex.Escape(parameter.Key)` — a key
+      the reachable ones in `DragDrop`. Its `MainWindow is null` guards stay:
+      an unwired handler is a broken invariant, which is what exceptions are for.
+- [x] `MainWindow.FormatParameters`: `Regex.Escape(parameter.Key)` — a key
       with `(`, `+`, `.` throws on every render. Interim; deleted in Phase 2.
 
 ## Phase 1 — Dialogs become windows, `IDialogs` appears
