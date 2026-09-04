@@ -12,7 +12,7 @@ public partial class MergeControlView : UserControl {
 
 	private void FileListBox_OnSelectionChanged(object sender, SelectionChangedEventArgs args) {
 		if (DataContext is not MergeControlViewModel vm) {
-			throw new InvalidOperationException("Bad View Model");
+			return;
 		}
 		foreach (KeyNode keyNode in args.AddedItems) {
 			vm.FilesToMerge.Add(keyNode);
@@ -41,7 +41,7 @@ public partial class MergeControlView : UserControl {
 
 	private void LanguageListBox_OnSelectionChanged(object sender, SelectionChangedEventArgs args) {
 		if (DataContext is not MergeControlViewModel vm) {
-			throw new InvalidOperationException("Bad View Model");
+			return;
 		}
 		ListBox currentListBox = (ListBox)sender;
 		KeyNode keyNode = (KeyNode)currentListBox.DataContext;

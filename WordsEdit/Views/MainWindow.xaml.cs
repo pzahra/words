@@ -41,17 +41,17 @@ public partial class MainWindow : Window {
 
 	private void TreeView_OnSelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e) {
 		if (DataContext is not MainWindowViewModel vm) {
-			throw new InvalidOperationException("Bad View Model");
+			return;
 		}
 		vm.SelectedKeyNode = (KeyNode)e.NewValue;
 	}
 
 	private void DefaultPreview_Checked(object sender, RoutedEventArgs e) {
 		if (DataContext is not MainWindowViewModel vm) {
-			throw new InvalidOperationException("Bad View Model");
+			return;
 		}
 		if (vm.SelectedKey is null) {
-			throw new InvalidOperationException("Selected Localization Key is null");
+			return;
 		}
 		IWordsProvider wordsProvider = vm.GetWordsProvider();
 		string defaultValue = Words.RenderKey(wordsProvider, vm.SelectedKey.BlockKey);
@@ -77,10 +77,10 @@ public partial class MainWindow : Window {
 
 	private void LocalizationPreview_Checked(object sender, RoutedEventArgs e) {
 		if (DataContext is not MainWindowViewModel vm) {
-			throw new InvalidOperationException("Bad View Model");
+			return;
 		}
 		if (vm.SelectedKey is null) {
-			throw new InvalidOperationException("Selected Localization Key is null");
+			return;
 		}
 		IWordsProvider wordsProvider = vm.GetWordsProvider(vm.SelectedLanguage.Code);
 		string localizationValue = Words.RenderKey(wordsProvider, vm.SelectedKey.BlockKey);
@@ -106,7 +106,7 @@ public partial class MainWindow : Window {
 
 	public static string FormatParameters(string value, ObservableCollection<WordsParameter> parameters) {
 		foreach (WordsParameter parameter in parameters) {
-			string placeholder = @"\{" + parameter.Key + @"(:[^}]+)?\}";
+			string placeholder = @"\{" + Regex.Escape(parameter.Key) + @"(:[^}]+)?\}";
 			value = Regex.Replace(
 				value,
 				placeholder,
@@ -201,32 +201,20 @@ public partial class MainWindow : Window {
 	}
 
 	private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e) {
-		if (DataContext is not MainWindowViewModel vm) {
-			throw new InvalidOperationException("Bad View Model");
+		if (DataContext is not MainWindowViewModel vm || !vm.IsDirty) {
+			return;
 		}
-		if (vm.IsDirty) {
-			e.Cancel = true;
-			ConfirmClose().SafeFireAndForget(x => PopupDialog.Push(x.ToString()));
-		}
-	}
-
-	private async Task ConfirmClose() {
-		if (DataContext is not MainWindowViewModel vm) {
-			throw new InvalidOperationException("Bad View Model");
-		}
-		var result2 = PopupDialog.ShowDialog(
+		//answered here, synchronously: the close then proceeds or is cancelled,
+		//so there is no Shutdown() to re-raise Closing and prompt again
+		var answer = PopupDialog.ShowDialog(
 			"Do you want to save changes to this file before closing?",
 			MessageBoxButton.YesNoCancel
 		);
-		switch (result2) {
-			case MessageBoxResult.Yes:
-				vm.Save();
-				Application.Current.Shutdown();
-				return;
-			case MessageBoxResult.No:
-				Application.Current.Shutdown();
-				return;
-			default: return;
+		if (answer == MessageBoxResult.Yes) {
+			vm.Save();
+		}
+		else if (answer != MessageBoxResult.No) {
+			e.Cancel = true;
 		}
 	}
 }

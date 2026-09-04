@@ -236,7 +236,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	private void OnSelectedKeyValueChanged(object? sender, PropertyChangedEventArgs e) {
 		if (SelectedKey is null || SelectedKeyNode is null) {
-			throw new InvalidOperationException("Phantom Key Value Change");
+			return; //selection and model briefly disagree while the selection is changing
 		}
 		IsDirty = true;
 		if (e.PropertyName == nameof(SelectedKey.Comment) && SelectedKey.Comment.Trim() != "") {
@@ -258,7 +258,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	private void OnSelectedEntryChanged(object? sender, PropertyChangedEventArgs e) {
 		if (SelectedEntry is null || SelectedKey is null || SelectedKeyNode is null) {
-			throw new InvalidOperationException("Phantom Key Value Change");
+			return; //selection and model briefly disagree while the selection is changing
 		}
 		IsDirty = true;
 		if (e.PropertyName == nameof(SelectedEntry.Comment) && SelectedEntry.Comment.Trim() != "") {
@@ -804,7 +804,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	public void AddLocalizationKeyNode(string newName) {
 		if (SelectedKeyNode is null) {
-			throw new InvalidDataException("Selected Key Node is null");
+			return;
 		}
 		string blockKey = SelectedKeyNode.FullLabel + $".{newName}";
 		KeyNode nodeToAdd = new(newName, blockKey) {
@@ -824,7 +824,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	private void DoAddLocalizationKey() {
 		if (SelectedKeyNode is null) {
-			throw new InvalidDataException("Selected Node is null.");
+			return;
 		}
 		if (SelectedKeyNode is OrganizerNode) {
 			return;
@@ -929,14 +929,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (SelectedKey is null || SelectedKeyNode is null) {
 			return;
 		}
-		if (SelectedKey.NeedsReview) {
-			SelectedKey.NeedsReview = false;
-			SelectedKeyNode.NeedsReview = false;
-		}
-		else {
-			SelectedKey.NeedsReview = true;
-			SelectedKeyNode.NeedsReview = true;
-		}
+		SelectedKey.NeedsReview = !SelectedKey.NeedsReview;
+		SelectedKeyNode.NeedsReview = SelectedKey.NeedsReview;
+		IsDirty = true;
 	}
 
 	//adds or strips the constant marker on the LAST segment only:

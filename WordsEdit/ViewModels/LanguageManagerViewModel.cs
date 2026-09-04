@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using System.Windows;
 using WordsEdit.Utils;
 using WordsEdit.Views;
 
@@ -35,7 +36,14 @@ public class LanguageManagerViewModel : ViewModelBase {
 	private bool CanRemoveLanguage() => KnownLanguages.Count > 1;
 	private void DoRemoveLanguage() {
 		if (KnownLanguages.Count <= 1) {
-			throw new InvalidOperationException("Must have at least two languages to remove one.");
+			return;
+		}
+		//SPEC (Languages): a removal deletes the entries only after confirmation
+		var answer = PopupDialog.ShowDialog(
+			$"Remove language '{SelectedLanguage.Code}' and delete its entries from every key?",
+			MessageBoxButton.YesNo);
+		if (!answer.IsAffirmative()) {
+			return;
 		}
 		foreach (var key in Parent.Keys) {
 			key.Entries.Remove(SelectedLanguage.Code);

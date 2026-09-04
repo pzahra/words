@@ -258,14 +258,14 @@
                     <ToggleButton Command="{Binding ToggleLocalizationKeyIsConstantCommand}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=TranslateOff, Size=25}"
-                                  IsChecked="{Binding SelectedKeyNode.IsConstant}"
+                                  IsChecked="{Binding SelectedKeyNode.IsConstant, Mode=OneWay}"
                                   Visibility="{Binding SelectedKeyNode.CanBeConstant, Converter={StaticResource BooleanToVisibilityConverter}}"
                                   ToolTip=" Toggle Constant (Does not need translation)"
                                   Margin="2.5px"/>
                     <ToggleButton Command="{Binding ToggleLocalizationKeyNeedsReviewCommand}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=HandFrontLeft, Size=25}"
-                                  IsChecked="{Binding SelectedKeyNode.NeedsReview}"
+                                  IsChecked="{Binding SelectedKeyNode.NeedsReview, Mode=OneWay}"
                                   ToolTip="Toggle needs review"
                                   Margin="2.5px"/>
                     <ToggleButton Checked="DefaultPreview_Checked" 
@@ -412,7 +412,7 @@
                     </Button>
                     <ToggleButton Command="{Binding ToggleStaleLanguageCommand}"
                                   CommandParameter="{Binding SelectedLanguage.Code}"
-                                  IsChecked="{Binding SelectedKeyNode.IsStale}"
+                                  IsChecked="{Binding SelectedKeyNode.IsStale, Mode=OneWay}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=ClockAlert,Size=30}"
                                   ToolTip="Toggle Language is stale"
