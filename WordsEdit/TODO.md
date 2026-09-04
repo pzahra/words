@@ -409,19 +409,31 @@ Naming (SPEC: "Short names"):
 
 ## Phase 6 — Tests not already listed above
 
-- [ ] Drag-and-drop, currently untested entirely: reparent a subtree, drop
+- [x] Drag-and-drop, currently untested entirely: reparent a subtree, drop
       before/after a sibling, reorder files, drop a comment node, drop onto own
       descendant, drop with no insert position, drop onto a same-named sibling.
-- [ ] One `Assert.True(IsDirty)` per mutation (add key/node, rename, remove,
+      (`DragTests.cs`: `FakeDropInfo`/`FakeDragInfo` stand in for the library;
+      constants landing beside a group, the adorners and the language table
+      reorder ride along.)
+- [x] One `Assert.True(IsDirty)` per mutation (add key/node, rename, remove,
       drop, constant, needs-review, stale, organizer edit, image-scheme edit);
-      `Assert.False` after `Save` and `Reset`.
-- [ ] Filters: `NeedsReviewFilter` alone; needs-review + search; stale +
+      `Assert.False` after `Save` and `Reset`. (One sweep naming each step;
+      drops in `DragTests`; a settings table edit does not dirty the
+      dictionary — it went to its own file — and the test says so.)
+- [x] Filters: `NeedsReviewFilter` alone; needs-review + search; stale +
       needs-review; filter then clear; organizer text matched by search;
-      selection vs visibility.
+      selection vs visibility. (Noted on the way: a badge change — raising a
+      hand while the review filter is on — does not re-run the filters; the
+      next pass reads it. Left so, since yanking the row being edited would
+      be worse.)
 - [x] `RemoveFileNodeCore` with two files: selection moves to the survivor,
       the survivor is untouched.
-- [ ] `ImageSchemesViewModel.DoOkay`: blank rows dropped, duplicate scheme
+- [x] `ImageSchemesViewModel.DoOkay`: blank rows dropped, duplicate scheme
       last-wins, case-insensitive, dirties; `Save` threading schemes for two files.
+      (As `SettingsDocument.ToSettings` since Phase 4: blank rows dropped,
+      the later duplicate wins case aside, whitespace trimmed; OK writes the
+      table to its own file without dirtying the dictionary, and `Save`
+      threads both dictionaries' `param` slots.)
 - [x] `MainWindowViewModel_AddKeyTest` asserts a key is created
       **on a file node**, which SPEC (The tree) forbids. Fix the test, add the
       guard.
@@ -429,7 +441,7 @@ Naming (SPEC: "Short names"):
       accumulate-a-bool pattern (`CanBeConstantTest`, `StaleAllLanguagesTest`,
       `AddKeyTest`) becomes `Assert.All`/`Assert.Contains` so a
       failure names the node.
-- [ ] `WordsEdit.Tests.csproj` still removes an `ExampleFile.ini` that lives
+- [x] `WordsEdit.Tests.csproj` still removes an `ExampleFile.ini` that lives
       in `Resources/`.
 
 ## Phase 7 — Dogfood: Wordsmith in its own words
