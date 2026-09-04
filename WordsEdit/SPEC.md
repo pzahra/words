@@ -18,6 +18,10 @@ controls are the rewrite's to choose.
 - The runtime packages stay lean: nothing the editor needs beyond parse events
   (`IWordsParserConsumer`) belongs in Localization-Core.
 - Short names.
+- Dirtiness has one door. `ViewModelSaveBase` owns `IsDirty`: a command that
+  edited the document calls `MarkDirty()`, a property that *is* document state
+  sets itself with the `dirty: true` overload of `ChangeProperty`, and only
+  Save and Reset clear it. Nowhere else assigns the flag.
 - The main window is three panes: **tree** (left), **baseline** (middle),
   **translation** (right).
 

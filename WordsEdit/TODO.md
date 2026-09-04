@@ -362,7 +362,13 @@ Dead code, measured by reference count, not guessed:
       (It closes the dialog since Phase 1.)
 - [x] `DataViewModelBase`: a `Lock` and five `lock` blocks around a
       UI-thread-only dictionary. `ViewModelSaveBase.ChangeProperty(…, bool
-      dirty)`: never called with `true`.
+      dirty)`: never called with `true`. (The overload came back after
+      Phase 6: it was never the overload that was wrong but the fourteen
+      `IsDirty = true` lines written around it. Dirtiness now has one door —
+      `MarkDirty()` for a command's edit, the `dirty: true` overload for a
+      property that is document state — and SPEC says so under Architecture
+      rules. Nothing on the main view model is property-shaped document
+      state yet; `ViewModelSaveBaseTests` pins the door.)
 - [x] `App.xaml` `Zero` resource and `TestParameters.xaml` `IsTrue` converter:
       unreferenced. Unused usings/xmlns per file (`System.Data`,
       `System.Diagnostics.CodeAnalysis`, redundant `PatTech.Localization.Authoring`
