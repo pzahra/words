@@ -101,25 +101,25 @@ Verified bugs first. Each is a few lines; none blocks or is blocked.
 
 ## Phase 1 — Dialogs become windows, `IDialogs` appears
 
-- [ ] `IDialogs` (editor, VM-facing): `Confirm(text)`, `OpenFiles(...)`,
-      `SaveFile(...)`, `Show(object viewModel)`. Injected into
+- [x] `IDialogs` (editor, VM-facing): `Confirm`, `AskToSave`, `Tell`,
+      `TryOpenFiles`, `TrySaveFile`, `Show(DialogViewModel)`. Injected into
       `MainWindowViewModel`; the dialog VMs get it from their parent.
-- [ ] `Views/DialogWindow.xaml`: one shell `Window` — `ContentPresenter`,
+- [x] `Views/DialogWindow.xaml`: one shell `Window` — `ContentPresenter`,
       `Owner` = main window, `SizeToContent`, Escape closes, no fixed sizes.
       Content chosen by `DataTemplate` per VM type, so the existing
       `UserControl`s become templates with no rewrite.
-- [ ] `WpfDialogs : IDialogs` opens a `DialogWindow` with `ShowDialog()`;
+- [x] `WpfDialogs : IDialogs` opens a `DialogWindow` with `ShowDialog()`;
       `FakeDialogs` for tests records calls and returns scripted answers.
-- [ ] Migrate every `PopupDialog.Push(...)` site (`MainWindowViewModel` ×9,
+- [x] Migrate every `PopupDialog.Push(...)` site (`MainWindowViewModel` ×9,
       `LanguageManagerViewModel`, `EditLanguageViewModel`, `MergeControlViewModel`).
       Sub-dialogs (Edit Language from the manager) just open another owned
       window — the "close before push" dance is gone.
-- [ ] Remove `md:DialogHost` from `MainWindow.xaml`; delete `PopupDialog.Push(Control)`
+- [x] Remove `md:DialogHost` from `MainWindow.xaml`; delete `PopupDialog.Push(Control)`
       and `PopupDialog.Close()`; fold `Push(string)`/`ShowDialog`/`TryFileOpen`/
       `TryFileSave` into `WpfDialogs`. `Utils/PopupDialog.cs` goes.
-- [ ] Dialog VMs stop reaching for statics: `PopupDialog.Close()` becomes a
-      `RequestClose` event/`Close` action the shell subscribes to.
-- [ ] Tests unlocked by this: `DoLoadFiles`, `DoReset` (confirm path),
+- [x] Dialog VMs stop reaching for statics: `PopupDialog.Close()` becomes
+      `DialogViewModel.CloseRequested`, which the shell subscribes to.
+- [x] Tests unlocked by this: `DoLoadFiles`, `DoReset` (confirm path),
       `DoRemoveLocalizationKeyAndNode` (file-removal confirm), the merge and
       language flows end to end with `FakeDialogs`.
 
@@ -269,15 +269,15 @@ Dead code, measured by reference count, not guessed:
       ceremony guards nothing the app does.
 - [ ] `Utils/Extensions.cs`: `GetEnumMemberInfo` ×3, `GetEnumMemberAttribute`,
       `TryMatch`, `TryGetGroup`, `WhereNotNull` ×2 — 0 uses **and** verbatim
-      copies of `Localization-Core/Extensions.cs`. Keep `IsNullOrEmpty`,
-      `FindIndex`, `SafeFireAndForget`, `ForEach`.
-- [ ] `WordsEdit/Extensions.cs` — a second `static class Extensions` with one
-      method, a dangling doc comment and five unused usings. Fold
-      `IsAffirmative` into `Utils/Extensions.cs`, delete the file.
+      copies of `Localization-Core/Extensions.cs`; `SafeFireAndForget` lost its
+      last caller in Phase 1. Keep `IsNullOrEmpty`, `FindIndex`, `ForEach`.
+- [x] `WordsEdit/Extensions.cs` — a second `static class Extensions` with one
+      method, a dangling doc comment and five unused usings. Deleted in Phase 1;
+      `IsAffirmative` had no callers left to fold.
 - [ ] `App.xaml.cs`: the command-line startup-file parser is commented out, so
       `StartupFiles` is always empty and `MainWindow`'s `ForEach(LoadFile)` is
       dead. Restore it or remove both ends.
-- [ ] Commented-out code: `//Words.Known = …` (`MainWindow.xaml.cs`),
+- [x] Commented-out code: `//Words.Known = …` (`MainWindow.xaml.cs`),
       `//FollowLink(…).SafeFireAndForget` (same), `//ResetPopup().SafeFireAndForget`
       (`MainWindowViewModel`).
 - [ ] `AffectProperty(nameof(SelectedLanguage))` refresh hacks after stale
@@ -310,8 +310,8 @@ Naming (SPEC: "Short names"):
       after Phase 1); `Utils/DateTimeOffsetToStringConverter.cs` declares
       `WordsEdit.Views` (moot after deletion).
 - [ ] `AllKeyNodes` (PascalCase private field) beside `allKeys`; `result2` ×4
-      with no `result1`; "Lanuage" ×3 in `EditLanguageView.xaml`; "reset the
-      Language Manager" for a session reset; hard-coded "Default English".
+      with no `result1`; hard-coded "Default English". ("Lanuage" and "reset
+      the Language Manager" went in Phases 0 and 1.)
 - [ ] `ApplyFilters()` returns a constant `true` so a setter can `&&` it.
 - [ ] Organizers use synthetic dotted keys (`file.;preamble`, `parent.;comment`)
       as identity, so two under one parent share a `FullLabel` and
