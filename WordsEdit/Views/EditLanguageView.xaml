@@ -16,7 +16,7 @@
 	</UserControl.Resources>
     <Grid>
         <StackPanel Grid.IsSharedSizeScope="True">
-            <HeaderedContentControl Header="Lanuage Code"
+            <HeaderedContentControl Header="Language Code"
                                     Margin="2.5px"
                                     FontWeight="SemiBold">
                 <TextBox Text="{Binding LanguageCode, UpdateSourceTrigger=PropertyChanged}"
@@ -24,18 +24,18 @@
                          FontWeight="Normal"
                          Width="100"/>
             </HeaderedContentControl>
-            <HeaderedContentControl Header="Native Lanuage Name"
+            <HeaderedContentControl Header="Native Language Name"
                                     FontWeight="SemiBold"
                                     Margin="2.5px">
-                <TextBox Text="{Binding LanguageNativeName, UpdateSourceTrigger=PropertyChanged}"
+                <TextBox Text="{Binding NativeName, UpdateSourceTrigger=PropertyChanged}"
                          TextWrapping="Wrap"
                          FontWeight="Normal"
                          Width="100"/>
             </HeaderedContentControl>
-            <HeaderedContentControl Header="English Lanuage Name"
+            <HeaderedContentControl Header="English Language Name"
                                     FontWeight="SemiBold"
                                     Margin="2.5px">
-                <TextBox Text="{Binding LanguageEnglishName, UpdateSourceTrigger=PropertyChanged}"
+                <TextBox Text="{Binding EnglishName, UpdateSourceTrigger=PropertyChanged}"
                          TextWrapping="Wrap"
                          FontWeight="Normal"
                          Width="100"/>

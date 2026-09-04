@@ -19,7 +19,7 @@ internal class KeyNameViewModel : DataViewModelBase {
 	public KeyNameViewModel(MainWindowViewModel parent, KeyNode? rename) {
 		ArgumentNullException.ThrowIfNull(parent);
 
-		CancelCommand = new DelegateCommand(DoCancel, CanProceed);
+		CancelCommand = new DelegateCommand(DoCancel);
 		AddKeyCommand = new DelegateCommand(DoAddKey, CanProceed);
 		RenameKeyCommand = new DelegateCommand(DoRenameKey);
 

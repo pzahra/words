@@ -11,6 +11,9 @@
              Height="450" Width="800"
              MinHeight="450" MinWidth="800"
              Padding="2.5px">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="IsTrue"/>
+    </UserControl.Resources>
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
@@ -41,7 +44,7 @@
                                                  HorizontalAlignment="Right"/>
                                 </DockPanel>
                                 <Expander Header="Selected Languages" IsExpanded="False">
-                                    <ListBox ItemsSource="{Binding DataContext.LocalizationLanguages,RelativeSource={RelativeSource AncestorType=UserControl}}" 
+                                    <ListBox ItemsSource="{Binding DataContext.Languages,RelativeSource={RelativeSource AncestorType=UserControl}}"
                                              SelectionMode="Multiple" 
                                              PreviewMouseWheel="FilesToMergeListBox_PreviewMouseWheel"
                                              SelectionChanged="LanguageListBox_OnSelectionChanged"
@@ -92,7 +95,7 @@
                 </ScrollViewer>
 
                 <!-- Warning Message -->
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Grid.Row="1" MinHeight="200" Visibility="{Binding ConflictMessage,Converter={StaticResource StringIsEmptyVisibilityConverter}}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Grid.Row="1" MinHeight="200" Visibility="{Binding HasConflict,Converter={StaticResource IsTrue}}">
                     <TextBlock Text="{Binding ConflictMessage}" Foreground="Red" Margin="5" TextWrapping="Wrap"/>
                 </ScrollViewer>
 

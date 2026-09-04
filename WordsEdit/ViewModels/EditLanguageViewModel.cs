@@ -70,6 +70,9 @@ internal class EditLanguageViewModel : DataViewModelBase {
 
 	protected override bool Validate([CallerMemberName] string? propertyName = "") {
 		bool all = string.IsNullOrEmpty(propertyName);
+		if (all) {
+			ClearAllErrors();
+		}
 
 		if (all || propertyName is nameof(LanguageCode)) {
 			ClearErrors(nameof(LanguageCode));
@@ -82,6 +85,7 @@ internal class EditLanguageViewModel : DataViewModelBase {
 		}
 
 		if (all || propertyName is nameof(NativeName)) {
+			ClearErrors(nameof(NativeName));
 			if (string.IsNullOrWhiteSpace(NativeName)) {
 				SetError("Value Required", nameof(NativeName));
 			}
@@ -91,6 +95,7 @@ internal class EditLanguageViewModel : DataViewModelBase {
 		}
 
 		if (all || propertyName is nameof(EnglishName)) {
+			ClearErrors(nameof(EnglishName));
 			if (string.IsNullOrWhiteSpace(EnglishName)) {
 				SetError("Value Required", nameof(EnglishName));
 			}
