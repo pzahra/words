@@ -27,6 +27,11 @@ INI escape rules.
 - **Round-trip saving** — files are written back in a stable format; loading
   and saving without edits produces the same bytes you started with (the tests
   insist).
+- **Speaks its own Words** — every label, tooltip and message Wordsmith shows
+  comes from its own [`words.ini`](Resources/words.ini), loaded through the
+  library like any other app's. It speaks your OS language when it has the
+  words, English otherwise; `--lang=it` on the command line or the language
+  menu picks another. Translate Wordsmith by opening that file in Wordsmith.
 
 ## Tests
 

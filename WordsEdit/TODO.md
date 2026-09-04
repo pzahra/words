@@ -456,26 +456,75 @@ Last, once Phases 4–6 have stopped moving the strings around. The how-to is
 [the Core skill](../Localization-Core/SKILL.md); the rule is its golden one:
 never hardcode a user-facing string.
 
-- [ ] `WordsEdit/Resources/words.ini`, embedded, with `value-en=English` and
+- [x] `WordsEdit/Resources/words.ini`, embedded, with `value-en=English` and
       the editor's every string: pane headers (`Context`, `Translator Comment`,
       `Default English` — which stops being hard-coded English and names the
       default value), tooltips, dialog titles, button captions, the
       confirmations and notices the view models compose, the conflict message,
       the `(comment)` caption, `Start Here`.
-- [ ] Startup: `Words.Known = WordsBuilder.Create(logger).LoadResource(…)
+      *Done.* Embedded, copied beside the exe (to open in the editor) and an
+      `AdditionalFile` (so the analyzer knows the keys). Keys are grouped by
+      screen — `app`, `dialog`, `file`, `main`, `menu`, `tool`, `tree`, `ask`,
+      `tell`, `gripes`, `languages`, `language`, `key-name`, `parameters`,
+      `merge`, `settings` — with `context=` notes where a `{0}` needs saying.
+      English is the `value=` default; Italian covers the Languages and Edit
+      Language dialogs and the shared buttons, so the menu has somewhere to go.
+      Kept hard-coded on purpose, being file syntax or key caps rather than
+      words: the gesture texts (`F2`, `Del`, `Ctrl+Shift+S`), the `[images]` and
+      `[hyperlinks]` section names, the `wordsmith.ini` and
+      `/pattern/options/replacement` hints, `popup`/`shellexec`.
+- [x] Startup: `Words.Known = WordsBuilder.Create(logger).LoadResource(…)
       .ToWords(lang)` before any window; `Words.Logger` is the preview's
       collecting logger (Phase 4). The language comes from the OS culture, a
       `--lang=xx` switch as the sample does, or a menu fed by `GetLanguages()`;
       a change reloads the window (`{l:Words}` resolves at load).
-- [ ] XAML: `{l:Words key}` for plain text and `WordsInline` where a value
+      *Done.* `EditorWords.Load` in `App.OnStartup`, before `base.OnStartup`;
+      `StartupUri` is gone and the App builds the view model, as the sample
+      does. `--lang=xx` (the last one) wins over the OS UI culture; a code no
+      culture answers to loads `en`. The menu sits in the bottom button strip;
+      `MainWindowViewModel.UiLanguage` reloads the words, re-renders the title
+      and raises `UiLanguageChanged`, on which the App opens a new `MainWindow`
+      over the same view model and retires the old one — `MainWindow.Retire`
+      closes without the unsaved-changes prompt, so the document survives the
+      switch. Load-time gripes go to `MainWindowViewModel.Gripes`, which drops
+      them unless a render is listening; the test loads the file under a
+      listening collector instead, so a broken file fails the build, not the user.
+- [x] XAML: `{l:Words key}` for plain text and `WordsInline` where a value
       carries markdown; `Title` binds a Words string.
-- [ ] Seams: `[Localized]` on `IDialogs` parameters and on every method that
+      *Done.* `{l:Words}` throughout (`xmlns:l="pattech.words"`); no value
+      carries markdown, so `WordsInline` is not used. Window titles bind the
+      view models' `Title`s, which read `Words.Known`. The filter bar's
+      `StringFormat` could not be localised, so the count text is
+      `TreeViewModel.HiddenText`, formatted from `main.hidden`.
+- [x] Seams: `[Localized]` on `IDialogs` parameters and on every method that
       takes message text; view models build messages with `Words.Known.Format`
       and `FormatByName`, never interpolation.
-- [ ] `PatTech.Localization.Analyzer` referenced by `WordsEdit.csproj` (the
+      *Done.* `IDialogs` (messages, titles, filters), `DataViewModelBase.SetError`,
+      `GripesViewModel(title)`, `DialogViewModel.Title`, `ViewModelSaveBase.Title`.
+      The one plural is two keys, `ask.remove-node-one` and `-many`; the merge
+      conflict is one `Format` over the joined list, the `StringBuilder` gone.
+- [x] `PatTech.Localization.Analyzer` referenced by `WordsEdit.csproj` (the
       local feed), so PTL001 flags what is left; the build is warning-free.
-- [ ] Tests: the fake dialogs see keys resolved, not `#key#` — one test greps
+      *Done.* `[1,)` from `c:\nuget\packages` (1.2.1 today), `PrivateAssets=all`;
+      no PTL warnings in the solution build. Core's own reference already
+      flowed the analyzer to the tests project, so `ViewModelSaveBaseTests`
+      titles its document with a real key rather than a literal.
+- [x] Tests: the fake dialogs see keys resolved, not `#key#` — one test greps
       every rendered string for `#` leakage; the words.ini round-trips through
       `WordsSession` byte-stable like the fixtures do.
-- [ ] Then open the editor's words.ini in the editor, add a language,
+      *Done.* `FakeDialogs.Rendered` checks every string handed to it, so every
+      dialog-driven test is a leak test. `EditorWordsTests`: the file is wired
+      in (loads clean, a key resolves), round-trips byte for byte — which pins
+      the file to the writer's canonical shape: `comment-xx` labels, long
+      values wrapped with `_`, apostrophes doubled — the source and the file
+      name the same keys (both directions, scanning `WordsEdit/**/*.cs|xaml`),
+      `--lang` parsing, the menu code, the `UiLanguage` switch. How the library
+      resolves, falls back and sets cultures is `Localization-Tests`' business,
+      not repeated here.
+- [x] Then open the editor's words.ini in the editor, add a language,
       translate a screen, relaunch in it.
+      *Done headless* — `TranslatingWordsmithInWordsmith` loads the file into
+      the view model, adds German through `LanguageManagerViewModel`,
+      translates `languages.title`, saves, and loads what was saved in German —
+      plus a smoke run, `Wordsmith.exe --lang=it Resources\words.ini`, which
+      stays up. Worth a look by hand at the Italian screens all the same.

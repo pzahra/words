@@ -277,13 +277,22 @@ Reset returns to the empty session (one default `en` language).
 The editor eats its own dogfood. Every user-facing string of Wordsmith —
 labels, tooltips, dialog titles, confirmations, notices, the conflict and
 error messages the view models compose — lives in the editor's own
-`words.ini`, loaded through the library at startup and rendered with the WPF
+`words.ini` (`Resources/words.ini`, embedded and copied beside the exe), loaded
+through the library before the first window and rendered with the WPF
 package: `{l:Words}` for plain text, `WordsInline` where a value carries
-markdown. `IDialogs` and every other text-taking seam mark their parameters
+markdown. English is the default value; other languages are labelled at the
+top of the file and fall back to it. Wordsmith speaks the OS language unless
+`--lang=xx` on the command line says otherwise; a menu in the button strip
+lists the languages the file labels, and picking one reloads the words and
+reopens the window over the same document, since `{l:Words}` resolves when a
+window loads. `IDialogs` and every other text-taking seam mark their parameters
 `[Localized]`, and the analyzer runs on the project, so a hardcoded string is
 a build warning (PTL001), never a silent one. The file is also the editor's
-standing test subject: open it in Wordsmith, add a language, translate,
-relaunch in it. [The Core skill](../Localization-Core/SKILL.md) is the how-to.
+standing test subject: it must round-trip through the editor byte for byte,
+name exactly the keys the source asks for, and open in Wordsmith to add a
+language, translate, relaunch in it. What stays hard-coded is file syntax and
+key caps, not words: `[images]`, `shellexec`, `F2`.
+[The Core skill](../Localization-Core/SKILL.md) is the how-to.
 
 ## Out of scope for the rewrite (known future work)
 
