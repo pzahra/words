@@ -1,6 +1,5 @@
 ﻿using GongSolutions.Wpf.DragDrop;
 using System.Collections.ObjectModel;
-using System.IO;
 using System.Windows;
 using WordsEdit.Utils;
 
@@ -46,13 +45,9 @@ namespace WordsEdit.ViewModels {
 					if (!targetKeyNode.IsFile) {
 						draggedNodeCanBeChildOfTargetNode = false;
 					}
-					if (targetKeyNode.GetParentNode(MainWindow.KeyNodes) is not null) {
-						KeyNode? targetParentNode = targetKeyNode.GetParentNode(MainWindow.KeyNodes)
-							?? throw new InvalidDataException("targetKeyNode parent became null between checks");
-						if (!targetParentNode.IsFile) {
-							dropInfo.DropTargetAdorner = typeof(DropTargetAdorner);
-							return;
-						}
+					if (targetKeyNode.GetParentNode(MainWindow.KeyNodes) is { } targetParentNode && !targetParentNode.IsFile) {
+						dropInfo.DropTargetAdorner = typeof(DropTargetAdorner);
+						return;
 					}
 				}
 				if (targetKeyNode.IsConstant) {
@@ -108,7 +103,8 @@ namespace WordsEdit.ViewModels {
 					}
 				}
 				if (TargetIsDraggedItemOrDescendentOfDraggedItem(draggedKeyNode, targetKeyNode)) {
-					AddDraggedNodeToNewParent(parentNode, targetKeyNode, index);
+					//can't drop a node into itself: put the dragged node back
+					AddDraggedNodeToNewParent(parentNode, draggedKeyNode, index);
 					return;
 				}
 				if (draggedKeyNode.IsFile) {
@@ -127,15 +123,9 @@ namespace WordsEdit.ViewModels {
 					if (dropInfo.InsertPosition.HasFlag(RelativeInsertPosition.TargetItemCenter) && !targetKeyNode.IsFile) {
 						draggedNodeCanBeChildOfTargetNode = false;
 					}
-					else {
-						if (targetKeyNode.GetParentNode(localizationKeyNodes) is not null) {
-							KeyNode? targetParentNode = targetKeyNode.GetParentNode(localizationKeyNodes)
-								?? throw new InvalidDataException("targetKeyNode parent became null between checks");
-							if (!targetParentNode.IsFile) {
-								AddDraggedNodeToNewParent(parentNode, draggedKeyNode, index);
-								return;
-							}
-						}
+					else if (targetKeyNode.GetParentNode(localizationKeyNodes) is { } targetParentNode && !targetParentNode.IsFile) {
+						AddDraggedNodeToNewParent(parentNode, draggedKeyNode, index);
+						return;
 					}
 				}
 				if (targetKeyNode.IsConstant) {
@@ -147,31 +137,26 @@ namespace WordsEdit.ViewModels {
 					newParentNode = targetKeyNode;
 					index = targetKeyNode.Children.Count;
 				}
-				else if (dropInfo.InsertPosition.HasFlag(RelativeInsertPosition.BeforeTargetItem)) {
-					KeyNode? targetParentNode = targetKeyNode.GetParentNode(localizationKeyNodes)
-						?? throw new InvalidDataException("targetKeyNode parent became null between checks");
-					index = targetParentNode.Children.IndexOf(targetKeyNode);
-					newParentNode = targetParentNode;
+				else if (dropInfo.InsertPosition.HasFlag(RelativeInsertPosition.BeforeTargetItem)
+						&& targetKeyNode.GetParentNode(localizationKeyNodes) is { } before) {
+					index = before.Children.IndexOf(targetKeyNode);
+					newParentNode = before;
 				}
-				else if (dropInfo.InsertPosition.HasFlag(RelativeInsertPosition.AfterTargetItem)) {
-					KeyNode? targetParentNode = targetKeyNode.GetParentNode(localizationKeyNodes)
-						?? throw new InvalidDataException("targetKeyNode parent became null between checks");
-					index = targetParentNode.Children.IndexOf(targetKeyNode) + 1;
-					newParentNode = targetParentNode;
+				else if (dropInfo.InsertPosition.HasFlag(RelativeInsertPosition.AfterTargetItem)
+						&& targetKeyNode.GetParentNode(localizationKeyNodes) is { } after) {
+					index = after.Children.IndexOf(targetKeyNode) + 1;
+					newParentNode = after;
+				}
+				if (newParentNode is null) {
+					//nowhere valid to land; a non-file node never sits at the root,
+					//where Save would not find it. Put it back where it came from
+					AddDraggedNodeToNewParent(parentNode, draggedKeyNode, index);
+					return;
 				}
 				AddDraggedNodeToNewParent(newParentNode, draggedKeyNode, index);
-				string newBlockKey;
-				if (newParentNode is null) {
-					newBlockKey = draggedKeyNode.Label;
-				}
-				else if (draggedKeyNode.IsConstant) {
-					newBlockKey = $"{newParentNode.FullLabel}.${draggedKeyNode.Label}";
-				}
-				else {
-					string[] newBlockKeyParts = newParentNode.FullLabel.Split('.');
-					newBlockKeyParts = [.. newBlockKeyParts, draggedKeyNode.Label];
-					newBlockKey = string.Join('.', newBlockKeyParts);
-				}
+				string newBlockKey = draggedKeyNode.IsConstant
+					? $"{newParentNode.FullLabel}.${draggedKeyNode.Label}"
+					: $"{newParentNode.FullLabel}.{draggedKeyNode.Label}";
 				MainWindow.MoveKey(draggedKeyNode.FullLabel, newBlockKey);
 				draggedKeyNode.FullLabel = newBlockKey;
 				MainWindow.UpdateChildFullLabels(draggedKeyNode.Children, draggedKeyNode.FullLabel);
