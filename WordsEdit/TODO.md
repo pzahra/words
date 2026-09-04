@@ -208,28 +208,36 @@ and no WPF.
 The god-class fix, part two. After Phase 2 the class is selection, filters,
 badges and command wiring.
 
-- [ ] Split by concern (partial classes first if the risk feels high):
+- [x] Split by concern (partial classes first if the risk feels high):
       `MainWindowViewModel` (session, commands, dirty/title),
       `TreeViewModel` (`KeyNodes`, selection, filters, badges), with the key
       and language commands as thin calls into `WordsOperations`/`LanguageTable`.
       (The five "Sections / Subsections" index comments already went with the
       Phase 2 rewrite.)
-- [ ] Preview moves to the VM: `RenderedDefault`, `RenderedTranslation`,
+- [x] Preview moves to the VM: `RenderedDefault`, `RenderedTranslation`,
       `PreviewError` strings; the View binds a `TextBlock` through a
       markdown-inline converter. Removes `DefaultPreview_Checked`/
       `LocalizationPreview_Checked` and the name-based visibility flips, and
       the preview updates live while open instead of once per toggle.
-- [ ] Delete `Preview_Clicked`, `FollowLink`, `FindClickedHyperlink`,
+      (One error string per pane — `DefaultPreviewError`/
+      `TranslationPreviewError` — and an attached property,
+      `MarkdownPreview.Text` + `.ImageFolders`, rather than a converter: the
+      per-file image folders have to reach the parser too.)
+- [x] Delete `Preview_Clicked`, `FollowLink`, `FindClickedHyperlink`,
       `FindHyperlinkInline*` (~80 lines of hit-testing). The Wpf package has
       `Hyperlink.RegisterGlobalNavigateHandler`; use it. The confirm prompt,
       if kept, goes in the handler.
-- [ ] `MergeControl.xaml.cs` empties: multi-select and "one file per
+- [x] `MergeControl.xaml.cs` empties: multi-select and "one file per
       language" become VM rows (`IsSelected`, `Languages` per file) enforced in
       `MergeControlViewModel`; the two identical mouse-wheel handlers go.
-- [ ] `MainWindow_Closing` asks the VM (`TryClose()` → save / discard /
+      (`KeyNode.IsBaseFile` went with it.)
+- [x] `MainWindow_Closing` asks the VM (`TryClose()` → save / discard /
       cancel) and only cancels the event.
-- [ ] `ShowDefaultPreview`/`ShowLocalizationPreview` vs `ElementName`
-      bindings vs code-behind visibility: one mechanism.
+- [x] `ShowDefaultPreview`/`ShowLocalizationPreview` vs `ElementName`
+      bindings vs code-behind visibility: one mechanism. (The two booleans;
+      what stays in `MainWindow.xaml.cs` is the constructor, the
+      `TreeView.SelectedItem` adapter WPF will not bind, and the one-line
+      `Closing`.)
 
 ## Phase 4 — UX the spec asks for
 
