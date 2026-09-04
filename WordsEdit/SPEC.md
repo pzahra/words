@@ -294,12 +294,48 @@ language, translate, relaunch in it. What stays hard-coded is file syntax and
 key caps, not words: `[images]`, `shellexec`, `F2`.
 [The Core skill](../Localization-Core/SKILL.md) is the how-to.
 
-## Out of scope for the rewrite (known future work)
+## Future work: undo
 
-- A split UI: the engine lives in `WordsSession.Split` (its output is
-  exactly the shape `Merge` consumes back), but nothing in the editor calls
-  it yet — wire it up during the front-end rewrite.
-- Surfacing the provider's gripes (undeclared languages, unrecognized fields)
-  in the editor UI; today they only accumulate on `WordsFile.Errors`.
+The rewrite shipped without an undo stack; the confirmations on the
+destructive actions (removing a node that takes keys with it, removing key
+information, making a key a constant, removing a language) stand in for it.
+When undo comes, this is the shape it takes.
 
-Both are sequenced, with everything else outstanding, in [TODO.md](TODO.md).
+**One door, again.** Every document change already passes through
+`ViewModelSaveBase.MarkDirty` (Architecture rules: dirtiness has one door), so
+that door is where an edit is recorded: what marks dirty also pushes onto the
+undo stack. Nothing else needs to know undo exists.
+
+**Snapshots, not commands.** The document is small — a handful of ini files
+— and the writer round-trips byte for byte (Saving), so the state of a file
+*is* its written text. An undo entry is the session written to strings
+(every file, in its tree node's walk order, with its language table and
+settings references) plus the selection's full label, taken before the edit
+lands. Undo reloads those strings in place through `WordsSession.Load` (the
+same path as loading from disk, which replaces a file by path and drops what
+is gone), re-presents the tree, and reselects the label; redo mirrors it with
+the snapshot taken before the undo. Command objects per mutation — one for
+each of the twenty-odd edit sites, with tree reorders and drags among them —
+were considered and rejected: the snapshot is correct by construction and
+costs one write of an ini-sized document per edit.
+
+**Coalescing.** Typing into a value, context or comment box raises
+`Tree.Edited` per keystroke; consecutive edits to the same field of the same
+key and language fold into one entry, so undo takes back the typing, not a
+character. Every other edit is its own entry.
+
+**Boundaries.** Save does not clear the stack (a saved state can still be
+undone; the title stars again). Reset, Load, Unload, Merge and Split do clear
+it: they change which files the document is, and a snapshot of other files is
+no help. Undo restores `IsDirty` to what the snapshot had.
+
+**Surface.** Ctrl+Z / Ctrl+Y bound on the main window, `UndoCommand` and
+`RedoCommand` on `MainWindowViewModel` with `CanExecute` from the stack depth,
+a pair of buttons in the tool strip and entries in the tree's context menu,
+their captions in `words.ini`. Language edits made in the Language Manager
+are entries like any other, taken when the manager marks the parent dirty.
+
+**Tests.** Every mutation `EveryMutationDirtiesAndSaveOrResetCleans` drives
+gets an undo twin: the saved text after undo equals the text before the edit,
+and redo brings the edit back. The drag tests and the merge and split flows
+check the stack is cleared or kept as this section says.
