@@ -4,7 +4,8 @@ using System.Windows.Input;
 using WordsEdit.Utils;
 
 namespace WordsEdit.ViewModels;
-internal class KeyNameViewModel : DataViewModelBase {
+public class KeyNameViewModel : DataViewModelBase {
+	public override string Title => IsRenameKey ? "Rename Key" : "Add Key";
 	public MainWindowViewModel Parent { get; }
 	public bool IsAddKey => renaming is null;
 	public bool IsRenameKey => renaming is not null;
@@ -38,22 +39,22 @@ internal class KeyNameViewModel : DataViewModelBase {
 		if (!Validate("")) return;
 
 		Parent.AddLocalizationKeyNode(KeyName);
-		PopupDialog.Close();
+		Close();
 	}
 
 	private void DoRenameKey() {
 		if (!Validate("")) return;
 
 		if (KeyName == renaming!.Label) {
-			PopupDialog.Close();
+			Close();
 			return;
 		}
 
 		Parent.RenameLocalizationKeyAndNode(KeyName);
-		PopupDialog.Close();
+		Close();
 	}
 
-	private void DoCancel() => PopupDialog.Close();
+	private void DoCancel() => Close();
 
 	private static readonly Regex rxValidName = new(@"^\w[\w-]*$");
 	protected override bool Validate([CallerMemberName] string? propertyName = null) {

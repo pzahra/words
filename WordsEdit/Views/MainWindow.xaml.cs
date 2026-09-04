@@ -11,6 +11,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using WordsEdit.Utils;
 using WordsEdit.ViewModels;
+using WordsEdit.Views;
 //the flow-document type, not the package's navigate-handler helper
 using Hyperlink = System.Windows.Documents.Hyperlink;
 
@@ -33,8 +34,7 @@ public partial class MainWindow : Window {
 	public MainWindow() {
 
 		InitializeComponent();
-		//Words.Known = Words.Builder().LoadUIPackage().ToWords("en");
-		var mainvm = new MainWindowViewModel();
+		var mainvm = new MainWindowViewModel(new WpfDialogs());
 		DataContext = mainvm;
 		((App)Application.Current).StartupFiles.ForEach(mainvm.LoadFile);
 	}
@@ -60,7 +60,7 @@ public partial class MainWindow : Window {
 				defaultValue = FormatParameters(defaultValue, vm.SelectedKey.Parameters);
 			}
 			catch (Exception ex) {
-				PopupDialog.Push(ex.Message);
+				vm.Dialogs.Tell(ex.Message);
 			}
 		}
 		ConfigureImageSchemes(vm);
@@ -89,7 +89,7 @@ public partial class MainWindow : Window {
 				localizationValue = FormatParameters(localizationValue, vm.SelectedKey.Parameters);
 			}
 			catch (Exception ex) {
-				PopupDialog.Push(ex.Message);
+				vm.Dialogs.Tell(ex.Message);
 			}
 		}
 		ConfigureImageSchemes(vm);
@@ -124,7 +124,7 @@ public partial class MainWindow : Window {
 	}
 
 	private void Preview_Clicked(object sender, MouseButtonEventArgs e) {
-		if (sender is not TextBlock textBlock) {
+		if (sender is not TextBlock textBlock || DataContext is not MainWindowViewModel vm) {
 			return;
 		}
 		var hyperlink = FindClickedHyperlink(textBlock, e);
@@ -138,19 +138,17 @@ public partial class MainWindow : Window {
 
 				var scheme = completeUri.Scheme;
 				if (scheme == "http" || scheme == "https" || scheme == "mailto") {
-					//FollowLink(completeUri.AbsoluteUri).SafeFireAndForget(x => PopupDialog.Push(x.ToString()));
-					FollowLink(completeUri.AbsoluteUri);
+					FollowLink(vm.Dialogs, completeUri.AbsoluteUri);
 				}
 				else {
-					PopupDialog.Push($"Internal link detected. Destination: {completeUri.AbsoluteUri}");
+					vm.Dialogs.Tell($"Internal link detected. Destination: {completeUri.AbsoluteUri}");
 				}
 			}
 		}
 	}
 
-	private static void FollowLink(string uri) {
-		var result2 = PopupDialog.ShowDialog($"Do you want to follow the link?\n\nDestination: {uri}", MessageBoxButton.YesNo);
-		if (result2.IsAffirmative()) {
+	private static void FollowLink(IDialogs dialogs, string uri) {
+		if (dialogs.Confirm($"Do you want to follow the link?\n\nDestination: {uri}")) {
 			Process.Start(new ProcessStartInfo {
 				FileName = uri,
 				UseShellExecute = true
@@ -206,15 +204,13 @@ public partial class MainWindow : Window {
 		}
 		//answered here, synchronously: the close then proceeds or is cancelled,
 		//so there is no Shutdown() to re-raise Closing and prompt again
-		var answer = PopupDialog.ShowDialog(
-			"Do you want to save changes to this file before closing?",
-			MessageBoxButton.YesNoCancel
-		);
-		if (answer == MessageBoxResult.Yes) {
-			vm.Save();
-		}
-		else if (answer != MessageBoxResult.No) {
-			e.Cancel = true;
+		switch (vm.Dialogs.AskToSave("Do you want to save changes to this file before closing?")) {
+			case CloseAnswer.Save:
+				vm.Save();
+				break;
+			case CloseAnswer.Cancel:
+				e.Cancel = true;
+				break;
 		}
 	}
 }

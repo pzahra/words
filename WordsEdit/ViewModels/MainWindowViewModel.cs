@@ -144,10 +144,14 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public ICommand ToggleLocalizationKeyNeedsReviewCommand { get; }
 	public ICommand ToggleLocalizationKeyIsConstantCommand { get; }
 
+	//how the editor asks and tells: modal windows in the app, a fake in tests
+	public IDialogs Dialogs { get; }
+
 	/*
 	Constructor
 	**/
-	public MainWindowViewModel() {
+	public MainWindowViewModel(IDialogs? dialogs = null) {
+		Dialogs = dialogs ?? new WpfDialogs();
 		LoadFileCommand = new DelegateCommand(DoLoadFiles);
 		ResetCommand = new DelegateCommand(DoReset);
 		SaveCommand = new DelegateCommand(DoSave);
@@ -356,7 +360,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	//Load
 	private void DoLoadFiles() {
-		if (!PopupDialog.TryFileOpen("Load", "INI file (*.ini)|*.ini|All files (*.*)|*.*", out string[]? fileNames)) {
+		if (!Dialogs.TryOpenFiles("Load", "INI file (*.ini)|*.ini|All files (*.*)|*.*", out string[]? fileNames)) {
 			return;
 		}
 		foreach (string fileName in fileNames) {
@@ -545,16 +549,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	//Reset
 	private void DoReset() {
-		//ResetPopup().SafeFireAndForget(x => PopupDialog.Push(x.ToString()));
-		ResetPopup();
-	}
-
-	private void ResetPopup() {
-		var result2 = PopupDialog.ShowDialog("Are you sure you want to reset the Language Manager?", MessageBoxButton.YesNo);
-		if (!result2.IsAffirmative()) {
-			return;
+		if (Dialogs.Confirm("Reset the session? All unsaved changes will be lost.")) {
+			ResetCore();
 		}
-		ResetCore();
 	}
 
 	public void ResetCore() {
@@ -611,7 +608,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	//Merge
 	private void DoMergeFiles() {
-		PopupDialog.Push(new MergeControlView() { DataContext = new MergeControlViewModel(this) });
+		Dialogs.Show(new MergeControlViewModel(this));
 	}
 
 	public KeyNode? GetMergedKeyNode(
@@ -640,7 +637,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	//Data Alteration
 	private void DoManageLanguages() {
-		PopupDialog.Push(new LanguageManagerView() { DataContext = new LanguageManagerViewModel(this) });
+		Dialogs.Show(new LanguageManagerViewModel(this));
 	}
 
 	//image-scheme mappings are per-file; the dialog edits the file the selection
@@ -650,9 +647,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (SelectedKeyNode is null) {
 			return;
 		}
-		PopupDialog.Push(new ImageSchemesView() {
-			DataContext = new ImageSchemesViewModel(this, FileLabelOf(SelectedKeyNode))
-		});
+		Dialogs.Show(new ImageSchemesViewModel(this, FileLabelOf(SelectedKeyNode)));
 	}
 
 	//the file a node belongs to is its first dotted segment (the file node's own
@@ -722,11 +717,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	private void RemoveFileNodePopup(KeyNode fileNodeToRemove) {
-		var result2 = PopupDialog.ShowDialog("Are you sure you want to remove the selected file? All unsaved changes will be lost", MessageBoxButton.YesNo);
-		if (!result2.IsAffirmative()) {
-			return;
+		if (Dialogs.Confirm("Remove the selected file? All unsaved changes will be lost.")) {
+			RemoveFileNodeCore(fileNodeToRemove);
 		}
-		RemoveFileNodeCore(fileNodeToRemove);
 	}
 
 	public void RemoveFileNodeCore(KeyNode fileNodeToRemove) {
@@ -764,7 +757,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (SelectedKeyNode is OrganizerNode) {
 			return;
 		}
-		PopupDialog.Push(new KeyNameView() { DataContext = new KeyNameViewModel(this, SelectedKeyNode) });
+		Dialogs.Show(new KeyNameViewModel(this, SelectedKeyNode));
 	}
 
 	public void RenameLocalizationKeyAndNode(string newName) {
@@ -797,7 +790,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (SelectedKeyNode is OrganizerNode) {
 			return;
 		}
-		PopupDialog.Push(new KeyNameView() { DataContext = new KeyNameViewModel(this, null) });
+		Dialogs.Show(new KeyNameViewModel(this, null));
 	}
 
 	public void AddLocalizationKeyNode(string newName) {
@@ -966,7 +959,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	private void DoTestParameters(ObservableCollection<WordsParameter> parameters) {
-		PopupDialog.Push(new TestParametersView() { DataContext = new TestParametersViewModel(this, parameters) });
+		Dialogs.Show(new TestParametersViewModel(this, parameters));
 	}
 
 

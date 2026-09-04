@@ -6,7 +6,8 @@ using WordsEdit.Utils;
 
 namespace WordsEdit.ViewModels;
 
-internal class MergeControlViewModel : ViewModelBase {
+public class MergeControlViewModel : DialogViewModel {
+	public override string Title => "Merge Files";
 	public MainWindowViewModel Parent { get; }
 
 	public IReadOnlyCollection<KeyNode> AvailableFiles { get; }
@@ -45,7 +46,7 @@ internal class MergeControlViewModel : ViewModelBase {
 		if (BaseFile is null) {
 			return;
 		}
-		if (!PopupDialog.TryFileSave("Merge Location", "INI file (*.ini)|*.ini|All files (*.*)|*.*", out string? mergedFileName)) {
+		if (!Parent.Dialogs.TrySaveFile("Merge Location", "INI file (*.ini)|*.ini|All files (*.*)|*.*", out string? mergedFileName)) {
 			return;
 		}
 		KeyNode? mergedFile = Parent.GetMergedKeyNode(BaseFile, LanguageCodeFilePair, Path.GetFileNameWithoutExtension(mergedFileName), out var mergedKeys);
@@ -68,7 +69,7 @@ internal class MergeControlViewModel : ViewModelBase {
 			preamble: Parent.filePreambles.GetValueOrDefault(baseLabel, ""),
 			imageSchemes: Parent.fileImageSchemes.GetValueOrDefault(baseLabel));
 		Parent.LoadFile(mergedFileName);
-		PopupDialog.Close();
+		Close();
 	}
 
 	private void DoSetBaseFile(KeyNode file) {
@@ -78,7 +79,7 @@ internal class MergeControlViewModel : ViewModelBase {
 	}
 
 	private void DoCancel() {
-		PopupDialog.Close();
+		Close();
 	}
 
 	public void FilesChanged() {

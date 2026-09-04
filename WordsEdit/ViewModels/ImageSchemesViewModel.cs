@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using WordsEdit.Utils;
-using WordsEdit.Views;
 
 namespace WordsEdit.ViewModels;
 
@@ -20,7 +19,8 @@ public class ImageSchemeMapping : ViewModelBase {
 ///     here, and unmapped schemes fall back to the image's alt text. The mappings
 ///     ride along in the file's top-of-file <c>param-&lt;scheme&gt;</c> fields.
 /// </summary>
-public class ImageSchemesViewModel : ViewModelBase {
+public class ImageSchemesViewModel : DialogViewModel {
+	public override string Title => $"Image Schemes — {FileLabel}";
 	public MainWindowViewModel Parent { get; }
 	/// <summary>The file whose mappings are being edited (its tree label).</summary>
 	public string FileLabel { get; }
@@ -55,6 +55,6 @@ public class ImageSchemesViewModel : ViewModelBase {
 			}
 		}
 		Parent.SetImageSchemes(FileLabel, mappings);
-		PopupDialog.Close();
+		Close();
 	}
 }

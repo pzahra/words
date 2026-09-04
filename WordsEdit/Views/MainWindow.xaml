@@ -27,8 +27,7 @@
 		</uc:GenericValueConverter>
 	</Window.Resources>
 
-    <md:DialogHost>
-        <Grid>
+    <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width=".8*"/>
                 <ColumnDefinition />
@@ -560,5 +559,4 @@
 				<Run Text="         "/>
 			</TextBlock>
         </Grid>
-    </md:DialogHost>
 </Window>

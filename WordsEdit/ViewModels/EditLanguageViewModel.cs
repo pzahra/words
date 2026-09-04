@@ -3,11 +3,11 @@ using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Windows.Input;
 using WordsEdit.Utils;
-using WordsEdit.Views;
 
 namespace WordsEdit.ViewModels;
 
-internal class EditLanguageViewModel : DataViewModelBase {
+public class EditLanguageViewModel : DataViewModelBase {
+	public override string Title => IsEdit ? "Edit Language" : "Add Language";
 	public LanguageManagerViewModel Parent { get; }
 	public string LanguageCode { get; set => _ = ChangeProperty(ref field, value) && Validate(); } = "";
 	public string NativeName { get; set => _ = ChangeProperty(ref field, value) && Validate(); } = "";
@@ -47,7 +47,7 @@ internal class EditLanguageViewModel : DataViewModelBase {
 		if (!Validate()) return;
 		editing = new(LanguageCode, NativeName) { EnglishName = EnglishName, };
 		Parent.AddLanguage(editing);
-		PopupDialog.Push(new LanguageManagerView() { DataContext = Parent });
+		Close();
 	}
 
 	private bool CanEditLanguage() => !HasErrors;
@@ -55,18 +55,16 @@ internal class EditLanguageViewModel : DataViewModelBase {
 		if (!Validate()) return;
 		if (LanguageCode == editing!.Code && NativeName == editing.NativeName && EnglishName == editing.EnglishName) {
 			// Nothing to do.
-			PopupDialog.Push(new LanguageManagerView() { DataContext = Parent });
+			Close();
 			return;
 		}
 
 		editing = new(LanguageCode, NativeName) { EnglishName = EnglishName };
 		Parent.EditLanguage(editing);
-		PopupDialog.Push(new LanguageManagerView() { DataContext = Parent });
+		Close();
 	}
 
-	private void DoCancel() {
-		PopupDialog.Push(new LanguageManagerView() { DataContext = Parent });
-	}
+	private void DoCancel() => Close();
 
 	protected override bool Validate([CallerMemberName] string? propertyName = "") {
 		bool all = string.IsNullOrEmpty(propertyName);

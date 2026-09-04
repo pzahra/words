@@ -1,11 +1,10 @@
 ﻿using System.Collections.ObjectModel;
-using System.Windows;
 using WordsEdit.Utils;
-using WordsEdit.Views;
 
 namespace WordsEdit.ViewModels;
 
-public class LanguageManagerViewModel : ViewModelBase {
+public class LanguageManagerViewModel : DialogViewModel {
+	public override string Title => "Languages";
 	public LanguageDragDropHandler LanguageDragDropHandler { get; }
 	public MainWindowViewModel Parent { get; }
 	public ObservableCollection<LanguageEntry> KnownLanguages => Parent.KnownLanguages;
@@ -39,10 +38,7 @@ public class LanguageManagerViewModel : ViewModelBase {
 			return;
 		}
 		//SPEC (Languages): a removal deletes the entries only after confirmation
-		var answer = PopupDialog.ShowDialog(
-			$"Remove language '{SelectedLanguage.Code}' and delete its entries from every key?",
-			MessageBoxButton.YesNo);
-		if (!answer.IsAffirmative()) {
+		if (!Parent.Dialogs.Confirm($"Remove language '{SelectedLanguage.Code}' and delete its entries from every key?")) {
 			return;
 		}
 		foreach (var key in Parent.Keys) {
@@ -62,7 +58,7 @@ public class LanguageManagerViewModel : ViewModelBase {
 	}
 
 	private void DoAddLanguage() {
-		PopupDialog.Push(new EditLanguageView() { DataContext = new EditLanguageViewModel(this) });
+		Parent.Dialogs.Show(new EditLanguageViewModel(this));
 	}
 
 	public void AddLanguage(LanguageEntry lang) {
@@ -76,7 +72,7 @@ public class LanguageManagerViewModel : ViewModelBase {
 	}
 
 	private void DoEditLanguage() {
-		PopupDialog.Push(new EditLanguageView() { DataContext = new EditLanguageViewModel(this, SelectedLanguage) });
+		Parent.Dialogs.Show(new EditLanguageViewModel(this, SelectedLanguage));
 	}
 
 	public void EditLanguage(LanguageEntry lang) {
@@ -100,9 +96,5 @@ public class LanguageManagerViewModel : ViewModelBase {
 		Parent.IsDirty = true;
 	}
 
-	private void DoOkay() {
-		Parent.KnownLanguages = KnownLanguages;
-		Parent.SelectedLanguage = SelectedLanguage;
-		PopupDialog.Close();
-	}
+	private void DoOkay() => Close();
 }

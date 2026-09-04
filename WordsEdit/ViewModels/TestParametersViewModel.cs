@@ -5,7 +5,8 @@ using System.Windows.Input;
 using WordsEdit.Utils;
 
 namespace WordsEdit.ViewModels;
-internal class TestParametersViewModel : ViewModelBase {
+public class TestParametersViewModel : DialogViewModel {
+	public override string Title => "Test Parameters";
 	public MainWindowViewModel Parent { get; }
 
 	public ObservableCollection<WordsParameter> Parameters { get; }
@@ -64,6 +65,6 @@ internal class TestParametersViewModel : ViewModelBase {
 		foreach (var parameter in Parameters) {
 			parameter.PropertyChanged -= OnParameterEdited;
 		}
-		PopupDialog.Close();
+		Close();
 	}
 }

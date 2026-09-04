@@ -1,9 +1,10 @@
 ﻿using System.Collections;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using WordsEdit.ViewModels;
 
 namespace WordsEdit.Utils {
-	public abstract class DataViewModelBase : ViewModelBase, INotifyDataErrorInfo {
+	public abstract class DataViewModelBase : DialogViewModel, INotifyDataErrorInfo {
 		private readonly Dictionary<string, List<string>> errors = [];
 		private readonly Lock errorsLock = new Lock();
 
