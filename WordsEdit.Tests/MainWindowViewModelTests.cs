@@ -96,14 +96,16 @@ value=x
 			var vm = new MainWindowViewModel(dialogs);
 			vm.LoadFile(new StringReader("value-en=English\nvalue-de=Deutsch\nparam=wordsmith.ini\nparam-de=wordsmith-de.ini\n\n[k]\nvalue=x\n"), Path.Combine(folder, "strings.ini"));
 			vm.LoadFile(new StringReader("value-en=English\n\n[j]\nvalue=y\n"), "Other");
+			vm.ShowDefaultPreview = true;
+			vm.ShowLocalizationPreview = true;
 
 			vm.Tree.SelectedKeyNode = Node(vm, "strings.k");
-			Assert.Equal(Path.GetFullPath(Path.Combine(folder, "shots")), Assert.Single(vm.DefaultPreviewSettings.Images).Root);
-			Assert.Same(vm.DefaultPreviewSettings, vm.TranslationPreviewSettings); //en has no file of its own
+			Assert.Equal(Path.GetFullPath(Path.Combine(folder, "shots")), Assert.Single(vm.DefaultPreview.Settings.Images).Root);
+			Assert.Same(vm.DefaultPreview.Settings, vm.TranslationPreview.Settings); //en has no file of its own
 
 			vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.First(l => l.Code == "de");
-			Assert.Equal(Path.GetFullPath(Path.Combine(folder, "shots")), Assert.Single(vm.DefaultPreviewSettings.Images).Root);
-			Assert.True(vm.TranslationPreviewSettings.TryLocate(new Uri("shot:Login"), out string root, out string path));
+			Assert.Equal(Path.GetFullPath(Path.Combine(folder, "shots")), Assert.Single(vm.DefaultPreview.Settings.Images).Root);
+			Assert.True(vm.TranslationPreview.Settings.TryLocate(new Uri("shot:Login"), out string root, out string path));
 			Assert.Equal(Path.GetFullPath(Path.Combine(folder, "shots-de")), root);
 			Assert.Equal("Login.png", path);
 
@@ -113,8 +115,8 @@ value=x
 			Assert.Empty(dialogs.Notices);
 
 			vm.Tree.SelectedKeyNode = Node(vm, "Other.j");
-			Assert.Same(ProjectSettings.Empty, vm.DefaultPreviewSettings);
-			Assert.Same(ProjectSettings.Empty, vm.TranslationPreviewSettings);
+			Assert.Same(ProjectSettings.Empty, vm.DefaultPreview.Settings);
+			Assert.Same(ProjectSettings.Empty, vm.TranslationPreview.Settings);
 			vm.FollowLink(new Uri("help:merge")); //no rules here: reported as it is
 			Assert.Contains("help:merge", Assert.Single(dialogs.Notices));
 		}
@@ -131,24 +133,24 @@ value=x
 		var vm = new MainWindowViewModel(dialogs);
 		vm.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
 		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
-		Assert.Equal("", vm.RenderedDefault);
+		Assert.Equal("", vm.DefaultPreview.Text);
 
 		vm.ShowDefaultPreview = true;
-		Assert.Equal("Base", vm.RenderedDefault);
+		Assert.Equal("Base", vm.DefaultPreview.Text);
 
 		vm.Tree.SelectedKey!.DefaultValue = "Base {0:N1} {1}";
-		Assert.Equal("Base 22.0 one", vm.RenderedDefault);
-		Assert.Null(vm.DefaultPreviewError);
+		Assert.Equal("Base 22.0 one", vm.DefaultPreview.Text);
+		Assert.Empty(vm.DefaultPreview.Gripes);
 
 		//the parameter dialog closes: the samples are re-applied
 		dialogs.OnShow = _ => vm.Tree.SelectedKey.Parameters[0].Value = "twenty-two";
 		vm.TestParametersCommand.Execute(vm.Tree.SelectedKey.Parameters);
-		Assert.Equal("Base {0:N1} {1}", vm.RenderedDefault);
-		Assert.NotNull(vm.DefaultPreviewError);
+		Assert.Equal("Base {0:N1} {1}", vm.DefaultPreview.Text);
+		Assert.NotEmpty(vm.DefaultPreview.Gripes);
 
 		vm.Tree.SelectedKeyNode = Node(vm, "Example.main.single-line");
-		Assert.Equal("line 1 still line 1", vm.RenderedDefault);
-		Assert.Null(vm.DefaultPreviewError);
+		Assert.Equal("line 1 still line 1", vm.DefaultPreview.Text);
+		Assert.Empty(vm.DefaultPreview.Gripes);
 	}
 
 	[Fact]
@@ -167,14 +169,14 @@ value-de=n={0:N1}
 		vm.ShowLocalizationPreview = true;
 		vm.Tree.SelectedKeyNode = Node(vm, "T.k");
 
-		Assert.Equal("n=22.5", vm.RenderedDefault);
-		Assert.Equal("n=22.5", vm.RenderedTranslation); //en
+		Assert.Equal("n=22.5", vm.DefaultPreview.Text);
+		Assert.Equal("n=22.5", vm.TranslationPreview.Text); //en
 
 		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.First(l => l.Code == "de");
-		Assert.Equal("n=22,5", vm.RenderedTranslation);
+		Assert.Equal("n=22,5", vm.TranslationPreview.Text);
 
 		vm.Tree.SelectedEntry!.Value = "N={0:N2}";
-		Assert.Equal("N=22,50", vm.RenderedTranslation);
+		Assert.Equal("N=22,50", vm.TranslationPreview.Text);
 	}
 
 	[Fact]
@@ -188,7 +190,7 @@ value-de=n={0:N1}
 
 		vm.Tree.SelectedKeyNode = Node(vm, "B.b");
 
-		Assert.Equal("hello world", vm.RenderedDefault);
+		Assert.Equal("hello world", vm.DefaultPreview.Text);
 	}
 
 	[Fact]
@@ -202,6 +204,53 @@ value-de=n={0:N1}
 
 		vm.FollowLink(new Uri("appcmd:do-something"));
 		Assert.Contains("appcmd:do-something", Assert.Single(dialogs.Notices));
+	}
+
+	[Fact]
+	public void MainWindowViewModel_PreviewGripesCollectWhatWordsComplainsAbout() {
+		// SPEC (Markdown previews → Gripes): a circular or missing reference and a
+		// sample that will not format are listed per pane, opened in a dialog from
+		// the tool button, and cleared when the preview hides
+		var dialogs = new FakeDialogs();
+		var vm = new MainWindowViewModel(dialogs);
+		vm.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.main.circle-1");
+		Assert.Empty(vm.DefaultPreview.Gripes);
+		Assert.False(vm.ShowGripesCommand.CanExecute(vm.DefaultPreview));
+
+		vm.ShowDefaultPreview = true;
+		Assert.Contains("# ∞ #", vm.DefaultPreview.Text);
+		Assert.Contains(vm.DefaultPreview.Gripes, gripe => gripe.StartsWith("WORDS:CIRC"));
+		Assert.Equal(vm.DefaultPreview.Gripes.Count, vm.DefaultPreview.GripeCount);
+
+		vm.Tree.SelectedKey!.DefaultValue = "see {>nowhere}";
+		Assert.Equal("see #nowhere#", vm.DefaultPreview.Text);
+		Assert.Contains(vm.DefaultPreview.Gripes, gripe => gripe.Contains("WORDS:KEY") && gripe.Contains("nowhere"));
+		Assert.DoesNotContain(vm.DefaultPreview.Gripes, gripe => gripe.StartsWith("WORDS:CIRC")); //each render starts afresh
+
+		Assert.True(vm.ShowGripesCommand.CanExecute(vm.DefaultPreview));
+		vm.ShowGripesCommand.Execute(vm.DefaultPreview);
+		var shown = Assert.IsType<GripesViewModel>(Assert.Single(dialogs.Shown));
+		Assert.Contains("nowhere", shown.Text);
+
+		//a sample that will not format heads the list and the text stays raw
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
+		vm.Tree.SelectedKey!.Parameters[0].Value = "twenty-two";
+		vm.Tree.SelectedKey.DefaultValue = "Base {0:N1}";
+		Assert.Equal("Base {0:N1}", vm.DefaultPreview.Text);
+		Assert.Contains("twenty-two", vm.DefaultPreview.Gripes[0]);
+
+		//the translation pane keeps a list of its own
+		vm.ShowLocalizationPreview = true;
+		vm.Tree.SelectedEntry!.Value = "Basis {0:N1}";
+		Assert.Equal("Basis {0:N1}", vm.TranslationPreview.Text);
+		Assert.Contains("twenty-two", vm.TranslationPreview.Gripes[0]);
+
+		//a hidden preview holds nothing
+		vm.ShowDefaultPreview = false;
+		Assert.Equal("", vm.DefaultPreview.Text);
+		Assert.Empty(vm.DefaultPreview.Gripes);
+		Assert.NotEmpty(vm.TranslationPreview.Gripes);
 	}
 
 	[Fact]

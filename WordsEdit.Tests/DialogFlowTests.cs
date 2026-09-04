@@ -281,7 +281,9 @@ value-de=y
 			var vm = new MainWindowViewModel(dialogs);
 			vm.LoadFile(new StringReader(Ini), Path.Combine(folder, "strings.ini"));
 			WordsFile file = vm.Session.Files[0];
-			vm.Tree.SelectedKeyNode = vm.Tree.KeyNodes[0];
+			vm.Tree.SelectedKeyNode = vm.Tree.KeyNodes[0].Children[0]; //strings.k
+			vm.ShowDefaultPreview = true;
+			vm.ShowLocalizationPreview = true;
 			dialogs.OnShow = shown => {
 				var settings = Assert.IsType<SettingsViewModel>(shown);
 				Assert.Empty(settings.Targets);
@@ -326,10 +328,10 @@ value-de=y
 			Assert.Equal(LinkMode.ShellExec, Assert.Single(written.Links).Mode);
 			Assert.True(File.Exists(Path.Combine(folder, "de", "wordsmith.ini"))); //its folder was made
 			//the previews see the new rules at once
-			Assert.True(vm.DefaultPreviewSettings.TryLocate(new Uri("shot:Login"), out string root, out _));
+			Assert.True(vm.DefaultPreview.Settings.TryLocate(new Uri("shot:Login"), out string root, out _));
 			Assert.Equal(Path.GetFullPath(Path.Combine(folder, "shots")), root);
 			vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.First(language => language.Code == "de");
-			Assert.True(vm.TranslationPreviewSettings.TryLocate(new Uri("shot:Login"), out root, out string path));
+			Assert.True(vm.TranslationPreview.Settings.TryLocate(new Uri("shot:Login"), out root, out string path));
 			Assert.Equal(Path.GetFullPath(Path.Combine(folder, "de", "shots-de")), root); //relative to the language's own file
 			Assert.Equal("Login.png", path); //the decode from the dictionary's file
 			//and the slots save with the dictionary

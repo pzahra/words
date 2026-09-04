@@ -1,3 +1,4 @@
+using PatTech.Localization;
 using PatTech.Localization.Wpf;
 using System.Windows;
 using System.Windows.Controls;
@@ -21,7 +22,8 @@ namespace WordsEdit.Utils;
 ///     and nothing is fetched remotely.
 /// </remarks>
 public static class MarkdownPreview {
-	private static readonly MarkdownParser parser = new();
+	//gripes go wherever Words.Logger points: the render under way is listening
+	private static readonly MarkdownParser parser = new(logger: ITakeException.Global);
 
 	public static readonly DependencyProperty TextProperty = DependencyProperty.RegisterAttached(
 		"Text", typeof(string), typeof(MarkdownPreview), new PropertyMetadata(null, Changed));

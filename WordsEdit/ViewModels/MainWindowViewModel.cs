@@ -22,18 +22,20 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public KeyDragDropHandler KeyDragDropHandler { get; }
 
 	//Previews: rendered the way a host app would show the selected key, kept
-	//current while shown; a sample that will not format keeps the raw text and
-	//says why
+	//current while shown, each with what went wrong along the way. The default
+	//pane goes by the file's own settings, the translation pane by the selected
+	//language's layered over them
 	public bool ShowDefaultPreview { get; set => _ = ChangeProperty(ref field, value) && RenderPreviews(); }
 	public bool ShowLocalizationPreview { get; set => _ = ChangeProperty(ref field, value) && RenderPreviews(); }
-	public string RenderedDefault { get; private set => ChangeProperty(ref field, value); } = "";
-	public string? DefaultPreviewError { get; private set => ChangeProperty(ref field, value); }
-	public string RenderedTranslation { get; private set => ChangeProperty(ref field, value); } = "";
-	public string? TranslationPreviewError { get; private set => ChangeProperty(ref field, value); }
-	/// <summary>The project rules the default preview resolves images through: the selected key's file's own settings.</summary>
-	public ProjectSettings DefaultPreviewSettings { get; private set => ChangeProperty(ref field, value); } = ProjectSettings.Empty;
-	/// <summary>The rules for the translation preview: the selected language's settings layered over the file's.</summary>
-	public ProjectSettings TranslationPreviewSettings { get; private set => ChangeProperty(ref field, value); } = ProjectSettings.Empty;
+	public PreviewPane DefaultPreview { get; } = new();
+	public PreviewPane TranslationPreview { get; } = new();
+	/// <summary>Where the runtime's gripes go: heard by whichever render is under way, dropped otherwise.</summary>
+	public static GripeCollector Gripes { get; } = new();
+
+	static MainWindowViewModel() {
+		//the one process-wide logger; the shared markdown parsers forward here too
+		Words.Logger = Gripes;
+	}
 
 	//Commands
 	public ICommand LoadFileCommand { get; }
@@ -42,6 +44,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public ICommand MergeFilesCommand { get; }
 	public ICommand ManageLanguagesCommand { get; }
 	public ICommand SettingsCommand { get; }
+	public ICommand ShowGripesCommand { get; }
 	public ICommand TestParametersCommand { get; }
 	public ICommand RemoveLocalizationKeyAndNodeCommand { get; }
 	public ICommand RenameLocalizationKeyAndNodeCommand { get; }
@@ -75,6 +78,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		MergeFilesCommand = new DelegateCommand(DoMergeFiles);
 		ManageLanguagesCommand = new DelegateCommand(DoManageLanguages);
 		SettingsCommand = new DelegateCommand(DoSettings, () => Tree.SelectedFile is not null);
+		ShowGripesCommand = new DelegateCommand<PreviewPane>(
+			pane => Dialogs.Show(new GripesViewModel("Preview gripes", pane.Gripes)),
+			static pane => pane is { GripeCount: > 0 });
 		RemoveLocalizationKeyAndNodeCommand = new DelegateCommand(DoRemoveLocalizationKeyAndNode);
 		RenameLocalizationKeyAndNodeCommand = new DelegateCommand(DoRenameNode);
 		AddLocalizationKeyNodeCommand = new DelegateCommand(DoAddLocalizationKeyNode);
@@ -359,40 +365,43 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	//Previews
 	private bool RenderPreviews() {
-		//the session hands back the same rules while nothing changed, so the
-		//previews only rebuild their resolvers when a settings file did
+		WordsKey? key = Tree.SelectedKey;
 		WordsFile? file = Tree.SelectedFile;
-		DefaultPreviewSettings = file is null ? ProjectSettings.Empty : Session.SettingsFor(file);
-		TranslationPreviewSettings = file is null ? ProjectSettings.Empty : Session.SettingsFor(file, Tree.SelectedLanguage.Code);
-		if (Tree.SelectedKey is not { } key) {
-			(RenderedDefault, DefaultPreviewError) = ("", null);
-			(RenderedTranslation, TranslationPreviewError) = ("", null);
-			return true;
+		if (key is null || file is null || !ShowDefaultPreview) {
+			DefaultPreview.Clear();
 		}
-		if (ShowDefaultPreview) {
-			(RenderedDefault, DefaultPreviewError) = Render(key, null);
+		else {
+			Render(DefaultPreview, key, null, Session.SettingsFor(file));
 		}
-		if (ShowLocalizationPreview && Tree.SelectedEntry is not null) {
-			(RenderedTranslation, TranslationPreviewError) = Render(key, Tree.SelectedLanguage.Code);
+		if (key is null || file is null || !ShowLocalizationPreview || Tree.SelectedEntry is null) {
+			TranslationPreview.Clear();
+		}
+		else {
+			Render(TranslationPreview, key, Tree.SelectedLanguage.Code, Session.SettingsFor(file, Tree.SelectedLanguage.Code));
 		}
 		return true;
 	}
 
 	//every loaded file in tree order resolves {>references} and {$constants}, like a
 	//host app stacking dictionaries; the samples then go through the same formatting
-	//the host applies, in the language's culture where there is one
-	private (string text, string? error) Render(WordsKey key, string? languageCode) {
-		IWordsProvider provider = Session.Provider(Tree.FileLabels, languageCode);
-		string text = Words.RenderKey(provider, key.BlockKey);
-		if (key.Parameters.Count == 0) {
-			return (text, null);
+	//the host applies, in the language's culture where there is one. A sample that
+	//will not format keeps the raw text and heads the pane's gripes; what Words
+	//complained about on the way, and what is wrong with the rules, follow
+	private void Render(PreviewPane pane, WordsKey key, string? languageCode, ProjectSettings settings) {
+		List<string> gripes = [];
+		string text;
+		using (Gripes.Listen(gripes)) {
+			text = Words.RenderKey(Session.Provider(Tree.FileLabels, languageCode), key.BlockKey);
+			if (key.Parameters.Count != 0) {
+				try {
+					text = WordsOperations.FormatSample(key, text, WordsOperations.CultureFor(languageCode));
+				}
+				catch (Exception ex) when (ex is FormatException or OverflowException) {
+					gripes.Insert(0, ex.Message);
+				}
+			}
 		}
-		try {
-			return (WordsOperations.FormatSample(key, text, WordsOperations.CultureFor(languageCode)), null);
-		}
-		catch (Exception ex) when (ex is FormatException or OverflowException) {
-			return (text, ex.Message);
-		}
+		pane.Show(text, settings, gripes.Concat(settings.Errors), Gripes);
 	}
 
 	/// <summary>

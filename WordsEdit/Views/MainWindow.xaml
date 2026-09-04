@@ -268,6 +268,19 @@
                                   IsChecked="{Binding Tree.SelectedKeyNode.NeedsReview, Mode=OneWay}"
                                   ToolTip="Toggle needs review"
                                   Margin="2.5px"/>
+                    <Button Command="{Binding ShowGripesCommand}"
+                            CommandParameter="{Binding DefaultPreview}"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            Visibility="{Binding DefaultPreview.GripeCount, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                            ToolTip="What the preview complained about"
+                            Foreground="DarkOrange"
+                            Padding="4 0"
+                            Margin="2.5px">
+                        <StackPanel Orientation="Horizontal">
+                            <md:PackIcon Kind="AlertCircleOutline" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding DefaultPreview.GripeCount}" VerticalAlignment="Center" Margin="3 0 0 0"/>
+                        </StackPanel>
+                    </Button>
                     <ToggleButton IsChecked="{Binding ShowDefaultPreview}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=Eye, Size=35}"
@@ -292,15 +305,10 @@
                         <ScrollViewer VerticalScrollBarVisibility="Auto"
                                       Visibility="{Binding ShowDefaultPreview, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <StackPanel Margin="3.5 7 0 0">
-                                <TextBlock uc:MarkdownPreview.Text="{Binding RenderedDefault}"
-                                           uc:MarkdownPreview.Settings="{Binding DefaultPreviewSettings}"
+                                <TextBlock uc:MarkdownPreview.Text="{Binding DefaultPreview.Text}"
+                                           uc:MarkdownPreview.Settings="{Binding DefaultPreview.Settings}"
                                            TextWrapping="Wrap"
                                            TextAlignment="Left"/>
-                                <TextBlock Text="{Binding DefaultPreviewError}"
-                                           Visibility="{Binding DefaultPreviewError, Converter={StaticResource IsNotNull}}"
-                                           Foreground="Red"
-                                           TextWrapping="Wrap"
-                                           Margin="0 7 0 0"/>
                             </StackPanel>
                         </ScrollViewer>
                     </Grid>
@@ -419,6 +427,19 @@
                                   Content="{md:PackIcon Kind=ClockAlert,Size=30}"
                                   ToolTip="Toggle Language is stale"
                                   Margin="2.5px"/>
+                    <Button Command="{Binding ShowGripesCommand}"
+                            CommandParameter="{Binding TranslationPreview}"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            Visibility="{Binding TranslationPreview.GripeCount, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                            ToolTip="What the preview complained about"
+                            Foreground="DarkOrange"
+                            Padding="4 0"
+                            Margin="2.5px">
+                        <StackPanel Orientation="Horizontal">
+                            <md:PackIcon Kind="AlertCircleOutline" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding TranslationPreview.GripeCount}" VerticalAlignment="Center" Margin="3 0 0 0"/>
+                        </StackPanel>
+                    </Button>
                     <ToggleButton IsChecked="{Binding ShowLocalizationPreview}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=Eye,Size=35}"
@@ -443,15 +464,10 @@
                         <ScrollViewer VerticalScrollBarVisibility="Auto"
                                       Visibility="{Binding ShowLocalizationPreview, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <StackPanel Margin="3.5 7 0 0">
-                                <TextBlock uc:MarkdownPreview.Text="{Binding RenderedTranslation}"
-                                           uc:MarkdownPreview.Settings="{Binding TranslationPreviewSettings}"
+                                <TextBlock uc:MarkdownPreview.Text="{Binding TranslationPreview.Text}"
+                                           uc:MarkdownPreview.Settings="{Binding TranslationPreview.Settings}"
                                            TextWrapping="Wrap"
                                            TextAlignment="Left"/>
-                                <TextBlock Text="{Binding TranslationPreviewError}"
-                                           Visibility="{Binding TranslationPreviewError, Converter={StaticResource IsNotNull}}"
-                                           Foreground="Red"
-                                           TextWrapping="Wrap"
-                                           Margin="0 7 0 0"/>
                             </StackPanel>
                         </ScrollViewer>
                     </Grid>
