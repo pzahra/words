@@ -42,12 +42,31 @@ internal class MergeControlViewModel : ViewModelBase {
 	}
 
 	private void DoMerge() {
-		ArgumentNullException.ThrowIfNull(BaseFile);
+		if (BaseFile is null) {
+			return;
+		}
 		if (!PopupDialog.TryFileSave("Merge Location", "INI file (*.ini)|*.ini|All files (*.*)|*.*", out string? mergedFileName)) {
 			return;
 		}
-		KeyNode mergedFile = Parent.GetMergedKeyNode(BaseFile, LanguageCodeFilePair, Path.GetFileNameWithoutExtension(mergedFileName), out var mergedKeys) ?? throw new InvalidOperationException("Merge Failed");
-		IniWriter.WriteFile(mergedFile, mergedFileName, mergedKeys, Parent.KnownLanguages);
+		KeyNode? mergedFile = Parent.GetMergedKeyNode(BaseFile, LanguageCodeFilePair, Path.GetFileNameWithoutExtension(mergedFileName), out var mergedKeys);
+		if (mergedFile is null) {
+			//the files disagree on their keys: say so rather than fail
+			FilesChanged();
+			return;
+		}
+		//the merged file declares the base file's languages plus the ones merged
+		//in, and keeps the base file's preamble and image schemes — the round
+		//trip SPEC guarantees, not the session union
+		string baseLabel = BaseFile.FullLabel;
+		var codes = Parent.LanguagesFor(baseLabel).Select(l => l.Code)
+			.Concat(LanguageCodeFilePair.Keys)
+			.Distinct();
+		List<LanguageEntry> languages = [.. codes
+			.Select(code => Parent.KnownLanguages.FirstOrDefault(l => l.Code == code))
+			.OfType<LanguageEntry>()];
+		IniWriter.WriteFile(mergedFile, mergedFileName, mergedKeys, languages,
+			preamble: Parent.filePreambles.GetValueOrDefault(baseLabel, ""),
+			imageSchemes: Parent.fileImageSchemes.GetValueOrDefault(baseLabel));
 		Parent.LoadFile(mergedFileName);
 		PopupDialog.Close();
 	}
