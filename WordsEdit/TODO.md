@@ -332,23 +332,26 @@ badges and command wiring.
 
 Dead code, measured by reference count, not guessed:
 
-- [ ] `Utils/DateTimeOffsetToStringConverter.cs` — 0 refs (`Stale` is a
+- [x] `Utils/DateTimeOffsetToStringConverter.cs` — 0 refs (`Stale` is a
       `string?`). Delete.
 - [x] `KeyNode.DeepestVisibleKeyNodeInBranch` — 0 callers. Gone with
       `GetParentNode` in Phase 2.
-- [ ] `DelegateCommand` and `DelegateCommand<T>`: `SafeExecute`,
+- [x] `DelegateCommand` and `DelegateCommand<T>`: `SafeExecute`,
       `RaiseCanExecuteChanged`, `CanExecute(T)` — 0 uses; the null-vs-value-type
-      ceremony guards nothing the app does.
-- [ ] `Utils/Extensions.cs`: `GetEnumMemberInfo` ×3, `GetEnumMemberAttribute`,
+      ceremony guards nothing the app does. (Both are primary-constructor
+      classes now; a null parameter reads as `default`, a wrong type throws.)
+- [x] `Utils/Extensions.cs`: `GetEnumMemberInfo` ×3, `GetEnumMemberAttribute`,
       `TryMatch`, `TryGetGroup`, `WhereNotNull` ×2 — 0 uses **and** verbatim
       copies of `Localization-Core/Extensions.cs`; `SafeFireAndForget` lost its
       last caller in Phase 1. Keep `IsNullOrEmpty`, `FindIndex`, `ForEach`.
 - [x] `WordsEdit/Extensions.cs` — a second `static class Extensions` with one
       method, a dangling doc comment and five unused usings. Deleted in Phase 1;
       `IsAffirmative` had no callers left to fold.
-- [ ] `App.xaml.cs`: the command-line startup-file parser is commented out, so
+- [x] `App.xaml.cs`: the command-line startup-file parser is commented out, so
       `StartupFiles` is always empty and `MainWindow`'s `ForEach(LoadFile)` is
-      dead. Restore it or remove both ends.
+      dead. Restore it or remove both ends. (Restored as `OnStartup(e.Args)`,
+      existing files only; the `CommandLine` class it named lives at the repo
+      root and was never in the project.)
 - [x] Commented-out code: `//Words.Known = …` (`MainWindow.xaml.cs`),
       `//FollowLink(…).SafeFireAndForget` (same), `//ResetPopup().SafeFireAndForget`
       (`MainWindowViewModel`).
@@ -357,13 +360,18 @@ Dead code, measured by reference count, not guessed:
       bound directly. (Replaced by the badge pass in Phase 2.)
 - [x] `LanguageManagerViewModel.DoOkay` assigns two properties to themselves.
       (It closes the dialog since Phase 1.)
-- [ ] `DataViewModelBase`: a `Lock` and five `lock` blocks around a
+- [x] `DataViewModelBase`: a `Lock` and five `lock` blocks around a
       UI-thread-only dictionary. `ViewModelSaveBase.ChangeProperty(…, bool
       dirty)`: never called with `true`.
-- [ ] `App.xaml` `Zero` resource and `TestParameters.xaml` `IsTrue` converter:
+- [x] `App.xaml` `Zero` resource and `TestParameters.xaml` `IsTrue` converter:
       unreferenced. Unused usings/xmlns per file (`System.Data`,
       `System.Diagnostics.CodeAnalysis`, redundant `PatTech.Localization.Authoring`
       beside the project-wide `<Using>`, `xmlns:v`, `xmlns:local` ×3).
+      (`System.Data` was already gone; `System.Diagnostics.CodeAnalysis` stays
+      where a nullability attribute uses it.)
+- [x] Tooltips on disabled controls: `ToolTipService.ShowOnDisabled` defaults
+      to true for every `FrameworkElement` (metadata override at startup), so
+      a button a command greyed out still says what it would do.
 
 Naming (SPEC: "Short names"):
 
@@ -373,23 +381,31 @@ Naming (SPEC: "Short names"):
       `ToggleNeedsReview`, `ToggleConstant` (Phase 4).
 - [ ] Undo stack over `WordsSession` — considered in Phase 4, not started;
       the confirmations cover the destructive actions for now.
-- [ ] `KeyDragDropHandler.MainWindow` is a ViewModel (`LanguageDragDropHandler`
+- [x] `KeyDragDropHandler.MainWindow` is a ViewModel (`LanguageDragDropHandler`
       calls its own `LanguageManager`). `Vm` in both.
-- [ ] `DragDrop.cs` holds two handlers named neither `DragDrop` nor after the
+- [x] `DragDrop.cs` holds two handlers named neither `DragDrop` nor after the
       file, and shadows `GongSolutions.Wpf.DragDrop` in the mind: `KeyDrag.cs`,
-      `LanguageDrag.cs`.
-- [ ] View files vs classes: `MergeControl.xaml`, `KeyName.xaml`,
+      `LanguageDrag.cs`. (The classes are `KeyDrag` and `LanguageDrag` too.)
+- [x] View files vs classes: `MergeControl.xaml`, `KeyName.xaml`,
       `TestParameters.xaml` → `*View.xaml` like their siblings.
-- [ ] `Utils/PopupDialog.cs` declares `namespace WordsEdit.ViewModels` (moot
+- [x] `Utils/PopupDialog.cs` declares `namespace WordsEdit.ViewModels` (moot
       after Phase 1); `Utils/DateTimeOffsetToStringConverter.cs` declares
-      `WordsEdit.Views` (moot after deletion).
-- [ ] `result2` ×4 with no `result1`; hard-coded "Default English".
+      `WordsEdit.Views` (moot after deletion). Both files are gone.
+- [x] `result2` ×4 with no `result1`; hard-coded "Default English".
       ("Lanuage" and "reset the Language Manager" went in Phases 0 and 1;
-      `AllKeyNodes` and `allKeys` in Phase 2.)
-- [ ] `ApplyFilters()` returns a constant `true` so a setter can `&&` it.
-- [ ] Organizers use synthetic dotted keys (`file.;preamble`, `parent.;comment`)
+      `AllKeyNodes` and `allKeys` in Phase 2; `result2` left with them. The
+      baseline pane now says "Default", with a tooltip: the default is
+      whatever language the developer writes in.)
+- [x] `ApplyFilters()` returns a constant `true` so a setter can `&&` it.
+      (Void now; the filter setters share a `Filter(ref field, value)` helper.)
+- [x] Organizers use synthetic dotted keys (`file.;preamble`, `parent.;comment`)
       as identity, so two under one parent share a `FullLabel` and
       `UpdateChildFullLabels` rewrites them to `parent.;`. A stable id.
+      (Resolved without one: an organizer's identity is the row itself —
+      nothing in the editor looks a comment up by label; `Relabel` keeps the
+      `;kind` marker; the writer ignores the label; search reads a comment's
+      text and not its marker. A test pins two comments under one renamed
+      parent staying apart and both writing where they stand.)
 
 ## Phase 6 — Tests not already listed above
 

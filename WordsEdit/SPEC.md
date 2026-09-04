@@ -111,7 +111,8 @@ One tree presents every loaded file:
   They are reachable from the button strip, the tree's context menu and the
   keyboard (F2 rename, Delete remove, Ctrl+Shift+S stale-all; Ctrl+O and
   Ctrl+S open and save, Ctrl+F the search). Removing a node that takes keys
-  with it, or a key's information, asks first.
+  with it, or a key's information, asks first. A control a command has greyed
+  out keeps its tooltip, so it still says what it would do.
 
 ## The baseline pane (middle)
 
