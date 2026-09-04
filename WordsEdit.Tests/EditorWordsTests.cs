@@ -82,6 +82,27 @@ public class EditorWordsTests {
 		Assert.Empty(vm.Session.FileOf("words")!.Errors);
 	}
 
+	//the dogfood, headless: open the editor's words in the editor, add a language,
+	//translate a string, save — and what was saved loads in that language
+	[Fact]
+	public void TranslatingWordsmithInWordsmith() {
+		var vm = new MainWindowViewModel(new FakeDialogs());
+		vm.LoadFile(new StringReader(EditorWords.Text()), "words");
+		var languages = new LanguageManagerViewModel(vm);
+		languages.AddLanguage(new LanguageEntry("de", "Deutsch") { EnglishName = "German" });
+		vm.Session.Keys["words.languages.title"].Entries["de"].Value = "Sprachen";
+		Assert.True(vm.IsDirty);
+
+		var writer = new StringWriter();
+		vm.Session.Save(vm.Session.FileOf("words")!, vm.Tree.KeyNodes.Single(), writer);
+
+		var builder = WordsBuilder.Create().Load(new StringReader(writer.ToString()));
+		Assert.Contains(builder.GetLanguages(), language => language.Key == "de" && language.Value == "Deutsch");
+		var german = builder.ToWords("de");
+		Assert.Equal("Sprachen", german["languages.title"]);
+		Assert.Equal("Wordsmith", german["app.name"]);
+	}
+
 	//{l:Words key}, <l:WordsInline Key="key"/>, Words.Known["key"], Words.Known.Format("key", …)
 	private static readonly Regex rxSourceKeys = new(
 		@"\{l:Words\s+(?<key>[\w.$-]+)\s*\}|WordsInline\s+Key=""(?<key>[\w.$-]+)""|Words\.Known\[""(?<key>[\w.$-]+)""\]|Words\.Known\.Format(?:ByName)?\(""(?<key>[\w.$-]+)""",
