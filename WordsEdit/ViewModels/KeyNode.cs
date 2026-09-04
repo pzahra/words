@@ -1,6 +1,5 @@
 ﻿using PatTech.Localization.Authoring;
 using System.Collections.ObjectModel;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 
 namespace WordsEdit.ViewModels {
@@ -39,7 +38,6 @@ namespace WordsEdit.ViewModels {
 			FullLabel = fullLabel;
 			Path = fullLabel[(fullLabel.IndexOf('.') + 1)..];
 		}
-		public KeyNode() { }
 
 		public KeyNode(KeyNode original) {
 			Label = original.Label;
@@ -64,9 +62,6 @@ namespace WordsEdit.ViewModels {
 
 		public KeyNode? GetParentNode(IEnumerable<KeyNode> keyNodes) {
 			// FIXME: this is awful. use a property!
-			if (FullLabel is null) {
-				throw new InvalidDataException("Key Node has no label.");
-			}
 			if (keyNodes.Any(k => k.FullLabel == FullLabel)) {
 				return null;
 			}
@@ -93,9 +88,6 @@ namespace WordsEdit.ViewModels {
 		}
 
 		public KeyNode? DeepestVisibleKeyNodeInBranch(IEnumerable<KeyNode> keyNodes) {
-			if (FullLabel is null) {
-				throw new InvalidDataException("Key Node has no label.");
-			}
 			string[] parentNodes = FullLabel.Split('.');
 			if (parentNodes.Length >= 2 && parentNodes[1][0] == '$') {
 				parentNodes[1] = parentNodes[1][1..];

@@ -517,22 +517,23 @@ public class MainWindowViewModel : ViewModelSaveBase {
 				}
 			}
 		}
-		KeyNode fileStarter = new();
+		List<KeyNode> roots = [];
 		foreach (var (node, parentName) in nodes.Values) {
-			KeyNode target = parentName == null || !nodes.TryGetValue(parentName, out var parent)
-				? fileStarter
-				: parent.node;
+			//a node whose parent path is not itself a node is a root: the file
+			ICollection<KeyNode> siblings = parentName != "" && nodes.TryGetValue(parentName, out var parent)
+				? parent.node.Children
+				: roots;
 			if (comments.TryGetValue(node.FullLabel, out var text)) {
 				//the run that sat above this block becomes a standalone comment
 				//node in front of it; from here on, position is the anchor
 				var organizer = new CommentNode($"{node.FullLabel}.;comment", text);
-				target.Children.Add(organizer);
+				siblings.Add(organizer);
 				AllKeyNodes.Add(organizer);
 			}
-			target.Children.Add(node);
+			siblings.Add(node);
 			AllKeyNodes.Add(node);
 		}
-		KeyNode file = fileStarter.Children[0];
+		KeyNode file = roots[0];
 		file.IsFile = true;
 		foreach (KeyNode child in file.Children) {
 			if (child.Children.IsNullOrEmpty()) {
@@ -691,7 +692,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	private void DoRemoveLocalizationKeyAndNode() {
-		if (SelectedKeyNode is null || SelectedKeyNode.FullLabel is null) {
+		if (SelectedKeyNode is null) {
 			return;
 		}
 		if (SelectedKeyNode is OrganizerNode organizer) {
@@ -745,9 +746,6 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	private void RemoveKeyNode(KeyNode keyNodeToRemove) {
-		if (keyNodeToRemove.FullLabel is null) {
-			return;
-		}
 		KeyNode? parentNode = keyNodeToRemove.GetParentNode(KeyNodes);
 		KeyNode? grandParentNode = parentNode?.GetParentNode(KeyNodes);
 		//a removed key leaves any comment above it standing; on the next load
@@ -770,7 +768,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	public void RenameLocalizationKeyAndNode(string newName) {
-		if (SelectedKeyNode is null || SelectedKeyNode.FullLabel is null || SelectedKeyNode.Label is null) {
+		if (SelectedKeyNode is null) {
 			throw new InvalidDataException("Error: Node has no name");
 		}
 		IsDirty = true;
@@ -866,7 +864,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	private void DoRemoveLocalizationKey() {
-		if (SelectedKeyNode is null || SelectedKeyNode.FullLabel is null) {
+		if (SelectedKeyNode is null) {
 			return;
 		}
 		string blockKeyToRemove = SelectedKeyNode.FullLabel;
