@@ -1,5 +1,6 @@
 using PatTech.Localization;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Windows.Input;
@@ -20,9 +21,19 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public TreeViewModel Tree { get; }
 	public KeyDragDropHandler KeyDragDropHandler { get; }
 
-	//Previews
-	public bool ShowDefaultPreview { get; set => ChangeProperty(ref field, value); }
-	public bool ShowLocalizationPreview { get; set => ChangeProperty(ref field, value); }
+	//Previews: rendered the way a host app would show the selected key, kept
+	//current while shown; a sample that will not format keeps the raw text and
+	//says why
+	public bool ShowDefaultPreview { get; set => _ = ChangeProperty(ref field, value) && RenderPreviews(); }
+	public bool ShowLocalizationPreview { get; set => _ = ChangeProperty(ref field, value) && RenderPreviews(); }
+	public string RenderedDefault { get; private set => ChangeProperty(ref field, value); } = "";
+	public string? DefaultPreviewError { get; private set => ChangeProperty(ref field, value); }
+	public string RenderedTranslation { get; private set => ChangeProperty(ref field, value); } = "";
+	public string? TranslationPreviewError { get; private set => ChangeProperty(ref field, value); }
+	/// <summary>Scheme → absolute folder for the selected key's file: what the preview resolves images through.</summary>
+	public IReadOnlyDictionary<string, string> PreviewImageFolders { get; private set => ChangeProperty(ref field, value); } = NoFolders;
+	private static readonly IReadOnlyDictionary<string, string> NoFolders = new Dictionary<string, string>();
+	private WordsFile? previewFile;
 
 	//Commands
 	public ICommand LoadFileCommand { get; }
@@ -49,7 +60,15 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public MainWindowViewModel(IDialogs? dialogs = null) {
 		Dialogs = dialogs ?? new WpfDialogs();
 		Tree = new TreeViewModel(Session);
-		Tree.Edited += () => IsDirty = true;
+		Tree.Edited += () => {
+			IsDirty = true;
+			RenderPreviews();
+		};
+		Tree.PropertyChanged += (_, e) => {
+			if (e.PropertyName is nameof(TreeViewModel.SelectedKey) or nameof(TreeViewModel.SelectedEntry) or nameof(TreeViewModel.SelectedLanguage)) {
+				RenderPreviews();
+			}
+		};
 		LoadFileCommand = new DelegateCommand(DoLoadFiles);
 		ResetCommand = new DelegateCommand(DoReset);
 		SaveCommand = new DelegateCommand(DoSave);
@@ -144,14 +163,10 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			return;
 		}
 		Dialogs.Show(new ImageSchemesViewModel(this, file));
+		//the mappings may have changed under the preview
+		previewFile = null;
+		RenderPreviews();
 	}
-
-	/// <summary>
-	///     Scheme → absolute folder for the file that owns <paramref name="node"/>:
-	///     what the preview's resolver registry is built from.
-	/// </summary>
-	public IReadOnlyDictionary<string, string> ImageSchemeFoldersFor(KeyNode? node)
-		=> node is null ? new Dictionary<string, string>() : Tree.FileOf(node).ImageSchemeFolders();
 
 	//Structure edits
 	private void DoRemoveLocalizationKeyAndNode() {
@@ -320,10 +335,61 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	private void DoTestParameters(ObservableCollection<WordsParameter> parameters) {
 		Dialogs.Show(new TestParametersViewModel(this, parameters));
+		//the samples are what the previews format with
+		RenderPreviews();
 	}
 
 	//Previews
-	public IWordsProvider GetWordsProvider() => Session.Provider(Tree.FileLabels);
+	private bool RenderPreviews() {
+		WordsFile? file = Tree.SelectedFile;
+		if (file != previewFile) {
+			previewFile = file;
+			PreviewImageFolders = file?.ImageSchemeFolders() ?? NoFolders;
+		}
+		if (Tree.SelectedKey is not { } key) {
+			(RenderedDefault, DefaultPreviewError) = ("", null);
+			(RenderedTranslation, TranslationPreviewError) = ("", null);
+			return true;
+		}
+		if (ShowDefaultPreview) {
+			(RenderedDefault, DefaultPreviewError) = Render(key, null);
+		}
+		if (ShowLocalizationPreview && Tree.SelectedEntry is not null) {
+			(RenderedTranslation, TranslationPreviewError) = Render(key, Tree.SelectedLanguage.Code);
+		}
+		return true;
+	}
 
-	public IWordsProvider GetWordsProvider(string languageCode) => Session.Provider(Tree.FileLabels, languageCode);
+	//every loaded file in tree order resolves {>references} and {$constants}, like a
+	//host app stacking dictionaries; the samples then go through the same formatting
+	//the host applies, in the language's culture where there is one
+	private (string text, string? error) Render(WordsKey key, string? languageCode) {
+		IWordsProvider provider = Session.Provider(Tree.FileLabels, languageCode);
+		string text = Words.RenderKey(provider, key.BlockKey);
+		if (key.Parameters.Count == 0) {
+			return (text, null);
+		}
+		try {
+			return (WordsOperations.FormatSample(key, text, WordsOperations.CultureFor(languageCode)), null);
+		}
+		catch (Exception ex) when (ex is FormatException or OverflowException) {
+			return (text, ex.Message);
+		}
+	}
+
+	/// <summary>
+	///     A hyperlink in a preview was clicked. Web and mail links open in the
+	///     shell once the user agrees; anything else is the host app's business and
+	///     is only reported.
+	/// </summary>
+	public void FollowLink(Uri uri) {
+		if (uri.Scheme is "http" or "https" or "mailto") {
+			if (Dialogs.Confirm($"Do you want to follow the link?\n\nDestination: {uri.AbsoluteUri}")) {
+				Process.Start(new ProcessStartInfo { FileName = uri.AbsoluteUri, UseShellExecute = true });
+			}
+		}
+		else {
+			Dialogs.Tell($"Internal link detected. Destination: {uri.OriginalString}");
+		}
+	}
 }

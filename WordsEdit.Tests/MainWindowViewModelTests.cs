@@ -82,7 +82,7 @@ value=x
 	}
 
 	[Fact]
-	public void MainWindowViewModel_ImageSchemeFolders_ResolveRelativeToTheFile() {
+	public void MainWindowViewModel_PreviewImageFolders_ResolveRelativeToTheSelectedFile() {
 		// the preview's registry is built from folders resolved against the file's
 		// own directory, so a scheme points at a folder beside the ini it came from
 		var vm = NewVm();
@@ -94,13 +94,96 @@ param-md=icons
 [k]
 value=x
 "), path);
+		vm.LoadFile(new StringReader("value-en=English\n\n[j]\nvalue=y\n"), "Other");
 
-		KeyNode node = Node(vm, "strings.k");
-		var folders = vm.ImageSchemeFoldersFor(node);
-
+		vm.Tree.SelectedKeyNode = Node(vm, "strings.k");
 		Assert.Equal(
 			Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, "icons"),
-			folders["md"]);
+			vm.PreviewImageFolders["md"]);
+
+		vm.Tree.SelectedKeyNode = Node(vm, "Other.j");
+		Assert.Empty(vm.PreviewImageFolders);
+	}
+
+	[Fact]
+	public void MainWindowViewModel_PreviewRendersLiveWhileShown() {
+		// nothing is rendered until the preview is shown; from then on it follows
+		// every edit, and a sample that will not format keeps the raw text and says why
+		var dialogs = new FakeDialogs();
+		var vm = new MainWindowViewModel(dialogs);
+		vm.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
+		Assert.Equal("", vm.RenderedDefault);
+
+		vm.ShowDefaultPreview = true;
+		Assert.Equal("Base", vm.RenderedDefault);
+
+		vm.Tree.SelectedKey!.DefaultValue = "Base {0:N1} {1}";
+		Assert.Equal("Base 22.0 one", vm.RenderedDefault);
+		Assert.Null(vm.DefaultPreviewError);
+
+		//the parameter dialog closes: the samples are re-applied
+		dialogs.OnShow = _ => vm.Tree.SelectedKey.Parameters[0].Value = "twenty-two";
+		vm.TestParametersCommand.Execute(vm.Tree.SelectedKey.Parameters);
+		Assert.Equal("Base {0:N1} {1}", vm.RenderedDefault);
+		Assert.NotNull(vm.DefaultPreviewError);
+
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.main.single-line");
+		Assert.Equal("line 1 still line 1", vm.RenderedDefault);
+		Assert.Null(vm.DefaultPreviewError);
+	}
+
+	[Fact]
+	public void MainWindowViewModel_TranslationPreviewFormatsInTheLanguagesCulture() {
+		var vm = NewVm();
+		vm.LoadFile(new StringReader(@"
+value-en=English
+value-de=Deutsch
+
+[k]
+value=n={0:N1}
+param-0=Double:22.5
+value-de=n={0:N1}
+"), "T");
+		vm.ShowDefaultPreview = true;
+		vm.ShowLocalizationPreview = true;
+		vm.Tree.SelectedKeyNode = Node(vm, "T.k");
+
+		Assert.Equal("n=22.5", vm.RenderedDefault);
+		Assert.Equal("n=22.5", vm.RenderedTranslation); //en
+
+		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.First(l => l.Code == "de");
+		Assert.Equal("n=22,5", vm.RenderedTranslation);
+
+		vm.Tree.SelectedEntry!.Value = "N={0:N2}";
+		Assert.Equal("N=22,50", vm.RenderedTranslation);
+	}
+
+	[Fact]
+	public void MainWindowViewModel_PreviewResolvesReferencesAcrossFiles() {
+		// SPEC (baseline pane): {>reference} works across files, simulating a host
+		// app loading several dictionaries
+		var vm = NewVm();
+		vm.LoadFile(new StringReader("value-en=English\n\n[a]\nvalue=hello\n"), "A");
+		vm.LoadFile(new StringReader("value-en=English\n\n[b]\nvalue={>a} world\n"), "B");
+		vm.ShowDefaultPreview = true;
+
+		vm.Tree.SelectedKeyNode = Node(vm, "B.b");
+
+		Assert.Equal("hello world", vm.RenderedDefault);
+	}
+
+	[Fact]
+	public void MainWindowViewModel_FollowLinkAsksBeforeTheShellAndReportsTheRest() {
+		var dialogs = new FakeDialogs { ConfirmAnswer = false };
+		var vm = new MainWindowViewModel(dialogs);
+
+		vm.FollowLink(new Uri("https://example.com/page"));
+		Assert.Contains("https://example.com/page", Assert.Single(dialogs.Confirmations));
+		Assert.Empty(dialogs.Notices);
+
+		vm.FollowLink(new Uri("appcmd:do-something"));
+		Assert.Contains("appcmd:do-something", Assert.Single(dialogs.Notices));
 	}
 
 	[Fact]

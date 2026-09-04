@@ -85,7 +85,7 @@ public class TreeViewModel : ViewModelBase {
 	}
 
 	/// <summary>The file the selected node belongs to, if any.</summary>
-	public WordsFile? SelectedFile => SelectedKeyNode is null ? null : FileOf(SelectedKeyNode);
+	public WordsFile? SelectedFile => SelectedKeyNode is null ? null : session.FileOf(SelectedKeyNode.Root.FullLabel);
 
 	private void OnSelectedKeyNodeChanged() {
 		SelectedOrganizer = SelectedKeyNode as OrganizerNode;

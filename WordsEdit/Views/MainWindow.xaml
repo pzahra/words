@@ -19,6 +19,7 @@
     <Window.Resources>
 		<md:EqualityToVisibilityConverter x:Key="Equals" />
 		<md:NullableToVisibilityConverter x:Key="IsNotNull" />
+		<md:BooleanToVisibilityConverter x:Key="IsFalse" TrueValue="Collapsed" FalseValue="Visible" />
         <uc:GenericValueConverter x:Key="IsFalseAndNotNull" Else="Collapsed">
             <uc:ConverterCondition When="{StaticResource False}" Then="Visible"/>
         </uc:GenericValueConverter>
@@ -267,10 +268,7 @@
                                   IsChecked="{Binding Tree.SelectedKeyNode.NeedsReview, Mode=OneWay}"
                                   ToolTip="Toggle needs review"
                                   Margin="2.5px"/>
-                    <ToggleButton Checked="DefaultPreview_Checked" 
-                                  Unchecked="DefaultPreview_Unchecked"
-                                  IsChecked="{Binding ShowDefaultPreview}"
-                                  x:Name="DefaultPreviewToggle"
+                    <ToggleButton IsChecked="{Binding ShowDefaultPreview}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=Eye, Size=35}"
                                   ToolTip="Display Preview"
@@ -287,18 +285,23 @@
                                  VerticalScrollBarVisibility="Auto"
                                  AcceptsReturn="True"
                                  TextWrapping="Wrap"
-                                 x:Name="DefaultValue"
                                  TextAlignment="Left"
                                  SpellCheck.IsEnabled="True"
+                                 Visibility="{Binding ShowDefaultPreview, Converter={StaticResource IsFalse}}"
                                  Margin="2.5px"/>
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" 
-                                      Visibility="{Binding ElementName=DefaultPreviewToggle, Path=IsChecked, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <TextBlock x:Name="DefaultValuePreview"
-                                       MouseLeftButtonDown="Preview_Clicked"
-                                       TextWrapping="Wrap"
-                                       TextAlignment="Left"
-                                       Visibility="Collapsed"
-                                       Margin="3.5 7 0 0"/>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      Visibility="{Binding ShowDefaultPreview, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <StackPanel Margin="3.5 7 0 0">
+                                <TextBlock uc:MarkdownPreview.Text="{Binding RenderedDefault}"
+                                           uc:MarkdownPreview.ImageFolders="{Binding PreviewImageFolders}"
+                                           TextWrapping="Wrap"
+                                           TextAlignment="Left"/>
+                                <TextBlock Text="{Binding DefaultPreviewError}"
+                                           Visibility="{Binding DefaultPreviewError, Converter={StaticResource IsNotNull}}"
+                                           Foreground="Red"
+                                           TextWrapping="Wrap"
+                                           Margin="0 7 0 0"/>
+                            </StackPanel>
                         </ScrollViewer>
                     </Grid>
                 </Border>
@@ -416,10 +419,7 @@
                                   Content="{md:PackIcon Kind=ClockAlert,Size=30}"
                                   ToolTip="Toggle Language is stale"
                                   Margin="2.5px"/>
-                    <ToggleButton Checked="LocalizationPreview_Checked" 
-                                  x:Name="LocalizationPreviewToggle"
-                                  Unchecked="LocalizationPreview_Unchecked"
-                                  IsChecked="{Binding ShowLocalizationPreview}"
+                    <ToggleButton IsChecked="{Binding ShowLocalizationPreview}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=Eye,Size=35}"
                                   ToolTip="Display Preview"
@@ -437,17 +437,22 @@
                                  VerticalScrollBarVisibility="Auto"
                                  AcceptsReturn="True"
                                  TextAlignment="Left"
-                                 x:Name="LocalizationValue"
                                  SpellCheck.IsEnabled="True"
+                                 Visibility="{Binding ShowLocalizationPreview, Converter={StaticResource IsFalse}}"
                                  Margin="2.5px"/>
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" 
-                                      Visibility="{Binding ElementName=LocalizationPreviewToggle, Path=IsChecked, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <TextBlock x:Name="LocalizationValuePreview"
-                                       MouseLeftButtonDown="Preview_Clicked"
-                                       TextWrapping="Wrap"
-                                       TextAlignment="Left"
-                                       Visibility="Collapsed"
-                                       Margin="3.5 7 0 0"/>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      Visibility="{Binding ShowLocalizationPreview, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <StackPanel Margin="3.5 7 0 0">
+                                <TextBlock uc:MarkdownPreview.Text="{Binding RenderedTranslation}"
+                                           uc:MarkdownPreview.ImageFolders="{Binding PreviewImageFolders}"
+                                           TextWrapping="Wrap"
+                                           TextAlignment="Left"/>
+                                <TextBlock Text="{Binding TranslationPreviewError}"
+                                           Visibility="{Binding TranslationPreviewError, Converter={StaticResource IsNotNull}}"
+                                           Foreground="Red"
+                                           TextWrapping="Wrap"
+                                           Margin="0 7 0 0"/>
+                            </StackPanel>
                         </ScrollViewer>
                     </Grid>
                 </Border>

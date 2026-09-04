@@ -259,5 +259,24 @@ namespace PatTech.Localization.Authoring {
 			}
 			return Words.FormatByName(provider, text, named, [.. positional]);
 		}
+
+		/// <summary>
+		///     The culture a language code formats in — for a translation preview in
+		///     the shape its readers will see. A code the platform does not know (a
+		///     made-up one, or a bare <c>!</c>-declared library code) formats invariant
+		///     rather than not at all; so does <see langword="null"/>, the default text's
+		///     culture.
+		/// </summary>
+		public static CultureInfo CultureFor(string? languageCode) {
+			if (languageCode is null) {
+				return CultureInfo.InvariantCulture;
+			}
+			try {
+				return CultureInfo.GetCultureInfo(languageCode, predefinedOnly: true);
+			}
+			catch (CultureNotFoundException) {
+				return CultureInfo.InvariantCulture;
+			}
+		}
 	}
 }

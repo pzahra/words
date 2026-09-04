@@ -236,4 +236,11 @@ public class WordsOperationsTests {
 		key.Parameters.Add(new WordsParameter("n", WordsParameterType.Select("Integer"), "not a number"));
 		Assert.Throws<FormatException>(() => WordsOperations.FormatSample(key, "{n}"));
 	}
+
+	[Fact]
+	public void WordsOperations_CultureForKnowsRealCodesAndFallsBackInvariant() {
+		Assert.Equal("de-DE", WordsOperations.CultureFor("de-DE").Name);
+		Assert.Equal(System.Globalization.CultureInfo.InvariantCulture, WordsOperations.CultureFor(null));
+		Assert.Equal(System.Globalization.CultureInfo.InvariantCulture, WordsOperations.CultureFor("xx-Nowhere"));
+	}
 }
