@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="ExampleFile.ini" />
+    <None Remove="Resources\ExampleFile.ini" />
     <None Remove="Resources\MergeTestFile.ini" />
     <None Remove="Resources\MergeTestFile2.ini" />
   </ItemGroup>

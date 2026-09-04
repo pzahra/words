@@ -482,4 +482,77 @@ value-de=y
 			Directory.Delete(folder, recursive: true);
 		}
 	}
+
+	[Fact]
+	public void SettingsDocument_DropsBlankRowsAndLetsTheLaterDuplicateWin() {
+		// rows as typed become rules: blank schemes are nothing, whitespace goes,
+		// and a scheme written twice — in any case — is the later row
+		var document = new SettingsDocument(Path.Combine(Path.GetTempPath(), $"WordsEditSettings-{Guid.NewGuid():N}", "wordsmith.ini"));
+		Assert.Empty(document.Images); //a file not there yet is empty, not an error
+		Assert.False(document.IsEdited);
+
+		document.Images.Add(new ImageRuleRow { Scheme = "  ", Folder = "nowhere" });
+		document.Images.Add(new ImageRuleRow { Scheme = "avares", Folder = "first" });
+		document.Images.Add(new ImageRuleRow { Scheme = " Avares ", Folder = " second " });
+		document.Links.Add(new LinkRuleRow { Scheme = "" });
+		document.Links.Add(new LinkRuleRow { Scheme = "help", Mode = "popup" });
+		document.Links.Add(new LinkRuleRow { Scheme = "HELP", Mode = "shellexec" });
+		Assert.True(document.IsEdited);
+
+		ProjectSettings settings = document.ToSettings();
+		ImageRule image = Assert.Single(settings.Images);
+		Assert.Equal("second", image.Folder);
+		Assert.True(settings.TryLocate(new Uri("AVARES://Assembly/img/x.png"), out string root, out string path));
+		Assert.EndsWith("second", root);
+		Assert.Equal("img/x.png", path);
+		LinkRule link = Assert.Single(settings.Links);
+		Assert.Equal(LinkMode.ShellExec, link.Mode);
+		Assert.Equal("help:x", settings.Link(new Uri("help:x"), out LinkMode mode));
+		Assert.Equal(LinkMode.ShellExec, mode);
+		Assert.Empty(settings.Errors);
+		Assert.Empty(document.Errors);
+	}
+
+	[Fact]
+	public void Settings_TablesGoToTheirOwnFileAndSaveThreadsEveryDictionarysSlots() {
+		string folder = Path.Combine(Path.GetTempPath(), $"WordsEditSettings-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		try {
+			var dialogs = new FakeDialogs();
+			var vm = new MainWindowViewModel(dialogs);
+			string a = Path.Combine(folder, "A.ini");
+			string b = Path.Combine(folder, "B.ini");
+			File.WriteAllText(a, "value-en=English\nparam=wordsmith.ini\n\n[a]\nvalue=A\n");
+			File.WriteAllText(b, "value-en=English\nvalue-de=Deutsch\nparam=wordsmith.ini\nparam-de=de/wordsmith.ini\n\n[b]\nvalue=B\n");
+			vm.LoadFile(a);
+			vm.LoadFile(b);
+			vm.Tree.SelectedKeyNode = vm.Tree.KeyNodes[0].Children[0]; //A.a
+			dialogs.OnShow = shown => {
+				var settings = (SettingsViewModel)shown;
+				Assert.Equal(Path.Combine(folder, "wordsmith.ini"), settings.Target!.Path);
+				settings.Document!.Images.Add(new ImageRuleRow { Scheme = "assets", Folder = "img" });
+				settings.OkayCommand.Execute(null);
+			};
+
+			vm.SettingsCommand.Execute(null);
+
+			//the table went to its own file; the dictionary is as it was
+			Assert.False(vm.IsDirty);
+			Assert.Contains("assets=img", File.ReadAllText(Path.Combine(folder, "wordsmith.ini")));
+
+			vm.Tree.SelectedKey!.DefaultValue = "A!";
+			Assert.True(vm.IsDirty);
+			vm.Save();
+			Assert.False(vm.IsDirty);
+			Assert.Empty(dialogs.Notices);
+			Assert.Contains("param=wordsmith.ini", File.ReadAllText(a));
+			string savedB = File.ReadAllText(b);
+			Assert.Contains("param=wordsmith.ini", savedB);
+			Assert.Contains("param-de=de/wordsmith.ini", savedB);
+			Assert.Contains("value=B", savedB);
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
 }

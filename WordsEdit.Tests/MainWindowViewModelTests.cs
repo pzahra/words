@@ -1062,6 +1062,112 @@ value=x
 	}
 
 	[Fact]
+	public void MainWindowViewModel_EveryMutationDirtiesAndSaveOrResetCleans() {
+		string folder = Path.Combine(Path.GetTempPath(), $"WordsEditDirty-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		try {
+			var dialogs = new FakeDialogs();
+			var vm = new MainWindowViewModel(dialogs);
+			string path = Path.Combine(folder, "Example.ini");
+			using (StreamReader reader = GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini")) {
+				File.WriteAllText(path, reader.ReadToEnd());
+			}
+			vm.LoadFile(path);
+			Assert.False(vm.IsDirty);
+
+			void Dirties(string what, Action edit) {
+				vm.IsDirty = false;
+				edit();
+				Assert.True(vm.IsDirty, $"{what} should dirty the session");
+			}
+
+			Dirties("add node", () => { vm.Tree.SelectedKeyNode = Node(vm, "Example.main"); vm.AddNode("fresh"); });
+			Dirties("add key", () => { vm.Tree.SelectedKeyNode = Node(vm, "Example.main.fresh"); vm.AddKeyCommand.Execute(null); });
+			Dirties("rename", () => vm.RenameNode("renamed"));
+			Dirties("needs review", () => vm.ToggleNeedsReviewCommand.Execute(null));
+			Dirties("stale", () => vm.ToggleStaleLanguageCommand.Execute("en"));
+			Dirties("stale all", () => vm.StaleAllLanguagesCommand.Execute(null));
+			Dirties("default edit", () => vm.Tree.SelectedKey!.DefaultValue = "words");
+			Dirties("translation edit", () => vm.Tree.SelectedEntry!.Value = "words too");
+			Dirties("constant", () => { vm.Tree.SelectedKeyNode = Node(vm, "Example.prefix-whitespace"); vm.ToggleConstantCommand.Execute(null); });
+			Dirties("organizer edit", () => { vm.Tree.SelectedKeyNode = Node(vm, "Example.main").Children.OfType<OrganizerNode>().First(); vm.Tree.SelectedOrganizer!.Text = " edited"; });
+			Dirties("remove key", () => { vm.Tree.SelectedKeyNode = Node(vm, "Example.enum.none"); vm.RemoveKeyCommand.Execute(null); });
+			Dirties("remove node", () => { vm.Tree.SelectedKeyNode = Node(vm, "Example.enum.two"); vm.RemoveNodeCommand.Execute(null); });
+			Dirties("parameters", () => {
+				vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
+				dialogs.OnShow = shown => ((TestParametersViewModel)shown).Parameters[0].Value = "1";
+				vm.TestParametersCommand.Execute(vm.Tree.SelectedKey);
+				dialogs.OnShow = null;
+			});
+
+			vm.Save();
+			Assert.False(vm.IsDirty);
+			Assert.Empty(dialogs.Notices);
+			Assert.Contains("renamed", File.ReadAllText(path));
+
+			vm.IsDirty = true;
+			vm.ResetCore();
+			Assert.False(vm.IsDirty);
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
+	public void MainWindowViewModel_ReviewFilterAloneAndComposed() {
+		var vm = LoadExample();
+		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.First(l => l.Code == "zh");
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.enum.none");
+		vm.ToggleNeedsReviewCommand.Execute(null); //the translator raises a hand
+
+		vm.Tree.NeedsReviewFilter = true;
+		Assert.True(Node(vm, "Example.enum.none").IsVisible);
+		Assert.True(Node(vm, "Example.enum").IsVisible); //the path
+		Assert.True(vm.Tree.KeyNodes[0].IsVisible);
+		Assert.False(Node(vm, "Example.enum.two").IsVisible);
+		Assert.False(Node(vm, "Example.view").IsVisible);
+		Assert.Equal(GetAllKeyNodes(vm.Tree.KeyNodes).Count() - 3, vm.Tree.HiddenCount);
+
+		//needs-review and search: both must hold
+		vm.Tree.SearchFilterText = "none";
+		Assert.True(Node(vm, "Example.enum.none").IsVisible);
+		vm.Tree.SearchFilterText = "tooltip";
+		Assert.False(Node(vm, "Example.enum.none").IsVisible);
+		Assert.False(vm.Tree.KeyNodes[0].IsVisible);
+		vm.Tree.SearchFilterText = "";
+
+		//stale and needs-review: the key stale in zh is not the one raised
+		vm.Tree.IsStaleFilter = true;
+		Assert.False(vm.Tree.KeyNodes[0].IsVisible);
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key"); //stale-zh
+		vm.ToggleNeedsReviewCommand.Execute(null);
+		vm.Tree.ApplyFilters(); //a badge change does not yank rows; the next pass reads it
+		Assert.True(Node(vm, "Example.view.section-name.key").IsVisible);
+		Assert.False(Node(vm, "Example.enum.none").IsVisible); //raised, not stale
+
+		vm.Tree.ClearFilters();
+		Assert.All(GetAllKeyNodes(vm.Tree.KeyNodes), node => Assert.True(node.IsVisible));
+		Assert.Equal(0, vm.Tree.HiddenCount);
+		Assert.False(vm.Tree.IsFiltering);
+	}
+
+	[Fact]
+	public void MainWindowViewModel_SearchReadsCommentText() {
+		var vm = LoadExample();
+		KeyNode main = Node(vm, "Example.main");
+		var banner = Assert.IsType<CommentNode>(main.Children[0]);
+
+		vm.Tree.SearchFilterText = "freeform"; //a word in the banner only
+
+		Assert.True(banner.IsVisible);
+		Assert.True(main.IsVisible);
+		Assert.False(Node(vm, "Example.main.title").IsVisible);
+		Assert.False(vm.Tree.KeyNodes[0].Children[0].IsVisible); //the preamble says nothing of the kind
+		Assert.False(Node(vm, "Example.enum").IsVisible);
+	}
+
+	[Fact]
 	public void MainWindowViewModel_MissingTranslationEmphasisFollowsTheFilesTable() {
 		// SPEC (Badges): a key reads as missing the selected language only when its
 		// file registers that language — !-hidden counts, a stray code does not,
