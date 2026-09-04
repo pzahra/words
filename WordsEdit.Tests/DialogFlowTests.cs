@@ -145,10 +145,11 @@ value-de=y
 			var vm = new MainWindowViewModel(dialogs);
 			vm.LoadFile(new StringReader("value-en=English\n\n[a]\nvalue=1\nvalue-en=one\n"), Path.Combine(folder, "Base.ini"));
 			vm.LoadFile(new StringReader("value-fr=Français\n\n[a]\nvalue-fr=un\n"), Path.Combine(folder, "French.ini"));
-			var merge = new MergeControlViewModel(vm) { BaseFile = vm.Tree.KeyNodes[0] };
-			merge.FilesToMerge.Add(vm.Tree.KeyNodes[0]);
-			merge.FilesToMerge.Add(vm.Tree.KeyNodes[1]);
-			merge.LanguageCodeFilePair["fr"] = vm.Tree.KeyNodes[1];
+			var merge = new MergeControlViewModel(vm);
+			merge.Files[0].IsSelected = true;
+			merge.Files[1].IsSelected = true;
+			merge.Files[1].Languages.First(l => l.Code == "fr").IsSelected = true;
+			Assert.Same(merge.Files[0], merge.BaseFile); //the first file ticked is the base until told otherwise
 			string outPath = Path.Combine(folder, "Merged.ini");
 			dialogs.FileToSave = outPath;
 			bool closed = false;
@@ -174,24 +175,58 @@ value-de=y
 		var vm = new MainWindowViewModel(dialogs);
 		vm.LoadFile(new StringReader("value-en=English\n\n[a]\nvalue=1\n"), "One");
 		vm.LoadFile(new StringReader("value-en=English\n\n[b]\nvalue=2\n"), "Two");
-		var merge = new MergeControlViewModel(vm) { BaseFile = vm.Tree.KeyNodes[0] };
-		merge.FilesToMerge.Add(vm.Tree.KeyNodes[0]);
-		merge.FilesToMerge.Add(vm.Tree.KeyNodes[1]);
-		//the key sets are compared against the files that supply a language, so
-		//"en" must come from the other file for the disagreement to matter
-		merge.LanguageCodeFilePair["en"] = vm.Tree.KeyNodes[1];
+		var merge = new MergeControlViewModel(vm);
 		string path = Path.Combine(Path.GetTempPath(), $"WordsEditMerge-{Guid.NewGuid():N}.ini");
 		dialogs.FileToSave = path;
 		try {
-			merge.MergeCommand.Execute(null);
+			merge.Files[0].IsSelected = true;
+			Assert.False(merge.HasConflict);
+			Assert.True(merge.CanMerge);
 
+			merge.Files[1].IsSelected = true;
 			Assert.True(merge.HasConflict);
+			Assert.Contains("\nb", merge.ConflictMessage);
+			Assert.False(merge.CanMerge);
+
+			merge.MergeCommand.Execute(null);
 			Assert.False(File.Exists(path));
 			Assert.Equal(2, vm.Tree.KeyNodes.Count);
 		}
 		finally {
 			File.Delete(path);
 		}
+	}
+
+	[Fact]
+	public void Merge_KeepsOneBaseAndOneFilePerLanguage() {
+		// the rules live in the view model, whatever the view's buttons do: a
+		// language chosen on one file leaves every other file, the base is always
+		// one of the selected files, and an unticked file takes its choices with it
+		var (vm, _) = Load();
+		vm.LoadFile(new StringReader(Ini), "Second");
+		var merge = new MergeControlViewModel(vm);
+		MergeFileRow first = merge.Files[0], second = merge.Files[1];
+		first.IsSelected = true;
+		second.IsSelected = true;
+
+		first.Languages.First(l => l.Code == "de").IsSelected = true;
+		second.Languages.First(l => l.Code == "de").IsSelected = true;
+		Assert.False(first.Languages.First(l => l.Code == "de").IsSelected);
+		Assert.Equal(["de"], merge.Sources.Keys);
+		Assert.Same(second.File, merge.Sources["de"]);
+
+		second.IsBase = true;
+		Assert.False(first.IsBase);
+		Assert.Same(second, merge.BaseFile);
+
+		second.IsSelected = false;
+		Assert.Same(first, merge.BaseFile);
+		Assert.Equal([first], merge.Selected);
+		Assert.Empty(merge.Sources); //the unticked file's languages went with it
+
+		first.IsSelected = false;
+		Assert.Null(merge.BaseFile);
+		Assert.False(merge.CanMerge);
 	}
 
 	[Fact]

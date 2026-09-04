@@ -6,56 +6,163 @@ using WordsEdit.Utils;
 
 namespace WordsEdit.ViewModels;
 
+/// <summary>One language a file can supply to the merge.</summary>
+public class MergeLanguageRow(MergeFileRow file, LanguageEntry language) : ViewModelBase {
+	public string Code => language.Code;
+	public string Name => language.EnglishName;
+
+	/// <summary>Chosen: the merged file takes this language from <see cref="file"/>, and from no other.</summary>
+	public bool IsSelected {
+		get;
+		set {
+			if (ChangeProperty(ref field, value) && value) {
+				file.Owner.LanguageChosen(file, this);
+			}
+		}
+	}
+}
+
+/// <summary>One loaded file as the merge dialog sees it.</summary>
+public class MergeFileRow : ViewModelBase {
+	internal MergeControlViewModel Owner { get; }
+	public KeyNode Node { get; }
+	public WordsFile File { get; }
+	public string Label => Node.FullLabel;
+	public IReadOnlyList<MergeLanguageRow> Languages { get; }
+
+	internal MergeFileRow(MergeControlViewModel owner, KeyNode node, WordsFile file, IEnumerable<LanguageEntry> languages) {
+		Owner = owner;
+		Node = node;
+		File = file;
+		Languages = [.. languages.Select(language => new MergeLanguageRow(this, language))];
+	}
+
+	/// <summary>Part of the merge.</summary>
+	public bool IsSelected {
+		get;
+		set {
+			if (ChangeProperty(ref field, value)) {
+				Owner.FileToggled(this);
+			}
+		}
+	}
+
+	/// <summary>The file whose defaults, preamble and tree shape the merged file takes; exactly one of the selected.</summary>
+	public bool IsBase {
+		get;
+		set {
+			if (ChangeProperty(ref field, value) && value) {
+				Owner.BaseChosen(this);
+			}
+		}
+	}
+}
+
+/// <summary>
+///     The translator round trip in bulk (SPEC: Merge): pick the files, a base
+///     among them, and which file supplies each language; the merged file is
+///     written and loaded. The rules — one base, one file per language, the
+///     files agreeing on their keys — are kept here, whatever the view does.
+/// </summary>
 public class MergeControlViewModel : DialogViewModel {
 	public override string Title => "Merge Files";
 	public MainWindowViewModel Parent { get; }
 
-	public IReadOnlyCollection<KeyNode> AvailableFiles { get; }
+	/// <summary>Every loaded file, in tree order.</summary>
+	public IReadOnlyList<MergeFileRow> Files { get; }
+	/// <summary>The files taking part, in the same order.</summary>
+	public ObservableCollection<MergeFileRow> Selected { get; } = [];
+	public MergeFileRow? BaseFile => Selected.FirstOrDefault(file => file.IsBase);
 
-	public ObservableCollection<KeyNode> FilesToMerge { get; } = [];
-
-	public KeyNode? BaseFile { get; set => ChangeProperty(ref field, value); }
-
-	public IReadOnlyCollection<LanguageEntry> Languages { get; }
-
-	public Dictionary<string, KeyNode> LanguageCodeFilePair { get; } = [];
-
-	public string ConflictMessage { get; set => _ = ChangeProperty(ref field, value) && AffectProperty(nameof(HasConflict)); }
-
+	public string ConflictMessage { get; private set => _ = ChangeProperty(ref field, value) && AffectProperty(nameof(HasConflict)); } = "";
 	public bool HasConflict => ConflictMessage.Length > 0;
-	public bool CanMerge => !HasConflict && FilesToMerge.Count > 0;
+	public bool CanMerge => !HasConflict && Selected.Count > 0;
 
 	public ICommand MergeCommand { get; }
-	public ICommand SetBaseFileCommand { get; }
 	public ICommand CancelCommand { get; }
 
 	public MergeControlViewModel(MainWindowViewModel parent) {
 		ArgumentNullException.ThrowIfNull(parent);
-
-		MergeCommand = new DelegateCommand(DoMerge);
-		SetBaseFileCommand = new DelegateCommand<KeyNode>(DoSetBaseFile);
-		CancelCommand = new DelegateCommand(DoCancel);
-
-		ConflictMessage = "";
 		Parent = parent;
-		AvailableFiles = parent.Tree.KeyNodes;
-		Languages = parent.Tree.KnownLanguages;
+		MergeCommand = new DelegateCommand(DoMerge);
+		CancelCommand = new DelegateCommand(Close);
+		Files = [.. parent.Tree.KeyNodes.Select(node => new MergeFileRow(this, node, parent.Tree.FileOf(node), parent.Tree.KnownLanguages))];
+	}
+
+	/// <summary>Language code → the file it comes from, as chosen.</summary>
+	public IReadOnlyDictionary<string, WordsFile> Sources
+		=> Selected.SelectMany(file => file.Languages.Where(language => language.IsSelected).Select(language => (language.Code, file.File)))
+			.ToDictionary(pair => pair.Code, pair => pair.File);
+
+	internal void FileToggled(MergeFileRow file) {
+		if (file.IsSelected) {
+			//keep Files order so the list reads the same on both sides
+			int index = Files.TakeWhile(other => other != file).Count(Selected.Contains);
+			Selected.Insert(index, file);
+			if (Selected.Count == 1) {
+				file.IsBase = true;
+			}
+		}
+		else {
+			Selected.Remove(file);
+			foreach (MergeLanguageRow language in file.Languages) {
+				language.IsSelected = false;
+			}
+			if (file.IsBase) {
+				file.IsBase = false;
+				Selected.FirstOrDefault()?.IsBase = true;
+			}
+		}
+		FilesChanged();
+	}
+
+	internal void BaseChosen(MergeFileRow file) {
+		foreach (MergeFileRow other in Files) {
+			if (other != file) {
+				other.IsBase = false;
+			}
+		}
+		AffectProperty(nameof(BaseFile));
+	}
+
+	internal void LanguageChosen(MergeFileRow file, MergeLanguageRow language) {
+		foreach (MergeFileRow other in Files) {
+			if (other != file) {
+				foreach (MergeLanguageRow candidate in other.Languages) {
+					if (candidate.Code == language.Code) {
+						candidate.IsSelected = false;
+					}
+				}
+			}
+		}
+	}
+
+	private void FilesChanged() {
+		if (!Parent.Session.HaveSameKeys(Selected.Select(file => file.File), out HashSet<string> conflicts)) {
+			var conflict = new StringBuilder("Files do not share Keys:");
+			conflicts.ForEach(c => conflict.Append("\n" + c));
+			ConflictMessage = conflict.ToString();
+		}
+		else {
+			ConflictMessage = "";
+		}
+		AffectProperty(nameof(CanMerge));
+		AffectProperty(nameof(BaseFile));
 	}
 
 	private void DoMerge() {
-		if (BaseFile is null) {
+		if (!CanMerge || BaseFile is not { } baseFile) {
 			return;
 		}
 		if (!Parent.Dialogs.TrySaveFile("Merge Location", "INI file (*.ini)|*.ini|All files (*.*)|*.*", out string? mergedFileName)) {
 			return;
 		}
-		var sources = LanguageCodeFilePair.ToDictionary(pair => pair.Key, pair => Parent.Tree.FileOf(pair.Value));
 		WordsFile? merged;
 		try {
 			//the merged file declares the base file's languages plus the ones merged
 			//in, and keeps the base file's preamble and image schemes — the round
 			//trip SPEC guarantees, not the session union
-			merged = Parent.Session.Merge(Parent.Tree.FileOf(BaseFile), sources, BaseFile, mergedFileName, out _);
+			merged = Parent.Session.Merge(baseFile.File, Sources, baseFile.Node, mergedFileName, out _);
 		}
 		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
 			Parent.Dialogs.Tell($"Could not write {mergedFileName}:\n{ex.Message}");
@@ -68,27 +175,5 @@ public class MergeControlViewModel : DialogViewModel {
 		}
 		Parent.Tree.Present(merged);
 		Close();
-	}
-
-	private void DoSetBaseFile(KeyNode file) {
-		BaseFile?.IsBaseFile = false;
-		BaseFile = file;
-		file.IsBaseFile = true;
-	}
-
-	private void DoCancel() {
-		Close();
-	}
-
-	public void FilesChanged() {
-		if (!Parent.Session.HaveSameKeys(FilesToMerge.Select(Parent.Tree.FileOf), out HashSet<string> conflicts)) {
-			var conflict = new StringBuilder("Files do not share Keys:");
-			conflicts.ForEach(c => conflict.Append("\n" + c));
-			ConflictMessage = conflict.ToString();
-		}
-		else {
-			ConflictMessage = "";
-		}
-		AffectProperty(nameof(CanMerge));
 	}
 }

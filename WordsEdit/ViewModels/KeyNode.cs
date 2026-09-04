@@ -71,7 +71,6 @@ public class KeyNode : ViewModelBase, IKeyTreeNode {
 	public bool IsVisible { get; set => ChangeProperty(ref field, value); } = true;
 	public bool IsSelected { get; set => ChangeProperty(ref field, value); }
 	public bool IsFile { get; set => ChangeProperty(ref field, value); }
-	public bool IsBaseFile { get; set => ChangeProperty(ref field, value); }
 	public bool IsLibraryFile { get; set => ChangeProperty(ref field, value); }
 	public bool EmptyValue { get; set => ChangeProperty(ref field, value); }
 
@@ -89,7 +88,6 @@ public class KeyNode : ViewModelBase, IKeyTreeNode {
 		CanBeConstant = original.CanBeConstant;
 		IsVisible = original.IsVisible;
 		IsFile = original.IsFile;
-		IsBaseFile = original.IsBaseFile;
 		IsLibraryFile = original.IsLibraryFile;
 		EmptyValue = original.EmptyValue;
 		foreach (KeyNode child in original.Children) {
