@@ -144,6 +144,17 @@ public class TreeViewModel : ViewModelBase {
 	/// <summary>Keys wanting words in the default, or in the selected language where their file registers it.</summary>
 	public bool MissingFilter { get; set => _ = ChangeProperty(ref field, value) && ApplyFilters(); }
 	public string SearchFilterText { get; set => _ = ChangeProperty(ref field, value) && ApplyFilters(); } = "";
+	/// <summary>True while any filter narrows the tree.</summary>
+	public bool IsFiltering => IsStaleFilter || NeedsReviewFilter || MissingFilter || SearchFilterText != "";
+	/// <summary>How many rows the filters hide.</summary>
+	public int HiddenCount { get; private set => ChangeProperty(ref field, value); }
+
+	public void ClearFilters() {
+		SearchFilterText = "";
+		IsStaleFilter = false;
+		NeedsReviewFilter = false;
+		MissingFilter = false;
+	}
 
 	public IEnumerable<KeyNode> AllNodes => KeyNodes.SelectMany(root => root.SelfAndDescendants());
 
@@ -156,7 +167,26 @@ public class TreeViewModel : ViewModelBase {
 				node.IsVisible = EnsureVisibleDescendant(node);
 			}
 		}
+		HiddenCount = AllNodes.Count(node => !node.IsVisible);
+		AffectProperty(nameof(IsFiltering));
+		//a selection the filter hid moves up to the nearest row still showing
+		if (SelectedKeyNode is { IsVisible: false } hidden) {
+			KeyNode? shown = hidden.Parent;
+			while (shown is { IsVisible: false }) {
+				shown = shown.Parent;
+			}
+			Select(shown);
+		}
 		return true;
+	}
+
+	/// <summary>Selects <paramref name="node"/> (or nothing), the way a click would.</summary>
+	public void Select(KeyNode? node) {
+		if (SelectedKeyNode is { } previous && previous != node) {
+			previous.IsSelected = false;
+		}
+		node?.IsSelected = true;
+		SelectedKeyNode = node;
 	}
 
 	private bool PassesVisibilityFilters(KeyNode node) {
@@ -172,11 +202,30 @@ public class TreeViewModel : ViewModelBase {
 			passesFilter &= node.EmptyValue;
 		}
 		if (!string.IsNullOrEmpty(SearchFilterText)) {
-			passesFilter &= node.FullLabel.Contains(SearchFilterText, StringComparison.OrdinalIgnoreCase)
-				|| (node is OrganizerNode organizer && organizer.Text.Contains(SearchFilterText, StringComparison.OrdinalIgnoreCase));
+			passesFilter &= Matches(node, SearchFilterText);
 		}
 
 		return passesFilter;
+	}
+
+	//what a translator searches for: a name, the words in the default and the
+	//selected language, and the notes around them; for a comment row, its text
+	private bool Matches(KeyNode node, string text) {
+		const StringComparison ignoreCase = StringComparison.OrdinalIgnoreCase;
+		if (node.FullLabel.Contains(text, ignoreCase)) {
+			return true;
+		}
+		if (node is OrganizerNode organizer) {
+			return organizer.Text.Contains(text, ignoreCase);
+		}
+		if (!session.Keys.TryGetValue(node.FullLabel, out var key)) {
+			return false;
+		}
+		WordsEntry? entry = key.Entries.GetValueOrDefault(SelectedLanguage.Code);
+		return key.DefaultValue.Contains(text, ignoreCase)
+			|| key.Context.Contains(text, ignoreCase)
+			|| key.Comment.Contains(text, ignoreCase)
+			|| (entry is not null && (entry.Value.Contains(text, ignoreCase) || entry.Context.Contains(text, ignoreCase) || entry.Comment.Contains(text, ignoreCase)));
 	}
 
 	private static bool EnsureVisibleDescendant(KeyNode node) {

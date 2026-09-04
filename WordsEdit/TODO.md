@@ -59,7 +59,7 @@ Verified bugs first. Each is a few lines; none blocks or is blocked.
       `newParentNode` stays null, the subtree is rooted with its file prefix
       stripped and is never saved. Restore and bail; a non-file node never
       sits at the root.
-- [x] `IsDirty` gaps: `DoToggleKeyNeedsReview` (the raise-hand) never dirties;
+- [x] `IsDirty` gaps: `DoToggleNeedsReview` (the raise-hand) never dirties;
       editing a parameter's key/value/type in the dialog never dirties (the
       `TODO` in `TestParametersViewModel` is real — observe item
       `PropertyChanged`).
@@ -94,7 +94,7 @@ Verified bugs first. Each is a few lines; none blocks or is blocked.
       `Checked` handlers), `MergeControl.xaml.cs` (×2),
       `MainWindowViewModel.OnSelectedKeyValueChanged`/`OnSelectedEntryChanged`
       ("Phantom Key Value Change" — thrown from a keystroke),
-      `DoRemoveLocalizationKey`/`DoAddLocalizationKey` (`InvalidDataException`
+      `DoRemoveKey`/`DoAddKey` (`InvalidDataException`
       for "nothing selected"), `LanguageManagerViewModel.DoRemoveLanguage`,
       the reachable ones in `DragDrop`. Its `MainWindow is null` guards stay:
       an unwired handler is a broken invariant, which is what exceptions are for.
@@ -122,7 +122,7 @@ Verified bugs first. Each is a few lines; none blocks or is blocked.
 - [x] Dialog VMs stop reaching for statics: `PopupDialog.Close()` becomes
       `DialogViewModel.CloseRequested`, which the shell subscribes to.
 - [x] Tests unlocked by this: `DoLoadFiles`, `DoReset` (confirm path),
-      `DoRemoveLocalizationKeyAndNode` (file-removal confirm), the merge and
+      `DoRemoveNode` (file-removal confirm), the merge and
       language flows end to end with `FakeDialogs`.
 
 ## Phase 2 — The document moves to `Localization.Authoring`; `Keys` goes
@@ -167,7 +167,7 @@ and no WPF.
 - [x] **`WordsOperations.TryRename(keys, oldKey, newKey, out collisions)`**,
       **`TryMove(keys, key, newParent, out collisions)`**,
       **`SetConstant(keys, blockKey, bool, clearEntries)`** — all or nothing.
-      These replaced `RenameLocalizationKeyAndNode`'s guts, `UpdateChildFullLabels`,
+      These replaced `RenameNode`'s guts, `UpdateChildFullLabels`,
       `MoveKey`, `SetConstantMarker` and the key assembly in `DragDrop.Drop`.
       Collisions are *reported*, never silently deleted (before: colliding key
       removed, its descendants orphaned in `allKeys`; `foo` + `$foo` threw
@@ -358,7 +358,7 @@ Naming (SPEC: "Short names"):
 - [ ] The `*Localization*` commands and methods (`RemoveLocalizationKeyAndNodeCommand`
       and six siblings, up to 41 chars) name a type that no longer exists.
       `RemoveNode`, `RenameNode`, `AddNode`, `AddKey`, `RemoveKey`,
-      `ToggleReview`, `ToggleConstant`; variables `selectedLocalizationKey` →
+      `ToggleReview`, `ToggleConstant`; variables `selectedKey` →
       `key`.
 - [ ] `KeyDragDropHandler.MainWindow` is a ViewModel (`LanguageDragDropHandler`
       calls its own `LanguageManager`). `Vm` in both.
@@ -393,12 +393,12 @@ Naming (SPEC: "Short names"):
       the survivor is untouched.
 - [ ] `ImageSchemesViewModel.DoOkay`: blank rows dropped, duplicate scheme
       last-wins, case-insensitive, dirties; `Save` threading schemes for two files.
-- [x] `MainWindowViewModel_AddLocalizationKeyTest` asserts a key is created
+- [x] `MainWindowViewModel_AddKeyTest` asserts a key is created
       **on a file node**, which SPEC (The tree) forbids. Fix the test, add the
       guard.
 - [x] Hygiene: `MergeTest`'s 24 assertions appear twice verbatim; the
       accumulate-a-bool pattern (`CanBeConstantTest`, `StaleAllLanguagesTest`,
-      `AddLocalizationKeyTest`) becomes `Assert.All`/`Assert.Contains` so a
+      `AddKeyTest`) becomes `Assert.All`/`Assert.Contains` so a
       failure names the node.
 - [ ] `WordsEdit.Tests.csproj` still removes an `ExampleFile.ini` that lives
       in `Resources/`.

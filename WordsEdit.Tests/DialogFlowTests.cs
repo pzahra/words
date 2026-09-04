@@ -48,11 +48,11 @@ value-de=y
 		vm.Tree.SelectedKeyNode = vm.Tree.KeyNodes[0];
 
 		dialogs.ConfirmAnswer = false;
-		vm.RemoveLocalizationKeyAndNodeCommand.Execute(null);
+		vm.RemoveNodeCommand.Execute(null);
 		Assert.Single(vm.Tree.KeyNodes);
 
 		dialogs.ConfirmAnswer = true;
-		vm.RemoveLocalizationKeyAndNodeCommand.Execute(null);
+		vm.RemoveNodeCommand.Execute(null);
 		Assert.Empty(vm.Tree.KeyNodes);
 		Assert.Equal(2, dialogs.Confirmations.Count);
 	}

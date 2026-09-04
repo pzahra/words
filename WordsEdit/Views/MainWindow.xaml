@@ -10,11 +10,23 @@
         xmlns:dd="urn:gong-wpf-dragdrop" 
         mc:Ignorable="d"
 		d:DataContext="{d:DesignInstance vm:MainWindowViewModel}"
-        Title="{Binding Title}"
+        Title="{Binding TitleMarked}"
         FontFamily="Montserrat"
 		Height="640" Width="960"
         MinHeight="450" MinWidth="800"
         Closing="MainWindow_Closing">
+
+    <Window.InputBindings>
+        <KeyBinding Modifiers="Control" Key="O" Command="{Binding LoadFileCommand}"/>
+        <KeyBinding Modifiers="Control" Key="S" Command="{Binding SaveCommand}"/>
+        <KeyBinding Modifiers="Control+Shift" Key="S" Command="{Binding StaleAllLanguagesCommand}"/>
+        <KeyBinding Key="F2" Command="{Binding RenameNodeCommand}"/>
+        <KeyBinding Key="Delete" Command="{Binding RemoveNodeCommand}"/>
+    </Window.InputBindings>
+    <Window.CommandBindings>
+        <!-- Find carries Ctrl+F of its own; focusing a box is the view's business -->
+        <CommandBinding Command="ApplicationCommands.Find" Executed="FocusSearch"/>
+    </Window.CommandBindings>
 
     <Window.Resources>
 		<md:EqualityToVisibilityConverter x:Key="Equals" />
@@ -59,11 +71,27 @@
                              Height="20"
                              Width="20"
                              VerticalAlignment="Center"/>
-                <TextBox Text="{Binding Tree.SearchFilterText, UpdateSourceTrigger=PropertyChanged}" 
+                <TextBox x:Name="SearchBox"
+                         Text="{Binding Tree.SearchFilterText, UpdateSourceTrigger=PropertyChanged}"
+                         md:HintAssist.Hint="Search names, words and notes (Ctrl+F)"
                          Grid.Column="1"
                          VerticalAlignment="Center"
                          Margin="2.5px"/>
                 <DockPanel Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Tree.HiddenCount, StringFormat='{}{0} hidden'}"
+                               Visibility="{Binding Tree.IsFiltering, Converter={StaticResource BooleanToVisibilityConverter}}"
+                               VerticalAlignment="Center"
+                               Opacity="0.7"
+                               Margin="2.5px"/>
+                    <Button Command="{Binding ClearFiltersCommand}"
+                            Visibility="{Binding Tree.IsFiltering, Converter={StaticResource BooleanToVisibilityConverter}}"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            ToolTip="Clear the filters"
+                            Padding="4 0"
+                            MinWidth="0"
+                            Margin="2.5px">
+                        <md:PackIcon Kind="FilterRemoveOutline" Width="22" Height="22"/>
+                    </Button>
                     <ToggleButton Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=ClockAlert,Size=25}"
                                   ToolTip="Stale View"
@@ -91,12 +119,28 @@
                         Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}">
                     <TreeView ItemsSource="{Binding Tree.KeyNodes}"
 					          SelectedItemChanged="TreeView_OnSelectedItemChanged"
+                              PreviewMouseRightButtonDown="TreeView_OnPreviewMouseRightButtonDown"
                               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                               AllowDrop="True"
                               dd:DragDrop.DragHandler="{Binding KeyDragDropHandler}"
                               dd:DragDrop.DropHandler="{Binding KeyDragDropHandler}"
                               dd:DragDrop.IsDragSource="True"
                               dd:DragDrop.IsDropTarget="True">
+                        <TreeView.ContextMenu>
+                            <!-- the structure edits, on the row that was right-clicked; each command says whether it applies -->
+                            <ContextMenu>
+                                <MenuItem Header="Add Node…" Command="{Binding AddNodeCommand}" Icon="{md:PackIcon Kind=PlusThick}"/>
+                                <MenuItem Header="Add Key Information" Command="{Binding AddKeyCommand}" Icon="{md:PackIcon Kind=KeyPlus}"/>
+                                <MenuItem Header="Add Comment" Command="{Binding AddOrganizerCommand}" Icon="{md:PackIcon Kind=CommentPlus}"/>
+                                <MenuItem Header="Rename…" InputGestureText="F2" Command="{Binding RenameNodeCommand}" Icon="{md:PackIcon Kind=RenameBox}"/>
+                                <MenuItem Header="Remove" InputGestureText="Del" Command="{Binding RemoveNodeCommand}" Icon="{md:PackIcon Kind=Delete}"/>
+                                <Separator/>
+                                <MenuItem Header="Toggle Needs Review" Command="{Binding ToggleNeedsReviewCommand}" Icon="{md:PackIcon Kind=HandFrontLeft}"/>
+                                <MenuItem Header="Toggle Constant" Command="{Binding ToggleConstantCommand}" Icon="{md:PackIcon Kind=TranslateOff}"/>
+                                <MenuItem Header="Stale All Languages" InputGestureText="Ctrl+Shift+S" Command="{Binding StaleAllLanguagesCommand}" Icon="{md:PackIcon Kind=ClockAlert}"/>
+                                <MenuItem Header="Remove Key Information" Command="{Binding RemoveKeyCommand}" Icon="{md:PackIcon Kind=KeyRemove}"/>
+                            </ContextMenu>
+                        </TreeView.ContextMenu>
                         <TreeView.ItemContainerStyle>
                             <Style TargetType="TreeViewItem" 
                                    BasedOn="{StaticResource MaterialDesignTreeViewItem}">
@@ -113,6 +157,9 @@
                                 <StackPanel Orientation="Horizontal">
                                     <md:PackIcon Kind="File"
                                                  Visibility="{Binding IsFile, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    <md:PackIcon Kind="Bookshelf"
+                                                 ToolTip="Library file: its languages are declared but unlisted (!Label), on purpose"
+                                                 Visibility="{Binding IsLibraryFile, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                     <Button Command="{Binding DataContext.ShowFileGripesCommand, RelativeSource={uc:FindAncestor TreeView}}"
                                             CommandParameter="{Binding}"
                                             Visibility="{Binding GripeCount, Converter={StaticResource NotZeroToVisibilityConverter}}"
@@ -172,7 +219,7 @@
 				<Button Padding="0 0 1 0" 
                         Margin="2 0 0 0" 
                         Height="16" 
-                        Command="{Binding RenameLocalizationKeyAndNodeCommand}" 
+                        Command="{Binding RenameNodeCommand}" 
                         Visibility="{Binding Tree.SelectedKeyNode.IsFile, Converter={StaticResource IsFalseAndNotNull},FallbackValue=Collapsed}"
                         ToolTip="Edit Name">
                     <md:PackIcon Kind="RenameBox"/>
@@ -275,14 +322,14 @@
                                      Height="20" 
                                      Width="20"/>
                     </Button>
-                    <ToggleButton Command="{Binding ToggleLocalizationKeyIsConstantCommand}"
+                    <ToggleButton Command="{Binding ToggleConstantCommand}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=TranslateOff, Size=25}"
                                   IsChecked="{Binding Tree.SelectedKeyNode.IsConstant, Mode=OneWay}"
                                   Visibility="{Binding Tree.SelectedKeyNode.CanBeConstant, Converter={StaticResource BooleanToVisibilityConverter}}"
                                   ToolTip=" Toggle Constant (Does not need translation)"
                                   Margin="2.5px"/>
-                    <ToggleButton Command="{Binding ToggleLocalizationKeyNeedsReviewCommand}"
+                    <ToggleButton Command="{Binding ToggleNeedsReviewCommand}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=HandFrontLeft, Size=25}"
                                   IsChecked="{Binding Tree.SelectedKeyNode.NeedsReview, Mode=OneWay}"
@@ -501,13 +548,13 @@
                         VerticalAlignment="Bottom"
                         Visibility="{Binding Tree.SelectedKeyNode, Converter={StaticResource IsNotNull}}"
                         Orientation="Horizontal">
-                <Button Command="{Binding AddLocalizationKeyNodeCommand}"
+                <Button Command="{Binding AddNodeCommand}"
                         Visibility="{Binding Tree.SelectedKeyNode.IsConstant, Converter={StaticResource IsFalseAndNotNull}, FallbackValue=Visible}"
                         ToolTip="Add Key"
                         Margin="2.5px">
                     <md:PackIcon Kind="PlusThick"/>
                 </Button>
-                <Button Command="{Binding RemoveLocalizationKeyAndNodeCommand}"
+                <Button Command="{Binding RemoveNodeCommand}"
                         Visibility="{Binding Tree.SelectedKeyNode, Converter={StaticResource IsNotNull}}"
                         ToolTip="Remove Key"
                         Margin="2.5px">
@@ -532,14 +579,14 @@
                         Margin="2.5px">
                     <md:PackIcon Kind="ClockAlert"/>
                 </Button>
-                <Button Command="{Binding RemoveLocalizationKeyCommand}"
+                <Button Command="{Binding RemoveKeyCommand}"
                         Visibility="{Binding Tree.SelectedKey, Converter={StaticResource IsNotNull}}"
                         ToolTip="Delete Key Information"
                         Margin="2.5px">
                     <md:PackIcon Kind="Delete"/>
                 </Button>
                 <StackPanel Visibility="{Binding Tree.SelectedKeyNode.IsFile, Converter={StaticResource IsFalseAndNotNull}, FallbackValue=Visible}">
-                    <Button Command="{Binding AddLocalizationKeyCommand}"
+                    <Button Command="{Binding AddKeyCommand}"
                             Visibility="{Binding Tree.SelectedKey, Converter={StaticResource Equals}, ConverterParameter={x:Null}}"
                             ToolTip="Add Key Information"
                             Margin="2.5px">

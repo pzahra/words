@@ -46,17 +46,18 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public ICommand SettingsCommand { get; }
 	public ICommand ShowGripesCommand { get; }
 	public ICommand ShowFileGripesCommand { get; }
+	public ICommand ClearFiltersCommand { get; }
 	public ICommand TestParametersCommand { get; }
-	public ICommand RemoveLocalizationKeyAndNodeCommand { get; }
-	public ICommand RenameLocalizationKeyAndNodeCommand { get; }
-	public ICommand AddLocalizationKeyNodeCommand { get; }
-	public ICommand AddLocalizationKeyCommand { get; }
+	public ICommand RemoveNodeCommand { get; }
+	public ICommand RenameNodeCommand { get; }
+	public ICommand AddNodeCommand { get; }
+	public ICommand AddKeyCommand { get; }
 	public ICommand AddOrganizerCommand { get; }
-	public ICommand RemoveLocalizationKeyCommand { get; }
+	public ICommand RemoveKeyCommand { get; }
 	public ICommand StaleAllLanguagesCommand { get; }
 	public ICommand ToggleStaleLanguageCommand { get; }
-	public ICommand ToggleLocalizationKeyNeedsReviewCommand { get; }
-	public ICommand ToggleLocalizationKeyIsConstantCommand { get; }
+	public ICommand ToggleNeedsReviewCommand { get; }
+	public ICommand ToggleConstantCommand { get; }
 
 	//how the editor asks and tells: modal windows in the app, a fake in tests
 	public IDialogs Dialogs { get; }
@@ -73,6 +74,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 				RenderPreviews();
 			}
 		};
+		Tree.KeyNodes.CollectionChanged += (_, _) => UpdateTitle();
 		LoadFileCommand = new DelegateCommand(DoLoadFiles);
 		ResetCommand = new DelegateCommand(DoReset);
 		SaveCommand = new DelegateCommand(DoSave);
@@ -90,21 +92,27 @@ public class MainWindowViewModel : ViewModelSaveBase {
 				}
 			},
 			static node => node is { IsFile: true, GripeCount: > 0 });
-		RemoveLocalizationKeyAndNodeCommand = new DelegateCommand(DoRemoveLocalizationKeyAndNode);
-		RenameLocalizationKeyAndNodeCommand = new DelegateCommand(DoRenameNode);
-		AddLocalizationKeyNodeCommand = new DelegateCommand(DoAddLocalizationKeyNode);
-		AddLocalizationKeyCommand = new DelegateCommand(DoAddLocalizationKey);
-		AddOrganizerCommand = new DelegateCommand(DoAddOrganizer);
-		RemoveLocalizationKeyCommand = new DelegateCommand(DoRemoveLocalizationKey);
-		StaleAllLanguagesCommand = new DelegateCommand(DoStaleAllLanguages);
+		ClearFiltersCommand = new DelegateCommand(Tree.ClearFilters);
+		//the structure edits say whether they apply, so a menu or a key can offer them all
+		RemoveNodeCommand = new DelegateCommand(DoRemoveNode, () => Tree.SelectedKeyNode is not null);
+		RenameNodeCommand = new DelegateCommand(DoRenameNode, () => Tree.SelectedKeyNode is { IsFile: false } and not OrganizerNode);
+		AddNodeCommand = new DelegateCommand(DoAddNode, () => Tree.SelectedKeyNode is { IsConstant: false } and not OrganizerNode);
+		AddKeyCommand = new DelegateCommand(DoAddKey, () => Tree.SelectedKeyNode is { IsFile: false } and not OrganizerNode && Tree.SelectedKey is null);
+		AddOrganizerCommand = new DelegateCommand(DoAddOrganizer, () => Tree.SelectedKeyNode is { IsFile: false } and not OrganizerNode);
+		RemoveKeyCommand = new DelegateCommand(DoRemoveKey, () => Tree.SelectedKey is not null);
+		StaleAllLanguagesCommand = new DelegateCommand(DoStaleAllLanguages, () => Tree.SelectedKey is { IsConstant: false });
 		ToggleStaleLanguageCommand = new DelegateCommand<string>(DoToggleStaleLanguage);
-		ToggleLocalizationKeyNeedsReviewCommand = new DelegateCommand(DoToggleKeyNeedsReview);
-		ToggleLocalizationKeyIsConstantCommand = new DelegateCommand(DoToggleLocalizationKeyIsConstant);
+		ToggleNeedsReviewCommand = new DelegateCommand(DoToggleNeedsReview, () => Tree.SelectedKey is not null);
+		ToggleConstantCommand = new DelegateCommand(DoToggleConstant, () => Tree.SelectedKey is not null && Tree.SelectedKeyNode is { CanBeConstant: true });
 		TestParametersCommand = new DelegateCommand<ObservableCollection<WordsParameter>>(DoTestParameters);
 
-		Title = "Wordsmith Editor";
+		UpdateTitle();
 		KeyDragDropHandler = new KeyDragDropHandler() { MainWindow = this };
 	}
+
+	//the window title names the loaded files; TitleMarked stars it while dirty
+	private void UpdateTitle()
+		=> Title = Tree.KeyNodes.Count == 0 ? "Wordsmith Editor" : $"Wordsmith Editor — {string.Join(", ", Tree.FileLabels)}";
 
 	//Load
 	private void DoLoadFiles() {
@@ -202,7 +210,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	//Structure edits
-	private void DoRemoveLocalizationKeyAndNode() {
+	private void DoRemoveNode() {
 		if (Tree.SelectedKeyNode is not { } node) {
 			return;
 		}
@@ -238,7 +246,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Dialogs.Show(new KeyNameViewModel(this, Tree.SelectedKeyNode));
 	}
 
-	public void RenameLocalizationKeyAndNode(string newName) {
+	public void RenameNode(string newName) {
 		if (Tree.SelectedKeyNode is null or OrganizerNode || Tree.SelectedKeyNode.Parent is not { } parent) {
 			return; //files keep the name of the file
 		}
@@ -259,14 +267,14 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		IsDirty = true;
 	}
 
-	private void DoAddLocalizationKeyNode() {
+	private void DoAddNode() {
 		if (Tree.SelectedKeyNode is null or OrganizerNode) {
 			return;
 		}
 		Dialogs.Show(new KeyNameViewModel(this, null));
 	}
 
-	public void AddLocalizationKeyNode(string newName) {
+	public void AddNode(string newName) {
 		if (Tree.SelectedKeyNode is null or OrganizerNode) {
 			return;
 		}
@@ -279,7 +287,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		IsDirty = true;
 	}
 
-	private void DoAddLocalizationKey() {
+	private void DoAddKey() {
 		//SPEC (The tree): a key can exist on any node except a file
 		if (Tree.SelectedKeyNode is null or OrganizerNode || Tree.SelectedKeyNode.IsFile) {
 			return;
@@ -299,7 +307,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 	}
 
-	private void DoRemoveLocalizationKey() {
+	private void DoRemoveKey() {
 		if (Tree.SelectedKeyNode is not { } node) {
 			return;
 		}
@@ -332,7 +340,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		IsDirty = true;
 	}
 
-	private void DoToggleKeyNeedsReview() {
+	private void DoToggleNeedsReview() {
 		if (Tree.SelectedKey is not { } key || Tree.SelectedKeyNode is not { } node) {
 			return;
 		}
@@ -341,7 +349,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		IsDirty = true;
 	}
 
-	private void DoToggleLocalizationKeyIsConstant() {
+	private void DoToggleConstant() {
 		if (Tree.SelectedKey is not { } key || Tree.SelectedKeyNode is not { } node) {
 			return;
 		}

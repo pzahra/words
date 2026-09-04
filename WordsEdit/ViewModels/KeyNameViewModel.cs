@@ -38,7 +38,7 @@ public class KeyNameViewModel : DataViewModelBase {
 	private void DoAddKey() {
 		if (!Validate("")) return;
 
-		Parent.AddLocalizationKeyNode(KeyName);
+		Parent.AddNode(KeyName);
 		Close();
 	}
 
@@ -50,7 +50,7 @@ public class KeyNameViewModel : DataViewModelBase {
 			return;
 		}
 
-		Parent.RenameLocalizationKeyAndNode(KeyName);
+		Parent.RenameNode(KeyName);
 		Close();
 	}
 
