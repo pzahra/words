@@ -1,6 +1,7 @@
 <UserControl x:Class="WordsEdit.Views.MergeControlView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="pattech.words"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:vm="clr-namespace:WordsEdit.ViewModels"
@@ -29,21 +30,21 @@
                 <RowDefinition Height="*"    />
             </Grid.RowDefinitions>
 
-            <TextBlock Text="Files To Merge" FontSize="16" FontWeight="Bold" Margin="10" />
+            <TextBlock Text="{l:Words merge.files}" FontSize="16" FontWeight="Bold" Margin="10" />
             <ScrollViewer VerticalScrollBarVisibility="Auto" Grid.Row="1" MinHeight="150" MaxHeight="350">
                 <ItemsControl ItemsSource="{Binding Selected}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Margin="10">
                                 <DockPanel>
-                                    <RadioButton Content="Base File"
+                                    <RadioButton Content="{l:Words merge.base}"
                                                  GroupName="BaseFileGroup"
                                                  IsChecked="{Binding IsBase}"
                                                  DockPanel.Dock="Right"
                                                  HorizontalAlignment="Right"/>
                                     <TextBlock Text="{Binding Label}" FontSize="14" FontWeight="Bold" />
                                 </DockPanel>
-                                <Expander Header="Languages" IsExpanded="False">
+                                <Expander Header="{l:Words merge.languages}" IsExpanded="False">
                                     <ItemsControl ItemsSource="{Binding Languages}" Margin="30 0 0 0">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
@@ -67,7 +68,7 @@
                 <RowDefinition Height="Auto"    />
             </Grid.RowDefinitions>
 
-            <TextBlock Text="Available Files" FontSize="16" FontWeight="Bold" Margin="10"  Grid.Row="0"/>
+            <TextBlock Text="{l:Words merge.available}" FontSize="16" FontWeight="Bold" Margin="10"  Grid.Row="0"/>
 
             <Grid Grid.Row="1">
                 <Grid.RowDefinitions>
@@ -92,19 +93,19 @@
             </Grid>
             <!-- Bottom: Buttons -->
             <StackPanel Orientation="Horizontal" Grid.Row="2" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,20,0,0">
-                <Button Content="Merge" Command="{Binding MergeCommand}" IsEnabled="{Binding CanMerge}" Width="100" Height="40" Margin="5"/>
-                <Button Content="Cancel" Command="{Binding CancelCommand}" Width="100" Height="40" Margin="5" />
+                <Button Content="{l:Words merge.merge}" Command="{Binding MergeCommand}" IsEnabled="{Binding CanMerge}" Width="100" Height="40" Margin="5"/>
+                <Button Content="{l:Words dialog.cancel}" Command="{Binding CancelCommand}" Width="100" Height="40" Margin="5" />
             </StackPanel>
         </Grid>
 
         <!-- Split: the other direction — one language of one file, written on its own for a translator -->
-        <GroupBox Header="Split one language out" Grid.Row="1" Grid.ColumnSpan="2" Margin="10 10 10 0" Padding="5">
+        <GroupBox Header="{l:Words merge.split}" Grid.Row="1" Grid.ColumnSpan="2" Margin="10 10 10 0" Padding="5">
             <DockPanel>
-                <Button DockPanel.Dock="Right" Content="Split…" Command="{Binding SplitCommand}" Width="100" Height="40" Margin="5"
-                        ToolTip="Write the language's entries, with the defaults for reference, to a file of their own and load it"/>
-                <TextBlock Text="File" VerticalAlignment="Center" Margin="5 0"/>
+                <Button DockPanel.Dock="Right" Content="{l:Words merge.split-button}" Command="{Binding SplitCommand}" Width="100" Height="40" Margin="5"
+                        ToolTip="{l:Words merge.split-tip}"/>
+                <TextBlock Text="{l:Words merge.file}" VerticalAlignment="Center" Margin="5 0"/>
                 <ComboBox ItemsSource="{Binding Files}" SelectedItem="{Binding SplitFile}" DisplayMemberPath="Label" MinWidth="160" Margin="5"/>
-                <TextBlock Text="Language" VerticalAlignment="Center" Margin="10 0 5 0"/>
+                <TextBlock Text="{l:Words merge.language}" VerticalAlignment="Center" Margin="10 0 5 0"/>
                 <ComboBox ItemsSource="{Binding SplitLanguages}" SelectedItem="{Binding SplitLanguage}" DisplayMemberPath="EnglishName" MinWidth="160" Margin="5"/>
             </DockPanel>
         </GroupBox>

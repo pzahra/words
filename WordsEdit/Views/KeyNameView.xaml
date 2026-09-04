@@ -1,6 +1,7 @@
 ﻿<UserControl x:Class="WordsEdit.Views.KeyNameView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="pattech.words"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:uc="clr-namespace:WordsEdit.Utils"
@@ -16,22 +17,22 @@
     </UserControl.Resources>
     <Grid>
         <StackPanel Grid.IsSharedSizeScope="True">
-            <HeaderedContentControl Header="Key Name"
+            <HeaderedContentControl Header="{l:Words key-name.name}"
                                     Margin="2.5px"
                                     FontWeight="SemiBold">
                 <TextBox Text="{Binding KeyName, UpdateSourceTrigger=PropertyChanged}"
                          TextWrapping="Wrap"
                          Width="100"/>
             </HeaderedContentControl>
-            <Button Content="Add Key"
+            <Button Content="{l:Words key-name.add}"
                     Command="{Binding AddKeyCommand}"
                     Visibility="{Binding IsAddKey, Converter={StaticResource IsTrue}}"
                     Margin="2.5px"/>
-            <Button Content="Rename Key"
+            <Button Content="{l:Words key-name.rename}"
                     Command="{Binding RenameKeyCommand}"
                     Visibility="{Binding IsRenameKey, Converter={StaticResource IsTrue}}"
                     Margin="2.5px"/>
-            <Button Content="Cancel"
+            <Button Content="{l:Words dialog.cancel}"
                     Command="{Binding CancelCommand}"
                     Margin="2.5px"/>
         </StackPanel>

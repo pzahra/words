@@ -1,6 +1,7 @@
 ﻿<UserControl x:Class="WordsEdit.Views.EditLanguageView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="pattech.words"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:vm="clr-namespace:WordsEdit.ViewModels" 
@@ -15,7 +16,7 @@
 	</UserControl.Resources>
     <Grid>
         <StackPanel Grid.IsSharedSizeScope="True">
-            <HeaderedContentControl Header="Language Code"
+            <HeaderedContentControl Header="{l:Words language.code}"
                                     Margin="2.5px"
                                     FontWeight="SemiBold">
                 <TextBox Text="{Binding LanguageCode, UpdateSourceTrigger=PropertyChanged}"
@@ -23,7 +24,7 @@
                          FontWeight="Normal"
                          Width="100"/>
             </HeaderedContentControl>
-            <HeaderedContentControl Header="Native Language Name"
+            <HeaderedContentControl Header="{l:Words language.native-name}"
                                     FontWeight="SemiBold"
                                     Margin="2.5px">
                 <TextBox Text="{Binding NativeName, UpdateSourceTrigger=PropertyChanged}"
@@ -31,7 +32,7 @@
                          FontWeight="Normal"
                          Width="100"/>
             </HeaderedContentControl>
-            <HeaderedContentControl Header="English Language Name"
+            <HeaderedContentControl Header="{l:Words language.english-name}"
                                     FontWeight="SemiBold"
                                     Margin="2.5px">
                 <TextBox Text="{Binding EnglishName, UpdateSourceTrigger=PropertyChanged}"
@@ -39,15 +40,15 @@
                          FontWeight="Normal"
                          Width="100"/>
             </HeaderedContentControl>
-            <Button Content="Add Language"
+            <Button Content="{l:Words language.add}"
                     Command="{Binding AddLanguageCommand}"
                     Visibility="{Binding IsEdit, Converter={StaticResource IsFalse}}"
                     Margin="2.5px"/>
-            <Button Content="Edit Language"
+            <Button Content="{l:Words language.edit}"
                     Command="{Binding EditLanguageCommand}"
                     Visibility="{Binding IsEdit, Converter={StaticResource IsTrue}}"
                     Margin="2.5px"/>
-            <Button Content="Cancel"
+            <Button Content="{l:Words dialog.cancel}"
                     Command="{Binding CancelCommand}"
                     Margin="2.5px"/>
         </StackPanel>

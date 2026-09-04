@@ -1,6 +1,7 @@
 ﻿<Window x:Class="WordsEdit.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="pattech.words"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 		xmlns:vm="clr-namespace:WordsEdit.ViewModels" 
@@ -72,12 +73,12 @@
                              VerticalAlignment="Center"/>
                 <TextBox x:Name="SearchBox"
                          Text="{Binding Tree.SearchFilterText, UpdateSourceTrigger=PropertyChanged}"
-                         md:HintAssist.Hint="Search names, words and notes (Ctrl+F)"
+                         md:HintAssist.Hint="{l:Words main.search-hint}"
                          Grid.Column="1"
                          VerticalAlignment="Center"
                          Margin="2.5px"/>
                 <DockPanel Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Tree.HiddenCount, StringFormat='{}{0} hidden'}"
+                    <TextBlock Text="{Binding Tree.HiddenText}"
                                Visibility="{Binding Tree.IsFiltering, Converter={StaticResource BooleanToVisibilityConverter}}"
                                VerticalAlignment="Center"
                                Opacity="0.7"
@@ -85,7 +86,7 @@
                     <Button Command="{Binding ClearFiltersCommand}"
                             Visibility="{Binding Tree.IsFiltering, Converter={StaticResource BooleanToVisibilityConverter}}"
                             Style="{StaticResource MaterialDesignFlatButton}"
-                            ToolTip="Clear the filters"
+                            ToolTip="{l:Words main.clear-filters}"
                             Padding="4 0"
                             MinWidth="0"
                             Margin="2.5px">
@@ -93,17 +94,17 @@
                     </Button>
                     <ToggleButton Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=ClockAlert,Size=25}"
-                                  ToolTip="Stale View"
+                                  ToolTip="{l:Words main.stale-view}"
                                   IsChecked="{Binding Tree.IsStaleFilter}" 
                                   Margin="2.5px"/>
                     <ToggleButton Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=HandFrontLeft,Size=25}"
-                                  ToolTip="Review View"
+                                  ToolTip="{l:Words main.review-view}"
                                   IsChecked="{Binding Tree.NeedsReviewFilter}"
                                   Margin="2.5px"/>
                     <ToggleButton Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=TextBoxRemoveOutline,Size=25}"
-                                  ToolTip="Missing View (no default, or no words in the selected language)"
+                                  ToolTip="{l:Words main.missing-view}"
                                   IsChecked="{Binding Tree.MissingFilter}"
                                   Margin="2.5px"/>
                 </DockPanel>
@@ -128,16 +129,16 @@
                         <TreeView.ContextMenu>
                             <!-- the structure edits, on the row that was right-clicked; each command says whether it applies -->
                             <ContextMenu>
-                                <MenuItem Header="Add Node…" Command="{Binding AddNodeCommand}" Icon="{md:PackIcon Kind=PlusThick}"/>
-                                <MenuItem Header="Add Key Information" Command="{Binding AddKeyCommand}" Icon="{md:PackIcon Kind=KeyPlus}"/>
-                                <MenuItem Header="Add Comment" Command="{Binding AddOrganizerCommand}" Icon="{md:PackIcon Kind=CommentPlus}"/>
-                                <MenuItem Header="Rename…" InputGestureText="F2" Command="{Binding RenameNodeCommand}" Icon="{md:PackIcon Kind=RenameBox}"/>
-                                <MenuItem Header="Remove" InputGestureText="Del" Command="{Binding RemoveNodeCommand}" Icon="{md:PackIcon Kind=Delete}"/>
+                                <MenuItem Header="{l:Words menu.add-node}" Command="{Binding AddNodeCommand}" Icon="{md:PackIcon Kind=PlusThick}"/>
+                                <MenuItem Header="{l:Words menu.add-key}" Command="{Binding AddKeyCommand}" Icon="{md:PackIcon Kind=KeyPlus}"/>
+                                <MenuItem Header="{l:Words menu.add-comment}" Command="{Binding AddOrganizerCommand}" Icon="{md:PackIcon Kind=CommentPlus}"/>
+                                <MenuItem Header="{l:Words menu.rename}" InputGestureText="F2" Command="{Binding RenameNodeCommand}" Icon="{md:PackIcon Kind=RenameBox}"/>
+                                <MenuItem Header="{l:Words menu.remove}" InputGestureText="Del" Command="{Binding RemoveNodeCommand}" Icon="{md:PackIcon Kind=Delete}"/>
                                 <Separator/>
-                                <MenuItem Header="Toggle Needs Review" Command="{Binding ToggleNeedsReviewCommand}" Icon="{md:PackIcon Kind=HandFrontLeft}"/>
-                                <MenuItem Header="Toggle Constant" Command="{Binding ToggleConstantCommand}" Icon="{md:PackIcon Kind=TranslateOff}"/>
-                                <MenuItem Header="Stale All Languages" InputGestureText="Ctrl+Shift+S" Command="{Binding StaleAllLanguagesCommand}" Icon="{md:PackIcon Kind=ClockAlert}"/>
-                                <MenuItem Header="Remove Key Information" Command="{Binding RemoveKeyCommand}" Icon="{md:PackIcon Kind=KeyRemove}"/>
+                                <MenuItem Header="{l:Words menu.toggle-review}" Command="{Binding ToggleNeedsReviewCommand}" Icon="{md:PackIcon Kind=HandFrontLeft}"/>
+                                <MenuItem Header="{l:Words menu.toggle-constant}" Command="{Binding ToggleConstantCommand}" Icon="{md:PackIcon Kind=TranslateOff}"/>
+                                <MenuItem Header="{l:Words menu.stale-all}" InputGestureText="Ctrl+Shift+S" Command="{Binding StaleAllLanguagesCommand}" Icon="{md:PackIcon Kind=ClockAlert}"/>
+                                <MenuItem Header="{l:Words menu.remove-key}" Command="{Binding RemoveKeyCommand}" Icon="{md:PackIcon Kind=KeyRemove}"/>
                             </ContextMenu>
                         </TreeView.ContextMenu>
                         <TreeView.ItemContainerStyle>
@@ -157,7 +158,7 @@
                                     <md:PackIcon Kind="File"
                                                  Visibility="{Binding IsFile, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                     <md:PackIcon Kind="Bookshelf"
-                                                 ToolTip="Library file: its languages are declared but unlisted (!Label), on purpose"
+                                                 ToolTip="{l:Words main.library-file}"
                                                  Visibility="{Binding IsLibraryFile, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                     <Button Command="{Binding DataContext.ShowFileGripesCommand, RelativeSource={uc:FindAncestor TreeView}}"
                                             CommandParameter="{Binding}"
@@ -168,7 +169,7 @@
                                             Height="20"
                                             MinWidth="0"
                                             VerticalAlignment="Center"
-                                            ToolTip="What loading this file complained about">
+                                            ToolTip="{l:Words main.file-gripes}">
                                         <StackPanel Orientation="Horizontal">
                                             <md:PackIcon Kind="AlertCircleOutline" Width="14" Height="14" VerticalAlignment="Center"/>
                                             <TextBlock Text="{Binding GripeCount}" FontSize="11" VerticalAlignment="Center" Margin="2 0 0 0"/>
@@ -220,7 +221,7 @@
                         Height="16" 
                         Command="{Binding RenameNodeCommand}" 
                         Visibility="{Binding Tree.SelectedKeyNode.IsFile, Converter={StaticResource IsFalseAndNotNull},FallbackValue=Collapsed}"
-                        ToolTip="Edit Name">
+                        ToolTip="{l:Words main.edit-name}">
                     <md:PackIcon Kind="RenameBox"/>
                 </Button>
             </StackPanel>
@@ -232,7 +233,7 @@
                 <StackPanel Visibility="{Binding Tree.SelectedKey, Converter={StaticResource IsNotNull}}">
                     <TextBlock TextWrapping="Wrap"
                                Margin="2.5px"
-                               Text="Context"
+                               Text="{l:Words main.context}"
                                FontWeight="SemiBold"
                                FontSize="14"/>
                     <Border CornerRadius="3" 
@@ -249,7 +250,7 @@
                     <TextBlock TextWrapping="Wrap"
                                HorizontalAlignment="Right"
                                Margin="2.5px"
-                               Text="Translator Comment"
+                               Text="{l:Words main.translator-comment}"
                                FontWeight="SemiBold"
                                FontSize="14"/>
                     <Border CornerRadius="3" 
@@ -267,7 +268,7 @@
                 <StackPanel Visibility="{Binding Tree.SelectedOrganizer, Converter={StaticResource IsNotNull}}">
                     <TextBlock TextWrapping="Wrap"
                                Margin="2.5px"
-                               Text="Freeform Comment"
+                               Text="{l:Words main.freeform-comment}"
                                FontWeight="SemiBold"
                                FontSize="14"/>
                     <Border CornerRadius="3"
@@ -301,8 +302,8 @@
 
 				<md:ColorZone Mode="PrimaryLight" Grid.Row="0" Grid.ColumnSpan="2" VerticalAlignment="Stretch" />
 
-				<TextBlock Text="Default"
-                           ToolTip="The unlocalised fields: what a host app reads when the language has no words"
+				<TextBlock Text="{l:Words main.default}"
+                           ToolTip="{l:Words main.default-tip}"
                            Grid.Row="0"
                            Grid.Column="0"
                            VerticalAlignment="Center"
@@ -316,7 +317,7 @@
                     <Button Command="{Binding TestParametersCommand}"
                             CommandParameter="{Binding Tree.SelectedKey}"
                             Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
-                            ToolTip="Test Parameters"
+                            ToolTip="{l:Words main.test-parameters}"
                             Margin="2.5px">
                         <md:PackIcon Kind="CodeBraces" 
                                      Height="20" 
@@ -327,19 +328,19 @@
                                   Content="{md:PackIcon Kind=TranslateOff, Size=25}"
                                   IsChecked="{Binding Tree.SelectedKeyNode.IsConstant, Mode=OneWay}"
                                   Visibility="{Binding Tree.SelectedKeyNode.CanBeConstant, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                  ToolTip=" Toggle Constant (Does not need translation)"
+                                  ToolTip="{l:Words main.toggle-constant}"
                                   Margin="2.5px"/>
                     <ToggleButton Command="{Binding ToggleNeedsReviewCommand}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=HandFrontLeft, Size=25}"
                                   IsChecked="{Binding Tree.SelectedKeyNode.NeedsReview, Mode=OneWay}"
-                                  ToolTip="Toggle needs review"
+                                  ToolTip="{l:Words main.toggle-review}"
                                   Margin="2.5px"/>
                     <Button Command="{Binding ShowGripesCommand}"
                             CommandParameter="{Binding DefaultPreview}"
                             Style="{StaticResource MaterialDesignFlatButton}"
                             Visibility="{Binding DefaultPreview.GripeCount, Converter={StaticResource NotZeroToVisibilityConverter}}"
-                            ToolTip="What the preview complained about"
+                            ToolTip="{l:Words main.preview-gripes}"
                             Foreground="DarkOrange"
                             Padding="4 0"
                             Margin="2.5px">
@@ -351,7 +352,7 @@
                     <ToggleButton IsChecked="{Binding ShowDefaultPreview}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=Eye, Size=35}"
-                                  ToolTip="Display Preview"
+                                  ToolTip="{l:Words main.display-preview}"
                                   Margin="2.5px"/>
                 </StackPanel>
                 <Border CornerRadius="3" 
@@ -408,7 +409,7 @@
                           Visibility="{Binding Tree.SelectedEntry, Converter={StaticResource IsNotNull}}"
                           Margin="3 0">
                 <StackPanel>
-                    <TextBlock Text="Translation Context"
+                    <TextBlock Text="{l:Words main.translation-context}"
                                Margin="2.5px"
                                FontWeight="SemiBold"
                                FontSize="14"/>
@@ -423,7 +424,7 @@
                                  SpellCheck.IsEnabled="True"
                                  Margin="2.5px"/>
                     </Border>
-                    <TextBlock Text="Translation Comment"
+                    <TextBlock Text="{l:Words main.translation-comment}"
                                HorizontalAlignment="Right"
                                Margin="2.5px"
                                FontWeight="SemiBold"
@@ -467,10 +468,10 @@
 							<ColumnDefinition Width="*"/>
 						</Grid.ColumnDefinitions>
 
-						<Label Content="Stale: "/>
-						<TextBlock Grid.Column="1" Text="{Binding Tree.SelectedEntry.Stale, Mode=OneWay}" VerticalAlignment="Center" ToolTip="When the default changed after this translation (the toggle beside sets and clears it)"/>
+						<Label Content="{l:Words main.stale}"/>
+						<TextBlock Grid.Column="1" Text="{Binding Tree.SelectedEntry.Stale, Mode=OneWay}" VerticalAlignment="Center" ToolTip="{l:Words main.stale-tip}"/>
                     </Grid>
-                    <TextBlock Text="Translation"
+                    <TextBlock Text="{l:Words main.translation}"
                                Margin="2.5px"
                                FontWeight="SemiBold"
                                FontSize="14"/>
@@ -481,7 +482,7 @@
                     <Button Command="{Binding TestParametersCommand}"
                             CommandParameter="{Binding Tree.SelectedKey}"
                             Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
-                            ToolTip="Test Parameters"
+                            ToolTip="{l:Words main.test-parameters}"
                             Margin="2.5px">
                         <md:PackIcon Kind="CodeBraces"
                                      Height="20" 
@@ -492,13 +493,13 @@
                                   IsChecked="{Binding Tree.SelectedKeyNode.IsStale, Mode=OneWay}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=ClockAlert,Size=30}"
-                                  ToolTip="Toggle Language is stale"
+                                  ToolTip="{l:Words main.toggle-stale}"
                                   Margin="2.5px"/>
                     <Button Command="{Binding ShowGripesCommand}"
                             CommandParameter="{Binding TranslationPreview}"
                             Style="{StaticResource MaterialDesignFlatButton}"
                             Visibility="{Binding TranslationPreview.GripeCount, Converter={StaticResource NotZeroToVisibilityConverter}}"
-                            ToolTip="What the preview complained about"
+                            ToolTip="{l:Words main.preview-gripes}"
                             Foreground="DarkOrange"
                             Padding="4 0"
                             Margin="2.5px">
@@ -510,7 +511,7 @@
                     <ToggleButton IsChecked="{Binding ShowLocalizationPreview}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=Eye,Size=35}"
-                                  ToolTip="Display Preview"
+                                  ToolTip="{l:Words main.display-preview}"
                                   Margin="2.5px"/>
                 </StackPanel>
                 <Border CornerRadius="3" 
@@ -550,19 +551,19 @@
                         Orientation="Horizontal">
                 <Button Command="{Binding AddNodeCommand}"
                         Visibility="{Binding Tree.SelectedKeyNode.IsConstant, Converter={StaticResource IsFalseAndNotNull}, FallbackValue=Visible}"
-                        ToolTip="Add Key"
+                        ToolTip="{l:Words tool.add-node}"
                         Margin="2.5px">
                     <md:PackIcon Kind="PlusThick"/>
                 </Button>
                 <Button Command="{Binding RemoveNodeCommand}"
                         Visibility="{Binding Tree.SelectedKeyNode, Converter={StaticResource IsNotNull}}"
-                        ToolTip="Remove Key"
+                        ToolTip="{l:Words tool.remove-node}"
                         Margin="2.5px">
                     <md:PackIcon Kind="Delete"/>
                 </Button>
                 <Button Command="{Binding AddOrganizerCommand}"
                         Visibility="{Binding Tree.SelectedKeyNode.IsFile, Converter={StaticResource IsFalseAndNotNull}, FallbackValue=Collapsed}"
-                        ToolTip="Add Comment"
+                        ToolTip="{l:Words tool.add-comment}"
                         Margin="2.5px">
                     <md:PackIcon Kind="CommentPlus"/>
                 </Button>
@@ -575,20 +576,20 @@
                         Visibility="{Binding Tree.SelectedKeyNode, Converter={StaticResource IsNotNull}}">
                 <Button Command="{Binding StaleAllLanguagesCommand}" 
                         Visibility="{Binding Tree.SelectedEntry, Converter={StaticResource IsNotNull}}"
-                        ToolTip="Set all localizations as stale"
+                        ToolTip="{l:Words tool.stale-all}"
                         Margin="2.5px">
                     <md:PackIcon Kind="ClockAlert"/>
                 </Button>
                 <Button Command="{Binding RemoveKeyCommand}"
                         Visibility="{Binding Tree.SelectedKey, Converter={StaticResource IsNotNull}}"
-                        ToolTip="Delete Key Information"
+                        ToolTip="{l:Words tool.remove-key}"
                         Margin="2.5px">
                     <md:PackIcon Kind="Delete"/>
                 </Button>
                 <StackPanel Visibility="{Binding Tree.SelectedKeyNode.IsFile, Converter={StaticResource IsFalseAndNotNull}, FallbackValue=Visible}">
                     <Button Command="{Binding AddKeyCommand}"
                             Visibility="{Binding Tree.SelectedKey, Converter={StaticResource Equals}, ConverterParameter={x:Null}}"
-                            ToolTip="Add Key Information"
+                            ToolTip="{l:Words tool.add-key}"
                             Margin="2.5px">
                         <md:PackIcon Kind="PlusThick"/>
                     </Button>
@@ -602,35 +603,35 @@
                 <Button Command="{Binding ManageLanguagesCommand}"
                         Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
                         Margin="2.5px"
-                        ToolTip="Manage Languages">
+                        ToolTip="{l:Words tool.languages}">
                     <md:PackIcon Kind="Translate"/>
                 </Button>
                 <Button Command="{Binding SettingsCommand}"
                         Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
                         Margin="2.5px"
-                        ToolTip="Project Settings (preview images and links)">
+                        ToolTip="{l:Words tool.settings}">
                     <md:PackIcon Kind="Cog"/>
                 </Button>
                 <Button Command="{Binding MergeFilesCommand}"
                         Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
                         Margin="2.5px"
-                        ToolTip="Merge Files">
+                        ToolTip="{l:Words tool.merge}">
                     <md:PackIcon Kind="Merge"/>
                 </Button>
                 <Button Command="{Binding LoadFileCommand}"
                         Margin="2.5px"
-                        ToolTip="Load Files">
+                        ToolTip="{l:Words tool.load}">
                     <md:PackIcon Kind="FolderUpload"/>
                 </Button>
                 <Button Command="{Binding SaveCommand}"
                         Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
                         Margin="2.5px"
-                        ToolTip="Save To Files">
+                        ToolTip="{l:Words tool.save}">
                     <md:PackIcon Kind="ContentSave"/>
                 </Button>
                 <Button Command="{Binding ResetCommand}"
                         Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
-                        ToolTip="Reset"
+                        ToolTip="{l:Words tool.reset}"
                         Margin="2.5px">
                     <md:PackIcon Kind="Reload"/>
                 </Button>
@@ -642,7 +643,7 @@
 					   HorizontalAlignment="Right"
 					   Foreground="{DynamicResource MaterialDesignLightForeground}"
 					   Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource Equals}, ConverterParameter=0}">
-				<Run FontSize="24" FontWeight="DemiBold" BaselineAlignment="Top">Start Here</Run>
+				<Run FontSize="24" FontWeight="DemiBold" BaselineAlignment="Top" Text="{l:Words main.start-here}"/>
 				<md:PackIcon Kind="ArrowBottomRightBoldOutline" Width="96" Height="96"/>
 				<Run Text="         "/>
 			</TextBlock>
