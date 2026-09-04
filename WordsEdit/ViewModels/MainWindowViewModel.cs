@@ -21,6 +21,25 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public TreeViewModel Tree { get; }
 	public KeyDrag KeyDrag { get; }
 
+	//Wordsmith's own language (SPEC: Wordsmith's own words): the file's menu, and
+	//the entry the current language reads in. Picking another reloads the words
+	//and re-renders what this view model composed; the app reopens the windows
+	public IReadOnlyList<KeyValuePair<string, string>> UiLanguages => EditorWords.Languages;
+	public string? UiLanguage {
+		get => EditorWords.MenuCode(EditorWords.Current);
+		set {
+			if (value is null || value == UiLanguage) {
+				return;
+			}
+			EditorWords.Load(value, Gripes);
+			AffectProperty(nameof(UiLanguage));
+			UpdateTitle();
+			UiLanguageChanged?.Invoke();
+		}
+	}
+	/// <summary>The words were reloaded in another language; whatever {l:Words} resolved is stale.</summary>
+	public event Action? UiLanguageChanged;
+
 	//Previews: rendered the way a host app would show the selected key, kept
 	//current while shown, each with what went wrong along the way. The default
 	//pane goes by the file's own settings, the translation pane by the selected

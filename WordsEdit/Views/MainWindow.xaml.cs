@@ -13,6 +13,14 @@ public partial class MainWindow : Window {
 		InitializeComponent();
 	}
 
+	private bool retiring;
+
+	/// <summary>Another window took over the view model: close without asking about unsaved changes.</summary>
+	public void Retire() {
+		retiring = true;
+		Close();
+	}
+
 	//TreeView.SelectedItem is read-only: the one gesture WPF will not bind
 	private void TreeView_OnSelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e) {
 		if (DataContext is MainWindowViewModel vm) {
@@ -41,7 +49,7 @@ public partial class MainWindow : Window {
 	//answered synchronously: the close then proceeds or is cancelled, so there
 	//is no Shutdown() to re-raise Closing and prompt again
 	private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e) {
-		if (DataContext is MainWindowViewModel vm) {
+		if (!retiring && DataContext is MainWindowViewModel vm) {
 			e.Cancel = !vm.TryClose();
 		}
 	}

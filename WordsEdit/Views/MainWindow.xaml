@@ -600,6 +600,15 @@
                         Orientation="Horizontal"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Bottom">
+                <!-- the language Wordsmith itself speaks; a change reopens the window in it -->
+                <ComboBox ItemsSource="{Binding UiLanguages}"
+                          SelectedValue="{Binding UiLanguage}"
+                          SelectedValuePath="Key"
+                          DisplayMemberPath="Value"
+                          ToolTip="{l:Words app.language}"
+                          VerticalAlignment="Center"
+                          MinWidth="110"
+                          Margin="2.5px 2.5px 10px 2.5px"/>
                 <Button Command="{Binding ManageLanguagesCommand}"
                         Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
                         Margin="2.5px"

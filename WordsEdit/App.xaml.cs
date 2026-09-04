@@ -24,6 +24,16 @@ public partial class App : Application {
 		foreach (string file in e.Args.Where(File.Exists)) {
 			viewModel.LoadFile(file);
 		}
-		new MainWindow { DataContext = viewModel }.Show();
+		//{l:Words} resolves when a window loads: a change of language is a new
+		//window over the same view model, the old one retired without a prompt
+		viewModel.UiLanguageChanged += () => Open(viewModel, MainWindow as MainWindow);
+		Open(viewModel, null);
+	}
+
+	private void Open(MainWindowViewModel viewModel, MainWindow? retiring) {
+		var window = new MainWindow { DataContext = viewModel };
+		MainWindow = window;
+		window.Show();
+		retiring?.Retire();
 	}
 }
