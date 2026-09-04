@@ -144,7 +144,7 @@ value=x
 
 		//the parameter dialog closes: the samples are re-applied
 		dialogs.OnShow = _ => vm.Tree.SelectedKey.Parameters[0].Value = "twenty-two";
-		vm.TestParametersCommand.Execute(vm.Tree.SelectedKey.Parameters);
+		vm.TestParametersCommand.Execute(vm.Tree.SelectedKey);
 		Assert.Equal("Base {0:N1} {1}", vm.DefaultPreview.Text);
 		Assert.NotEmpty(vm.DefaultPreview.Gripes);
 
@@ -965,6 +965,58 @@ value=x
 
 		vm.Tree.SearchFilterText = "nothing-like-this";
 		Assert.Null(vm.Tree.SelectedKeyNode);
+	}
+
+	[Fact]
+	public void MainWindowViewModel_LanguageDropdownIsFedByTheSelectedKeysFile() {
+		// the dropdown offers what the selected key's file speaks: its table, the
+		// codes found on its fields, and whatever is selected; the union otherwise
+		var vm = NewVm();
+		vm.LoadFile(new StringReader("value-en=English\nvalue-de=Deutsch\n\n[a]\nvalue=A\n"), "Main");
+		vm.LoadFile(new StringReader("value-en=English\n\n[c]\nvalue=C\nvalue-fr=C en français\n"), "Lib");
+		Assert.Equal(["en", "de", "fr"], vm.Tree.KnownLanguages.Select(l => l.Code));
+		Assert.Equal(["en", "de", "fr"], vm.Tree.FileLanguages.Select(l => l.Code));
+
+		vm.Tree.SelectedKeyNode = Node(vm, "Main.a");
+		Assert.Equal(["en", "de"], vm.Tree.FileLanguages.Select(l => l.Code));
+		vm.Tree.SelectedKeyNode = Node(vm, "Lib.c");
+		Assert.Equal(["en", "fr"], vm.Tree.FileLanguages.Select(l => l.Code)); //fr through the stray field
+
+		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.First(l => l.Code == "de");
+		Assert.Equal(["en", "de", "fr"], vm.Tree.FileLanguages.Select(l => l.Code)); //the selection always shows
+		vm.Tree.SelectedKeyNode = Node(vm, "Main.a");
+		Assert.Equal(["en", "de"], vm.Tree.FileLanguages.Select(l => l.Code));
+		vm.Tree.SelectedKeyNode = null;
+		Assert.Equal(["en", "de", "fr"], vm.Tree.FileLanguages.Select(l => l.Code));
+	}
+
+	[Fact]
+	public void MainWindowViewModel_TestParametersShowTheFormattedResult() {
+		var dialogs = new FakeDialogs();
+		var vm = new MainWindowViewModel(dialogs);
+		vm.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
+		vm.Tree.SelectedKey!.DefaultValue = "Base {0:N1} {1}";
+		vm.IsDirty = false;
+
+		TestParametersViewModel? dialog = null;
+		dialogs.OnShow = shown => {
+			dialog = (TestParametersViewModel)shown;
+			Assert.Equal("Base 22.0 one", dialog.Result);
+			Assert.False(dialog.IsError);
+
+			dialog.Parameters[0].Value = "twenty-two"; //no double: the result says why
+			Assert.True(dialog.IsError);
+			Assert.NotEqual("", dialog.Result);
+
+			dialog.Parameters[0].Value = "7";
+			Assert.Equal("Base 7.0 one", dialog.Result);
+			Assert.False(dialog.IsError);
+			dialog.CloseCommand.Execute(null);
+		};
+		vm.TestParametersCommand.Execute(vm.Tree.SelectedKey);
+		Assert.NotNull(dialog);
+		Assert.True(vm.IsDirty);
 	}
 
 	[Fact]

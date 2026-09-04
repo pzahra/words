@@ -314,7 +314,7 @@
                             Grid.Column="1" 
                             VerticalAlignment="Center">
                     <Button Command="{Binding TestParametersCommand}"
-                            CommandParameter="{Binding Tree.SelectedKey.Parameters}"
+                            CommandParameter="{Binding Tree.SelectedKey}"
                             Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
                             ToolTip="Test Parameters"
                             Margin="2.5px">
@@ -381,7 +381,7 @@
                     </Grid>
                 </Border>
             </Grid>
-            <ComboBox ItemsSource="{Binding Tree.KnownLanguages}"
+            <ComboBox ItemsSource="{Binding Tree.FileLanguages}"
                       SelectedItem="{Binding Tree.SelectedLanguage}"
                       DisplayMemberPath="NativeName"
                       Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
@@ -468,7 +468,7 @@
 						</Grid.ColumnDefinitions>
 
 						<Label Content="Stale: "/>
-						<TextBox Grid.Column="1" Text="{Binding Tree.SelectedEntry.Stale}" />
+						<TextBlock Grid.Column="1" Text="{Binding Tree.SelectedEntry.Stale, Mode=OneWay}" VerticalAlignment="Center" ToolTip="When the default changed after this translation (the toggle beside sets and clears it)"/>
                     </Grid>
                     <TextBlock Text="Translation"
                                Margin="2.5px"
@@ -479,7 +479,7 @@
                             Grid.Row="0" 
                             Grid.Column="2">
                     <Button Command="{Binding TestParametersCommand}"
-                            CommandParameter="{Binding Tree.SelectedKey.Parameters}"
+                            CommandParameter="{Binding Tree.SelectedKey}"
                             Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
                             ToolTip="Test Parameters"
                             Margin="2.5px">

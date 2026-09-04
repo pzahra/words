@@ -386,4 +386,49 @@ value-de=y
 
 		Assert.True(closed);
 	}
+
+	[Fact]
+	public void RemoveKeyData_AsksFirst() {
+		var dialogs = new FakeDialogs { ConfirmAnswer = false };
+		var vm = new MainWindowViewModel(dialogs);
+		vm.LoadFile(new StringReader("value-en=English\n\n[a]\nvalue=A\n"), "T");
+		vm.Tree.SelectedKeyNode = Find(vm, "T.a");
+
+		vm.RemoveKeyCommand.Execute(null);
+		Assert.Contains("key information", dialogs.Confirmations.Single());
+		Assert.NotNull(vm.Tree.SelectedKey);
+		Assert.False(vm.IsDirty);
+
+		dialogs.ConfirmAnswer = true;
+		vm.RemoveKeyCommand.Execute(null);
+		Assert.Null(vm.Tree.SelectedKey);
+		Assert.True(vm.IsDirty);
+		Assert.NotNull(Find(vm, "T.a")); //the node stays
+	}
+
+	[Fact]
+	public void RemoveNode_AsksFirstWhenKeysGoWithIt() {
+		var dialogs = new FakeDialogs { ConfirmAnswer = false };
+		var vm = new MainWindowViewModel(dialogs);
+		vm.LoadFile(new StringReader("value-en=English\n\n[a.b]\nvalue=B\n\n[a.c]\nvalue=C\n"), "T");
+		vm.Tree.SelectedKeyNode = Find(vm, "T.a");
+
+		vm.RemoveNodeCommand.Execute(null);
+		Assert.Contains("2 keys", dialogs.Confirmations.Single());
+		Assert.Equal(2, vm.Session.Keys.Count);
+
+		//a node carrying nothing goes quietly
+		vm.Tree.Add(Find(vm, "T"), "empty");
+		vm.RemoveNodeCommand.Execute(null);
+		Assert.Single(dialogs.Confirmations);
+		Assert.DoesNotContain(MainWindowViewModelTests.GetAllKeyNodes(vm.Tree.KeyNodes), node => node.FullLabel == "T.empty");
+
+		dialogs.ConfirmAnswer = true;
+		vm.Tree.SelectedKeyNode = Find(vm, "T.a");
+		vm.RemoveNodeCommand.Execute(null);
+		Assert.Empty(vm.Session.Keys);
+	}
+
+	private static KeyNode Find(MainWindowViewModel vm, string fullLabel)
+		=> MainWindowViewModelTests.GetAllKeyNodes(vm.Tree.KeyNodes).First(node => node.FullLabel == fullLabel);
 }

@@ -104,7 +104,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		ToggleStaleLanguageCommand = new DelegateCommand<string>(DoToggleStaleLanguage);
 		ToggleNeedsReviewCommand = new DelegateCommand(DoToggleNeedsReview, () => Tree.SelectedKey is not null);
 		ToggleConstantCommand = new DelegateCommand(DoToggleConstant, () => Tree.SelectedKey is not null && Tree.SelectedKeyNode is { CanBeConstant: true });
-		TestParametersCommand = new DelegateCommand<ObservableCollection<WordsParameter>>(DoTestParameters);
+		TestParametersCommand = new DelegateCommand<WordsKey>(DoTestParameters, static key => key is not null);
 
 		UpdateTitle();
 		KeyDragDropHandler = new KeyDragDropHandler() { MainWindow = this };
@@ -227,6 +227,11 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			}
 			return;
 		}
+		//an empty node goes quietly; one carrying keys asks, since Delete is a keypress away
+		int keys = Session.Keys.Keys.Count(label => label == node.FullLabel || label.StartsWith(node.FullLabel + ".", StringComparison.Ordinal));
+		if (keys > 0 && !Dialogs.Confirm($"Remove '{node.Label}'? {keys} key{(keys == 1 ? "" : "s")} go with it.")) {
+			return;
+		}
 		Session.RemoveKeysUnder(node.FullLabel);
 		Tree.Remove(node);
 		IsDirty = true;
@@ -311,6 +316,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (Tree.SelectedKeyNode is not { } node) {
 			return;
 		}
+		if (!Dialogs.Confirm($"Remove the key information of '{node.Label}'? Its default, notes, parameters and every translation go; the node stays.")) {
+			return;
+		}
 		Session.RemoveKey(node.FullLabel);
 		Tree.FollowSelectedKey();
 		Tree.RefreshBadges(node);
@@ -374,8 +382,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		IsDirty = true;
 	}
 
-	private void DoTestParameters(ObservableCollection<WordsParameter> parameters) {
-		Dialogs.Show(new TestParametersViewModel(this, parameters));
+	private void DoTestParameters(WordsKey key) {
+		Dialogs.Show(new TestParametersViewModel(this, key));
 		//the samples are what the previews format with
 		RenderPreviews();
 	}

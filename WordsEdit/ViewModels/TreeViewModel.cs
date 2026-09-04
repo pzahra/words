@@ -16,6 +16,13 @@ public class TreeViewModel : ViewModelBase {
 
 	public KeyNodeCollection KeyNodes { get; } = new(null);
 	public ObservableCollection<LanguageEntry> KnownLanguages => session.Languages.Known;
+	/// <summary>
+	///     The dropdown: what the selected key's file speaks — its language table,
+	///     plus codes found on its fields (the ! placeholders) — and the language
+	///     selected, so the choice always shows. The session union when nothing is
+	///     selected. (SPEC: translation pane)
+	/// </summary>
+	public ObservableCollection<LanguageEntry> FileLanguages { get; } = [];
 
 	/// <summary>Raised when an edit reached the document through the selection.</summary>
 	public event Action? Edited;
@@ -90,6 +97,31 @@ public class TreeViewModel : ViewModelBase {
 	private void OnSelectedKeyNodeChanged() {
 		SelectedOrganizer = SelectedKeyNode as OrganizerNode;
 		FollowSelectedKey();
+		RefreshFileLanguages();
+	}
+
+	private void RefreshFileLanguages() {
+		IEnumerable<LanguageEntry> wanted = KnownLanguages;
+		if (SelectedFile is { } file) {
+			HashSet<string> codes = [.. file.Languages, SelectedLanguage.Code];
+			foreach (WordsKey key in session.KeysOf(file)) {
+				foreach (var (code, entry) in key.Entries) {
+					if (entry.Value.Trim() != "") {
+						codes.Add(code);
+					}
+				}
+			}
+			wanted = KnownLanguages.Where(language => codes.Contains(language.Code));
+		}
+		if (wanted.SequenceEqual(FileLanguages)) {
+			return;
+		}
+		FileLanguages.Clear();
+		foreach (LanguageEntry language in wanted) {
+			FileLanguages.Add(language);
+		}
+		//the ComboBox dropped its selection while the items turned over: hand it back
+		AffectProperty(nameof(SelectedLanguage));
 	}
 
 	/// <summary>Re-reads the selected node's key and entry from the document.</summary>
@@ -247,6 +279,8 @@ public class TreeViewModel : ViewModelBase {
 				RefreshBadges(node, file);
 			}
 		}
+		//every path that changes the language table passes here
+		RefreshFileLanguages();
 	}
 
 	public void RefreshBadges(KeyNode node) => RefreshBadges(node, session.FileOf(node.Root.FullLabel));
@@ -325,6 +359,7 @@ public class TreeViewModel : ViewModelBase {
 		KeyNodes.Clear();
 		SelectedKeyNode = null;
 		SelectedLanguage = KnownLanguages[0];
+		RefreshFileLanguages();
 		SearchFilterText = "";
 		IsStaleFilter = false;
 		NeedsReviewFilter = false;

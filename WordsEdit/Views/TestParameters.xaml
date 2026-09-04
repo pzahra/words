@@ -54,9 +54,22 @@
             <Button Content="Add Parameter"
                     Command="{Binding AddParameterCommand}"
                     Margin="2.5px"/>
+            <!-- the default formatted with these samples, as the previews will show it -->
+            <TextBlock Text="Result" FontWeight="SemiBold" Margin="2.5px 10px 2.5px 2.5px"/>
+            <TextBlock Text="{Binding Result}" TextWrapping="Wrap" MaxWidth="500" Margin="2.5px">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsError}" Value="True">
+                                <Setter Property="Foreground" Value="Red"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
             <Button Content="Close"
-                    Command="{Binding CancelCommand}"
-                    Margin="2.5px"/>
+                    Command="{Binding CloseCommand}"
+                    Margin="2.5px 10px 2.5px 2.5px"/>
         </StackPanel>
     </Grid>
 </UserControl>

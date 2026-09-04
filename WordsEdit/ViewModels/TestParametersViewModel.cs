@@ -1,3 +1,4 @@
+using PatTech.Localization;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -5,23 +6,36 @@ using System.Windows.Input;
 using WordsEdit.Utils;
 
 namespace WordsEdit.ViewModels;
+
+/// <summary>
+///     The key's parameters — name, sample value, type — and the default they
+///     format into, live: what the previews will show, or why they will not.
+///     Every edit lands in the document as it is made; Close just closes.
+/// </summary>
 public class TestParametersViewModel : DialogViewModel {
+	private readonly WordsKey key;
+
 	public override string Title => "Test Parameters";
 	public MainWindowViewModel Parent { get; }
 
-	public ObservableCollection<WordsParameter> Parameters { get; }
+	public ObservableCollection<WordsParameter> Parameters => key.Parameters;
 
 	public IEnumerable<WordsParameterType> DataTypes { get; } = WordsParameterType.All;
 
-	public ICommand CancelCommand { get; }
+	/// <summary>The default formatted with the samples; the complaint when it will not format.</summary>
+	public string Result { get; private set => ChangeProperty(ref field, value); } = "";
+	public bool IsError { get; private set => ChangeProperty(ref field, value); }
+
+	public ICommand CloseCommand { get; }
 	public ICommand AddParameterCommand { get; }
 	public ICommand RemoveParameterCommand { get; }
 
-	public TestParametersViewModel(MainWindowViewModel parent, ObservableCollection<WordsParameter> parameters) {
+	public TestParametersViewModel(MainWindowViewModel parent, WordsKey key) {
 		ArgumentNullException.ThrowIfNull(parent);
-		Parameters = parameters;
+		ArgumentNullException.ThrowIfNull(key);
+		this.key = key;
 		Parent = parent;
-		CancelCommand = new DelegateCommand(DoCancel);
+		CloseCommand = new DelegateCommand(DoClose);
 		AddParameterCommand = new DelegateCommand(DoAddParameter);
 		RemoveParameterCommand = new DelegateCommand<WordsParameter>(DoRemoveParameter, CanRemoveParameter);
 		//the collection is the key's own: any edit to a row, or the row set, is a
@@ -30,6 +44,7 @@ public class TestParametersViewModel : DialogViewModel {
 		foreach (var parameter in Parameters) {
 			parameter.PropertyChanged += OnParameterEdited;
 		}
+		Refresh();
 	}
 
 	private void OnParametersChanged(object? sender, NotifyCollectionChangedEventArgs e) {
@@ -44,9 +59,26 @@ public class TestParametersViewModel : DialogViewModel {
 			}
 		}
 		Parent.IsDirty = true;
+		Refresh();
 	}
 
-	private void OnParameterEdited(object? sender, PropertyChangedEventArgs e) => Parent.IsDirty = true;
+	private void OnParameterEdited(object? sender, PropertyChangedEventArgs e) {
+		Parent.IsDirty = true;
+		Refresh();
+	}
+
+	//the default, references expanded, formatted the way the default preview does it
+	private void Refresh() {
+		try {
+			string text = Words.RenderKey(Parent.Session.Provider(Parent.Tree.FileLabels), key.BlockKey);
+			Result = WordsOperations.FormatSample(key, text);
+			IsError = false;
+		}
+		catch (Exception ex) when (ex is FormatException or OverflowException) {
+			Result = ex.Message;
+			IsError = true;
+		}
+	}
 
 	private void DoAddParameter() {
 		//the first free P<n>
@@ -60,7 +92,7 @@ public class TestParametersViewModel : DialogViewModel {
 	private bool CanRemoveParameter(WordsParameter p) => p is not null;
 	private void DoRemoveParameter(WordsParameter p) => Parameters.Remove(p);
 
-	private void DoCancel() {
+	private void DoClose() {
 		Parameters.CollectionChanged -= OnParametersChanged;
 		foreach (var parameter in Parameters) {
 			parameter.PropertyChanged -= OnParameterEdited;
