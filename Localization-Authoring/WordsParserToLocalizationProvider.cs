@@ -70,7 +70,13 @@ namespace PatTech.Localization.Authoring {
 			if (wordKeys.Count == 0) {
 				switch (fieldType) {
 					case "value":
-						knownLanguages[languageCode] = new LanguageEntry(languageCode, value);
+						if (knownLanguages.TryGetValue(languageCode, out var named)) {
+							//its comment- label came first and made the entry; this is the name
+							named.NativeName = value;
+						}
+						else {
+							knownLanguages[languageCode] = new LanguageEntry(languageCode, value);
+						}
 						if (!declaredLanguages.Contains(languageCode)) {
 							declaredLanguages.Add(languageCode);
 						}
@@ -80,7 +86,11 @@ namespace PatTech.Localization.Authoring {
 							language.EnglishName = value;
 						}
 						else {
-							throw new Exception("Name for language never declared");
+							//a comment- label ahead of its value- label: keep loading, keep
+							//the English name, and gripe. A later value- names it; without
+							//one it stays a !code placeholder and is never written back
+							knownLanguages[languageCode] = new LanguageEntry(languageCode) { EnglishName = value };
+							errors.Add($"language '{languageCode}' has a comment-{languageCode} label before (or without) its value-{languageCode} label");
 						}
 						break;
 					case "param" when languageCode != "":

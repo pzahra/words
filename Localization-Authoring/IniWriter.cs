@@ -88,11 +88,11 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>A strategy that never cuts: only parent→child chains compress.</summary>
 		public static ICutStrategy NeverCuts { get; } = new ChainOnly();
 
-		public static void WriteFile(IKeyTreeNode fileNode, string fileName, Dictionary<string, WordsKey> allKeys, IReadOnlyCollection<LanguageEntry> languages, ICutStrategy? cutStrategy = null, string preamble = "", string trailer = "", IReadOnlyDictionary<string, string>? imageSchemes = null) {
+		public static void WriteFile(IKeyTreeNode fileNode, string fileName, IReadOnlyDictionary<string, WordsKey> allKeys, IReadOnlyCollection<LanguageEntry> languages, ICutStrategy? cutStrategy = null, string preamble = "", string trailer = "", IReadOnlyDictionary<string, string>? imageSchemes = null) {
 			using var stream = new StreamWriter(fileName);
 			WriteFile(fileNode, stream, allKeys, languages, cutStrategy, preamble, trailer, imageSchemes);
 		}
-		public static void WriteFile(IKeyTreeNode fileNode, TextWriter stream, Dictionary<string, WordsKey> allKeys, IReadOnlyCollection<LanguageEntry> languages, ICutStrategy? cutStrategy = null, string preamble = "", string trailer = "", IReadOnlyDictionary<string, string>? imageSchemes = null) {
+		public static void WriteFile(IKeyTreeNode fileNode, TextWriter stream, IReadOnlyDictionary<string, WordsKey> allKeys, IReadOnlyCollection<LanguageEntry> languages, ICutStrategy? cutStrategy = null, string preamble = "", string trailer = "", IReadOnlyDictionary<string, string>? imageSchemes = null) {
 			using var writer = new IniWriter(stream, cutStrategy);
 			if (preamble != "") {
 				writer.WriteComment(preamble);
@@ -129,10 +129,10 @@ namespace PatTech.Localization.Authoring {
 			}
 			WriteLine();
 		}
-		public void WriteKeys(IKeyTreeNode node, in Dictionary<string, WordsKey> allKeys) {
+		public void WriteKeys(IKeyTreeNode node, IReadOnlyDictionary<string, WordsKey> allKeys) {
 			WriteKeys(node, allKeys, depth: -1, cuts ?? new GroupCuts(allKeys));
 		}
-		private void WriteKeys(IKeyTreeNode node, Dictionary<string, WordsKey> allKeys, int depth, ICutStrategy cuts) {
+		private void WriteKeys(IKeyTreeNode node, IReadOnlyDictionary<string, WordsKey> allKeys, int depth, ICutStrategy cuts) {
 			if (node is ICommentNode comment) {
 				if (comment.Text != "") {
 					WriteComment(comment.Text);

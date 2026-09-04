@@ -52,7 +52,22 @@ namespace PatTech.Localization.Authoring {
 			&& Entries.Values.All(entry => entry.IsEmpty());
 
 		public bool HasStaleValue(string languageCode)
-			=> Entries[languageCode].Stale is not null;
+			=> Entries.TryGetValue(languageCode, out var entry) && entry.Stale is not null;
+
+		/// <summary>
+		///     True when a regional variant of <paramref name="languageCode"/>
+		///     (<c>en-GB</c> for <c>en</c>) carries a value of its own, so what the
+		///     family renders is overridden somewhere below it.
+		/// </summary>
+		public bool HasRegionalOverride(string languageCode) {
+			string prefix = languageCode + "-";
+			foreach (var (code, entry) in Entries) {
+				if (code.StartsWith(prefix, StringComparison.Ordinal) && entry.Value != "") {
+					return true;
+				}
+			}
+			return false;
+		}
 	}
 
 	public class WordsEntry : ViewModelBase {
@@ -174,7 +189,7 @@ namespace PatTech.Localization.Authoring {
 	///     reference like <c>{&gt;group.key}</c> or <c>{$constant}</c> probes each
 	///     file's prefix, later-loaded files winning.
 	/// </summary>
-	public abstract class WordsProviderBase(Dictionary<string, WordsKey> keys, IEnumerable<string> fileNames) : IWordsProvider {
+	public abstract class WordsProviderBase(IReadOnlyDictionary<string, WordsKey> keys, IEnumerable<string> fileNames) : IWordsProvider {
 		private readonly string[] fileNames = [.. fileNames.Reverse()];
 
 		public string this[string key] => throw new NotImplementedException();
@@ -196,7 +211,7 @@ namespace PatTech.Localization.Authoring {
 		public abstract bool TryGetValue(string key, [MaybeNullWhen(false)] out string value);
 	}
 
-	public class DefaultWordsProvider(Dictionary<string, WordsKey> keys, IEnumerable<string> fileNames)
+	public class DefaultWordsProvider(IReadOnlyDictionary<string, WordsKey> keys, IEnumerable<string> fileNames)
 			: WordsProviderBase(keys, fileNames) {
 		public override bool TryGetValue(string key, [MaybeNullWhen(false)] out string value) {
 			if (TryFind(key, out var word)) {
@@ -208,7 +223,7 @@ namespace PatTech.Localization.Authoring {
 		}
 	}
 
-	public class LanguageWordsProvider(Dictionary<string, WordsKey> keys, string code, IEnumerable<string> fileNames)
+	public class LanguageWordsProvider(IReadOnlyDictionary<string, WordsKey> keys, string code, IEnumerable<string> fileNames)
 			: WordsProviderBase(keys, fileNames) {
 		private readonly string? family = code.Contains('-') ? code[..code.IndexOf('-')] : null;
 

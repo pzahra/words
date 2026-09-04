@@ -320,22 +320,8 @@ namespace PatTech.Localization {
 		/// <param name="args">Additional positional arguments, addressed by the template's numbered tags.</param>
 		/// <returns>A numbered format string and the matching argument array, ready for <see cref="string.Format(string, object[])"/>.</returns>
 		public static (string FormatString, object?[] FormatArgs) PreFormatByName(string template, object? value, params object?[] args) {
-			var newArgs = new List<PairObj> { new PairObj("", value) };
 			var type = value?.GetType() ?? typeof(void);
-			template = rxFormatTag.Replace(template, m => {
-				string name = m.Groups[1].Value;
-				int i = newArgs.FindIndex(n => n.Key == name);
-				if (i == -1) {
-					i = newArgs.Count;
-					var newValue = valueOf(value, name, type);
-					newArgs.Add(new PairObj(name, newValue));
-				}
-				return $"{{{i + args.Length}:{m.Groups[2].Value}}}";
-			});
-			var newValues = args
-				.Concat(newArgs.Select(n => n.Value))
-				.ToArray();
-			return (template, newValues);
+			return PreFormatByName(template, value, name => valueOf(value, name, type), args);
 			static object? valueOf(object? item, string key, Type itemType) {
 				if (item is null) { return null; }
 				if (itemType.GetField(key) is FieldInfo k) {
@@ -347,6 +333,45 @@ namespace PatTech.Localization {
 				Logger.Warn($"WORDS:FIELD:`{key}`");
 				return $"#{key}#";
 			}
+		}
+		/// <summary>
+		/// <see cref="PreFormatByName(string, object?, object?[])"/> with the named
+		/// values supplied by a dictionary instead of an object's members — for
+		/// callers that assemble them at runtime, such as an authoring tool trying
+		/// out sample parameters. A name absent from <paramref name="values"/>
+		/// formats as <c>#name#</c> and warns via <see cref="Logger"/>.
+		/// </summary>
+		/// <param name="template">The format template containing <c>{Name}</c> or <c>{Name:format}</c> tags.</param>
+		/// <param name="values">The named values, by the name the template uses.</param>
+		/// <param name="args">Additional positional arguments, addressed by the template's numbered tags.</param>
+		/// <returns>A numbered format string and the matching argument array, ready for <see cref="string.Format(string, object[])"/>.</returns>
+		public static (string FormatString, object?[] FormatArgs) PreFormatByName(string template, IReadOnlyDictionary<string, object?> values, params object?[] args) {
+			ArgumentNullException.ThrowIfNull(values);
+			return PreFormatByName(template, null, name => {
+				if (values.TryGetValue(name, out var found)) {
+					return found;
+				}
+				Logger.Warn($"WORDS:FIELD:`{name}`");
+				return $"#{name}#";
+			}, args);
+		}
+		private static (string FormatString, object?[] FormatArgs) PreFormatByName(string template, object? value, Func<string, object?> resolve, object?[] args) {
+			// slot 0 after the positional args holds the source object itself, then
+			// one slot per distinct name in order of first appearance
+			var newArgs = new List<PairObj> { new PairObj("", value) };
+			template = rxFormatTag.Replace(template, m => {
+				string name = m.Groups[1].Value;
+				int i = newArgs.FindIndex(n => n.Key == name);
+				if (i == -1) {
+					i = newArgs.Count;
+					newArgs.Add(new PairObj(name, resolve(name)));
+				}
+				return $"{{{i + args.Length}:{m.Groups[2].Value}}}";
+			});
+			var newValues = args
+				.Concat(newArgs.Select(n => n.Value))
+				.ToArray();
+			return (template, newValues);
 		}
 		/// <inheritdoc cref="FormatKnown(IFormatProvider?, string, object?[])"/>
 		[return: Localized]
@@ -390,6 +415,23 @@ namespace PatTech.Localization {
 		/// <param name="args">Additional positional arguments, addressed by the template's numbered tags.</param>
 		public static string FormatByName(IFormatProvider? provider, string template, object? value, params object?[] args) {
 			var (formatString, formatArgs) = PreFormatByName(template, value, args);
+			return string.Format(provider, formatString, formatArgs);
+		}
+
+		/// <inheritdoc cref="FormatByName(IFormatProvider?, string, IReadOnlyDictionary{string, object?}, object?[])"/>
+		public static string FormatByName(string template, IReadOnlyDictionary<string, object?> values, params object?[] args)
+			=> FormatByName(provider: null, template, values, args);
+		/// <summary>
+		/// Formats a raw template string with named placeholders filled from a
+		/// dictionary, no dictionary lookup and no reflection involved.
+		/// See <see cref="PreFormatByName(string, IReadOnlyDictionary{string, object?}, object?[])"/>.
+		/// </summary>
+		/// <param name="provider">Culture-specific formatting, or <see langword="null"/> for the current culture.</param>
+		/// <param name="template">The format template containing <c>{Name}</c> or <c>{Name:format}</c> tags.</param>
+		/// <param name="values">The named values, by the name the template uses.</param>
+		/// <param name="args">Additional positional arguments, addressed by the template's numbered tags.</param>
+		public static string FormatByName(IFormatProvider? provider, string template, IReadOnlyDictionary<string, object?> values, params object?[] args) {
+			var (formatString, formatArgs) = PreFormatByName(template, values, args);
 			return string.Format(provider, formatString, formatArgs);
 		}
 	}

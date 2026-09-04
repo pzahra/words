@@ -30,6 +30,17 @@ public class CoreWordsTests {
 		Assert.Equal("#Nope#", result);
 	}
 
+	[Fact]
+	public void FormatByName_FromDictionary_NamedAndPositional() {
+		// runtime-assembled names: same slots, same repeats, same #missing#
+		var values = new Dictionary<string, object?> { ["Name"] = "Pat", ["Top"] = 1.2345 };
+
+		var result = Words.FormatByName(System.Globalization.CultureInfo.InvariantCulture,
+			"{Name} met {0}; N{Top:g2}; {Name} again; {Nope}", values, "Sam");
+
+		Assert.Equal("Pat met Sam; N1.2; Pat again; #Nope#", result);
+	}
+
 	/// <summary>
 	/// Renders inlines as plain strings so the abstract parser can be tested
 	/// without a UI framework.
