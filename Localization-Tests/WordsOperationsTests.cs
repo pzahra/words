@@ -125,4 +125,115 @@ public class WordsOperationsTests {
 		Assert.False(WordsOperations.HaveSameKeys(keySets, out conflicts));
 		Assert.Contains("test3", conflicts);
 	}
+
+	private static Dictionary<string, WordsKey> Keys(params string[] blockKeys)
+		=> blockKeys.ToDictionary(k => k, k => new WordsKey(k) { DefaultValue = k });
+
+	[Fact]
+	public void WordsOperations_RenameCascadesOverAGroupWithChildren() {
+		// the group has no key of its own; its descendants move, siblings stay,
+		// and `view` never catches `viewer`
+		var keys = Keys("F.view.a", "F.view.a.b", "F.view.c", "F.viewer", "F.other");
+
+		Assert.True(WordsOperations.TryRename(keys, "F.view", "F.menu", out var collisions));
+
+		Assert.Empty(collisions);
+		Assert.Equal(["F.menu.a", "F.menu.a.b", "F.menu.c", "F.other", "F.viewer"], keys.Keys.Order(StringComparer.Ordinal));
+		Assert.Equal("F.menu.a.b", keys["F.menu.a.b"].BlockKey);
+		Assert.Equal("F.view.a.b", keys["F.menu.a.b"].DefaultValue); //the same object, renamed
+	}
+
+	[Fact]
+	public void WordsOperations_RenameIntoOwnSubtreeShiftsWithoutOverwriting() {
+		// a → a.x: F.a.b must become F.a.x.b, not land on a key still to move
+		var keys = Keys("F.a", "F.a.b");
+
+		Assert.True(WordsOperations.TryRename(keys, "F.a", "F.a.x", out _));
+
+		Assert.Equal(["F.a.x", "F.a.x.b"], keys.Keys.Order(StringComparer.Ordinal));
+		Assert.Equal("F.a", keys["F.a.x"].DefaultValue);
+		Assert.Equal("F.a.b", keys["F.a.x.b"].DefaultValue);
+	}
+
+	[Fact]
+	public void WordsOperations_RenameWithCollisionChangesNothing() {
+		// one descendant would land on an existing key: report it, move nothing
+		var keys = Keys("F.a", "F.a.x", "F.b.x");
+
+		Assert.False(WordsOperations.TryRename(keys, "F.a", "F.b", out var collisions));
+
+		Assert.Equal(["F.b.x"], collisions);
+		Assert.Equal(["F.a", "F.a.x", "F.b.x"], keys.Keys.Order(StringComparer.Ordinal));
+		Assert.Equal("F.a.x", keys["F.a.x"].BlockKey);
+	}
+
+	[Fact]
+	public void WordsOperations_MoveKeepsTheLastSegmentMarkerAndAll() {
+		var keys = Keys("F.g.$c", "F.g.$c.sub", "F.h");
+
+		Assert.True(WordsOperations.TryMove(keys, "F.g.$c", "F.h", out _));
+
+		Assert.Equal(["F.h", "F.h.$c", "F.h.$c.sub"], keys.Keys.Order(StringComparer.Ordinal));
+
+		//and a move onto an occupied name is refused as a whole
+		keys = Keys("F.g.c", "F.h.c");
+		Assert.False(WordsOperations.TryMove(keys, "F.g.c", "F.h", out var collisions));
+		Assert.Equal(["F.h.c"], collisions);
+		Assert.True(keys.ContainsKey("F.g.c"));
+	}
+
+	[Fact]
+	public void WordsOperations_SetConstantMarksOnlyTheLastSegmentAndKeepsEntries() {
+		var keys = Keys("F.view.key", "F.view.key.tip");
+		keys["F.view.key"].Entries["fr"] = new WordsEntry { Value = "clé" };
+
+		Assert.Equal("F.view.$key", WordsOperations.SetConstant(keys, "F.view.key", true));
+
+		Assert.True(keys["F.view.$key"].IsConstant);
+		Assert.Equal("clé", keys["F.view.$key"].Entries["fr"].Value);
+		Assert.True(keys.ContainsKey("F.view.$key.tip"));
+		Assert.False(keys.ContainsKey("F.view.key"));
+
+		Assert.Equal("F.view.key", WordsOperations.SetConstant(keys, "F.view.$key", false, clearEntries: true));
+		Assert.False(keys["F.view.key"].IsConstant);
+		Assert.Equal("", keys["F.view.key"].Entries["fr"].Value);
+	}
+
+	[Fact]
+	public void WordsOperations_SetConstantOnADollarSiblingIsRefused() {
+		// `foo` beside `$foo`: the marked name is taken, so nothing changes —
+		// this used to throw out of Dictionary.Add
+		var keys = Keys("F.foo", "F.$foo");
+
+		Assert.Null(WordsOperations.SetConstant(keys, "F.foo", true));
+
+		Assert.False(keys["F.foo"].IsConstant);
+		Assert.Equal(["F.$foo", "F.foo"], keys.Keys.Order(StringComparer.Ordinal));
+		Assert.Null(WordsOperations.SetConstant(keys, "F.missing", true));
+	}
+
+	[Fact]
+	public void WordsOperations_FormatSampleFillsNumberedAndNamedParameters() {
+		var key = new WordsKey("F.k");
+		key.Parameters.Add(new WordsParameter("0", WordsParameterType.Select("Double"), "22"));
+		key.Parameters.Add(new WordsParameter("Top", WordsParameterType.Select("Double"), "1.2345"));
+		key.Parameters.Add(new WordsParameter("1", WordsParameterType.String, "one"));
+
+		var text = WordsOperations.FormatSample(key, "{0:N1} {1} N{Top:g2} {Nope}", System.Globalization.CultureInfo.InvariantCulture);
+
+		Assert.Equal("22.0 one N1.2 #Nope#", text);
+	}
+
+	[Fact]
+	public void WordsOperations_FormatSampleSurvivesMetacharactersAndReportsBadSamples() {
+		// a parameter named with regex metacharacters used to throw from the
+		// pattern the editor built; now names are only ever looked up
+		var key = new WordsKey("F.k");
+		key.Parameters.Add(new WordsParameter("a+(b)", WordsParameterType.String, "x"));
+
+		Assert.Equal("plain", WordsOperations.FormatSample(key, "plain"));
+
+		key.Parameters.Add(new WordsParameter("n", WordsParameterType.Select("Integer"), "not a number"));
+		Assert.Throws<FormatException>(() => WordsOperations.FormatSample(key, "{n}"));
+	}
 }
