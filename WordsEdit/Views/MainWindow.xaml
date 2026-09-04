@@ -72,7 +72,12 @@
                     <ToggleButton Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=HandFrontLeft,Size=25}"
                                   ToolTip="Review View"
-                                  IsChecked="{Binding Tree.NeedsReviewFilter}" 
+                                  IsChecked="{Binding Tree.NeedsReviewFilter}"
+                                  Margin="2.5px"/>
+                    <ToggleButton Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
+                                  Content="{md:PackIcon Kind=TextBoxRemoveOutline,Size=25}"
+                                  ToolTip="Missing View (no default, or no words in the selected language)"
+                                  IsChecked="{Binding Tree.MissingFilter}"
                                   Margin="2.5px"/>
                 </DockPanel>
             </Grid>
@@ -106,8 +111,23 @@
                         <TreeView.Resources>
                             <HierarchicalDataTemplate DataType="{x:Type vm:KeyNode}" ItemsSource="{Binding Children}">
                                 <StackPanel Orientation="Horizontal">
-                                    <md:PackIcon Kind="File" 
+                                    <md:PackIcon Kind="File"
                                                  Visibility="{Binding IsFile, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    <Button Command="{Binding DataContext.ShowFileGripesCommand, RelativeSource={uc:FindAncestor TreeView}}"
+                                            CommandParameter="{Binding}"
+                                            Visibility="{Binding GripeCount, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                                            Style="{StaticResource MaterialDesignFlatButton}"
+                                            Foreground="DarkOrange"
+                                            Padding="2 0"
+                                            Height="20"
+                                            MinWidth="0"
+                                            VerticalAlignment="Center"
+                                            ToolTip="What loading this file complained about">
+                                        <StackPanel Orientation="Horizontal">
+                                            <md:PackIcon Kind="AlertCircleOutline" Width="14" Height="14" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding GripeCount}" FontSize="11" VerticalAlignment="Center" Margin="2 0 0 0"/>
+                                        </StackPanel>
+                                    </Button>
                                     <md:PackIcon Kind="TranslateOff" 
                                                  Visibility="{Binding IsConstant, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                     <md:PackIcon Kind="HandFrontLeft" 

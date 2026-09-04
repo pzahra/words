@@ -45,6 +45,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public ICommand ManageLanguagesCommand { get; }
 	public ICommand SettingsCommand { get; }
 	public ICommand ShowGripesCommand { get; }
+	public ICommand ShowFileGripesCommand { get; }
 	public ICommand TestParametersCommand { get; }
 	public ICommand RemoveLocalizationKeyAndNodeCommand { get; }
 	public ICommand RenameLocalizationKeyAndNodeCommand { get; }
@@ -81,6 +82,14 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		ShowGripesCommand = new DelegateCommand<PreviewPane>(
 			pane => Dialogs.Show(new GripesViewModel("Preview gripes", pane.Gripes)),
 			static pane => pane is { GripeCount: > 0 });
+		//what the parser griped about loading a file, from the badge on its node
+		ShowFileGripesCommand = new DelegateCommand<KeyNode>(
+			node => {
+				if (Session.FileOf(node.FullLabel) is { } file) {
+					Dialogs.Show(new GripesViewModel($"{file.Label}: load gripes", file.Errors));
+				}
+			},
+			static node => node is { IsFile: true, GripeCount: > 0 });
 		RemoveLocalizationKeyAndNodeCommand = new DelegateCommand(DoRemoveLocalizationKeyAndNode);
 		RenameLocalizationKeyAndNodeCommand = new DelegateCommand(DoRenameNode);
 		AddLocalizationKeyNodeCommand = new DelegateCommand(DoAddLocalizationKeyNode);

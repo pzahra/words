@@ -882,15 +882,79 @@ value=x
 
 		vm.Tree.IsStaleFilter = true;
 
+		//stale means stale: a key merely without words is the missing filter's
 		Assert.True(vm.Tree.KeyNodes[0].IsVisible); //Example
 		Assert.True(Node(vm, "Example.view").IsVisible);
 		Assert.True(Node(vm, "Example.view.section-name").IsVisible);
 		Assert.True(Node(vm, "Example.view.section-name.key").IsVisible);
 		Assert.False(Node(vm, "Example.view.section-name.key.tooltip").IsVisible);
 		Assert.False(Node(vm, "Example.$rsi-unit").IsVisible);
-		Assert.True(Node(vm, "Example.main").IsVisible);
+		Assert.False(Node(vm, "Example.main").IsVisible);
 		Assert.False(Node(vm, "Example.format").IsVisible);
 		Assert.False(Node(vm, "Example.enum").IsVisible);
+
+		vm.Tree.IsStaleFilter = false;
+		vm.Tree.MissingFilter = true;
+
+		Assert.True(Node(vm, "Example.main").IsVisible);
+		Assert.True(Node(vm, "Example.main.title").IsVisible); //no value-zh
+		Assert.True(Node(vm, "Example.main.single-line").IsVisible); //no value-zh either
+		Assert.False(Node(vm, "Example.view.section-name.key").IsVisible); //has value-zh
+		Assert.False(Node(vm, "Example.$rsi-unit").IsVisible); //constants want no translation
+	}
+
+	[Fact]
+	public void MainWindowViewModel_MissingTranslationEmphasisFollowsTheFilesTable() {
+		// SPEC (Badges): a key reads as missing the selected language only when its
+		// file registers that language — !-hidden counts, a stray code does not,
+		// and a dictionary that never declared it shows no gap
+		var vm = NewVm();
+		vm.LoadFile(new StringReader("value-en=English\nvalue-de=!Deutsch\n\n[a]\nvalue=A\n\n[b]\nvalue=B\nvalue-de=Bee\n\n[e]\ncontext=no default\n"), "Main");
+		vm.LoadFile(new StringReader("value-en=English\n\n[c]\nvalue=C\nvalue-fr=stray\n\n[d]\nvalue=D\n"), "Lib");
+
+		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.First(l => l.Code == "de");
+		Assert.True(Node(vm, "Main.a").EmptyValue); //hidden, but declared: a promise
+		Assert.False(Node(vm, "Main.b").EmptyValue);
+		Assert.True(Node(vm, "Main.e").EmptyValue); //no default: wanting regardless
+		Assert.False(Node(vm, "Lib.c").EmptyValue); //Lib never registered de
+		Assert.False(Node(vm, "Lib.d").EmptyValue);
+
+		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.First(l => l.Code == "fr"); //known through the stray field only
+		Assert.False(Node(vm, "Lib.d").EmptyValue); //a gripe, not a registration
+		Assert.False(Node(vm, "Main.a").EmptyValue);
+		Assert.True(Node(vm, "Main.e").EmptyValue);
+
+		//the missing filter follows the same rule
+		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.First(l => l.Code == "de");
+		vm.Tree.MissingFilter = true;
+		Assert.True(Node(vm, "Main.a").IsVisible);
+		Assert.False(Node(vm, "Main.b").IsVisible);
+		Assert.True(Node(vm, "Main.e").IsVisible);
+		Assert.False(Node(vm, "Lib.c").IsVisible);
+		Assert.False(vm.Tree.KeyNodes[1].IsVisible); //nothing in Lib wants words in de
+	}
+
+	[Fact]
+	public void MainWindowViewModel_FileGripesShowOnTheNodeAndOpenInADialog() {
+		// SPEC (Out of scope → now in): what the parser griped about loading a file
+		// is counted on its node and listed on demand
+		var dialogs = new FakeDialogs();
+		var vm = new MainWindowViewModel(dialogs);
+		vm.LoadFile(new StringReader("value-en=English\n\n[k]\nvalue=x\nvalue-fr=stray\n"), "Stray");
+		vm.LoadFile(new StringReader("value-en=English\n\n[k]\nvalue=x\n"), "Clean");
+		KeyNode stray = vm.Tree.KeyNodes[0], clean = vm.Tree.KeyNodes[1];
+
+		Assert.Equal(1, stray.GripeCount);
+		Assert.Equal(0, clean.GripeCount);
+		Assert.True(vm.ShowFileGripesCommand.CanExecute(stray));
+		Assert.False(vm.ShowFileGripesCommand.CanExecute(clean));
+		Assert.False(vm.ShowFileGripesCommand.CanExecute(Node(vm, "Stray.k")));
+
+		vm.ShowFileGripesCommand.Execute(stray);
+
+		var shown = Assert.IsType<GripesViewModel>(Assert.Single(dialogs.Shown));
+		Assert.Contains("'fr'", shown.Text);
+		Assert.StartsWith("Stray", shown.Title);
 	}
 
 	[Fact]

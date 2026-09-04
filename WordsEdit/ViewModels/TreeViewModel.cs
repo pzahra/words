@@ -137,8 +137,12 @@ public class TreeViewModel : ViewModelBase {
 	}
 
 	//Filters
+	/// <summary>The translator's work queue: keys stale in the selected language.</summary>
 	public bool IsStaleFilter { get; set => _ = ChangeProperty(ref field, value) && ApplyFilters(); }
+	/// <summary>The programmer's: keys a translator raised a hand on.</summary>
 	public bool NeedsReviewFilter { get; set => _ = ChangeProperty(ref field, value) && ApplyFilters(); }
+	/// <summary>Keys wanting words in the default, or in the selected language where their file registers it.</summary>
+	public bool MissingFilter { get; set => _ = ChangeProperty(ref field, value) && ApplyFilters(); }
 	public string SearchFilterText { get; set => _ = ChangeProperty(ref field, value) && ApplyFilters(); } = "";
 
 	public IEnumerable<KeyNode> AllNodes => KeyNodes.SelectMany(root => root.SelfAndDescendants());
@@ -159,10 +163,13 @@ public class TreeViewModel : ViewModelBase {
 		bool passesFilter = true;
 
 		if (IsStaleFilter) {
-			passesFilter &= node.IsStale || node.EmptyValue;
+			passesFilter &= node.IsStale;
 		}
 		if (NeedsReviewFilter) {
 			passesFilter &= node.NeedsReview;
+		}
+		if (MissingFilter) {
+			passesFilter &= node.EmptyValue;
 		}
 		if (!string.IsNullOrEmpty(SearchFilterText)) {
 			passesFilter &= node.FullLabel.Contains(SearchFilterText, StringComparison.OrdinalIgnoreCase)
@@ -185,12 +192,17 @@ public class TreeViewModel : ViewModelBase {
 
 	//Badges: computed from the document, for the selected language, in one pass
 	public void RefreshBadges() {
-		foreach (KeyNode node in AllNodes) {
-			RefreshBadges(node);
+		foreach (KeyNode root in KeyNodes) {
+			WordsFile? file = session.FileOf(root.FullLabel);
+			foreach (KeyNode node in root.SelfAndDescendants()) {
+				RefreshBadges(node, file);
+			}
 		}
 	}
 
-	public void RefreshBadges(KeyNode node) {
+	public void RefreshBadges(KeyNode node) => RefreshBadges(node, session.FileOf(node.Root.FullLabel));
+
+	private void RefreshBadges(KeyNode node, WordsFile? file) {
 		if (node is OrganizerNode) {
 			return;
 		}
@@ -207,9 +219,12 @@ public class TreeViewModel : ViewModelBase {
 		node.NeedsReview = key.NeedsReview;
 		node.IsStale = key.HasStaleValue(code);
 		node.IsOverwritten = key.HasRegionalOverride(code);
-		//a key wanting words in either the default or the selected language reads emphasized
+		//a key wanting words in the default, or in the selected language where its
+		//file registers that language (listed or !-hidden), reads emphasized; a file
+		//that never declared the language has no gap to show (SPEC: Badges)
+		bool registers = file?.Languages.Contains(code) == true;
 		node.EmptyValue = !key.IsConstant
-			&& (key.DefaultValue.Trim() == "" || (key.Entries.GetValueOrDefault(code)?.Value.Trim() ?? "") == "");
+			&& (key.DefaultValue.Trim() == "" || (registers && (key.Entries.GetValueOrDefault(code)?.Value.Trim() ?? "") == ""));
 	}
 
 	//only a leaf directly under a file may become a constant (SPEC: baseline pane)
@@ -224,6 +239,7 @@ public class TreeViewModel : ViewModelBase {
 	public void Present(WordsFile file) {
 		KeyNode node = KeyNode.From(KeyTree.Build(session, file));
 		node.IsLibraryFile = file.IsLibrary;
+		node.GripeCount = file.Errors.Count;
 		if (file.Preamble != "") {
 			//the preamble shows as an organizer pinned to the file's start; its text
 			//is the file's own, which Save writes above the language table
@@ -263,6 +279,7 @@ public class TreeViewModel : ViewModelBase {
 		SearchFilterText = "";
 		IsStaleFilter = false;
 		NeedsReviewFilter = false;
+		MissingFilter = false;
 	}
 
 	//the dropdown's entry may have been replaced or pruned: follow the code, never go without
