@@ -66,7 +66,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Dialogs = dialogs ?? new WpfDialogs();
 		Tree = new TreeViewModel(Session);
 		Tree.Edited += () => {
-			IsDirty = true;
+			MarkDirty();
 			RenderPreviews();
 		};
 		Tree.PropertyChanged += (_, e) => {
@@ -218,7 +218,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			//deleting the organizer deletes the comment it presents
 			organizer.Text = "";
 			Tree.Remove(organizer);
-			IsDirty = true;
+			MarkDirty();
 			return;
 		}
 		if (node.IsFile) {
@@ -234,7 +234,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 		Session.RemoveKeysUnder(node.FullLabel);
 		Tree.Remove(node);
-		IsDirty = true;
+		MarkDirty();
 	}
 
 	public void RemoveFileNodeCore(KeyNode fileNode) {
@@ -269,7 +269,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 		node.Label = newName;
 		node.Relabel(newFullLabel);
-		IsDirty = true;
+		MarkDirty();
 	}
 
 	private void DoAddNode() {
@@ -289,7 +289,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			return;
 		}
 		Tree.Add(parent, newName);
-		IsDirty = true;
+		MarkDirty();
 	}
 
 	private void DoAddKey() {
@@ -300,7 +300,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Session.AddKey(Tree.SelectedKeyNode.FullLabel);
 		Tree.FollowSelectedKey();
 		Tree.RefreshBadges(Tree.SelectedKeyNode);
-		IsDirty = true;
+		MarkDirty();
 	}
 
 	private void DoAddOrganizer() {
@@ -308,7 +308,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			return;
 		}
 		if (Tree.CommentAhead(Tree.SelectedKeyNode)) {
-			IsDirty = true;
+			MarkDirty();
 		}
 	}
 
@@ -322,7 +322,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Session.RemoveKey(node.FullLabel);
 		Tree.FollowSelectedKey();
 		Tree.RefreshBadges(node);
-		IsDirty = true;
+		MarkDirty();
 	}
 
 	//Flags
@@ -335,7 +335,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			entry.Stale = stamp;
 		}
 		Tree.RefreshBadges(node);
-		IsDirty = true;
+		MarkDirty();
 	}
 
 	private void DoToggleStaleLanguage(string? languageCode) {
@@ -345,7 +345,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 		entry.Stale = entry.Stale is null ? DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture) : null;
 		Tree.RefreshBadges(node);
-		IsDirty = true;
+		MarkDirty();
 	}
 
 	private void DoToggleNeedsReview() {
@@ -354,7 +354,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 		key.NeedsReview = !key.NeedsReview;
 		Tree.RefreshBadges(node);
-		IsDirty = true;
+		MarkDirty();
 	}
 
 	private void DoToggleConstant() {
@@ -379,7 +379,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		node.Relabel(newKey);
 		Tree.FollowSelectedKey();
 		Tree.RefreshBadges(node);
-		IsDirty = true;
+		MarkDirty();
 	}
 
 	private void DoTestParameters(WordsKey key) {

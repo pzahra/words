@@ -44,7 +44,7 @@ public class LanguageDrag : IDragSource, IDropTarget {
 		}
 		//the new order reaches every file's table, so the writer sees it
 		Vm.Parent.Session.Languages.Reorder(draggedIndex, targetIndex);
-		Vm.Parent.IsDirty = true;
+		Vm.Parent.MarkDirty();
 	}
 
 	public void Dropped(IDropInfo dropInfo) { }

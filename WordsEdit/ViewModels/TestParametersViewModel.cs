@@ -58,12 +58,12 @@ public class TestParametersViewModel : DialogViewModel {
 				parameter.PropertyChanged += OnParameterEdited;
 			}
 		}
-		Parent.IsDirty = true;
+		Parent.MarkDirty();
 		Refresh();
 	}
 
 	private void OnParameterEdited(object? sender, PropertyChangedEventArgs e) {
-		Parent.IsDirty = true;
+		Parent.MarkDirty();
 		Refresh();
 	}
 

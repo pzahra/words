@@ -207,7 +207,7 @@ public class SettingsViewModel : DialogViewModel {
 		string settings = SettingsFile.Trim();
 		if (File.Settings != settings) {
 			File.Settings = settings;
-			Parent.IsDirty = true;
+			Parent.MarkDirty();
 		}
 		foreach (LanguageSettingRow language in Languages) {
 			string path = language.Path.Trim();
@@ -218,7 +218,7 @@ public class SettingsViewModel : DialogViewModel {
 				else {
 					File.LanguageSettings[language.Code] = path;
 				}
-				Parent.IsDirty = true;
+				Parent.MarkDirty();
 			}
 		}
 		//the tables go to their own files, touched ones only; a file that will

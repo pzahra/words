@@ -74,7 +74,7 @@ public class LanguageManagerViewModel : DialogViewModel {
 	private void TreeFollows() {
 		Parent.Tree.FollowLanguage();
 		Parent.Tree.RefreshBadges();
-		Parent.IsDirty = true;
+		Parent.MarkDirty();
 	}
 
 	private void DoOkay() {

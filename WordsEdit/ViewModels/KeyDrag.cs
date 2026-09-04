@@ -140,7 +140,7 @@ public class KeyDrag : IDragSource, IDropTarget {
 		if (oldParent.Root != newParent.Root) {
 			TreeViewModel.UpdateCanBeConstant(oldParent.Root);
 		}
-		Vm.IsDirty = true;
+		Vm.MarkDirty();
 	}
 
 	public void Dropped(IDropInfo dropInfo) {
