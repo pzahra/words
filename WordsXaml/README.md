@@ -1,7 +1,7 @@
 # WordsXaml — Rider extension for `{l:Words …}` keys
 
 A local Rider plugin that gives Avalonia XAML **autocomplete + tooltip preview** (and an optional
-unknown-key warning) for the `pattech.words` markup extension (`{l:Words some.dotted.key}`), resolved
+unknown-key warning) for the Words markup extension (xmlns `https://github.com/pzahra/words`, formerly `pattech.words`) (`{l:Words some.dotted.key}`), resolved
 against the solution's `*-words.ini` files. Built against the **Rider 2025.3** SDK and
 installable on anything newer (`since-build=253`, no upper bound).
 

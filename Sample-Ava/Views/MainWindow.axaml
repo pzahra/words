@@ -7,7 +7,7 @@
         x:Class="Sample_Ava.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        xmlns:l="pattech.words"
+        xmlns:l="https://github.com/pzahra/words"
         Title="{l:Words main.title}"
         Width="700" Height="760">
 

@@ -20,10 +20,10 @@ public partial class App : Application {
 
 ## Use Words in XAML
 
-One namespace gives you everything:
+One namespace gives you everything (`pattech.words`, the older name, still works):
 
 ``` xml
-<Window xmlns:l="pattech.words"
+<Window xmlns:l="https://github.com/pzahra/words"
         Title="{l:Words main.title}">
 
 	<TextBlock>

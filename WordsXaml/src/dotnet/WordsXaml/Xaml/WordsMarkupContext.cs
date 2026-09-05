@@ -20,7 +20,9 @@ namespace WordsXaml.Xaml
         public const string MarkupExtensionShortName = "Words";
 
         /// <summary>The xmlns the extension is registered under; kept for reference/diagnostics.</summary>
-        public const string MarkupExtensionXmlns = "pattech.words";
+        public const string MarkupExtensionXmlns = "https://github.com/pzahra/words";
+        /// <summary>The name the extension was registered under before the project URL became the namespace; still an alias.</summary>
+        public const string LegacyMarkupExtensionXmlns = "pattech.words";
 
         /// <summary>
         /// Returns the key text and its document range if <paramref name="node"/> sits inside an

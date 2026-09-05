@@ -118,7 +118,7 @@ properties, or logs.
 ## Avalonia (`PatTech.Localization.Avalonia`)
 
 ```xml
-xmlns:l="pattech.words"
+xmlns:l="https://github.com/pzahra/words"
 Title="{l:Words main.title}">          <!-- plain string, resolved once -->
 <TextBlock>
   <l:WordsInline Key="main.body" Params="{Binding Args}"/>  <!-- markdown -->
