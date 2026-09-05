@@ -186,7 +186,7 @@ namespace PatTech.Localization {
 		/// <inheritdoc cref="ToWords(string, out IEnumerable{KeyValuePair{string, string}}, bool)"/>
 		public IWords ToWords(string languageCode, bool showFallback = false) {
 			var cultureInfo = CultureInfo.CreateSpecificCulture(languageCode);
-			return new Wordsmith(Flatten(languageCode, showFallback), cultureInfo);
+			return new CulturedWords(Flatten(languageCode, showFallback), cultureInfo);
 		}
 
 		/// <summary>
@@ -201,7 +201,7 @@ namespace PatTech.Localization {
 		public IWords ToWords(string languageCode, out IEnumerable<KeyValuePair<string, string>> languages, bool showFallback = false) {
 			var cultureInfo = CultureInfo.CreateSpecificCulture(languageCode);
 			languages = GetLanguages();
-			return new Wordsmith(Flatten(languageCode, showFallback), cultureInfo);
+			return new CulturedWords(Flatten(languageCode, showFallback), cultureInfo);
 		}
 	}
 }

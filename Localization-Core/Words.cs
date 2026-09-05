@@ -62,7 +62,7 @@ namespace PatTech.Localization {
 	/// <c>String.Format</c>-style helpers, including named-parameter formatting.
 	/// </summary>
 	public static class Words {
-		private static IWords _Known = new Wordsmith(WordsProvider.Empty(), System.Globalization.CultureInfo.InvariantCulture);
+		private static IWords _Known = new CulturedWords(WordsProvider.Empty(), System.Globalization.CultureInfo.InvariantCulture);
 		private static readonly Regex rxFormatTag = new(
 				@"\{[\s-[\r\n]]*(?<1>(?=[_a-zA-Z])\w+)[\s-[\r\n]]*(:[\s-[\r\n]]*(?<2>[^\r\n}]*(?<!\s))[\s-[\r\n]]*)?\}",
 				RegexOptions.Compiled | RegexOptions.ExplicitCapture);
