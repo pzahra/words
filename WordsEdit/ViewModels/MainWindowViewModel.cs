@@ -22,23 +22,20 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public KeyDrag KeyDrag { get; }
 
 	//Wordsmith's own language (SPEC: Wordsmith's own words): the file's menu, and
-	//the entry the current language reads in. Picking another reloads the words
-	//and re-renders what this view model composed; the app reopens the windows
+	//the entry the current language reads in. Picking another is a request the
+	//app answers with a restart, so the menu keeps showing the language in use
 	public IReadOnlyList<KeyValuePair<string, string>> UiLanguages => EditorWords.Languages;
 	public string? UiLanguage {
 		get => EditorWords.MenuCode(EditorWords.Current);
 		set {
-			if (value is null || value == UiLanguage) {
-				return;
+			if (value is not null && value != UiLanguage) {
+				UiLanguageRequested?.Invoke(value);
 			}
-			EditorWords.Load(value, Gripes);
 			AffectProperty(nameof(UiLanguage));
-			UpdateTitle();
-			UiLanguageChanged?.Invoke();
 		}
 	}
-	/// <summary>The words were reloaded in another language; whatever {l:Words} resolved is stale.</summary>
-	public event Action? UiLanguageChanged;
+	/// <summary>The user picked another language for Wordsmith; it takes effect on the restart the app arranges.</summary>
+	public event Action<string>? UiLanguageRequested;
 
 	//Previews: rendered the way a host app would show the selected key, kept
 	//current while shown, each with what went wrong along the way. The default

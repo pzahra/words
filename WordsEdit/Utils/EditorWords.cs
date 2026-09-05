@@ -7,8 +7,9 @@ namespace WordsEdit.Utils;
 ///     Wordsmith's own words (SPEC: Wordsmith's own words): the embedded
 ///     <c>Resources/words.ini</c>, loaded into <see cref="Words.Known"/> before the
 ///     first window, in the language the command line asks for or, failing that,
-///     the one the OS speaks. <c>{l:Words}</c> resolves when a window loads, so a
-///     change of language reloads the windows.
+///     the saved setting (<see cref="EditorConfig"/>) or the one the OS speaks.
+///     <c>{l:Words}</c> resolves when a window loads, so a change of language is
+///     saved and takes effect when the editor restarts.
 /// </summary>
 public static class EditorWords {
 	/// <summary>The manifest name of the embedded file.</summary>
@@ -71,14 +72,18 @@ public static class EditorWords {
 		return null;
 	}
 
-	/// <summary>The language the command line asks for (the last <c>--lang=xx</c>), else the OS one.</summary>
-	public static string LanguageFrom(IEnumerable<string> args) {
+	/// <summary>The language the command line asks for (the last <c>--lang=xx</c>), or null when it does not.</summary>
+	public static string? AskedLanguage(IEnumerable<string> args) {
 		string? asked = null;
 		foreach (string arg in args) {
 			if (arg.StartsWith(LanguageSwitch, StringComparison.Ordinal)) {
 				asked = arg[LanguageSwitch.Length..];
 			}
 		}
-		return asked is { Length: > 0 } ? asked : CultureInfo.CurrentUICulture.Name;
+		return asked is { Length: > 0 } ? asked : null;
 	}
+
+	/// <summary>The language to start in: the command line for this run, else the saved setting, else the OS.</summary>
+	public static string StartupLanguage(IEnumerable<string> args)
+		=> AskedLanguage(args) ?? EditorConfig.Language ?? CultureInfo.CurrentUICulture.Name;
 }

@@ -1,4 +1,5 @@
 using PatTech.Localization.Wpf;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -13,9 +14,9 @@ public partial class App : Application {
 		//controls everywhere, set before the first element exists
 		ToolTipService.ShowOnDisabledProperty.OverrideMetadata(typeof(FrameworkElement), new FrameworkPropertyMetadata(true));
 		//Wordsmith's own words, before the first {l:Words} resolves: --lang=xx on
-		//the command line, else the OS language; what the parser gripes about goes
-		//where every runtime gripe goes
-		EditorWords.Load(EditorWords.LanguageFrom(e.Args), MainWindowViewModel.Gripes);
+		//the command line, else the saved setting, else the OS language; what the
+		//parser gripes about goes where every runtime gripe goes
+		EditorWords.Load(EditorWords.StartupLanguage(e.Args), MainWindowViewModel.Gripes);
 		base.OnStartup(e);
 
 		var viewModel = new MainWindowViewModel(new WpfDialogs());
@@ -24,16 +25,25 @@ public partial class App : Application {
 		foreach (string file in e.Args.Where(File.Exists)) {
 			viewModel.LoadFile(file);
 		}
-		//{l:Words} resolves when a window loads: a change of language is a new
-		//window over the same view model, the old one retired without a prompt
-		viewModel.UiLanguageChanged += () => Open(viewModel, MainWindow as MainWindow);
-		Open(viewModel, null);
+		viewModel.UiLanguageRequested += code => Restart(viewModel, code);
+		new MainWindow { DataContext = viewModel }.Show();
 	}
 
-	private void Open(MainWindowViewModel viewModel, MainWindow? retiring) {
-		var window = new MainWindow { DataContext = viewModel };
-		MainWindow = window;
-		window.Show();
-		retiring?.Retire();
+	//{l:Words} resolves when a window loads, so a change of language is a new
+	//process: unsaved changes are asked about first, the choice is saved, and
+	//the same files are opened again. The window has had its question answered
+	//and retires without asking twice
+	private void Restart(MainWindowViewModel viewModel, string languageCode) {
+		if (!viewModel.TryClose() || Environment.ProcessPath is not { } exe) {
+			return;
+		}
+		EditorConfig.Language = languageCode;
+		var start = new ProcessStartInfo(exe) { UseShellExecute = false };
+		foreach (WordsFile file in viewModel.Session.Files) {
+			start.ArgumentList.Add(file.Path);
+		}
+		Process.Start(start);
+		(MainWindow as MainWindow)?.Retire();
+		Shutdown();
 	}
 }

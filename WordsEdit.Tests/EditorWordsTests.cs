@@ -36,37 +36,51 @@ public class EditorWordsTests {
 		Assert.Null(EditorWords.MenuCode("eo"));
 	}
 
+	//the command line for this run, else the saved setting, else the OS
 	[Fact]
-	public void TheCommandLineNamesTheLanguageElseTheOsDoes() {
-		Assert.Equal("it", EditorWords.LanguageFrom(["file.ini", "--lang=it"]));
-		Assert.Equal("de", EditorWords.LanguageFrom(["--lang=it", "--lang=de"])); //the last one wins
-		Assert.Equal(CultureInfo.CurrentUICulture.Name, EditorWords.LanguageFrom(["file.ini", "--lang="]));
-		Assert.Equal(CultureInfo.CurrentUICulture.Name, EditorWords.LanguageFrom([]));
-	}
-
-	[Fact]
-	public void PickingALanguageReloadsTheWordsAndSaysSo() {
-		var vm = new MainWindowViewModel(new FakeDialogs());
-		vm.LoadFile(new StringReader("value-en=English\n\n[k]\nvalue=x\n"), "Main");
-		int changes = 0;
-		vm.UiLanguageChanged += () => changes++;
+	public void TheStartupLanguageIsTheCommandLinesThenTheSavedOneThenTheOss() {
+		string configured = EditorConfig.Path;
+		EditorConfig.Path = Path.Combine(Path.GetTempPath(), $"wordsmith-{Guid.NewGuid():N}", "config.ini");
 		try {
-			Assert.Equal("en", vm.UiLanguage);
-			Assert.Contains(vm.UiLanguages, language => language.Key == "it");
+			Assert.Null(EditorWords.AskedLanguage(["file.ini", "--lang="]));
+			Assert.Equal("de", EditorWords.AskedLanguage(["--lang=it", "--lang=de"])); //the last one wins
 
-			vm.UiLanguage = "it";
-			Assert.Equal(1, changes);
-			Assert.Equal("it", EditorWords.Current);
-			Assert.Equal("Lingue", Words.Known["languages.title"]); //the screen that is translated
-			Assert.Equal("Wordsmith Editor — Main", vm.Title); //re-rendered; Italian has no title yet
+			Assert.Null(EditorConfig.Language); //no file yet
+			Assert.Equal(CultureInfo.CurrentUICulture.Name, EditorWords.StartupLanguage([]));
 
-			vm.UiLanguage = "it"; //the same again is no change
-			Assert.Equal(1, changes);
+			EditorConfig.Language = "it";
+			Assert.Equal("it", EditorConfig.Language);
+			Assert.Equal("it", EditorWords.StartupLanguage(["file.ini"]));
+			Assert.Equal("de", EditorWords.StartupLanguage(["--lang=de"]));
+
+			EditorConfig.Language = null;
+			Assert.Equal(CultureInfo.CurrentUICulture.Name, EditorWords.StartupLanguage([]));
 		}
 		finally {
-			vm.UiLanguage = "en";
+			if (File.Exists(EditorConfig.Path)) {
+				Directory.Delete(Path.GetDirectoryName(EditorConfig.Path)!, recursive: true);
+			}
+			EditorConfig.Path = configured;
 		}
-		Assert.Equal(2, changes);
+	}
+
+	//{l:Words} resolves when a window loads: picking a language asks for a restart
+	//and changes nothing in this process
+	[Fact]
+	public void PickingALanguageAsksForARestart() {
+		var vm = new MainWindowViewModel(new FakeDialogs());
+		var requested = new List<string>();
+		vm.UiLanguageRequested += requested.Add;
+		Assert.Equal("en", vm.UiLanguage);
+		Assert.Contains(vm.UiLanguages, language => language.Key == "it");
+
+		vm.UiLanguage = "it";
+		Assert.Equal(["it"], requested);
+		Assert.Equal("en", EditorWords.Current);
+		Assert.Equal("en", vm.UiLanguage); //the menu snaps back to the language in use
+
+		vm.UiLanguage = "en"; //the one in use is no request
+		Assert.Equal(["it"], requested);
 	}
 
 	[Fact]

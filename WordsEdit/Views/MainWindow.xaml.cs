@@ -7,15 +7,14 @@ using WordsEdit.ViewModels;
 
 namespace WordsEdit;
 public partial class MainWindow : Window {
-	//the view model is the app's to make and hand over: it outlives the window
-	//when the language changes
+	//the view model is the app's to make and hand over
 	public MainWindow() {
 		InitializeComponent();
 	}
 
 	private bool retiring;
 
-	/// <summary>Another window took over the view model: close without asking about unsaved changes.</summary>
+	/// <summary>The app already asked about unsaved changes (a restart): close without asking again.</summary>
 	public void Retire() {
 		retiring = true;
 		Close();
