@@ -110,6 +110,12 @@ skipping labels that are empty or start with `!`. There is also a
 `ToWords(lang, out languages)` overload that hands you both in one call —
 see Sample-Ava's language dropdown for the pattern, relaunch and all.
 
+Relaunch is the operative word. `Words.Known` is process-wide and nothing that
+already read it — `LazyWords`, strings a view model composed and kept, XAML
+that has loaded — is told when it changes. Pick the language at startup and
+restart the process to change it; do not hot-swap the dictionary in a running
+app and expect the screen to follow.
+
 The `!` prefix is for multi-assembly setups: each assembly ships its own
 `words.ini`, and a subordinate library may carry more languages than the
 host app offers. Declaring those languages with a `!Name` label tells the
@@ -185,4 +191,4 @@ The `Console.WriteWords` extension needs .NET 10 (it hangs static members off
 ``` csharp
 var parser = new ConsoleMarkdownParser(useAnsi: !Console.IsOutputRedirected);
 Console.WriteLine(parser.ToInline(Words.Known["main.title"]));
-```
+```

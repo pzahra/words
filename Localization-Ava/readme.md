@@ -64,6 +64,18 @@ off its public fields and properties. The inlines re-render whenever `Key` or
     </TextBlock>
 ```
 
+### Changing language means restarting
+
+`{l:Words}` resolves once, when the AXAML loads, and `WordsInline` re-renders
+only when its `Key` or `Params` change. Neither watches `Words.Known`, and
+that is deliberate, not a gap to fill: a live swap would also have to catch
+every `LazyWords`, every string a view model composed and kept, every title
+already set, and it would only hold up in an app that is strict MVVM all the
+way down. Do not hot-swap the dictionary in a running UI. Save the choice and
+relaunch the process, with `--lang=xx` on the command line as the sample does
+or from a settings file as Wordsmith does, and let the new process load in the
+new language.
+
 ## Put pictures in your Words
 
 Markdown images work in any rendered value, with the URI scheme deciding where

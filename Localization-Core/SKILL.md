@@ -167,8 +167,10 @@ redirected.
 
 ## Gotchas
 
-- `{l:Words}` resolves when the XAML loads — a language change needs a reload
-  (the sample relaunches itself with `--lang=xx` on the command line).
+- `{l:Words}` resolves when the XAML loads and `WordsInline` does not watch
+  `Words.Known`: a language change is a restart, never a hot swap — `LazyWords`,
+  cached strings and loaded XAML all go stale otherwise
+  (the samples relaunch with `--lang=xx`; Wordsmith saves a config file and restarts).
 - Keys missing from the dictionary render as `#key#` on screen by design;
   grep for `#` leakage rather than letting it ship.
 - `Words.Known` is process-wide; assign it once at startup before any UI.
