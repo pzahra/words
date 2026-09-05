@@ -1,5 +1,8 @@
 <Project>
 
+  <!-- the version numbers, one per thing that ships on its own schedule -->
+  <Import Project="$(MSBuildThisFileDirectory)Versions.props" />
+
   <!-- One identity for every assembly and package in the repo. What differs per
        package — Title, Description, Tags — stays in its own project file. -->
   <PropertyGroup>

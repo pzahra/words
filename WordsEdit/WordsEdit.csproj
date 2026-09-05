@@ -8,6 +8,7 @@
     <ImplicitUsings>true</ImplicitUsings>
     <ApplicationIcon>Resources\words.ico</ApplicationIcon>
     <AssemblyName>Wordsmith</AssemblyName>
+    <Version>$(WordsmithVersion)</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -27,7 +28,7 @@
     <PackageReference Include="gong-wpf-dragdrop" Version="3.2.1" />
     <PackageReference Include="MaterialDesignThemes" Version="4.9.0" />
     <!-- PTL001: a [Localized] seam handed a string that is not — the golden rule, enforced -->
-    <PackageReference Include="PatTech.Localization.Analyzer" Version="[1,)" PrivateAssets="all" />
+    <PackageReference Include="PatTech.Localization.Analyzer" Version="$(AnalyzerVersion)" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>

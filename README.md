@@ -74,3 +74,12 @@ The libraries and samples consume the analyzer as the NuGet package
 `PatTech.Localization.Analyzer`. If you change the analyzer, `dotnet pack`
 the `LocalizationAnalyzer.Package` project and push the result to your local
 feed so the rest of the solution picks it up.
+
+## Versioning
+
+Three things ship on their own schedules, so three numbers live in
+[Versions.props](Versions.props): `ApiVersion` for the Core, WPF and Avalonia
+packages (one API surface, released together), `AnalyzerVersion` for the
+analyzer (also the version the API packages depend on), and `WordsmithVersion`
+for the editor. Bump the one you changed, pack, and tag the release afterwards;
+Source Link stamps the commit into every assembly's informational version.

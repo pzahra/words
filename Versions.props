@@ -1,0 +1,15 @@
+<Project>
+
+  <!-- The three things that ship on their own schedules, each with its own
+       number. Bump the one you changed; git tags mark the release afterwards.
+       Source Link appends the commit to the informational version. -->
+  <PropertyGroup>
+    <!-- PatTech.Localization.Core, .WPF and .Avalonia: one API surface, released together -->
+    <ApiVersion>1.3.0</ApiVersion>
+    <!-- PatTech.Localization.Analyzer: also the version the API packages depend on -->
+    <AnalyzerVersion>1.3.0</AnalyzerVersion>
+    <!-- Wordsmith, the editor -->
+    <WordsmithVersion>1.0.0</WordsmithVersion>
+  </PropertyGroup>
+
+</Project>
