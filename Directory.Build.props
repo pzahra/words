@@ -1,0 +1,32 @@
+<Project>
+
+  <!-- One identity for every assembly and package in the repo. What differs per
+       package — Title, Description, Tags — stays in its own project file. -->
+  <PropertyGroup>
+    <Authors>Patrick Zahra</Authors>
+    <Company>PatTech</Company>
+    <Product>Words</Product>
+    <Copyright>© 2026 Patrick Zahra</Copyright>
+    <PackageProjectUrl>https://github.com/pzahra/words</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/pzahra/words</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageIcon>icon.png</PackageIcon>
+  </PropertyGroup>
+
+  <!-- Source Link and symbols: the SDK wires GitHub Source Link on its own when
+       the repository URL is published; CI builds are deterministic -->
+  <PropertyGroup>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)icon.png" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
+
+</Project>

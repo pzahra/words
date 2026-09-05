@@ -8,10 +8,13 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>PatTech.Localization.Wpf</RootNamespace>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <PackageId>PatTech.Localization.WPF</PackageId>
+    <Title>Words for WPF</Title>
+    <Description>Puts Words in the XAML: the {l:Words key} markup extension, WordsInline for markdown-rendered strings, converters and image schemes over PatTech.Localization.Core.</Description>
+    <PackageTags>localization;i18n;l10n;translation;wpf;xaml;markup-extension;markdown</PackageTags>
     <AssemblyName>PatTech.Localization.WPF</AssemblyName>
     <PackageReadmeFile>readme.md</PackageReadmeFile>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>

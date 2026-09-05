@@ -9,9 +9,11 @@
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <PackageId>PatTech.Localization.Avalonia</PackageId>
+    <Title>Words for Avalonia</Title>
+    <Description>Puts Words in the AXAML: the {l:Words key} markup extension, WordsInline for markdown-rendered strings, converters and image schemes over PatTech.Localization.Core.</Description>
+    <PackageTags>localization;i18n;l10n;translation;avalonia;axaml;markup-extension;markdown</PackageTags>
     <AssemblyName>PatTech.Localization.Avalonia</AssemblyName>
     <PackageReadmeFile>readme.md</PackageReadmeFile>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>

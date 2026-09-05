@@ -10,10 +10,9 @@
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <PackageId>PatTech.Localization.Core</PackageId>
     <AssemblyName>PatTech.Localization.Core</AssemblyName>
-    <Title>Words Core</Title>
-    <Description>Gives you words.</Description>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Copyright>2025</Copyright>
+    <Title>Words</Title>
+    <Description>Gives you Words: every user-facing string in a words.ini, looked up by key in the right language — fallbacks, {0} and {Name} parameters, {>key} references, a markdown dialect. The engine; pair it with PatTech.Localization.WPF or PatTech.Localization.Avalonia for XAML.</Description>
+    <PackageTags>localization;i18n;l10n;translation;strings;resources;markdown;ini</PackageTags>
     <PackageReadmeFile>readme.md</PackageReadmeFile>
   </PropertyGroup>
 
