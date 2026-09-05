@@ -187,9 +187,7 @@ public class TreeViewModel : ViewModelBase {
 	/// <summary>True while any filter narrows the tree.</summary>
 	public bool IsFiltering => IsStaleFilter || NeedsReviewFilter || MissingFilter || SearchFilterText != "";
 	/// <summary>How many rows the filters hide.</summary>
-	public int HiddenCount { get; private set => _ = ChangeProperty(ref field, value) && AffectProperty(nameof(HiddenText)); }
-	/// <summary>The count as the filter bar says it.</summary>
-	public string HiddenText => Words.Known.Format("main.hidden", HiddenCount);
+	public int HiddenCount { get; private set => ChangeProperty(ref field, value); }
 
 	public void ClearFilters() {
 		SearchFilterText = "";

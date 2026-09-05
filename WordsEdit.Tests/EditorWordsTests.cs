@@ -117,9 +117,9 @@ public class EditorWordsTests {
 		Assert.Equal("Wordsmith", german["app.name"]);
 	}
 
-	//{l:Words key}, <l:WordsInline Key="key"/>, Words.Known["key"], Words.Known.Format("key", …)
+	//{l:Words key}, <l:WordsInline Key="key"/>, {Binding …, Converter={StaticResource WordsConverter}, ConverterParameter=key}, Words.Known["key"], Words.Known.Format("key", …)
 	private static readonly Regex rxSourceKeys = new(
-		@"\{l:Words\s+(?<key>[\w.$-]+)\s*\}|WordsInline\s+Key=""(?<key>[\w.$-]+)""|Words\.Known\[""(?<key>[\w.$-]+)""\]|Words\.Known\.Format(?:ByName)?\(""(?<key>[\w.$-]+)""",
+		@"\{l:Words\s+(?<key>[\w.$-]+)\s*\}|WordsInline\s+Key=""(?<key>[\w.$-]+)""|WordsConverter\},\s*ConverterParameter=(?<key>[\w.$-]+)|Words\.Known\[""(?<key>[\w.$-]+)""\]|Words\.Known\.Format(?:ByName)?\(""(?<key>[\w.$-]+)""",
 		RegexOptions.Compiled);
 
 	[Fact]

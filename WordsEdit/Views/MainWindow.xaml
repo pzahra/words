@@ -38,7 +38,8 @@
 		<uc:GenericValueConverter x:Key="BooleanToBoldConverter" Else="SemiBold">
 			<uc:ConverterCondition When="{StaticResource True}" Then="ExtraBlack" />
 		</uc:GenericValueConverter>
-	</Window.Resources>
+        <l:WordsConverter x:Key="WordsConverter" />
+    </Window.Resources>
 
     <Grid>
             <Grid.ColumnDefinitions>
@@ -77,37 +78,34 @@
                          Grid.Column="1"
                          VerticalAlignment="Center"
                          Margin="2.5px"/>
-                <DockPanel Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Tree.HiddenText}"
-                               Visibility="{Binding Tree.IsFiltering, Converter={StaticResource BooleanToVisibilityConverter}}"
-                               VerticalAlignment="Center"
-                               Opacity="0.7"
-                               Margin="2.5px"/>
-                    <Button Command="{Binding ClearFiltersCommand}"
-                            Visibility="{Binding Tree.IsFiltering, Converter={StaticResource BooleanToVisibilityConverter}}"
-                            Style="{StaticResource MaterialDesignFlatButton}"
-                            ToolTip="{l:Words main.clear-filters}"
-                            Padding="4 0"
-                            MinWidth="0"
-                            Margin="2.5px">
-                        <md:PackIcon Kind="FilterRemoveOutline" Width="22" Height="22"/>
-                    </Button>
-                    <ToggleButton Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
-                                  Content="{md:PackIcon Kind=ClockAlert,Size=25}"
-                                  ToolTip="{l:Words main.stale-view}"
-                                  IsChecked="{Binding Tree.IsStaleFilter}" 
-                                  Margin="2.5px"/>
-                    <ToggleButton Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
-                                  Content="{md:PackIcon Kind=HandFrontLeft,Size=25}"
-                                  ToolTip="{l:Words main.review-view}"
-                                  IsChecked="{Binding Tree.NeedsReviewFilter}"
-                                  Margin="2.5px"/>
-                    <ToggleButton Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
-                                  Content="{md:PackIcon Kind=TextBoxRemoveOutline,Size=25}"
-                                  ToolTip="{l:Words main.missing-view}"
-                                  IsChecked="{Binding Tree.MissingFilter}"
-                                  Margin="2.5px"/>
-                </DockPanel>
+            <md:PopupBox Grid.Column="2"
+                         StaysOpen="True"
+                         PlacementMode="BottomAndAlignRightEdges"
+                         ToolTip="{l:Words main.filters}"
+                         ToggleContent="{md:PackIcon Kind=FilterVariant, Size=24}">
+                    <StackPanel Margin="4">
+                        <ToggleButton Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
+                                      Content="{md:PackIcon Kind=ClockAlert,Size=25}"
+                                      ToolTip="{l:Words main.stale-view}"
+                                      IsChecked="{Binding Tree.IsStaleFilter}"
+                                      Margin="2.5px"/>
+                        <ToggleButton Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
+                                      Content="{md:PackIcon Kind=HandFrontLeft,Size=25}"
+                                      ToolTip="{l:Words main.review-view}"
+                                      IsChecked="{Binding Tree.NeedsReviewFilter}"
+                                      Margin="2.5px"/>
+                        <ToggleButton Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
+                                      Content="{md:PackIcon Kind=TextBoxRemoveOutline,Size=25}"
+                                      ToolTip="{l:Words main.missing-view}"
+                                      IsChecked="{Binding Tree.MissingFilter}"
+                                      Margin="2.5px"/>
+                        <Button Command="{Binding ClearFiltersCommand}"
+                                Style="{StaticResource MaterialDesignIconButton}"
+                                Content="{md:PackIcon Kind=FilterRemoveOutline,Size=25}"
+                                ToolTip="{Binding Tree.HiddenCount, Converter={StaticResource WordsConverter}, ConverterParameter=main.clear-filters}"
+                                Margin="2.5px" />
+                    </StackPanel>
+                </md:PopupBox>
             </Grid>
             <Grid Grid.Column="0" 
                   Grid.Row="1" 
@@ -314,16 +312,26 @@
                             Grid.Row="0" 
                             Grid.Column="1" 
                             VerticalAlignment="Center">
-                    <Button Command="{Binding TestParametersCommand}"
-                            CommandParameter="{Binding Tree.SelectedKey}"
-                            Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
-                            ToolTip="{l:Words main.test-parameters}"
-                            Margin="2.5px">
-                        <md:PackIcon Kind="CodeBraces" 
-                                     Height="20" 
-                                     Width="20"/>
-                    </Button>
-                    <ToggleButton Command="{Binding ToggleConstantCommand}"
+                    <md:Badged Badge="{Binding DefaultPreview.GripeCount}"
+                               BadgeColorZoneMode="SecondaryMid"
+                               Visibility="{Binding DefaultPreview.GripeCount, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                               VerticalAlignment="Center">
+                        <Button Command="{Binding ShowGripesCommand}"
+                                CommandParameter="{Binding DefaultPreview}"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                ToolTip="{l:Words main.preview-gripes}"
+                                Foreground="DarkOrange"
+                                Content="{md:PackIcon Kind=AlertCircleOutline, Size=24}"
+                                Padding="4 0"
+                                Margin="2.5px" />
+                    </md:Badged>
+                <Button Command="{Binding TestParametersCommand}"
+                        CommandParameter="{Binding Tree.SelectedKey}"
+                        Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
+                        ToolTip="{l:Words main.test-parameters}"
+                        Content="{md:PackIcon Kind=CodeBraces}"
+                        Margin="2.5px" />
+                <ToggleButton Command="{Binding ToggleConstantCommand}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=TranslateOff, Size=25}"
                                   IsChecked="{Binding Tree.SelectedKeyNode.IsConstant, Mode=OneWay}"
@@ -336,19 +344,6 @@
                                   IsChecked="{Binding Tree.SelectedKeyNode.NeedsReview, Mode=OneWay}"
                                   ToolTip="{l:Words main.toggle-review}"
                                   Margin="2.5px"/>
-                    <Button Command="{Binding ShowGripesCommand}"
-                            CommandParameter="{Binding DefaultPreview}"
-                            Style="{StaticResource MaterialDesignFlatButton}"
-                            Visibility="{Binding DefaultPreview.GripeCount, Converter={StaticResource NotZeroToVisibilityConverter}}"
-                            ToolTip="{l:Words main.preview-gripes}"
-                            Foreground="DarkOrange"
-                            Padding="4 0"
-                            Margin="2.5px">
-                        <StackPanel Orientation="Horizontal">
-                            <md:PackIcon Kind="AlertCircleOutline" VerticalAlignment="Center"/>
-                            <TextBlock Text="{Binding DefaultPreview.GripeCount}" VerticalAlignment="Center" Margin="3 0 0 0"/>
-                        </StackPanel>
-                    </Button>
                     <ToggleButton IsChecked="{Binding ShowDefaultPreview}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=Eye, Size=35}"
@@ -382,27 +377,38 @@
                     </Grid>
                 </Border>
             </Grid>
-            <ComboBox ItemsSource="{Binding Tree.FileLanguages}"
-                      SelectedItem="{Binding Tree.SelectedLanguage}"
-                      DisplayMemberPath="NativeName"
-                      Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
-                      Grid.Column="2" 
-                      Grid.Row="0"
-                      FontWeight="SemiBold"
-                      FontSize="14"
-                      Margin="2.5px">
-                <ComboBox.ItemContainerStyle>
-                    <Style TargetType="ComboBoxItem">
-                        <Setter Property="Template">
-                            <Setter.Value>
-                                <ControlTemplate TargetType="ComboBoxItem">
-                                    <ContentPresenter Content="{Binding NativeName}" Margin="2.5px"/>
-                                </ControlTemplate>
-                            </Setter.Value>
-                        </Setter>
-                    </Style>
-                </ComboBox.ItemContainerStyle>
-            </ComboBox>
+            <Grid Grid.Column="2" Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Button Command="{Binding ManageLanguagesCommand}"
+                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                        ToolTip="{l:Words tool.languages}">
+                    <md:PackIcon Kind="Translate"/>
+                </Button>
+                <ComboBox ItemsSource="{Binding Tree.FileLanguages}"
+                          SelectedItem="{Binding Tree.SelectedLanguage}"
+                          DisplayMemberPath="NativeName"
+                          Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                          Grid.Column="1"
+                          FontWeight="SemiBold"
+                          FontSize="14"
+                          Margin="10px 2.5px 10px 2.5px">
+                    <ComboBox.ItemContainerStyle>
+                        <Style TargetType="ComboBoxItem">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ComboBoxItem">
+                                        <ContentPresenter Content="{Binding NativeName}" Margin="2.5px"/>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ComboBox.ItemContainerStyle>
+                </ComboBox>
+            </Grid>
             <ScrollViewer Grid.Column="2"
                           Grid.Row="1"
                           VerticalScrollBarVisibility="Auto"
@@ -476,38 +482,35 @@
                                FontWeight="SemiBold"
                                FontSize="14"/>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" 
-                            Grid.Row="0" 
-                            Grid.Column="2">
-                    <Button Command="{Binding TestParametersCommand}"
-                            CommandParameter="{Binding Tree.SelectedKey}"
-                            Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
-                            ToolTip="{l:Words main.test-parameters}"
-                            Margin="2.5px">
-                        <md:PackIcon Kind="CodeBraces"
-                                     Height="20" 
-                                     Width="20"/>
-                    </Button>
-                    <ToggleButton Command="{Binding ToggleStaleLanguageCommand}"
+                <StackPanel Orientation="Horizontal"
+                            Grid.Row="0"
+                            Grid.Column="1">
+                <md:Badged Badge="{Binding TranslationPreview.GripeCount}"
+                           BadgeColorZoneMode="SecondaryMid"
+                           Visibility="{Binding TranslationPreview.GripeCount, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                           VerticalAlignment="Center">
+                    <Button Command="{Binding ShowGripesCommand}"
+                            CommandParameter="{Binding TranslationPreview}"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            ToolTip="{l:Words main.preview-gripes}"
+                            Foreground="DarkOrange"
+                            Content="{md:PackIcon Kind=AlertCircleOutline, Size=24}"
+                            Padding="4 0"
+                            Margin="2.5px" />
+                </md:Badged>
+                <Button Command="{Binding TestParametersCommand}"
+                        CommandParameter="{Binding Tree.SelectedKey}"
+                        Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
+                        ToolTip="{l:Words main.test-parameters}"
+                        Content="{md:PackIcon Kind=CodeBraces}"
+                        Margin="2.5px" />
+                <ToggleButton Command="{Binding ToggleStaleLanguageCommand}"
                                   CommandParameter="{Binding Tree.SelectedLanguage.Code}"
                                   IsChecked="{Binding Tree.SelectedKeyNode.IsStale, Mode=OneWay}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=ClockAlert,Size=30}"
                                   ToolTip="{l:Words main.toggle-stale}"
                                   Margin="2.5px"/>
-                    <Button Command="{Binding ShowGripesCommand}"
-                            CommandParameter="{Binding TranslationPreview}"
-                            Style="{StaticResource MaterialDesignFlatButton}"
-                            Visibility="{Binding TranslationPreview.GripeCount, Converter={StaticResource NotZeroToVisibilityConverter}}"
-                            ToolTip="{l:Words main.preview-gripes}"
-                            Foreground="DarkOrange"
-                            Padding="4 0"
-                            Margin="2.5px">
-                        <StackPanel Orientation="Horizontal">
-                            <md:PackIcon Kind="AlertCircleOutline" VerticalAlignment="Center"/>
-                            <TextBlock Text="{Binding TranslationPreview.GripeCount}" VerticalAlignment="Center" Margin="3 0 0 0"/>
-                        </StackPanel>
-                    </Button>
                     <ToggleButton IsChecked="{Binding ShowLocalizationPreview}"
                                   Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
                                   Content="{md:PackIcon Kind=Eye,Size=35}"
@@ -567,6 +570,12 @@
                         Margin="2.5px">
                     <md:PackIcon Kind="CommentPlus"/>
                 </Button>
+                <Button Command="{Binding SettingsCommand}"
+                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                        Margin="2.5px"
+                        ToolTip="{l:Words tool.settings}">
+                    <md:PackIcon Kind="Cog"/>
+                </Button>
             </StackPanel>
             <StackPanel Grid.Column="1" 
                         Grid.Row="3"
@@ -600,7 +609,7 @@
                         Orientation="Horizontal"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Bottom">
-                <!-- the language Wordsmith itself speaks; a change reopens the window in it -->
+                <!-- the language Wordsmith itself speaks; a change restarts the editor in it -->
                 <ComboBox ItemsSource="{Binding UiLanguages}"
                           SelectedValue="{Binding UiLanguage}"
                           SelectedValuePath="Key"
@@ -609,18 +618,6 @@
                           VerticalAlignment="Center"
                           MinWidth="110"
                           Margin="2.5px 2.5px 10px 2.5px"/>
-                <Button Command="{Binding ManageLanguagesCommand}"
-                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
-                        Margin="2.5px"
-                        ToolTip="{l:Words tool.languages}">
-                    <md:PackIcon Kind="Translate"/>
-                </Button>
-                <Button Command="{Binding SettingsCommand}"
-                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
-                        Margin="2.5px"
-                        ToolTip="{l:Words tool.settings}">
-                    <md:PackIcon Kind="Cog"/>
-                </Button>
                 <Button Command="{Binding MergeFilesCommand}"
                         Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
                         Margin="2.5px"
@@ -650,8 +647,18 @@
 					   Grid.Column="2"
 					   VerticalAlignment="Bottom"
 					   HorizontalAlignment="Right"
-					   Foreground="{DynamicResource MaterialDesignLightForeground}"
-					   Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource Equals}, ConverterParameter=0}">
+					   Foreground="{DynamicResource MaterialDesignLightForeground}">
+				<!-- a DataTrigger compares the count as a number; the Equals converter saw an int and the string "0" -->
+				<TextBlock.Style>
+					<Style TargetType="TextBlock">
+						<Setter Property="Visibility" Value="Collapsed"/>
+						<Style.Triggers>
+							<DataTrigger Binding="{Binding Tree.KeyNodes.Count}" Value="0">
+								<Setter Property="Visibility" Value="Visible"/>
+							</DataTrigger>
+						</Style.Triggers>
+					</Style>
+				</TextBlock.Style>
 				<Run FontSize="24" FontWeight="DemiBold" BaselineAlignment="Top" Text="{l:Words main.start-here}"/>
 				<md:PackIcon Kind="ArrowBottomRightBoldOutline" Width="96" Height="96"/>
 				<Run Text="         "/>

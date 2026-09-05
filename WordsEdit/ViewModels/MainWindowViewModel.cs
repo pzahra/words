@@ -108,7 +108,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 				}
 			},
 			static node => node is { IsFile: true, GripeCount: > 0 });
-		ClearFiltersCommand = new DelegateCommand(Tree.ClearFilters);
+		ClearFiltersCommand = new DelegateCommand(Tree.ClearFilters, () => Tree.IsFiltering);
 		//the structure edits say whether they apply, so a menu or a key can offer them all
 		RemoveNodeCommand = new DelegateCommand(DoRemoveNode, () => Tree.SelectedKeyNode is not null);
 		RenameNodeCommand = new DelegateCommand(DoRenameNode, () => Tree.SelectedKeyNode is { IsFile: false } and not OrganizerNode);

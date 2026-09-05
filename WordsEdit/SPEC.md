@@ -103,9 +103,11 @@ One tree presents every loaded file:
   composable; ancestors of a match stay visible so the path is readable. The
   search reads what a translator searches for: a key's name, its default and
   selected-language words, the context and comments around them, and a
-  comment node's text. While a filter narrows the tree it says how many rows
-  it hides and clears in one click; a selection the filter hides moves up to
-  the nearest row still showing. The stale filter is per selected language
+  comment node's text. The three toggles live in a filter menu beside the
+  search box; while a filter narrows the tree the menu's clear button is
+  enabled, says how many rows are hidden and clears the lot in one click; a
+  selection the filter hides moves up to the nearest row still showing. The
+  stale filter is per selected language
   and means stale, nothing more: this is the translator's work queue. The
   missing filter takes the empty values (file by file — see Badges). The
   needs-review filter is the programmer's work queue in reverse — the
