@@ -27,8 +27,10 @@ public override void OnFrameworkInitializationCompleted() {
 		if (uri.Scheme is "appcmd") {
 			// Handle application command hyperlinks.
 		}
-		else {
-			// Handle URL hyperlinks.
+		else if (uri.Scheme is "http" or "https" or "mailto") {
+			// Only hand the shell schemes you trust to open externally: a rendered
+			// value is display text, so never shell-open an arbitrary scheme (file:
+			// and friends would run local things). An unlisted scheme is ignored.
 			Process.Start(new ProcessStartInfo(uri.ToString()) { UseShellExecute = true });
 		}
 	});
@@ -87,8 +89,10 @@ value=Press ![save icon](staticres:SaveIconGeometry?height=16&foreground=DarkGre
 ```
 
 Out of the box the parser speaks `avares:` (embedded assets), `assets:` (files
-under the application's `Assets` folder — and only that folder; `../` escapes
-are clamped, no matter how creatively encoded), and `staticres:` (application
+under the application's `Assets` folder. It's a convenience, not a security
+boundary: the path is lexically clamped to that folder — `../` and rooted paths
+resolve to nothing — and the scheme only ever loads images, so a symlink someone
+planted inside `Assets` is out of scope), and `staticres:` (application
 resource by `x:Key`). Query options `width`, `height`, `background`, and
 `foreground` apply whatever the scheme; the query carries display options, not
 asset identity, so resolvers always receive the URI with it already split off.

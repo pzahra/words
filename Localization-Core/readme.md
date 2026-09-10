@@ -151,6 +151,14 @@ Use the formatter `Words.Known.Format` as you would `String.Format`, but
 you can also use `Words.Known.FormatByName` to access properties as
 named parameters.
 
+An argument is substituted into the value and then rendered as markdown along
+with it, so an argument can carry markdown of its own — a dynamic
+`[link](appcmd:open?id=42)`, say. That is by design and deliberately not
+escaped: treat format arguments as author-trusted, and don't build them from
+untrusted input you wouldn't want rendered (and, for the terminal renderer,
+raw control characters are stripped from every value whatever their source —
+see [ConsoleWords](ConsoleWords.cs)).
+
 ## Teach your agents
 
 The package carries an agent skill — a `SKILL.md` that teaches coding agents

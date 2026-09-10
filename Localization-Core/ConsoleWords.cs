@@ -23,10 +23,34 @@ namespace PatTech.Localization {
 		: MarkdownParser<string>(logger) {
 		private const string Esc = "\x1b";
 
-		/// <summary>Plain text passes through untouched.</summary>
-		protected override string Run(string text) => text;
+		/// <summary>Plain text, with any control characters stripped (see <see cref="Sanitize"/>).</summary>
+		protected override string Run(string text) => Sanitize(text);
 		/// <summary>Adjacent inlines simply concatenate.</summary>
 		protected override string Span(IEnumerable<string> inlines) => string.Concat(inlines);
+
+		/// <summary>
+		/// Strips control characters (keeping tab and newline) from a leaf of untrusted
+		/// content. words.ini holds display text that may render in any host, so the
+		/// terminal renderer treats it as untrusted: control characters are where escape
+		/// sequences begin, so a value can't forge SGR/OSC-8. This runs on the leaves —
+		/// plain text here, and link/image URIs and alt text, which never pass through
+		/// <see cref="Run"/> — while the converter's own escapes wrap already-sanitized
+		/// content and so survive.
+		/// </summary>
+		private static string Sanitize(string text) {
+			if (string.IsNullOrEmpty(text)) return text;
+			StringBuilder? sb = null;
+			for (int i = 0; i < text.Length; i++) {
+				char c = text[i];
+				if (char.IsControl(c) && c != '\n' && c != '\t') {
+					sb ??= new StringBuilder(text.Length).Append(text, 0, i);
+				}
+				else {
+					sb?.Append(c);
+				}
+			}
+			return sb?.ToString() ?? text;
+		}
 
 		/// <summary>
 		/// Renders a link. With ANSI enabled this is an OSC 8 hyperlink — genuinely
@@ -35,12 +59,15 @@ namespace PatTech.Localization {
 		/// The tooltip has nowhere to live in a terminal and is dropped.
 		/// </summary>
 		protected override string Hyperlink(string content, Uri target, string? tooltip) {
+			// content is built from sanitized leaves; the URI is untrusted, so sanitize
+			// it before it goes into the OSC-8 sequence (or the spelled-out form)
+			var url = Sanitize(target.OriginalString);
 			if (!useAnsi) {
-				return content == target.OriginalString
+				return content == url
 					? content
-					: $"{content} ({target.OriginalString})";
+					: $"{content} ({url})";
 			}
-			return $"{Esc}]8;;{target.OriginalString}{Esc}\\{Esc}[4;34m{content}{Esc}[24;39m{Esc}]8;;{Esc}\\";
+			return $"{Esc}]8;;{url}{Esc}\\{Esc}[4;34m{content}{Esc}[24;39m{Esc}]8;;{Esc}\\";
 		}
 
 		/// <summary>
@@ -48,7 +75,7 @@ namespace PatTech.Localization {
 		/// (or its address, if somehow there is no alt text). The tooltip is dropped.
 		/// </summary>
 		protected override string Image(Uri source, string? altText, string? tooltip)
-			=> $"[🖼️!{altText ?? source.OriginalString}]";
+			=> $"[🖼️!{Sanitize(altText ?? source.OriginalString)}]";
 
 		/// <summary>Wraps the content in SGR bold (<c>CSI 1 m</c> … <c>CSI 22 m</c>).</summary>
 		protected override void Embolden(ref string content) {

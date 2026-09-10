@@ -196,10 +196,10 @@ Tick items as they land; keep this file in the addressing commit.
 - [x] `Hyperlink` same-delegate unsubscribe (per-registration token, `ThrowIfNull`)
 
 ### Step 6 — Containment / injection
-- [ ] `assets:` readme wording weakened (convenience, not a boundary); lexical clamp kept
-- [ ] Document format args render as markdown by design (dynamic command links); no escaping
-- [ ] Readme: catch-all `Process.Start` -> scheme allowlist
-- [ ] Console: sanitize control chars at the leaves (text, URIs, alt); converter is the sole terminal-escape source
+- [x] `assets:` readme wording weakened (convenience, not a boundary); lexical clamp kept
+- [x] Document format args render as markdown by design (dynamic command links); no escaping
+- [x] Readme + samples: catch-all `Process.Start` -> scheme allowlist (http/https/mailto)
+- [x] Console: sanitize control chars at the leaves (text, URIs, alt); converter is the sole terminal-escape source
 
 ### Step 7 — Global state
 - [ ] `Words.Logger`/`Dummy` non-null get-only

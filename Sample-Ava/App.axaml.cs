@@ -33,7 +33,8 @@ namespace Sample_Ava {
 					// application-command links stay inside the app
 					viewModel.TakeAppCommand(uri);
 				}
-				else {
+				else if (uri.Scheme is "http" or "https" or "mailto") {
+					// only shell-open the schemes we trust; never an arbitrary one
 					Process.Start(new ProcessStartInfo(uri.ToString()) { UseShellExecute = true });
 				}
 			});
