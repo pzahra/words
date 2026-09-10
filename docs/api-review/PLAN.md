@@ -24,6 +24,44 @@ Severity as reported: Core 5H/9M/4L · Authoring 7H/7M/3L (heaviest) · Wpf
   item — but the backslash-escaping fix below must run *before* the writer adds
   its own continuation backslashes so it never doubles them.
 
+## Decisions (2026-09-10, with the maintainer)
+
+- **Step 3 — repeated `value=` stays overwrite/warn; fix the docs.** A repeated
+  `value=` keeps only the last and logs `WB:KOVR` (a later `Load` overlay relies
+  on this). That was a design change from the old "append" idea, but breaking it
+  isn't worth it and almost nobody relies on append-within-a-key — so leave the
+  code and correct the docs: the readme/SKILL examples claiming a repeated field
+  "continues the line" are wrong (continuation is a trailing `\`/`_` only).
+  Narrow the WordsEdit byte-stability / "never lose data" wording to the
+  canonical save→load→save it guarantees, and fix the long `stale=` continuation
+  truncation (a real bug). No lossless ordered layer; unknown fields and unknown
+  param types documented as not preserved.
+- **Step 6 — `assets:` is a convenience, not a security boundary.** Keep the
+  lexical `../` clamp; drop the readme's "no matter how creatively" promise
+  (WPF + Ava). Still do the mechanical hardening: the readme's catch-all
+  `Process.Start` → a scheme allowlist, and OSC-8 console control-char
+  sanitizing. The residual risk — a symlink or junction planted inside
+  `Assets` — needs local filesystem write the app never grants, so on a
+  properly installed app it is out of scope, and the scheme only ever loads
+  images.
+- **Format args stay markdown (by design).** Parameters substituted into a value
+  are still markdown-parsed — inserting dynamic command links through args is a
+  wanted feature. Not escaped; document that args are author-trusted (don't feed
+  untrusted input into a rendered string).
+- **Console output — sanitize the dictionary, trust only the converter.**
+  words.ini holds display text that may render in any host, so the console
+  renderer treats it as untrusted: it strips control characters at the leaves
+  (plain text via `Run`, and link/image URIs and alt text, which never pass
+  through `Run`) so a value can't forge terminal escape sequences. The
+  markdown-to-console converter is the sole legitimate emitter of SGR/OSC-8 — it
+  wraps already-sanitized content, so its own escapes survive. Format params still
+  carry markdown (a dynamic link becomes a proper OSC-8 hyperlink via the
+  converter), but raw control chars are stripped whatever their source.
+- **Step 8 — culture tags deferred.** Script-based tags (`zh-Hant-TW` etc.) are
+  not on the roadmap; skip `CultureInfo` canonicalization / `Parent` fallback for
+  now. Still worth the cheap fix: one consistent formatting culture across the
+  positional/named params and `WordsConverter` (today they differ).
+
 ## Themes
 
 - **A. Authoring data-loss / corruption** — the real priority.
@@ -121,10 +159,10 @@ Tick items as they land; keep this file in the addressing commit.
 - [x] Validate tree root ownership + key-set coverage before write
 - [x] Atomic write (temp sibling + replace) for Save/Merge/Split
 
-### Step 3 — Empty/repeated/unknown-field contract
-- [ ] Decide append vs last-wins for repeated `value=`; align Core impl + docs
-- [ ] Lossless ordered layer OR narrowed byte-stability/never-lose-data docs
-- [ ] Reopened blocks, unknown fields, unknown param types, long `stale=` continuation
+### Step 3 — Repeated fields, and doc accuracy
+- [ ] Keep repeated `value=` overwrite+warn (last-wins); no semantic code change
+- [ ] Correct core readme/SKILL: a repeated field overwrites and warns (not a continuation)
+- [ ] Narrow WordsEdit byte-stability / never-lose-data docs; fix the long `stale=` continuation truncation
 
 ### Step 4 — Shared-resource rendering (WPF + Ava)
 - [ ] `staticres:`/`pack:` no longer reparent/mutate shared instances
@@ -137,16 +175,16 @@ Tick items as they land; keep this file in the addressing commit.
 - [ ] `Hyperlink` same-delegate unsubscribe (per-registration token, `ThrowIfNull`)
 
 ### Step 6 — Containment / injection
-- [ ] `assets:` decision: harden reparse-point handling OR weaken readme wording
-- [ ] Ava: escape markdown in format args by default
-- [ ] Readme: replace catch-all `Process.Start` with allowlist
-- [ ] Console OSC-8 control-char sanitization
+- [ ] `assets:` readme wording weakened (convenience, not a boundary); lexical clamp kept
+- [ ] Document format args render as markdown by design (dynamic command links); no escaping
+- [ ] Readme: catch-all `Process.Start` -> scheme allowlist
+- [ ] Console: sanitize control chars at the leaves (text, URIs, alt); converter is the sole terminal-escape source
 
 ### Step 7 — Global state
 - [ ] `Words.Logger`/`Dummy` non-null get-only
 - [ ] `GroupCuts` per-write/snapshot + reject `minimumKeys < 1`
 - [ ] Document single-startup / UI-thread contract
 
-### Step 8 — Culture / tags (conditional on roadmap)
-- [ ] `CultureInfo`-based validation/canonicalization + `Parent` fallback
-- [ ] One formatting-culture policy across `WordsInline`/`WordsConverter`
+### Step 8 — Culture / tags (deferred)
+- [ ] Tag canonicalization / `Parent` fallback — deferred (locales not on roadmap)
+- [ ] One formatting-culture policy across `WordsInline`/`WordsConverter` (the cheap part, still do)
