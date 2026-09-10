@@ -15,7 +15,7 @@ public class MarkdownConverter : IValueConverter {
 	///     string) as markdown and returns the formatted result.
 	/// </summary>
 	/// <remarks>
-	///     When <paramref name="targetType"/> is <see cref="TextBlock"/> (or a subclass), the
+	///     When <paramref name="targetType"/> is an <see cref="Inline"/> (or a subclass), the
 	///     <see cref="Inline"/> is returned directly for use in flow content; for any other
 	///     target the inline is wrapped in a new <see cref="TextBlock"/>. Null or empty input
 	///     produces an empty <see cref="Run"/>.
@@ -36,7 +36,7 @@ public class MarkdownConverter : IValueConverter {
 			inline = new Run();
 		}
 
-		if (typeof(TextBlock).IsAssignableFrom(targetType)) {
+		if (typeof(Inline).IsAssignableFrom(targetType)) {
 			// Try to facilitate usage in flow context, if applicable
 			return inline;
 		}

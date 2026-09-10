@@ -13,6 +13,7 @@ namespace PatTech.Localization.Wpf {
 	/// </summary>
 	public static class Hyperlink {
 		private static Action<Uri>? current;
+		private static object? currentToken;
 		private static bool hooked;
 
 		/// <summary>
@@ -29,6 +30,7 @@ namespace PatTech.Localization.Wpf {
 		/// <param name="handler">Receives the activated hyperlink's URI.</param>
 		/// <returns>A subscription that removes the handler when disposed.</returns>
 		public static IDisposable RegisterGlobalNavigateHandler(Action<Uri> handler) {
+			ArgumentNullException.ThrowIfNull(handler);
 			if (!hooked) {
 				// class handlers cannot be removed, so hook exactly one and let
 				// registrations swap the delegate it forwards to
@@ -39,7 +41,8 @@ namespace PatTech.Localization.Wpf {
 				hooked = true;
 			}
 			current = handler;
-			return new Subscription(handler);
+			currentToken = new object();
+			return new Subscription(currentToken);
 		}
 
 		private static void OnRequestNavigate(object sender, RequestNavigateEventArgs e) {
@@ -49,11 +52,13 @@ namespace PatTech.Localization.Wpf {
 			}
 		}
 
-		private sealed class Subscription(Action<Uri> handler) : IDisposable {
+		private sealed class Subscription(object token) : IDisposable {
 			public void Dispose() {
-				// a stale subscription (already replaced) must not kill the current one
-				if (current == handler) {
+				// a stale subscription (already replaced) must not kill the current
+				// one — identity by token, so re-registering the same delegate is safe
+				if (currentToken == token) {
 					current = null;
+					currentToken = null;
 				}
 			}
 		}

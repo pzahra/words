@@ -170,9 +170,9 @@ Tick items as they land; keep this file in the addressing commit.
 - [ ] Image dimension validation (finite, non-negative, capped)
 
 ### Step 5 — Contract bugs
-- [ ] `MarkdownConverter` target-type logic + docs (both modules)
-- [ ] Unified converter `ConvertBack` exception type
-- [ ] `Hyperlink` same-delegate unsubscribe (per-registration token, `ThrowIfNull`)
+- [x] `MarkdownConverter` target-type logic + docs (both modules)
+- [x] Unified converter `ConvertBack` exception type
+- [x] `Hyperlink` same-delegate unsubscribe (per-registration token, `ThrowIfNull`)
 
 ### Step 6 — Containment / injection
 - [ ] `assets:` readme wording weakened (convenience, not a boundary); lexical clamp kept

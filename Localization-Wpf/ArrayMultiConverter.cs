@@ -27,9 +27,9 @@ public class ArrayMultiConverter : IMultiValueConverter {
 		=> values.ToArray();
 
 	/// <summary>
-	/// Not Implemented.
+	/// Not supported; this converter is one-way.
 	/// </summary>
-	/// <exception cref="NotImplementedException"></exception>
+	/// <exception cref="NotSupportedException">Always.</exception>
 	public object[] ConvertBack(object? value, Type[] targetTypes, object? parameter, CultureInfo culture)
-		=> throw new NotImplementedException();
+		=> throw new NotSupportedException();
 }

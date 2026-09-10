@@ -52,4 +52,15 @@ public class ConverterResourceTests {
 			return null;
 		});
 	}
+
+	[Fact]
+	public void EveryConverter_ConvertBack_ThrowsNotSupported() {
+		// one-way converters, one exception type across the board
+		var culture = System.Globalization.CultureInfo.InvariantCulture;
+		Assert.Throws<NotSupportedException>(() => new MarkdownConverter().ConvertBack(null, typeof(object), null, culture));
+		Assert.Throws<NotSupportedException>(() => new WordsConverter().ConvertBack(null!, typeof(object), null!, culture));
+		Assert.Throws<NotSupportedException>(() => new EnumDescriptionConverter().ConvertBack(null, typeof(object), null, culture));
+		Assert.Throws<NotSupportedException>(() => new FlagsDescriptionConverter().ConvertBack(null, typeof(object), null, culture));
+		Assert.Throws<NotSupportedException>(() => new ArrayMultiConverter().ConvertBack(null, [typeof(object)], null, culture));
+	}
 }

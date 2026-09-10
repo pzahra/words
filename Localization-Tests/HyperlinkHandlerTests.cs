@@ -92,4 +92,26 @@ public class HyperlinkHandlerTests {
 			return null;
 		});
 	}
+
+	[Fact]
+	public void Register_NullHandler_Throws()
+		=> Assert.Throws<ArgumentNullException>(() => Hyperlink.RegisterGlobalNavigateHandler(null!));
+
+	[Fact]
+	public void Reregistering_TheSameDelegate_StaleDisposeKeepsCurrent() {
+		RunSta<object?>(() => {
+			var seen = new List<Uri>();
+			Action<Uri> handler = seen.Add; // one delegate instance, registered twice
+			var stale = Hyperlink.RegisterGlobalNavigateHandler(handler);
+			using var current = Hyperlink.RegisterGlobalNavigateHandler(handler);
+
+			// identity is by token, not the delegate: the stale dispose must not
+			// clear the live registration just because they share a delegate
+			stale.Dispose();
+			Click("appcmd:same");
+
+			Assert.Single(seen);
+			return null;
+		});
+	}
 }

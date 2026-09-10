@@ -53,6 +53,7 @@ public class Hyperlink : Span {
 	/// <param name="handler">Receives the activated hyperlink's URI.</param>
 	/// <returns>A subscription that removes the handler when disposed.</returns>
 	public static IDisposable RegisterGlobalNavigateHandler(Action<Uri> handler) {
+		ArgumentNullException.ThrowIfNull(handler);
 		globalNavigateSubscription?.Dispose();
 		globalNavigateSubscription = NavigateEvent.AddClassHandler<TextBlock>((_, e) => handler(e.Uri));
 		return globalNavigateSubscription;

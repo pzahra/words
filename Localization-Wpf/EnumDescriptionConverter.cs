@@ -43,9 +43,9 @@ public class EnumDescriptionConverter : IValueConverter {
 	}
 
 	/// <summary>
-	/// Not Implemented.
+	/// Not supported; this converter is one-way.
 	/// </summary>
-	/// <exception cref="NotImplementedException"></exception>
+	/// <exception cref="NotSupportedException">Always.</exception>
 	public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-		=> throw new NotImplementedException();
+		=> throw new NotSupportedException();
 }
