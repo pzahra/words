@@ -192,7 +192,7 @@ namespace PatTech.Localization.Authoring {
 	public abstract class WordsProviderBase(IReadOnlyDictionary<string, WordsKey> keys, IEnumerable<string> fileNames) : IWordsProvider {
 		private readonly string[] fileNames = [.. fileNames.Reverse()];
 
-		public string this[string key] => throw new NotImplementedException();
+		public string this[string key] => TryGetValue(key, out var value) ? value : throw new KeyNotFoundException(key);
 
 		public bool ContainsKey(string key) => TryFind(key, out _);
 

@@ -106,6 +106,64 @@ public class WordsOperationsTests {
 	}
 
 	[Fact]
+	public void WordsOperations_ShiftFillsAValuelessTargetWithoutLosingItsMetadata() {
+		// a target with no value but a context/comment used to be replaced whole;
+		// now it keeps them and takes the moved value
+		WordsKey key = new("F.k") {
+			Entries = {
+				{ "en-GB", new WordsEntry { Value = "moved" } },
+				{ "en", new WordsEntry { Context = "keep ctx", Comment = "keep note" } },
+			},
+		};
+
+		WordsOperations.Shift([key], "en-GB", "en");
+
+		Assert.Equal("moved", key.Entries["en"].Value);
+		Assert.Equal("keep ctx", key.Entries["en"].Context);
+		Assert.Equal("keep note", key.Entries["en"].Comment);
+	}
+
+	[Fact]
+	public void WordsOperations_ShiftClashPreservesBothContextsAndTheSourceComment() {
+		// the target value wins, but the existing note stays, the displaced value
+		// is appended (not swapped in), and the source's comment carries over
+		WordsKey key = new("F.k") {
+			Entries = {
+				{ "en-GB", new WordsEntry { Value = "displaced", Comment = "src note" } },
+				{ "en", new WordsEntry { Value = "kept", Context = "target ctx" } },
+			},
+		};
+
+		WordsOperations.Shift([key], "en-GB", "en");
+
+		var target = key.Entries["en"];
+		Assert.Equal("kept", target.Value);
+		Assert.Contains("target ctx", target.Context);
+		Assert.Contains("displaced", target.Context);
+		Assert.Equal("src note", target.Comment);
+		Assert.NotNull(target.Stale);
+	}
+
+	[Fact]
+	public void WordsOperations_ShiftEqualValuesKeepTheSourceStaleAndComment() {
+		// equal values are no collision, but the source's stale marker and comment
+		// must not vanish with the removed entry
+		WordsKey key = new("F.k") {
+			Entries = {
+				{ "en-GB", new WordsEntry { Value = "same", Comment = "src note", Stale = "2026-01-01" } },
+				{ "en", new WordsEntry { Value = "same" } },
+			},
+		};
+
+		WordsOperations.Shift([key], "en-GB", "en");
+
+		var target = key.Entries["en"];
+		Assert.Equal("same", target.Value);
+		Assert.Equal("src note", target.Comment);
+		Assert.Equal("2026-01-01", target.Stale);
+	}
+
+	[Fact]
 	public void WordsOperations_HaveSameKeysComparesAcrossFilePrefixes() {
 		List<Dictionary<string, WordsKey>> keySets = [
 			new() {

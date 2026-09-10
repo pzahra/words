@@ -314,4 +314,127 @@ public class IniWriterTests {
 
 		Assert.Equal(firstSave, secondSave);
 	}
+
+	[Fact]
+	public void IniWriter_BackslashValuesRoundTrip() {
+		// internal, UNC-doubled and trailing backslashes all survive: the writer
+		// escapes each `\` as `\\`, the parser collapses it back
+		var tree = new FakeNode("F",
+			new FakeNode("F.path"),
+			new FakeNode("F.unc"),
+			new FakeNode("F.trailing"));
+		Dictionary<string, WordsKey> allKeys = new() {
+			["F.path"] = new WordsKey("F.path") { DefaultValue = @"C:\net\share" },
+			["F.unc"] = new WordsKey("F.unc") { DefaultValue = @"\\server\share\" },
+			["F.trailing"] = new WordsKey("F.trailing") { DefaultValue = @"one\" },
+		};
+
+		var reloaded = Reload(Write(tree, allKeys));
+
+		Assert.Equal(@"C:\net\share", reloaded["path"].DefaultValue);
+		Assert.Equal(@"\\server\share\", reloaded["unc"].DefaultValue);
+		Assert.Equal(@"one\", reloaded["trailing"].DefaultValue);
+	}
+
+	[Fact]
+	public void IniWriter_TerminalBackslashInContextDoesNotSwallowTheNextField() {
+		// a context ending in a literal backslash used to write as a naked
+		// continuation and eat the following `value=` line whole
+		var tree = new FakeNode("F", new FakeNode("F.k"));
+		Dictionary<string, WordsKey> allKeys = new() {
+			["F.k"] = new WordsKey("F.k") { Context = @"see path\", DefaultValue = "V" },
+		};
+
+		var reloaded = Reload(Write(tree, allKeys));
+
+		Assert.Equal(@"see path\", reloaded["k"].Context);
+		Assert.Equal("V", reloaded["k"].DefaultValue);
+	}
+
+	[Fact]
+	public void IniWriter_BackslashAndNewlineValue_RoundTripsWithoutBreakingTheFile() {
+		// a multi-line, backslash-laden value ending in a backslash, whose second
+		// line even looks like a header, reloads intact and the next block survives
+		var tree = new FakeNode("F", new FakeNode("F.k"), new FakeNode("F.after"));
+		Dictionary<string, WordsKey> allKeys = new() {
+			["F.k"] = new WordsKey("F.k") { DefaultValue = "C:\\one\n[two]\\" },
+			["F.after"] = new WordsKey("F.after") { DefaultValue = "after" },
+		};
+
+		var reloaded = Reload(Write(tree, allKeys));
+
+		Assert.Equal("C:\\one\n[two]\\", reloaded["k"].DefaultValue);
+		Assert.Equal("after", reloaded["after"].DefaultValue);
+	}
+
+	[Fact]
+	public void IniWriter_WrapDoesNotSplitAnEscapedBackslash() {
+		// a long value with no spaces to break at, full of backslashes and
+		// ending in one: the soft wrap must not fall right after a `\`, which
+		// would strand half of an escaped pair and end the line prematurely
+		var value = @"C:\" + new string('x', 60) + @"\a\b\c\d\e\f\g\h\i\j\";
+		var tree = new FakeNode("F", new FakeNode("F.k"), new FakeNode("F.after"));
+		Dictionary<string, WordsKey> allKeys = new() {
+			["F.k"] = new WordsKey("F.k") { DefaultValue = value },
+			["F.after"] = new WordsKey("F.after") { DefaultValue = "after" },
+		};
+
+		var reloaded = Reload(Write(tree, allKeys));
+
+		Assert.Equal(value, reloaded["k"].DefaultValue);
+		Assert.Equal("after", reloaded["after"].DefaultValue);
+	}
+
+	[Fact]
+	public void IniWriter_BackslashValues_SaveLoadSaveStable() {
+		// the second save matches the first byte for byte once backslashes are in
+		var tree = new FakeNode("F", new FakeNode("F.k"));
+		Dictionary<string, WordsKey> allKeys = new() {
+			["F.k"] = new WordsKey("F.k") { DefaultValue = @"a\b\" },
+		};
+
+		var firstSave = Write(tree, allKeys);
+		Dictionary<string, WordsKey> reloaded = Reload(firstSave).ToDictionary(
+			pair => "F." + pair.Key,
+			pair => new WordsKey(pair.Value) { BlockKey = "F." + pair.Value.BlockKey });
+		var secondSave = Write(tree, reloaded);
+
+		Assert.Equal(firstSave, secondSave);
+	}
+
+	[Fact]
+	public void IniWriter_WrapDoesNotSplitAnEscapedApostrophe() {
+		// apostrophes double to a `''` pair and, like backslashes, are non-word
+		// chars a wrap could fall inside; a long, spaceless, apostrophe-laden
+		// value must round-trip whole
+		var value = new string('x', 70) + "'a'b'c'd'e'f'g'h'i'j'k";
+		var tree = new FakeNode("F", new FakeNode("F.k"), new FakeNode("F.after"));
+		Dictionary<string, WordsKey> allKeys = new() {
+			["F.k"] = new WordsKey("F.k") { DefaultValue = value },
+			["F.after"] = new WordsKey("F.after") { DefaultValue = "after" },
+		};
+
+		var reloaded = Reload(Write(tree, allKeys));
+
+		Assert.Equal(value, reloaded["k"].DefaultValue);
+		Assert.Equal("after", reloaded["after"].DefaultValue);
+	}
+
+	[Fact]
+	public void IniWriter_WrapKeepsEscapedUnderscorePairsIntact() {
+		// underscores double too, but `_` is a word char: a break never lands
+		// before the second half of a pair, so a long value packed with them
+		// (and long enough to wrap at its spaces) round-trips
+		var value = new string('a', 55) + " middle_word_here_" + new string('b', 55) + " tail_";
+		var tree = new FakeNode("F", new FakeNode("F.k"), new FakeNode("F.after"));
+		Dictionary<string, WordsKey> allKeys = new() {
+			["F.k"] = new WordsKey("F.k") { DefaultValue = value },
+			["F.after"] = new WordsKey("F.after") { DefaultValue = "after" },
+		};
+
+		var reloaded = Reload(Write(tree, allKeys));
+
+		Assert.Equal(value, reloaded["k"].DefaultValue);
+		Assert.Equal("after", reloaded["after"].DefaultValue);
+	}
 }

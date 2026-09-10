@@ -113,9 +113,9 @@ repeated-`staticres:` use, symlink/junction escape, Ava hyperlink hit-testing
 Tick items as they land; keep this file in the addressing commit.
 
 ### Step 1 — Authoring data-loss
-- [ ] Escape literal `\` in `WritePair` (+ round-trip tests: terminal/repeated backslash, newline-then-header)
-- [ ] Field-by-field `Shift` collision rules (no silent metadata loss)
-- [ ] `IWordsProvider` indexer via `TryGetValue`
+- [x] Escape literal `\` in `WritePair` (+ round-trip tests: terminal/repeated backslash, newline-then-header)
+- [x] Field-by-field `Shift` collision rules (no silent metadata loss)
+- [x] `IWordsProvider` indexer via `TryGetValue`
 
 ### Step 2 — Safe save
 - [ ] Validate tree root ownership + key-set coverage before write

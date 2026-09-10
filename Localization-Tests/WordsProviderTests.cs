@@ -62,4 +62,16 @@ public class WordsProviderTests {
 		Assert.True(provider.TryGetValue("d", out var defaultValue));
 		Assert.Equal("default only", defaultValue);
 	}
+
+	[Fact]
+	public void WordsProviderBase_IndexerResolvesKeysAndThrowsForMissing() {
+		var provider = new DefaultWordsProvider(TwoFiles(), ["A", "B"]);
+
+		// exact (already-prefixed) and bare cross-file keys both resolve
+		Assert.Equal("from A", provider["A.shared"]);
+		Assert.Equal("yonder", provider["other.key"]);
+
+		// a missing key throws KeyNotFoundException, never NotImplementedException
+		Assert.Throws<KeyNotFoundException>(() => provider["missing"]);
+	}
 }

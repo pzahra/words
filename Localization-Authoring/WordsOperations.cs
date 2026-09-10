@@ -113,29 +113,44 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		/// <summary>
-		///     Re-codes a language: every key's entry moves from
-		///     <paramref name="fromCode"/> to <paramref name="toCode"/>. Where both
-		///     codes hold a value the target's wins, the displaced source value
-		///     parks in the target's <c>context</c> field where the translator can
-		///     copy from it, and the entry is stale-marked so the review filter
-		///     surfaces the collision.
+		///     Re-codes a language: each key's entry moves from
+		///     <paramref name="fromCode"/> to <paramref name="toCode"/>. An empty
+		///     target adopts it whole; otherwise the two merge field by field with
+		///     nothing occupied overwritten. On a value clash the target's wins and
+		///     the displaced value is appended to its <c>context</c> with a stale
+		///     marker; the source's context, comment and stale marker fold into any
+		///     of the target's still empty.
 		/// </summary>
 		public static void Shift(IEnumerable<WordsKey> keys, string fromCode, string toCode) {
 			foreach (var key in keys) {
 				if (!key.Entries.Remove(fromCode, out var moved)) {
 					continue;
 				}
-				if (key.Entries.TryGetValue(toCode, out var target) && target.Value != "") {
-					if (moved.Value != "" && moved.Value != target.Value) {
-						target.Context = moved.Value;
-						target.Stale = DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture);
-					}
+				if (!key.Entries.TryGetValue(toCode, out var target) || target.IsEmpty()) {
+					key.Entries[toCode] = moved;
+					continue;
+				}
+				bool valueClash = target.Value != "" && moved.Value != "" && moved.Value != target.Value;
+				if (target.Value == "") {
+					target.Value = moved.Value;
+				}
+				target.Context = Fold(target.Context, moved.Context);
+				if (valueClash) {
+					target.Context = Fold(target.Context, moved.Value);
+					target.Stale = DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture);
 				}
 				else {
-					key.Entries[toCode] = moved;
+					target.Stale ??= moved.Stale;
 				}
+				target.Comment = Fold(target.Comment, moved.Comment);
 			}
 		}
+
+		/// <summary><paramref name="addition"/> onto <paramref name="existing"/> on a new line; an empty or duplicate addition adds nothing.</summary>
+		private static string Fold(string existing, string addition)
+			=> addition == "" || existing == addition ? existing
+			 : existing == "" ? addition
+			 : existing + "\n" + addition;
 
 		/// <summary>
 		///     Renames <paramref name="oldKey"/> and every key below it — <c>F.a</c>
