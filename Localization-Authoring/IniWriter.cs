@@ -45,21 +45,38 @@ namespace PatTech.Localization.Authoring {
 
 	/// <summary>
 	///     The writer's default strategy: cuts at keyless group nodes whose subtree
-	///     carries at least <paramref name="minimumKeys"/> keyed blocks — the shape a
+	///     carries at least <c>minimumKeys</c> keyed blocks — the shape a
 	///     hand-author writes as a bare <c>[group]</c> header followed by
 	///     <c>[.child]</c> blocks. Keyed nodes never cut (their own header re-bases
 	///     the chain already), and keys beyond a deeper cut don't count here: they
 	///     chain off that base, not this one. A single keyed descendant isn't worth
 	///     the bare header (which reloads as an empty key) — it keeps its full header.
 	/// </summary>
-	/// <param name="keys">Every key the writer is working from, block key to data.</param>
-	/// <param name="minimumKeys">Keyed blocks a group must gather before it pays for its header.</param>
-	public sealed class GroupCuts(IReadOnlyDictionary<string, WordsKey> keys, int minimumKeys = 2) : ICutStrategy {
+	/// <remarks>
+	///     Built for one write of one tree: it snapshots the key set and memoizes
+	///     subtree counts as it goes, so reuse it across a mutated tree at your peril.
+	///     The writer makes a fresh one per file, which is the intended lifetime.
+	/// </remarks>
+	public sealed class GroupCuts : ICutStrategy {
+		private readonly HashSet<string> keys;
+		private readonly int minimumKeys;
 		private readonly Dictionary<IKeyTreeNode, int> counted = [];
+
+		/// <param name="keys">Every key the writer is working from, block key to data.</param>
+		/// <param name="minimumKeys">Keyed blocks a group must gather before it pays for its header; at least 1.</param>
+		/// <exception cref="ArgumentOutOfRangeException"><paramref name="minimumKeys"/> is less than 1.</exception>
+		public GroupCuts(IReadOnlyDictionary<string, WordsKey> keys, int minimumKeys = 2) {
+			ArgumentNullException.ThrowIfNull(keys);
+			ArgumentOutOfRangeException.ThrowIfLessThan(minimumKeys, 1);
+			// snapshot the key set: the strategy decides cuts for a single write, so a
+			// later change to the caller's dictionary must not desync those decisions
+			this.keys = [.. keys.Keys];
+			this.minimumKeys = minimumKeys;
+		}
 
 		/// <inheritdoc/>
 		public bool Cuts(IKeyTreeNode node, int depth)
-			=> !keys.ContainsKey(node.FullLabel) && ChainingKeys(node) >= minimumKeys;
+			=> !keys.Contains(node.FullLabel) && ChainingKeys(node) >= minimumKeys;
 
 		/// <summary>Keyed blocks below <paramref name="node"/> that would chain off its header.</summary>
 		private int ChainingKeys(IKeyTreeNode node) {
@@ -68,7 +85,7 @@ namespace PatTech.Localization.Authoring {
 					if (child is ICommentNode) {
 						continue;
 					}
-					if (keys.ContainsKey(child.FullLabel)) {
+					if (keys.Contains(child.FullLabel)) {
 						count++;
 					}
 					if (!Cuts(child, 0)) {

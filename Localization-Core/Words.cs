@@ -91,9 +91,15 @@ namespace PatTech.Localization {
 		/// <summary>
 		/// Receives warnings about missing keys, unknown constants, circular references
 		/// and absent format fields. Defaults to a logger that discards everything;
-		/// assign your own to hear about your typos.
+		/// assign your own to hear about your typos. Assign once at startup; it is never
+		/// null (assigning null throws) — use <see cref="ITakeException.Dummy"/> to silence.
 		/// </summary>
-		public static ITakeException Logger = ITakeException.Dummy;
+		/// <exception cref="ArgumentNullException">The value assigned is <see langword="null"/>.</exception>
+		public static ITakeException Logger {
+			get => logger;
+			set => logger = value ?? throw new ArgumentNullException(nameof(value));
+		}
+		private static ITakeException logger = ITakeException.Dummy;
 
 		/// <summary>
 		/// Shorthand for <see cref="WordsBuilder.Create(ITakeException?)"/> with no logger.

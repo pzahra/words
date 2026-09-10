@@ -9,10 +9,9 @@ namespace PatTech.Localization {
 	public interface ITakeException {
 		/// <summary>
 		/// A logger that swallows everything. The default wherever a logger is optional.
-		/// Note this is a mutable static field, so it can technically be replaced
-		/// process-wide.
+		/// Get-only, so it can't be swapped out from under code that relies on it.
 		/// </summary>
-		public static ITakeException Dummy = new DummyLogger();
+		public static ITakeException Dummy { get; } = new DummyLogger();
 
 		/// <summary>
 		/// A logger that forwards to wherever <see cref="Words.Logger"/> points at the

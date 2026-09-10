@@ -474,4 +474,32 @@ public class IniWriterTests {
 			Directory.Delete(dir, recursive: true);
 		}
 	}
+
+	[Theory]
+	[InlineData(0)]
+	[InlineData(-1)]
+	public void GroupCuts_RejectsMinimumKeysBelowOne(int minimumKeys) {
+		Assert.Throws<ArgumentOutOfRangeException>(
+			() => new GroupCuts(new Dictionary<string, WordsKey>(), minimumKeys));
+	}
+
+	[Fact]
+	public void GroupCuts_SnapshotsTheKeySet_LaterDictChangesDoNotDesyncIt() {
+		var tree = new FakeNode("F",
+			new FakeNode("F.deep",
+				new FakeNode("F.deep.a"),
+				new FakeNode("F.deep.b")));
+		Dictionary<string, WordsKey> allKeys = new() {
+			["F.deep.a"] = new WordsKey("F.deep.a") { DefaultValue = "A" },
+			["F.deep.b"] = new WordsKey("F.deep.b") { DefaultValue = "B" },
+		};
+		var cuts = new GroupCuts(allKeys);
+
+		// mutating the dictionary the strategy was built from must not change its
+		// decisions: it snapshotted the key set at construction
+		allKeys["F.deep"] = new WordsKey("F.deep") { DefaultValue = "now keyed" };
+
+		// F.deep is still seen as keyless (as it was at construction), so it cuts
+		Assert.True(cuts.Cuts(tree.Children.First(), 0));
+	}
 }

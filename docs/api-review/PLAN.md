@@ -202,9 +202,9 @@ Tick items as they land; keep this file in the addressing commit.
 - [x] Console: sanitize control chars at the leaves (text, URIs, alt); converter is the sole terminal-escape source
 
 ### Step 7 — Global state
-- [ ] `Words.Logger`/`Dummy` non-null get-only
-- [ ] `GroupCuts` per-write/snapshot + reject `minimumKeys < 1`
-- [ ] Document single-startup / UI-thread contract
+- [x] `Words.Logger` non-null (null-rejecting setter); `ITakeException.Dummy` get-only
+- [x] `GroupCuts` snapshots its key set + rejects `minimumKeys < 1`
+- [x] Document single-startup / UI-thread contract (core readme)
 
 ### Step 8 — Culture / tags (deferred)
 - [ ] Tag canonicalization / `Parent` fallback — deferred (locales not on roadmap)

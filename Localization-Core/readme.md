@@ -116,6 +116,14 @@ that has loaded — is told when it changes. Pick the language at startup and
 restart the process to change it; do not hot-swap the dictionary in a running
 app and expect the screen to follow.
 
+That is the contract the whole library assumes: the process-wide statics —
+`Words.Known`, `Words.Logger`, `MarkdownParser.Default` and its scheme registry,
+the one global hyperlink handler — are set up **once at startup** and read from a
+**single UI thread** thereafter. `Words.Logger` is never null (assign
+`ITakeException.Dummy` to silence it, not `null`). Configure everything before the
+first lookup renders and you never touch the concurrency questions the statics
+would otherwise raise.
+
 The `!` prefix is for multi-assembly setups: each assembly ships its own
 `words.ini`, and a subordinate library may carry more languages than the
 host app offers. Declaring those languages with a `!Name` label tells the

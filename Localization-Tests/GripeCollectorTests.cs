@@ -68,4 +68,11 @@ public class GripeCollectorTests {
 			Words.Logger = previous;
 		}
 	}
+
+	[Fact]
+	public void Logger_IsNeverNull_AssigningNullThrows() {
+		Assert.NotNull(Words.Logger); // a real logger by default, never null
+		Assert.Throws<ArgumentNullException>(() => Words.Logger = null!);
+		Assert.NotNull(Words.Logger); // the failed assignment left it intact
+	}
 }
