@@ -131,14 +131,13 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>
 		///     Writes <paramref name="file"/> to its <see cref="WordsFile.Path"/>:
 		///     its own language table, preamble and settings references, and its
-		///     keys in the order <paramref name="tree"/> walks them. I/O failures propagate.
+		///     keys in the order <paramref name="tree"/> walks them. Atomic — a
+		///     failure leaves the file on disk untouched. I/O failures propagate.
 		/// </summary>
 		/// <param name="file">The file to write.</param>
 		/// <param name="tree">The file's node: the walk decides block order, comments write themselves in place.</param>
-		public void Save(WordsFile file, IKeyTreeNode tree) {
-			using var writer = new StreamWriter(file.Path);
-			Save(file, tree, writer);
-		}
+		public void Save(WordsFile file, IKeyTreeNode tree)
+			=> IniWriter.WriteAtomic(file.Path, writer => Save(file, tree, writer));
 
 		/// <summary>
 		///     <see cref="Save(WordsFile, IKeyTreeNode)"/> to a writer instead of the
@@ -147,8 +146,39 @@ namespace PatTech.Localization.Authoring {
 		/// <param name="file">The file to write.</param>
 		/// <param name="tree">The file's node: the walk decides block order, comments write themselves in place.</param>
 		/// <param name="writer">Where the text goes.</param>
-		public void Save(WordsFile file, IKeyTreeNode tree, TextWriter writer)
-			=> IniWriter.WriteFile(tree, writer, keys, Languages.For(file), preamble: file.Preamble, settings: file.Settings, languageSettings: file.LanguageSettings);
+		/// <exception cref="InvalidOperationException">The tree is not <paramref name="file"/>'s, or does not cover exactly its keys — writing it would drop or misplace data.</exception>
+		public void Save(WordsFile file, IKeyTreeNode tree, TextWriter writer) {
+			EnsureTreeCovers(file, tree);
+			IniWriter.WriteFile(tree, writer, keys, Languages.For(file), preamble: file.Preamble, settings: file.Settings, languageSettings: file.LanguageSettings);
+		}
+
+		//the writer only emits keys the walk reaches, so a stale or wrong tree would
+		//quietly drop the rest: the tree must be the file's and its keyed nodes must
+		//be exactly the file's keys, no more, no fewer.
+		private void EnsureTreeCovers(WordsFile file, IKeyTreeNode tree) {
+			if (tree.FullLabel != file.Label) {
+				throw new InvalidOperationException($"tree root '{tree.FullLabel}' does not own file '{file.Label}'");
+			}
+			var covered = new HashSet<string>();
+			Collect(tree);
+			var owned = new HashSet<string>(KeysOf(file).Select(key => key.BlockKey));
+			if (!covered.SetEquals(owned)) {
+				string missing = string.Join(", ", owned.Except(covered));
+				string foreign = string.Join(", ", covered.Except(owned));
+				throw new InvalidOperationException($"tree for '{file.Label}' does not match its keys"
+					+ (missing != "" ? $"; missing: {missing}" : "")
+					+ (foreign != "" ? $"; not the file's: {foreign}" : ""));
+			}
+
+			void Collect(IKeyTreeNode node) {
+				if (node is not ICommentNode && keys.ContainsKey(node.FullLabel)) {
+					covered.Add(node.FullLabel);
+				}
+				foreach (IKeyTreeNode child in node.Children) {
+					Collect(child);
+				}
+			}
+		}
 
 		/// <summary>The keys of <paramref name="file"/>, in store order (document order after a load).</summary>
 		public IEnumerable<WordsKey> KeysOf(WordsFile file) {

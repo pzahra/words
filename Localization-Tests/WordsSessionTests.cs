@@ -67,6 +67,50 @@ value-fr=Ouvrir
 	}
 
 	[Fact]
+	public void Save_RefusesATreeThatIsNotTheFiles() {
+		// a tree rooted on another label would write the wrong keys
+		var session = Load(Main);
+		WordsFile file = session.Files[0];
+		var alien = KeyTree.Build("Other", session.KeysOf(file), file.BlockComments);
+
+		var ex = Assert.Throws<InvalidOperationException>(() => session.Save(file, alien, new StringWriter()));
+		Assert.Contains("does not own", ex.Message);
+	}
+
+	[Fact]
+	public void Save_RefusesATreeMissingSomeOfTheFilesKeys() {
+		// the writer only emits keys the walk reaches; a short tree would silently
+		// drop the rest, so it is refused before anything is written
+		var session = Load(Main);
+		WordsFile file = session.Files[0];
+		var partial = KeyTree.Build(file.Label, session.KeysOf(file).Take(1), file.BlockComments);
+
+		var ex = Assert.Throws<InvalidOperationException>(() => session.Save(file, partial, new StringWriter()));
+		Assert.Contains("missing", ex.Message);
+	}
+
+	[Fact]
+	public void Save_LeavesTheFileOnDiskWhenTheTreeIsRejected() {
+		string folder = Path.Combine(Path.GetTempPath(), $"WordsSessionSave-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		try {
+			string path = Path.Combine(folder, "Main.ini");
+			File.WriteAllText(path, "ORIGINAL");
+			var session = new WordsSession();
+			WordsFile file = session.Load(new StringReader(Main), path);
+			var partial = KeyTree.Build(file.Label, session.KeysOf(file).Take(1), file.BlockComments);
+
+			Assert.Throws<InvalidOperationException>(() => session.Save(file, partial));
+
+			Assert.Equal("ORIGINAL", File.ReadAllText(path)); //untouched
+			Assert.Empty(Directory.GetFiles(folder, "*.tmp")); //no temp left behind
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
 	public void Reload_ReplacesInPlaceAndDropsKeysDeletedOnDisk() {
 		var session = Load(Main);
 		session.Load(new StringReader("value-en=English\n\n[other]\nvalue=O\n"), "Other");

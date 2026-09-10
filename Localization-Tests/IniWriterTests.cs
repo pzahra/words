@@ -437,4 +437,41 @@ public class IniWriterTests {
 		Assert.Equal(value, reloaded["k"].DefaultValue);
 		Assert.Equal("after", reloaded["after"].DefaultValue);
 	}
+
+	[Fact]
+	public void WriteAtomic_ReplacesTheFileAndLeavesNoTemp() {
+		var dir = Path.Combine(Path.GetTempPath(), $"IniWriterAtomic-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(dir);
+		try {
+			var path = Path.Combine(dir, "out.ini");
+			File.WriteAllText(path, "OLD");
+
+			IniWriter.WriteAtomic(path, w => w.Write("NEW"));
+
+			Assert.Equal("NEW", File.ReadAllText(path));
+			Assert.Empty(Directory.GetFiles(dir, "*.tmp"));
+		}
+		finally {
+			Directory.Delete(dir, recursive: true);
+		}
+	}
+
+	[Fact]
+	public void WriteAtomic_LeavesTheOriginalWhenTheWriteThrows() {
+		var dir = Path.Combine(Path.GetTempPath(), $"IniWriterAtomic-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(dir);
+		try {
+			var path = Path.Combine(dir, "out.ini");
+			File.WriteAllText(path, "OLD");
+
+			Assert.Throws<InvalidOperationException>(() =>
+				IniWriter.WriteAtomic(path, w => { w.Write("HALF"); throw new InvalidOperationException("boom"); }));
+
+			Assert.Equal("OLD", File.ReadAllText(path)); //original untouched
+			Assert.Empty(Directory.GetFiles(dir, "*.tmp")); //temp cleaned up
+		}
+		finally {
+			Directory.Delete(dir, recursive: true);
+		}
+	}
 }

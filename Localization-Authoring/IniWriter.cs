@@ -88,9 +88,27 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>A strategy that never cuts: only parent→child chains compress.</summary>
 		public static ICutStrategy NeverCuts { get; } = new ChainOnly();
 
-		public static void WriteFile(IKeyTreeNode fileNode, string fileName, IReadOnlyDictionary<string, WordsKey> allKeys, IReadOnlyCollection<LanguageEntry> languages, ICutStrategy? cutStrategy = null, string preamble = "", string trailer = "", string settings = "", IReadOnlyDictionary<string, string>? languageSettings = null) {
-			using var stream = new StreamWriter(fileName);
-			WriteFile(fileNode, stream, allKeys, languages, cutStrategy, preamble, trailer, settings, languageSettings);
+		public static void WriteFile(IKeyTreeNode fileNode, string fileName, IReadOnlyDictionary<string, WordsKey> allKeys, IReadOnlyCollection<LanguageEntry> languages, ICutStrategy? cutStrategy = null, string preamble = "", string trailer = "", string settings = "", IReadOnlyDictionary<string, string>? languageSettings = null)
+			=> WriteAtomic(fileName, stream => WriteFile(fileNode, stream, allKeys, languages, cutStrategy, preamble, trailer, settings, languageSettings));
+
+		/// <summary>
+		///     Runs <paramref name="write"/> against a temp sibling of
+		///     <paramref name="fileName"/>, then atomically replaces the destination
+		///     — so a failure partway leaves the original file untouched.
+		/// </summary>
+		public static void WriteAtomic(string fileName, Action<TextWriter> write) {
+			string full = Path.GetFullPath(fileName);
+			string temp = Path.Combine(Path.GetDirectoryName(full) ?? ".", $".{Path.GetFileName(full)}.{Guid.NewGuid():N}.tmp");
+			try {
+				using (var stream = new StreamWriter(temp)) {
+					write(stream);
+				}
+				File.Move(temp, full, overwrite: true);
+			}
+			catch {
+				try { File.Delete(temp); } catch { /* the write's own error is the one worth raising */ }
+				throw;
+			}
 		}
 		public static void WriteFile(IKeyTreeNode fileNode, TextWriter stream, IReadOnlyDictionary<string, WordsKey> allKeys, IReadOnlyCollection<LanguageEntry> languages, ICutStrategy? cutStrategy = null, string preamble = "", string trailer = "", string settings = "", IReadOnlyDictionary<string, string>? languageSettings = null) {
 			using var writer = new IniWriter(stream, cutStrategy);

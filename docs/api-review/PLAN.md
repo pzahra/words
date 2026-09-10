@@ -118,8 +118,8 @@ Tick items as they land; keep this file in the addressing commit.
 - [x] `IWordsProvider` indexer via `TryGetValue`
 
 ### Step 2 — Safe save
-- [ ] Validate tree root ownership + key-set coverage before write
-- [ ] Atomic write (temp sibling + replace) for Save/Merge/Split
+- [x] Validate tree root ownership + key-set coverage before write
+- [x] Atomic write (temp sibling + replace) for Save/Merge/Split
 
 ### Step 3 — Empty/repeated/unknown-field contract
 - [ ] Decide append vs last-wins for repeated `value=`; align Core impl + docs
