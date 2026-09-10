@@ -113,9 +113,11 @@ namespace PatTech.Localization.Wpf {
 		}
 
 		private void ApplySize(FrameworkElement element, ImageOptions options) {
-			if (options.Width is double width) element.Width = width;
-			if (options.Height is double height) element.Height = height;
-			if (options.Height is null && options.Width is null) {
+			var width = CleanDimension(options.Width);
+			var height = CleanDimension(options.Height);
+			if (width is double w) element.Width = w;
+			if (height is double h) element.Height = h;
+			if (width is null && height is null) {
 				// geometry has no natural size, so default it to the font height
 				if (element is PathGeometry) element.Height = baseFontSize;
 				// raster images get pinned to their natural size: measured with the
@@ -126,6 +128,15 @@ namespace PatTech.Localization.Wpf {
 				}
 			}
 		}
+
+		// the largest a requested dimension may be, so a runaway ?width= can't ask
+		// the layout to allocate an enormous image
+		private const double MaxDimension = 4096;
+
+		// a requested dimension must be finite and non-negative, and is capped;
+		// anything else is treated as unspecified (natural sizing), never thrown
+		private static double? CleanDimension(double? value)
+			=> value is double v && double.IsFinite(v) && v >= 0 ? (v > MaxDimension ? MaxDimension : v) : null;
 
 		/// <summary>Makes the content bold.</summary>
 		protected override void Embolden(ref Inline content) => content.FontWeight = FontWeights.Bold;

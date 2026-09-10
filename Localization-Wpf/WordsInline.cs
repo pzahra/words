@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Documents;
@@ -43,9 +44,8 @@ namespace PatTech.Localization.Wpf {
 			}
 		}
 		private void UpdateChild(string? key, object? @params) {
-			Inlines.Clear();
-
 			if (string.IsNullOrEmpty(key)) {
+				Inlines.Clear();
 				return;
 			}
 
@@ -70,7 +70,12 @@ namespace PatTech.Localization.Wpf {
 					break;
 			}
 
-			Inlines.AddRange(MarkdownParser.Default.ToInlines(text));
+			// build fully, then swap: a formatting or parse failure above throws
+			// before we touch Inlines, so the existing content stays put instead of
+			// being blanked
+			var built = new List<Inline>(MarkdownParser.Default.ToInlines(text));
+			Inlines.Clear();
+			Inlines.AddRange(built);
 		}
 
 		/// <summary>

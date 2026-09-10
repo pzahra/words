@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
+using Avalonia.Controls.Templates;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
@@ -173,31 +174,34 @@ public class AssetsImageResolver : IImageSchemeResolver {
 
 /// <summary>
 ///     Resolves <c>staticres:key</c> from the application's resources (<c>x:Key</c>
-///     lookup): an <see cref="IImage"/> becomes an <see cref="Image"/>, a
-///     <see cref="Geometry"/> becomes a filled <see cref="PathGeometry"/>, and any
-///     <see cref="Control"/> is used as-is (with <see cref="ImageOptions.Foreground"/>
-///     applied when it is a <see cref="Shape"/>).
+///     lookup): an <see cref="IImage"/> becomes an <see cref="Image"/> and a
+///     <see cref="Geometry"/> becomes a filled <see cref="PathGeometry"/> — each in a
+///     fresh host, so the same key renders safely more than once. A resource that is
+///     itself a <see cref="Control"/> is refused: it is a single instance that can't
+///     live under two parents, so wrap it in an <see cref="IDataTemplate"/> to reuse it.
 /// </summary>
 public class StaticResImageResolver : IImageSchemeResolver {
 	/// <inheritdoc/>
 	public Control? Resolve(Uri source, ImageOptions options) {
 		var key = (source.AbsolutePath ?? source.OriginalString).TrimStart('/');
-		return FindResource(key, source.OriginalString) switch {
-			IImage image => new Image { Source = image, Stretch = Stretch.Uniform },
-			Geometry geometry => new PathGeometry {
-				Data = geometry,
-				Fill = options.Foreground ?? (IBrush)Brushes.Black,
-				Stretch = Stretch.Uniform,
-			},
-			Shape shape when options.Foreground is not null => WithFill(shape, options.Foreground),
-			Control control => control,
-			_ => null,
-		};
-	}
-
-	private static Shape WithFill(Shape shape, Brush fill) {
-		shape.Fill = fill;
-		return shape;
+		switch (FindResource(key, source.OriginalString)) {
+			case IImage image:
+				return new Image { Source = image, Stretch = Stretch.Uniform };
+			case Geometry geometry:
+				return new PathGeometry {
+					Data = geometry,
+					Fill = options.Foreground ?? (IBrush)Brushes.Black,
+					Stretch = Stretch.Uniform,
+				};
+			case Control:
+				// an element resource is one shared instance: returned as-is it would
+				// land under two parents on reuse, and mutating it (a Shape's fill)
+				// would leak. Refuse it; a DataTemplate is the reusable form.
+				ITakeException.Global.Warn($"IMG:ELEM:`{key}` is a shared element; wrap it in a DataTemplate to reuse it safely");
+				return null;
+			default:
+				return null;
+		}
 	}
 
 	private static object? FindResource(string key, string fallbackKey) {

@@ -1,6 +1,7 @@
 ﻿using Avalonia;
 using Avalonia.Controls.Documents;
 using Avalonia.Metadata;
+using System.Collections.Generic;
 using System.Globalization;
 
 namespace PatTech.Localization.Avalonia;
@@ -59,10 +60,10 @@ public class WordsInline : Span {
 	}
 
 	private void UpdateChild(string? key, object? @params) {
-		Inlines.Clear();
-
-		if (string.IsNullOrEmpty(key))
+		if (string.IsNullOrEmpty(key)) {
+			Inlines.Clear();
 			return;
+		}
 
 		string text;
 
@@ -93,7 +94,11 @@ public class WordsInline : Span {
 			}
 		}
 
-		foreach (var inline in MarkdownParser.Default.ToInlines(text)) {
+		// build fully, then swap: a formatting or parse failure above throws before
+		// we touch Inlines, so the existing content stays put instead of being blanked
+		var built = new List<Inline>(MarkdownParser.Default.ToInlines(text));
+		Inlines.Clear();
+		foreach (var inline in built) {
 			Inlines.Add(inline);
 		}
 	}

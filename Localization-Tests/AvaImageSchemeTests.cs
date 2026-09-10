@@ -280,4 +280,65 @@ public class AvaImageSchemeTests {
 		Assert.Null(options.Width);
 		Assert.Null(options.Background);
 	}
+
+	[AvaloniaFact]
+	public void Dimension_Huge_IsCapped() {
+		var parser = new MarkdownParser();
+		parser.ImageSchemes["fake"] = new FakeResolver((_, _) => new TextBlock());
+
+		var inline = parser.ToInline("![alt](fake:thing?width=100000&height=100000)");
+
+		var container = Assert.IsType<InlineUIContainer>(inline);
+		var textBlock = Assert.IsType<TextBlock>(container.Child);
+		Assert.Equal(4096, textBlock.Width);
+		Assert.Equal(4096, textBlock.Height);
+	}
+
+	[Theory]
+	[InlineData("fake:thing?width=-5&height=NaN")]
+	[InlineData("fake:thing?width=Infinity")]
+	public void Dimension_NonFiniteOrNegative_IgnoredNotThrownAsMissingImage(string uri) {
+		// a bad dimension must not throw (which the parser would surface as a
+		// missing image); the visual renders at its natural size instead
+		var parser = new MarkdownParser();
+		parser.ImageSchemes["fake"] = new FakeResolver((_, _) => new TextBlock());
+
+		var inline = parser.ToInline($"![alt]({uri})");
+
+		var container = Assert.IsType<InlineUIContainer>(inline); // not a Run of alt text
+		var textBlock = Assert.IsType<TextBlock>(container.Child);
+		Assert.True(double.IsNaN(textBlock.Width));
+	}
+
+	[AvaloniaFact]
+	public void StaticRes_ElementResource_IsRefusedWithGripe() {
+		Application.Current!.Resources["avaElem"] = new Button { Content = "x" };
+
+		var capture = new CaptureLogger();
+		var original = Words.Logger;
+		try {
+			Words.Logger = capture;
+			// a bare element is one shared instance: refused, not reparented
+			var visual = new StaticResImageResolver().Resolve(new Uri("staticres:avaElem"), new ImageOptions());
+			Assert.Null(visual);
+		}
+		finally {
+			Words.Logger = original;
+		}
+		Assert.Contains(capture.Messages, m => m.Contains("IMG:ELEM") && m.Contains("avaElem"));
+	}
+
+	[AvaloniaFact]
+	public void StaticRes_GeometryResource_GivesAFreshHostEachResolve() {
+		Application.Current!.Resources["avaGeo"] = StreamGeometry.Parse("M0,0 L10,10 L0,10 Z");
+		var resolver = new StaticResImageResolver();
+
+		var first = resolver.Resolve(new Uri("staticres:avaGeo"), new ImageOptions());
+		var second = resolver.Resolve(new Uri("staticres:avaGeo"), new ImageOptions());
+
+		var a = Assert.IsType<global::Avalonia.Controls.Shapes.Path>(first);
+		var b = Assert.IsType<global::Avalonia.Controls.Shapes.Path>(second);
+		Assert.NotSame(a, b);        // reuse-safe: not one shared element
+		Assert.Same(a.Data, b.Data); // the geometry value itself shares freely
+	}
 }

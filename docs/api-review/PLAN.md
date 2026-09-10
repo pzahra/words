@@ -36,6 +36,20 @@ Severity as reported: Core 5H/9M/4L · Authoring 7H/7M/3L (heaviest) · Wpf
   canonical save→load→save it guarantees, and fix the long `stale=` continuation
   truncation (a real bug). No lossless ordered layer; unknown fields and unknown
   param types documented as not preserved.
+- **Step 4 — rendering safety now; dynamic resolution later.** `staticres:` value
+  resources (`ImageSource`/`IImage`, `Geometry`) render in a fresh host, safe to
+  reuse; a resource that is itself an element is refused with an `IMG:ELEM` gripe
+  pointing at a template, because one element instance can't live under two parents
+  (and mutating a shared `Shape` leaks). `pack:` already builds fresh. `WordsInline`
+  builds its inlines before clearing, so a formatting failure leaves the old content
+  standing. Requested image dimensions are clamped (finite, non-negative, capped)
+  rather than thrown and surfaced as a missing image. Deferred to Step 4b (with
+  `dynres:`): resolving through a framework resource reference (fixes the app-only
+  scope), a `dynres:` scheme that tracks live theme swaps, actually building a
+  `DataTemplate`/factory for element resources, and a converter as the shared
+  sanitation layer — one cluster ("let the framework resolve, render via
+  template/converter") that lands together. Hosting arbitrary controls (input
+  controls) stays a when-actually-called-for concern.
 - **Step 6 — `assets:` is a convenience, not a security boundary.** Keep the
   lexical `../` clamp; drop the readme's "no matter how creatively" promise
   (WPF + Ava). Still do the mechanical hardening: the readme's catch-all
@@ -165,9 +179,16 @@ Tick items as they land; keep this file in the addressing commit.
 - [x] Narrow WordsEdit byte-stability / never-lose-data docs; fix the long `stale=` continuation truncation
 
 ### Step 4 — Shared-resource rendering (WPF + Ava)
-- [ ] `staticres:`/`pack:` no longer reparent/mutate shared instances
-- [ ] `WordsInline` transactional (build then swap)
-- [ ] Image dimension validation (finite, non-negative, capped)
+- [x] `staticres:` value resources in a fresh host; element resources refused with an `IMG:ELEM` gripe (no reparent/mutate). `pack:` already builds fresh
+- [x] `WordsInline` transactional (build then swap)
+- [x] Image dimension validation (finite, non-negative, capped)
+
+### Step 4b — Dynamic / framework-resolved resources (follow-on, with `dynres:`)
+- [ ] Resolve `staticres:` through a framework resource reference (fixes app-only scope)
+- [ ] `dynres:` scheme: a live reference that tracks theme (dark/light) swaps
+- [ ] Build a `DataTemplate`/factory for element resources (WPF `LoadContent`; Ava `IDataTemplate.Build`)
+- [ ] Converter as the shared sanitation layer (resolved resource → safe visual), XAML-usable
+- [ ] (later) `?foreground=`/`?background=` accept a resource key, not just a literal color
 
 ### Step 5 — Contract bugs
 - [x] `MarkdownConverter` target-type logic + docs (both modules)

@@ -325,4 +325,79 @@ public class ImageSchemeTests {
 		Assert.Null(options.Width);
 		Assert.Null(options.Background);
 	}
+
+	[Fact]
+	public void Dimension_Huge_IsCapped() {
+		RunSta<object?>(() => {
+			var parser = new MarkdownParser();
+			parser.ImageSchemes["fake"] = new FakeResolver((_, _) => new TextBlock());
+
+			var inline = parser.ToInline("![alt](fake:thing?width=100000&height=100000)");
+
+			var container = Assert.IsType<InlineUIContainer>(inline);
+			var textBlock = Assert.IsType<TextBlock>(container.Child);
+			Assert.Equal(4096, textBlock.Width);
+			Assert.Equal(4096, textBlock.Height);
+			return null;
+		});
+	}
+
+	[Theory]
+	[InlineData("fake:thing?width=-5&height=NaN")]
+	[InlineData("fake:thing?width=Infinity")]
+	public void Dimension_NonFiniteOrNegative_IgnoredNotThrownAsMissingImage(string uri) {
+		// a bad dimension must not throw (which the parser would surface as a
+		// missing image); the visual renders at its natural size instead
+		RunSta<object?>(() => {
+			var parser = new MarkdownParser();
+			parser.ImageSchemes["fake"] = new FakeResolver((_, _) => new TextBlock());
+
+			var inline = parser.ToInline($"![alt]({uri})");
+
+			var container = Assert.IsType<InlineUIContainer>(inline); // not a Run of alt text
+			var textBlock = Assert.IsType<TextBlock>(container.Child);
+			Assert.True(double.IsNaN(textBlock.Width));
+			return null;
+		});
+	}
+
+	[Fact]
+	public void StaticRes_ElementResource_IsRefusedWithGripe() {
+		RunSta<object?>(() => {
+			_ = Application.Current ?? new Application();
+			Application.Current!.Resources["wpfElem"] = new Button { Content = "x" };
+
+			var capture = new CaptureLogger();
+			var original = PatTech.Localization.Words.Logger;
+			try {
+				PatTech.Localization.Words.Logger = capture;
+				// a bare element is one shared instance: refused, not reparented
+				var visual = new StaticResImageResolver().Resolve(new Uri("staticres:wpfElem"), new ImageOptions());
+				Assert.Null(visual);
+			}
+			finally {
+				PatTech.Localization.Words.Logger = original;
+			}
+			Assert.Contains(capture.Messages, m => m.Contains("IMG:ELEM") && m.Contains("wpfElem"));
+			return null;
+		});
+	}
+
+	[Fact]
+	public void StaticRes_GeometryResource_GivesAFreshHostEachResolve() {
+		RunSta<object?>(() => {
+			_ = Application.Current ?? new Application();
+			Application.Current!.Resources["wpfGeo"] = Geometry.Parse("M0,0 L10,10 L0,10 Z");
+			var resolver = new StaticResImageResolver();
+
+			var first = resolver.Resolve(new Uri("staticres:wpfGeo"), new ImageOptions());
+			var second = resolver.Resolve(new Uri("staticres:wpfGeo"), new ImageOptions());
+
+			var a = Assert.IsType<System.Windows.Shapes.Path>(first);
+			var b = Assert.IsType<System.Windows.Shapes.Path>(second);
+			Assert.NotSame(a, b);        // reuse-safe: not one shared element
+			Assert.Same(a.Data, b.Data); // the geometry value itself shares freely
+			return null;
+		});
+	}
 }
