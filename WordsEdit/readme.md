@@ -24,9 +24,9 @@ INI escape rules.
   as their key sets line up.
 - **Parameters** — try out `param-` values against the format string before a
   user finds out it throws.
-- **Round-trip saving** — files are written back in a stable format; loading
-  and saving without edits produces the same bytes you started with (the tests
-  insist).
+- **Round-trip saving** — files are written back in a stable, canonical format;
+  saving an already-canonical file again produces the same bytes, so a real edit
+  shows up in the diff as just that edit (the tests insist).
 - **Speaks its own Words** — every label, tooltip and message Wordsmith shows
   comes from its own [`words.ini`](Resources/words.ini), loaded through the
   library like any other app's. It speaks your OS language when it has the

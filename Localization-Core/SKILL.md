@@ -48,7 +48,8 @@ value=m2·K/W
 [multi]
 value=a trailing backslash continues on the next line keeping the newline \
 like this; a trailing underscore continues _
-on the same line. Repeating `value=` also appends.
+on the same line. Repeating `value=` overwrites (last wins, with a warning) —
+that is how a later `Load` overlays an earlier one, not a continuation.
 ```
 
 Only `value` fields become lookup entries; the key is the block name.

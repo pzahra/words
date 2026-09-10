@@ -44,12 +44,12 @@ value=works because {>main.circle-1}
 [main.multiline]
 comment=The words.ini format supports multiple lines.\
 Use a backslash to break the line, and an underscore to_
- continue the string on the same line without a line break.
-comment=Repeating the field also continues the line.
+ continue the string on the same line without a line break.\
+Repeating a field is not a continuation: the last one wins (a repeated_
+ value= also warns), the same way a file loaded on top overrides an earlier one.
 
-value=first part 
-value=second part, 
-value=all on one line
+value=first draft
+value=the last value wins
 
 value-en-CA=line 1\
 line 2\

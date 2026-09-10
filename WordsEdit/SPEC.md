@@ -54,11 +54,20 @@ when several files are open.
 
 ## Round-trip guarantees
 
-Load → save must never lose data; it may (and does) normalize formatting.
+The guarantee is a fixed point: save → load → save is byte-stable (see below).
+A first load normalizes formatting and drops what the model doesn't represent,
+so load → save is not a verbatim copy of arbitrary input.
 
-Preserved exactly: every field and language entry, key order, freeform
-comments, preamble, trailer, constants, `!` labels, stale values, and the
+Preserved (through load → save, and stable thereafter): every recognized field
+and language entry, key order, freeform comments, preamble, trailer, constants,
+`!` labels, per-language stale values (freeform text, kept as written), and the
 top-of-file `param`/`param-xx` settings-file references (see Markdown previews).
+
+Not preserved: unknown field types and unknown `param` data-types (dropped or
+coerced to `String`, with a gripe); a field repeated within one key (last wins,
+a repeated `value=` also warns); and the languageless `stale=`, kept as a
+review flag with no stored text. A bare `[group]` header reloads as an empty
+key (below).
 
 Canonicalized by the writer (`IniWriter`): line wrapping (~50 columns),
 escaping (`__`, `''`, leading-whitespace `_` marker), newline continuations,

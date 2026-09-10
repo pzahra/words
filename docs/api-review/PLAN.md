@@ -160,9 +160,9 @@ Tick items as they land; keep this file in the addressing commit.
 - [x] Atomic write (temp sibling + replace) for Save/Merge/Split
 
 ### Step 3 — Repeated fields, and doc accuracy
-- [ ] Keep repeated `value=` overwrite+warn (last-wins); no semantic code change
-- [ ] Correct core readme/SKILL: a repeated field overwrites and warns (not a continuation)
-- [ ] Narrow WordsEdit byte-stability / never-lose-data docs; fix the long `stale=` continuation truncation
+- [x] Keep repeated `value=` overwrite+warn (last-wins); no semantic code change
+- [x] Correct core readme/SKILL: a repeated field overwrites and warns (not a continuation)
+- [x] Narrow WordsEdit byte-stability / never-lose-data docs; fix the long `stale=` continuation truncation
 
 ### Step 4 — Shared-resource rendering (WPF + Ava)
 - [ ] `staticres:`/`pack:` no longer reparent/mutate shared instances

@@ -197,6 +197,10 @@ namespace PatTech.Localization.Authoring {
 				case ("", "comment"):
 					localizationKey.Comment += value;
 					break;
+				case ("", "stale"):
+					// default stale is a flag (NeedsReview) with no stored text, so
+					// a continuation has nothing to extend — swallow, don't gripe
+					break;
 				case (not "", "value"):
 					localizationKey.Entries[languageCode].Value += value;
 					break;
@@ -205,6 +209,11 @@ namespace PatTech.Localization.Authoring {
 					break;
 				case (not "", "comment"):
 					localizationKey.Entries[languageCode].Comment += value;
+					break;
+				case (not "", "stale"):
+					// a long stale message wraps like any other field; without this
+					// case the tail was dropped and logged as unrecognized
+					localizationKey.Entries[languageCode].Stale += value;
 					break;
 				case (not "", "param"):
 					// continue the value of the parameter this line belongs to

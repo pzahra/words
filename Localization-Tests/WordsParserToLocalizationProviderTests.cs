@@ -170,6 +170,25 @@ def
 	}
 
 	[Fact]
+	public void WordsParserToLocalizationProvider_StaleContinuationAppends() {
+		// a long per-language stale message wraps like any field; its tail used to
+		// be dropped (and logged as unrecognized) for want of a continuation case
+		WordsParserToLocalizationProvider consumer = new();
+		new WordsParser(consumer).Load(new StringReader(@"
+value-en=English
+
+[k]
+value-en=hi
+stale-en=merged on 2026-09-10, needs a fresh look_
+ from a translator
+"));
+
+		Assert.Equal("merged on 2026-09-10, needs a fresh look from a translator",
+			consumer.WordKeys["k"].Entries["en"].Stale);
+		Assert.Empty(consumer.Errors);
+	}
+
+	[Fact]
 	public void WordsParserToLocalizationProvider_TopOfFileParamNamesTheSettingsFiles() {
 		// the keyless param slot names the project settings file — bare for the
 		// dictionary, with a code per language: captured, not dropped, not a key,
