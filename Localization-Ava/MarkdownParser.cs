@@ -116,8 +116,6 @@ public class MarkdownParser(float baseFontSize = MarkdownParser.DefaultBaseFontS
 		return new Run { Text = AltPlaceholder(altText) };
 	}
 
-	/// <summary>The stand-in for an image that resolved to nothing: its alt text, marked.</summary>
-	internal static string AltPlaceholder(string? altText) => $"[🖼️!{altText}]";
 
 
 	/// <summary>Makes the content bold.</summary>

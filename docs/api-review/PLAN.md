@@ -142,6 +142,26 @@ Severity as reported: Core 5H/9M/4L · Authoring 7H/7M/3L (heaviest) · Wpf
   `FrameworkContentElement`, which owns its own `en-US` metadata via `AddOwner`
   and cannot be overridden again, so `TextElement` (the root of every inline and
   block) gets the second, or a bound `Run` would stay at `en-US`.
+- **Step 9 — framework-free logic hoisted to Core (2026-09-11).** The WPF and
+  Avalonia modules are twins by design, but a survey showed the small files
+  differ only by their framework interfaces (nothing to share) while the big
+  ones hid identical pure logic. That logic now lives once, in Core, and is
+  tested once: `ImageQuery` (the query parse — numbers typed, brush values raw
+  — plus `Parse(ref Uri)`'s by-hand split, `PathOf`, `CleanDimension` and
+  `MaxDimension`), `ResourceReference` (the `staticres:`/`dynres:` spelling),
+  `SafePath.Under` (the canonicalize-and-clamp behind `assets:`, now also
+  tolerant of a root spelled with a trailing separator, which the WPF
+  `FolderImageResolver` was not), `Words.FormatParams` (the null / array /
+  named-object rule the inlines and converters each had a copy of) and
+  `Words.ConvertValue` (the converters' whole body, `#value#` truncation
+  included), and `AltPlaceholder` on the generic parser base — there were four
+  copies, the console parser's among them. Each framework `ImageOptions` keeps
+  its public shape and is built `From` an `ImageQuery`; `BrushOption.Parse`
+  reads the reference and only parses the color itself. Left where they are,
+  deliberately: the converter shells (only the interface differs), the
+  `MarkdownParser.Image` flow (lifting it means a `TElement` type parameter and
+  a generic resolver interface, for ~30 lines each), and every resource
+  mechanism.
 
 ## Themes
 
@@ -277,3 +297,10 @@ Tick items as they land; keep this file in the addressing commit.
 - [x] Tag canonicalization / `Parent` fallback — **won't do** (2026-09-11): two levels of language id (`en`, `en-GB`) are the ceiling; no script subtags
 - [x] One formatting culture (`CurrentCulture`) across `WordsInline`/`WordsConverter`/`Words.Format`; `Digest` one-call startup (Theme E) with a WPF `includeFrameworkElements` overload; `showFallback` → fluent `Debug(bool)`
 - [x] Follow-up (2026-09-11): `WordsConverter` formats with the binding's culture; `UseSystemNumbers()` + `Words.SystemCulture`; the WPF `Language` override reaches `TextElement` flow content; Wordsmith loads via `Digest`
+
+### Step 9 — Shared logic hoisted to Core (2026-09-11)
+- [x] `ImageQuery` (query parse, `Parse(ref Uri)`, `PathOf`, `CleanDimension`/`MaxDimension`) + `ResourceReference`; framework `ImageOptions` built `From` it
+- [x] `SafePath.Under(root, relative | Uri)` behind `assets:` (WPF `FolderImageResolver`, Ava `AssetsImageResolver`)
+- [x] `Words.FormatParams` (inlines) and `Words.ConvertValue` (converters' body)
+- [x] `AltPlaceholder` on `MarkdownParser<TInline>` — one copy, four callers
+- [x] Core tests own the pure logic (`ImageQueryTests`, `WordsFormatParamsTests`); the twins' duplicates removed

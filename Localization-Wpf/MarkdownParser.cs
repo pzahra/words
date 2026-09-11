@@ -121,10 +121,6 @@ namespace PatTech.Localization.Wpf {
 			return new Run { Text = AltPlaceholder(altText) };
 		}
 
-		/// <summary>The stand-in for an image that resolved to nothing: its alt text, marked.</summary>
-		internal static string AltPlaceholder(string? altText) => $"[🖼️!{altText}]";
-
-
 		/// <summary>Makes the content bold.</summary>
 		protected override void Embolden(ref Inline content) => content.FontWeight = FontWeights.Bold;
 		/// <summary>Makes the content italic.</summary>

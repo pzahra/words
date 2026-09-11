@@ -67,34 +67,7 @@ public class WordsInline : Span {
 			return;
 		}
 
-		string text;
-
-		switch (@params) {
-			case null:
-				text = Words.Known[key];
-				break;
-
-			case object[] arr:
-				text = string.Format(CultureInfo.CurrentCulture, Words.Known[key], arr);
-				break;
-
-			case Array arr: {
-				var objs = new object[arr.Length];
-				for (int i = 0; i < arr.Length; ++i)
-					objs[i] = arr.GetValue(i)!;
-
-				text = string.Format(CultureInfo.CurrentCulture, Words.Known[key], objs);
-				break;
-			}
-
-			default: {
-				text = Words.FormatByName(
-					CultureInfo.CurrentCulture,
-					Words.Known[key],
-					@params);
-				break;
-			}
-		}
+		var text = Words.Known.FormatParams(key, @params, CultureInfo.CurrentCulture);
 
 		// build fully, then swap: a formatting or parse failure above throws before
 		// we touch Inlines, so the existing content stays put instead of being blanked

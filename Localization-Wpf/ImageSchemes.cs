@@ -42,9 +42,6 @@ namespace PatTech.Localization.Wpf {
 	///     for custom <see cref="IImageSchemeResolver"/>s with bespoke needs.
 	/// </summary>
 	public record class ImageOptions {
-		private static readonly IReadOnlyDictionary<string, string> EmptyQuery
-			= new Dictionary<string, string>();
-
 		/// <summary>Requested width from <c>?width=</c>, or <see langword="null"/> for natural sizing.</summary>
 		public double? Width { get; init; }
 		/// <summary>Requested height from <c>?height=</c>, or <see langword="null"/> for the natural size (geometry, having none, defaults to the base font size).</summary>
@@ -54,7 +51,7 @@ namespace PatTech.Localization.Wpf {
 		/// <summary>From <c>?foreground=</c>: a color, or a brush resource as <c>staticres:key</c>/<c>dynres:key</c>; resolvers apply it to fillable content such as geometry via <see cref="BrushOption.ApplyTo"/>.</summary>
 		public BrushOption? Foreground { get; init; }
 		/// <summary>Every query option by name (case-insensitive), including the well-known ones above.</summary>
-		public IReadOnlyDictionary<string, string> Query { get; init; } = EmptyQuery;
+		public IReadOnlyDictionary<string, string> Query { get; init; } = ImageQuery.Empty.Options;
 
 		/// <summary>
 		///     Rendering context rather than a query option: the font size the parser is
@@ -70,16 +67,7 @@ namespace PatTech.Localization.Wpf {
 		///     Unparseable numbers and unknown color names are ignored rather than thrown.
 		/// </summary>
 		/// <param name="query">The query portion of the image URI; <see langword="null"/> or empty gives default options.</param>
-		public static ImageOptions Parse(string? query) {
-			var values = ParseQuery(query);
-			return new ImageOptions {
-				Width = TryParseDouble(values, "width"),
-				Height = TryParseDouble(values, "height"),
-				Background = BrushOption.Parse(values.GetValueOrDefault("background")),
-				Foreground = BrushOption.Parse(values.GetValueOrDefault("foreground")),
-				Query = values,
-			};
-		}
+		public static ImageOptions Parse(string? query) => From(ImageQuery.Parse(query));
 
 		/// <summary>
 		///     Parses the options off a whole image URI and rewrites
@@ -91,34 +79,16 @@ namespace PatTech.Localization.Wpf {
 		///     anything but: left alone, the <c>?</c> stays glued to the asset path.
 		/// </summary>
 		/// <param name="source">The image URI; rewritten without its query portion.</param>
-		public static ImageOptions Parse(ref Uri source) {
-			var raw = source.OriginalString;
-			var q = raw.IndexOf('?');
-			if (q < 0) return Parse((string?)null);
-			var options = Parse(raw[(q + 1)..]);
-			source = new Uri(raw[..q]);
-			return options;
-		}
+		public static ImageOptions Parse(ref Uri source) => From(ImageQuery.Parse(ref source));
 
-		private static Dictionary<string, string> ParseQuery(string? query) {
-			var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-			if (string.IsNullOrEmpty(query)) return result;
-			var pairs = query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries);
-			foreach (var pair in pairs) {
-				var parts = pair.Split(new[] { '=' }, 2);
-				var name = Uri.UnescapeDataString(parts[0]);
-				var value = parts.Length > 1 ? Uri.UnescapeDataString(parts[1]) : string.Empty;
-				result[name] = value;
-			}
-			return result;
-		}
-
-		private static double? TryParseDouble(Dictionary<string, string> query, string key) {
-			if (!query.TryGetValue(key, out var value) || string.IsNullOrWhiteSpace(value)) return null;
-			if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result)) return result;
-			return null;
-		}
-
+		// the framework's half of the parse: the raw brush values become brushes
+		private static ImageOptions From(ImageQuery query) => new() {
+			Width = query.Width,
+			Height = query.Height,
+			Background = BrushOption.Parse(query.Background),
+			Foreground = BrushOption.Parse(query.Foreground),
+			Query = query.Options,
+		};
 	}
 
 	/// <summary>
@@ -169,8 +139,7 @@ namespace PatTech.Localization.Wpf {
 		/// <param name="value">The raw <c>?foreground=</c> or <c>?background=</c> value.</param>
 		public static BrushOption? Parse(string? value) {
 			if (string.IsNullOrWhiteSpace(value)) return null;
-			if (TryStripScheme(value, "dynres:", out var key)) return new BrushOption(null, key, isDynamic: true);
-			if (TryStripScheme(value, "staticres:", out key)) return new BrushOption(null, key, isDynamic: false);
+			if (ResourceReference.TryParse(value, out var reference)) return new BrushOption(null, reference.Key, reference.IsDynamic);
 			try {
 				if (new ColorConverter().ConvertFromString(null, CultureInfo.InvariantCulture, value) is Color color) {
 					var brush = new SolidColorBrush(color);
@@ -183,11 +152,6 @@ namespace PatTech.Localization.Wpf {
 				// unknown color: pretend it was never asked for
 			}
 			return null;
-		}
-
-		private static bool TryStripScheme(string value, string scheme, out string key) {
-			key = value.StartsWith(scheme, StringComparison.OrdinalIgnoreCase) ? value[scheme.Length..].Trim() : "";
-			return key.Length > 0;
 		}
 
 		/// <summary>
@@ -264,8 +228,7 @@ namespace PatTech.Localization.Wpf {
 			=> new ResourceImage(ResourceKey(source), options, isDynamic: false);
 
 		/// <summary>The <c>x:Key</c> named by a <c>scheme:key</c> URI.</summary>
-		internal static string ResourceKey(Uri source)
-			=> (source.AbsolutePath ?? source.OriginalString).TrimStart('/');
+		internal static string ResourceKey(Uri source) => ImageQuery.PathOf(source);
 	}
 
 	/// <summary>
@@ -304,7 +267,7 @@ namespace PatTech.Localization.Wpf {
 	public class ResxImageResolver : IImageSchemeResolver {
 		/// <inheritdoc/>
 		public FrameworkElement? Resolve(Uri source, ImageOptions options) {
-			var key = (source.AbsolutePath ?? source.OriginalString).TrimStart('/');
+			var key = ImageQuery.PathOf(source);
 			switch (GetResxObject(key)) {
 				case ImageSource imageSource:
 					return new Image { Source = imageSource, Stretch = Stretch.Uniform };
@@ -374,16 +337,7 @@ namespace PatTech.Localization.Wpf {
 		///     Canonicalizes the URI's path under <paramref name="root"/> and returns the
 		///     absolute file path, or <see langword="null"/> if it would land anywhere else.
 		/// </summary>
-		internal static string? ResolvePath(Uri source, string root) {
-			var relative = Uri.UnescapeDataString((source.AbsolutePath ?? source.OriginalString).TrimStart('/'));
-			var fullRoot = System.IO.Path.GetFullPath(root) + System.IO.Path.DirectorySeparatorChar;
-			// GetFullPath resolves any ../ and ./ segments; a rooted or UNC path survives
-			// Path.Combine untouched. Either way, anything outside the root is refused.
-			var filePath = System.IO.Path.GetFullPath(System.IO.Path.Combine(
-				fullRoot,
-				relative.Replace('/', System.IO.Path.DirectorySeparatorChar)));
-			return filePath.StartsWith(fullRoot, StringComparison.Ordinal) ? filePath : null;
-		}
+		internal static string? ResolvePath(Uri source, string root) => SafePath.Under(root, source);
 	}
 
 	/// <summary>
@@ -414,13 +368,9 @@ namespace PatTech.Localization.Wpf {
 	///     later, once the host is in the tree.
 	/// </summary>
 	internal static class ImageSizing {
-		// the largest a requested dimension may be, so a runaway ?width= can't ask
-		// the layout to allocate an enormous image
-		private const double MaxDimension = 4096;
-
 		public static void Apply(FrameworkElement element, ImageOptions options) {
-			var width = Clean(options.Width);
-			var height = Clean(options.Height);
+			var width = ImageQuery.CleanDimension(options.Width);
+			var height = ImageQuery.CleanDimension(options.Height);
 			if (width is double w) element.Width = w;
 			if (height is double h) element.Height = h;
 			if (width is null && height is null) {
@@ -434,10 +384,5 @@ namespace PatTech.Localization.Wpf {
 				}
 			}
 		}
-
-		// a requested dimension must be finite and non-negative, and is capped;
-		// anything else is treated as unspecified (natural sizing), never thrown
-		private static double? Clean(double? value)
-			=> value is double v && double.IsFinite(v) && v >= 0 ? (v > MaxDimension ? MaxDimension : v) : null;
 	}
 }

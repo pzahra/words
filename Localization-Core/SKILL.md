@@ -69,7 +69,10 @@ var menu = builder.GetLanguages();         // code/label pairs for a language me
 
 Formatting: `Words.Known.Format("key", args)` works like `string.Format`;
 `Words.Known.FormatByName("key", obj)` fills `{PropertyName}` /
-`{PropertyName:format}` tags from `obj`'s public fields and properties.
+`{PropertyName:format}` tags from `obj`'s public fields and properties;
+`Words.Known.FormatParams("key", x)` picks by what `x` is — an array is
+positional, any other object is named, `null` is the text as is (the rule the
+XAML inlines and converters use).
 Numbers and dates in parameters format with the thread's `CurrentCulture`,
 which `Digest` sets to the language; `.UseSystemNumbers()` before `Digest`
 keeps the system's regional format (`Words.SystemCulture`) with the words

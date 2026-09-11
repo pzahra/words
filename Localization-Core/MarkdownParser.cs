@@ -81,6 +81,9 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 	/// </summary>
 	protected abstract void Superscript(ref TInline content);
 
+	/// <summary>The stand-in for an image that resolved to nothing: its alt text, marked.</summary>
+	public static string AltPlaceholder(string? altText) => $"[🖼️!{altText}]";
+
 	/// <inheritdoc/>
 	/// <exception cref="InvalidOperationException">A disallowed element was encountered.</exception>
 	public TInline ToInline(
@@ -193,7 +196,7 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 		if (!Uri.TryCreate(url, UriKind.Absolute, out var source)) {
 			// a malformed URI degrades like an unresolvable image: alt text, not a throw
 			logger.Warn("IMG:URI:" + url);
-			return Run($"[🖼️!{altText}]");
+			return Run(AltPlaceholder(altText));
 		}
 		return Image(source, altText, toolTip);
 	}

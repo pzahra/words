@@ -258,32 +258,6 @@ public class ImageSchemeTests {
 		Assert.True(schooled.ImageSchemes.ContainsKey("fake"));
 	}
 
-	[Theory]
-	[InlineData("assets:../secret.png")]
-	[InlineData("assets:icons/../../secret.png")]
-	[InlineData("assets:..%5C..%5Csecret.png")]
-	[InlineData("assets:C:/Windows/notepad.exe")]
-	public void AssetPath_EscapeAttempts_AreClamped(string uri) {
-		Assert.Null(AssetsImageResolver.ResolveAssetPath(new Uri(uri)));
-	}
-
-	[Fact]
-	public void AssetPath_HonestPath_ResolvesUnderAssetsRoot() {
-		var path = AssetsImageResolver.ResolveAssetPath(new Uri("assets:icons/save.png"));
-
-		Assert.NotNull(path);
-		Assert.StartsWith(AppDomain.CurrentDomain.BaseDirectory, path);
-		Assert.EndsWith(Path.Combine("Assets", "icons", "save.png"), path);
-	}
-
-	[Fact]
-	public void AssetPath_PercentEncoding_UnescapesToRealFileName() {
-		var path = AssetsImageResolver.ResolveAssetPath(new Uri("assets:tiny%20image.png"));
-
-		Assert.NotNull(path);
-		Assert.EndsWith(Path.Combine("Assets", "tiny image.png"), path);
-	}
-
 	[Fact]
 	public void AssetsResolver_ExistingFile_LoadsBitmap() {
 		RunSta<object?>(() => {
@@ -326,17 +300,15 @@ public class ImageSchemeTests {
 		Assert.Null(options.Background);
 	}
 
-	[Theory]
-	[InlineData("dynres:wpfAccent", "wpfAccent", true)]
-	[InlineData("staticres:wpfAccent", "wpfAccent", false)]
-	[InlineData("DYNRES:wpfAccent", "wpfAccent", true)]
-	public void BrushOption_Parse_ResourceKey_SpelledLikeTheImageSchemes(string value, string key, bool isDynamic) {
-		var option = BrushOption.Parse(value);
+	[Fact]
+	public void BrushOption_Parse_ResourceKey_IsAReferenceNotABrush() {
+		// the spelling itself is Core's (ImageQueryTests); here, that it comes through as a reference
+		var option = BrushOption.Parse("dynres:wpfAccent");
 
 		Assert.NotNull(option);
 		Assert.Null(option.Brush);
-		Assert.Equal(key, option.ResourceKey);
-		Assert.Equal(isDynamic, option.IsDynamic);
+		Assert.Equal("wpfAccent", option.ResourceKey);
+		Assert.True(option.IsDynamic);
 	}
 
 	[Theory]

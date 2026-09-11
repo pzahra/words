@@ -322,6 +322,74 @@ namespace PatTech.Localization {
 			=> FormatByName(provider, known[key], value, args);
 
 		/// <summary>
+		/// Looks up <paramref name="key"/> and fills its placeholders from whatever
+		/// <paramref name="params"/> is — the one rule the XAML inlines and converters
+		/// share: an array supplies positional <c>{0}</c>-style arguments, any other object
+		/// supplies <c>{Name}</c> placeholders read off its public fields and properties
+		/// (<see cref="FormatByName(IFormatProvider?, string, object?, object?[])"/>), and
+		/// <see langword="null"/> means no arguments at all — the text comes back as it is.
+		/// </summary>
+		/// <param name="known">The dictionary to read.</param>
+		/// <param name="key">The key of the format template.</param>
+		/// <param name="params">An array, a named-value object, or <see langword="null"/>.</param>
+		/// <param name="provider">Culture-specific formatting, or <see langword="null"/> for the current culture.</param>
+		[return: Localized]
+		public static string FormatParams(this IWords known, string key, object? @params, IFormatProvider? provider = null) {
+			ArgumentNullException.ThrowIfNull(known);
+			var template = known[key];
+			switch (@params) {
+				case null:
+					return template;
+				case object[] args:
+					return string.Format(provider, template, args);
+				case Array array:
+					return string.Format(provider, template, array.Cast<object?>().ToArray());
+				default:
+					return FormatByName(provider, template, @params);
+			}
+		}
+
+		/// <summary>
+		/// The body the frameworks' <c>WordsConverter</c>s share: <paramref name="value"/>
+		/// formatted into the template <paramref name="parameter"/> names, per
+		/// <see cref="FormatParams"/> — except that a <see langword="null"/> value fills the
+		/// placeholders with nothing rather than showing the template, since a bound
+		/// value that isn't there yet should not show markup. A missing or non-string
+		/// parameter warns and yields the value — or the parameter — itself, hash-wrapped
+		/// and truncated to 20 characters (<c>#value#</c>), so the mistake shows on screen.
+		/// </summary>
+		/// <param name="known">The dictionary to read.</param>
+		/// <param name="value">The bound value to localize.</param>
+		/// <param name="parameter">The key of the template, as the converter parameter.</param>
+		/// <param name="provider">Culture-specific formatting, or <see langword="null"/> for the current culture.</param>
+		/// <param name="logger">Hears about a missing or wrong-typed parameter; <see langword="null"/> discards it.</param>
+		[return: Localized]
+		public static string ConvertValue(this IWords known, object? value, object? parameter, IFormatProvider? provider, ITakeException? logger = null) {
+			ArgumentNullException.ThrowIfNull(known);
+			logger ??= ITakeException.Dummy;
+			switch (parameter) {
+				case null:
+					logger.Warn("WORDS: ConverterParameter not specified.");
+					return $"#{Truncate(value?.ToString())}#";
+				case string key:
+					// typed: a bare null would pick the dictionary overload, which refuses it
+					return value is null
+						? FormatByName(provider, known[key], (object?)null)
+						: known.FormatParams(key, value, provider);
+				default: {
+					var text = Truncate(parameter.ToString());
+					logger.Warn($"WORDS: ConverterParameter expecting string, found `{text}`");
+					return $"#{text}#";
+				}
+			}
+
+			static string Truncate(string? text) {
+				text ??= "";
+				return text.Length > 20 ? text[..20] : text;
+			}
+		}
+
+		/// <summary>
 		/// Takes a format template with named placeholders, and replaces the names with numbers.
 		/// The returned argument array holds <paramref name="args"/> first, then the
 		/// <paramref name="value"/> object itself, then each named member in order of first

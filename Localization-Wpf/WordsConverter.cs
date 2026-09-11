@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Globalization;
-using System.Linq;
 using System.Windows.Data;
 
 namespace PatTech.Localization.Wpf {
@@ -34,27 +33,8 @@ namespace PatTech.Localization.Wpf {
 		/// <param name="parameter">The key to the Words entry.</param>
 		/// <param name="culture">The culture numbers and dates format in — what the binding hands every converter: its <c>ConverterCulture</c>, else the target element's <c>Language</c>. WPF defaults that to <c>en-US</c> whatever language you picked; <c>Digest(lang, includeFrameworkElements: true)</c> points it at the formatting culture Words installed (the language's, or the system's after <see cref="WordsBuilder.UseSystemNumbers"/>), and a single element or binding can still say otherwise with <c>xml:lang</c> or <c>ConverterCulture</c>.</param>
 		/// <returns>A localized string.</returns>
-		public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) {
-			if (parameter is null) {
-				logger.Warn("WORDS: ConverterParameter not specified.");
-				var text = value?.ToString() ?? "";
-				if (text.Length > 20) {
-					text = text[..20];
-				}
-				return $"#{text}#";
-			}
-			else if (parameter is string key) {
-				return Format(words ?? Words.Known, value, key, culture);
-			}
-			else {
-				var text = parameter.ToString() ?? "";
-				if (text.Length > 20) {
-					text = text[..20];
-				}
-				logger.Warn($"WORDS: ConverterParameter expecting string, found `{text}`");
-				return $"#{text}#";
-			}
-		}
+		public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+			=> (words ?? Words.Known).ConvertValue(value, parameter, culture, logger);
 		/// <summary>
 		/// Not supported; localization is a one-way trip.
 		/// </summary>
@@ -75,13 +55,7 @@ namespace PatTech.Localization.Wpf {
 		/// <param name="key">The key identifying the localized string template to use for formatting.</param>
 		/// <param name="culture">The culture information used to format the string and values according to locale-specific conventions.</param>
 		/// <returns>A formatted string with values substituted into the localized template.</returns>
-		public static string? Format(IWords words, object? value, string key, CultureInfo culture) {
-			if (value is Array array) {
-				return string.Format(culture, words[key], args: array.Cast<object?>().ToArray());
-			}
-			else {
-				return Words.FormatByName(culture, words[key], value);
-			}
-		}
+		public static string? Format(IWords words, object? value, string key, CultureInfo culture)
+			=> words.ConvertValue(value, key, culture);
 	}
 }

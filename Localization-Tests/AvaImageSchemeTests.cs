@@ -221,32 +221,6 @@ public class AvaImageSchemeTests {
 		Assert.True(schooled.ImageSchemes.ContainsKey("fake"));
 	}
 
-	[Theory]
-	[InlineData("assets:../secret.png")]
-	[InlineData("assets:icons/../../secret.png")]
-	[InlineData("assets:..%5C..%5Csecret.png")]
-	[InlineData("assets:C:/Windows/notepad.exe")]
-	public void AssetPath_EscapeAttempts_AreClamped(string uri) {
-		Assert.Null(AssetsImageResolver.ResolveAssetPath(new Uri(uri)));
-	}
-
-	[Fact]
-	public void AssetPath_HonestPath_ResolvesUnderAssetsRoot() {
-		var path = AssetsImageResolver.ResolveAssetPath(new Uri("assets:icons/save.png"));
-
-		Assert.NotNull(path);
-		Assert.StartsWith(AppContext.BaseDirectory, path);
-		Assert.EndsWith(Path.Combine("Assets", "icons", "save.png"), path);
-	}
-
-	[Fact]
-	public void AssetPath_PercentEncoding_UnescapesToRealFileName() {
-		var path = AssetsImageResolver.ResolveAssetPath(new Uri("assets:tiny%20ava%20image.png"));
-
-		Assert.NotNull(path);
-		Assert.EndsWith(Path.Combine("Assets", "tiny ava image.png"), path);
-	}
-
 	[AvaloniaFact]
 	public void AssetsResolver_ExistingFile_LoadsBitmap() {
 		// its own file name: the WPF twin writes `tiny image.png` into the same
@@ -284,17 +258,15 @@ public class AvaImageSchemeTests {
 		Assert.Null(options.Background);
 	}
 
-	[Theory]
-	[InlineData("dynres:avaAccent", "avaAccent", true)]
-	[InlineData("staticres:avaAccent", "avaAccent", false)]
-	[InlineData("DYNRES:avaAccent", "avaAccent", true)]
-	public void BrushOption_Parse_ResourceKey_SpelledLikeTheImageSchemes(string value, string key, bool isDynamic) {
-		var option = BrushOption.Parse(value);
+	[Fact]
+	public void BrushOption_Parse_ResourceKey_IsAReferenceNotABrush() {
+		// the spelling itself is Core's (ImageQueryTests); here, that it comes through as a reference
+		var option = BrushOption.Parse("dynres:avaAccent");
 
 		Assert.NotNull(option);
 		Assert.Null(option.Brush);
-		Assert.Equal(key, option.ResourceKey);
-		Assert.Equal(isDynamic, option.IsDynamic);
+		Assert.Equal("avaAccent", option.ResourceKey);
+		Assert.True(option.IsDynamic);
 	}
 
 	[Theory]
