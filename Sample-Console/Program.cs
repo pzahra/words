@@ -7,9 +7,9 @@ Console.OutputEncoding = System.Text.Encoding.UTF8;
 // line runs, but they forward through ITakeException.Global, so they hear it.
 Words.Logger = new ConsoleGripes();
 
-Words.Known = WordsBuilder.Create()
+WordsBuilder.Create()
 	.Load(Path.Combine(AppContext.BaseDirectory, "Assets", "words.ini"))
-	.ToWords("en");
+	.Digest("en"); // installs it as Words.Known
 
 Console.WriteWordsLine("demo.title");
 Console.WriteLine();

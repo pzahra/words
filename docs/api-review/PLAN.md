@@ -71,10 +71,26 @@ Severity as reported: Core 5H/9M/4L · Authoring 7H/7M/3L (heaviest) · Wpf
   wraps already-sanitized content, so its own escapes survive. Format params still
   carry markdown (a dynamic link becomes a proper OSC-8 hyperlink via the
   converter), but raw control chars are stripped whatever their source.
-- **Step 8 — culture tags deferred.** Script-based tags (`zh-Hant-TW` etc.) are
-  not on the roadmap; skip `CultureInfo` canonicalization / `Parent` fallback for
-  now. Still worth the cheap fix: one consistent formatting culture across the
-  positional/named params and `WordsConverter` (today they differ).
+- **Step 8 — culture tags deferred; formatting culture unified.** Script-based
+  tags (`zh-Hant-TW` etc.) are not on the roadmap; skip `CultureInfo`
+  canonicalization / `Parent` fallback for now. Done: one formatting culture,
+  `CurrentCulture`, across `WordsInline` (positional and named), `WordsConverter`
+  and `Words.Format` — the .NET convention for number/date formatting. Language
+  selection (`ToWords`) still sets it to the chosen language by default (synced),
+  but formatting is left decoupled from the text: set `CurrentCulture` yourself
+  for English words with system decimal commas or system dates. `WordsConverter`
+  no longer relies on the binding's culture (WPF's defaults to `en-US`); the
+  static `Format(…, culture)` overload still takes an explicit one. Startup is
+  one call: `WordsBuilder.Digest(lang[, out languages])` builds the dictionary and
+  installs it as `Words.Known`, turning the setter's hidden culture side-effect
+  (Theme E) into a deliberate, named verb; `ToWords` stays as the build-only
+  path. The `showFallback` debug flag moved off the `ToWords`/`Flatten`
+  parameters onto a fluent `Debug(bool)` switch — otherwise a WPF `Digest(lang,
+  bool)` overload would silently bind to the core `showFallback` bool, since C#
+  never consults extensions while an instance method fits. WPF then overloads
+  `Digest` with `includeFrameworkElements` to also repoint
+  `FrameworkElement.Language` (which drives ordinary bindings) without digging
+  for the `OverrideMetadata` incantation.
 
 ## Themes
 
@@ -208,4 +224,4 @@ Tick items as they land; keep this file in the addressing commit.
 
 ### Step 8 — Culture / tags (deferred)
 - [ ] Tag canonicalization / `Parent` fallback — deferred (locales not on roadmap)
-- [ ] One formatting-culture policy across `WordsInline`/`WordsConverter` (the cheap part, still do)
+- [x] One formatting culture (`CurrentCulture`) across `WordsInline`/`WordsConverter`/`Words.Format`; `Digest` one-call startup (Theme E) with a WPF `includeFrameworkElements` overload; `showFallback` → fluent `Debug(bool)`

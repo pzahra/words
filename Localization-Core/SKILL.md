@@ -59,9 +59,9 @@ Language resolution per key: exact (`en-GB`) → family (`en`) → default.
 
 ```csharp
 Words.Logger = logger;                     // runtime gripes — see Logging
-Words.Known = WordsBuilder.Create(logger)  // load-time gripes; or Words.Builder()
+WordsBuilder.Create(logger)                // load-time gripes; or Words.Builder()
     .Load("path/to/words.ini")             // stack as many as needed; later wins
-    .ToWords("en");                        // also sets thread cultures
+    .Digest("en");                         // installs Words.Known, sets thread cultures
 
 string title = Words.Known["main.title"];  // unknown keys render as #key#
 var menu = builder.GetLanguages();         // code/label pairs for a language menu

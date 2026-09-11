@@ -36,9 +36,9 @@ There is even a compiler warning for the day you inevitably try to sneak a raw
 2. Load it once at startup:
    
    ```csharp
-   Words.Known = WordsBuilder.Create()
+   WordsBuilder.Create()
        .Load("path/to/assets/words.ini")
-       .ToWords("en");
+       .Digest("en");   // installs it as Words.Known
    ```
 
 3. Ask for Words:

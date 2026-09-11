@@ -8,7 +8,9 @@ namespace PatTech.Localization {
 	/// <summary>
 	/// Loads one or more <c>words.ini</c> sources and turns them into an
 	/// <see cref="IWords"/> dictionary for a chosen language. Stack as many
-	/// <c>Load</c> calls as you like, then finish with <see cref="ToWords(string, bool)"/>.
+	/// <c>Load</c> calls as you like, then finish with <see cref="Digest(string)"/> to
+	/// install the result as <see cref="Words.Known"/> (or <see cref="ToWords(string)"/>
+	/// to only build it).
 	/// </summary>
 	public class WordsBuilder {
 		/// <summary>
@@ -23,6 +25,7 @@ namespace PatTech.Localization {
 
 		private readonly WordsParserToWordsProvider _builder;
 		private readonly WordsParser _parser;
+		private bool _showFallback;
 
 		private WordsBuilder(WordsParserToWordsProvider builder, WordsParser parser) {
 			ArgumentNullException.ThrowIfNull(builder);
@@ -113,16 +116,27 @@ namespace PatTech.Localization {
 		}
 
 		/// <summary>
+		/// Brands values that fell back to another language, so missing translations
+		/// stand out: 🕮 for a family fallback, 📚 for a default fallback. A debugging
+		/// aid, off by default; it applies to every dictionary this builder then
+		/// produces, so chain it before <see cref="Digest(string)"/> or leave it out.
+		/// </summary>
+		/// <param name="showFallback"><see langword="true"/> to brand fallbacks; <see langword="false"/> to switch it back off.</param>
+		public WordsBuilder Debug(bool showFallback = true) {
+			_showFallback = showFallback;
+			return this;
+		}
+
+		/// <summary>
 		/// Merges the loaded languages into a single read-only provider for
 		/// <paramref name="languageCode"/>. Per key, the value comes from the exact
 		/// language (e.g. <c>en-GB</c>) first, then its language family (<c>en</c>),
 		/// then the language-less default. Passing <c>""</c> returns the raw default
-		/// dictionary directly.
+		/// dictionary directly. Fallbacks are branded when <see cref="Debug"/> is on.
 		/// </summary>
 		/// <param name="languageCode">The language to flatten, e.g. <c>"en"</c> or <c>"en-GB"</c>; casing is normalized for you.</param>
-		/// <param name="showFallback">When <see langword="true"/>, values that fell back are visibly branded: 🕮 for family fallback, 📚 for default fallback. Handy for spotting missing translations.</param>
 		/// <returns>The flattened provider; an empty provider if nothing was loaded at all.</returns>
-		public IWordsProvider Flatten(string languageCode, bool showFallback = false) {
+		public IWordsProvider Flatten(string languageCode) {
 			if (languageCode is "") {
 				return _builder.Languages[""];
 			}
@@ -147,16 +161,16 @@ namespace PatTech.Localization {
 			if (primary != null) {
 				words = new(primary);
 				if (secondary != null) {
-					patch(words, secondary, "🕮", showFallback);
+					patch(words, secondary, "🕮", _showFallback);
 				}
 				if (fallback != null) {
-					patch(words, fallback, "📚", showFallback);
+					patch(words, fallback, "📚", _showFallback);
 				}
 			}
 			else if (secondary != null) {
 				words = new(secondary);
 				if (fallback != null) {
-					patch(words, fallback, "📚", showFallback);
+					patch(words, fallback, "📚", _showFallback);
 				}
 			}
 			else if (fallback != null) {
@@ -183,25 +197,46 @@ namespace PatTech.Localization {
 			}
 		}
 
-		/// <inheritdoc cref="ToWords(string, out IEnumerable{KeyValuePair{string, string}}, bool)"/>
-		public IWords ToWords(string languageCode, bool showFallback = false) {
+		/// <inheritdoc cref="ToWords(string, out IEnumerable{KeyValuePair{string, string}})"/>
+		public IWords ToWords(string languageCode) {
 			var cultureInfo = CultureInfo.CreateSpecificCulture(languageCode);
-			return new CulturedWords(Flatten(languageCode, showFallback), cultureInfo);
+			return new CulturedWords(Flatten(languageCode), cultureInfo);
 		}
 
 		/// <summary>
-		/// <see cref="Flatten(string, bool)"/> plus a culture: builds the final
+		/// <see cref="Flatten(string)"/> plus a culture: builds the final
 		/// <see cref="IWords"/> for <paramref name="languageCode"/>, carrying the matching
 		/// <see cref="CultureInfo"/> so assigning it to <see cref="Words.Known"/> also
-		/// sets the thread cultures. Typically the last call in the builder chain.
+		/// sets the thread cultures. Builds only; <see cref="Digest(string)"/> is the
+		/// same thing installed as the process-wide dictionary in one call.
 		/// </summary>
 		/// <param name="languageCode">The language to select, e.g. <c>"en"</c> or <c>"en-GB"</c>.</param>
 		/// <param name="languages">Return a list of available languages (see <see cref="GetLanguages"/>)</param>
-		/// <param name="showFallback">See <see cref="Flatten(string, bool)"/>.</param>
-		public IWords ToWords(string languageCode, out IEnumerable<KeyValuePair<string, string>> languages, bool showFallback = false) {
-			var cultureInfo = CultureInfo.CreateSpecificCulture(languageCode);
+		public IWords ToWords(string languageCode, out IEnumerable<KeyValuePair<string, string>> languages) {
 			languages = GetLanguages();
-			return new CulturedWords(Flatten(languageCode, showFallback), cultureInfo);
+			return ToWords(languageCode);
+		}
+
+		/// <inheritdoc cref="Digest(string, out IEnumerable{KeyValuePair{string, string}})"/>
+		public IWords Digest(string languageCode) {
+			var words = ToWords(languageCode);
+			Words.Known = words;
+			return words;
+		}
+
+		/// <summary>
+		/// The one-call startup: builds the dictionary for <paramref name="languageCode"/>
+		/// and installs it as <see cref="Words.Known"/>, which applies its culture to this
+		/// thread and to threads yet to come. Typically the last call in the builder
+		/// chain. <see cref="ToWords(string)"/> is the same build without the install, for
+		/// a dictionary that is not the process-wide one.
+		/// </summary>
+		/// <param name="languageCode">The language to select, e.g. <c>"en"</c> or <c>"en-GB"</c>.</param>
+		/// <param name="languages">Return a list of available languages (see <see cref="GetLanguages"/>)</param>
+		/// <returns>The installed dictionary, the same object now in <see cref="Words.Known"/>.</returns>
+		public IWords Digest(string languageCode, out IEnumerable<KeyValuePair<string, string>> languages) {
+			languages = GetLanguages();
+			return Digest(languageCode);
 		}
 	}
 }

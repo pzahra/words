@@ -6,11 +6,11 @@ Use the Words extension to put Words in the AXAML.
 
 ``` csharp
 public override void Initialize() {
-	Words.Known = Words.Builder()
+	Words.Builder()
 		// Use as many of these as you need.
 		.LoadResource("avares://My-Project/Assets/words.ini")
-		// Select the language to use.
-		.ToWords("en");
+		// Select the language; Digest installs it as Words.Known.
+		.Digest("en");
 	AvaloniaXamlLoader.Load(this);
 }
 ```

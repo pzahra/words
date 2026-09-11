@@ -10,7 +10,7 @@ namespace PatTech.Localization {
 	/// <see cref="Words.RenderKey(IWordsProvider, string, object[])"/>, so missing keys
 	/// come back as <c>#key#</c> rather than throwing.
 	/// </summary>
-	/// <param name="provider">The flattened words for the selected language, typically from <see cref="WordsBuilder.Flatten(string, bool)"/>.</param>
+	/// <param name="provider">The flattened words for the selected language, typically from <see cref="WordsBuilder.Flatten(string)"/>.</param>
 	/// <param name="setCulture">The culture applied by <see cref="SetCulture"/>.</param>
 	public class CulturedWords(IWordsProvider provider, CultureInfo setCulture) : IWords {
 		/// <inheritdoc/>

@@ -32,7 +32,7 @@ namespace PatTech.Localization.Wpf {
 		/// <param name="value">The value to localize.</param>
 		/// <param name="targetType">Ignored; the result is always a string.</param>
 		/// <param name="parameter">The key to the Words entry.</param>
-		/// <param name="culture">Used for numeric formatting rules; doesn't change the selected Words language.</param>
+		/// <param name="culture">Not used for formatting: WordsConverter formats with the thread's CurrentCulture, matching WordsInline, so number/date formatting follows one app-wide culture. Set CurrentCulture to control it; the static Format overload takes an explicit culture if you need one.</param>
 		/// <returns>A localized string.</returns>
 		public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) {
 			if (parameter is null) {
@@ -44,7 +44,7 @@ namespace PatTech.Localization.Wpf {
 				return $"#{text}#";
 			}
 			else if (parameter is string key) {
-				return Format(words ?? Words.Known, value, key, culture);
+				return Format(words ?? Words.Known, value, key, CultureInfo.CurrentCulture);
 			}
 			else {
 				var text = parameter.ToString() ?? "";

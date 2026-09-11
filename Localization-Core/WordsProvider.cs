@@ -98,7 +98,7 @@ namespace PatTech.Localization {
 	}
 	/// <summary>
 	/// An <see cref="IWordsProvider"/> wrapping a dictionary that is no longer meant
-	/// to change — the shape <see cref="WordsBuilder.Flatten(string, bool)"/> hands out.
+	/// to change — the shape <see cref="WordsBuilder.Flatten(string)"/> hands out.
 	/// The wrapper adds no copying: mutate the backing dictionary and the provider
 	/// sees it.
 	/// </summary>

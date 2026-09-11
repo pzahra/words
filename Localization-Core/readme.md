@@ -94,21 +94,25 @@ value=_
 ## Import Words
 
 ``` csharp
-Words.Known = WordsBuilder.Create()
+WordsBuilder.Create()
 	// You can stack as many of these as you want,
 	// each one adds or overwrites as they are read.
 	.Load("path/to/assets/words.ini")
 	// This is the selected language,
 	// use a config file to choose,
 	// as it doesn't change after startup.
-	.ToWords("en");
+	// Digest installs the result as Words.Known.
+	.Digest("en");
 ```
 
 The top-of-file `value-xx=` labels double as your language menu:
 `WordsBuilder.GetLanguages()` returns the code/label pairs in file order,
 skipping labels that are empty or start with `!`. There is also a
-`ToWords(lang, out languages)` overload that hands you both in one call —
-see Sample-Ava's language dropdown for the pattern, relaunch and all.
+`Digest(lang, out languages)` overload that installs the words and hands you
+the menu in one call — see Sample-Ava's language dropdown for the pattern,
+relaunch and all. (`ToWords` is the same build without the install, for a
+dictionary that is not the process-wide one; `.Debug()` before either brands
+values that fell back to another language, to spot missing translations.)
 
 Relaunch is the operative word. `Words.Known` is process-wide and nothing that
 already read it — `LazyWords`, strings a view model composed and kept, XAML
@@ -123,6 +127,17 @@ the one global hyperlink handler — are set up **once at startup** and read fro
 `ITakeException.Dummy` to silence it, not `null`). Configure everything before the
 first lookup renders and you never touch the concurrency questions the statics
 would otherwise raise.
+
+Numbers and dates in substituted arguments format with the thread's
+`CurrentCulture` — the same one whether they flow through `WordsInline`,
+`WordsConverter`, or `Words.Format`. Selecting a language with `Digest` sets both
+the *UI* culture (which picks the text) and the *formatting* culture to that
+language, so by default your numbers match your words. Want English text but,
+say, system decimal commas or system date formats? Set `CurrentCulture` yourself
+after selecting the language — the formatting culture is yours to control,
+independent of the text. (`WordsConverter`'s `culture` argument is not used for
+this; call the static `WordsConverter.Format` overload if you need an explicit
+one for a single conversion.)
 
 The `!` prefix is for multi-assembly setups: each assembly ships its own
 `words.ini`, and a subordinate library may carry more languages than the

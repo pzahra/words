@@ -16,10 +16,13 @@ public partial class App : Application {
 		foreach (var arg in e.Args) {
 			if (arg.StartsWith("--lang=")) lang = arg["--lang=".Length..];
 		}
-		var wb = Words.Builder()
-			.LoadResource("pack://application:,,,/Sample-Wpf;Component/Assets/sample.ini");
-		KeyValuePair<string, string>[] langs = [.. wb.GetLanguages()];
-		Words.Known = wb.ToWords(lang);
+		// one call loads, installs Words.Known (which syncs the thread cultures) and
+		// hands back the language menu; the flag also points FrameworkElement.Language
+		// at it, so ordinary WPF bindings (StringFormat and the like) stop defaulting to en-US
+		Words.Builder()
+			.LoadResource("pack://application:,,,/Sample-Wpf;Component/Assets/sample.ini")
+			.Digest(lang, out var languages, includeFrameworkElements: true);
+		KeyValuePair<string, string>[] langs = [.. languages];
 
 		var viewModel = new MainWindowViewModel(langs, lang);
 

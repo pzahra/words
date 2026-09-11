@@ -18,10 +18,12 @@ namespace Sample_Ava {
 			foreach (var arg in Environment.GetCommandLineArgs()) {
 				if (arg.StartsWith("--lang=")) lang = arg["--lang=".Length..];
 			}
-			var wb = Words.Builder()
-				.LoadResource("avares://Sample-Ava/Assets/sample.ini");
-			langs = [.. wb.GetLanguages()];
-			Words.Known = wb.ToWords(lang);
+			// one call loads, installs Words.Known (which syncs the thread cultures)
+			// and hands back the language menu
+			Words.Builder()
+				.LoadResource("avares://Sample-Ava/Assets/sample.ini")
+				.Digest(lang, out var languages);
+			langs = [.. languages];
 			AvaloniaXamlLoader.Load(this);
 		}
 

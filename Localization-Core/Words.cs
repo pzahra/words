@@ -71,12 +71,12 @@ namespace PatTech.Localization {
 				RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 
 		/// <summary>
-		/// The process-wide dictionary, typically assigned once at startup from
-		/// <see cref="WordsBuilder.ToWords(string, bool)"/>. Reads and writes are volatile,
-		/// so the swap is safe from any thread. Assigning also calls
-		/// <see cref="IWords.SetCulture"/> on the new value. Starts as an empty,
-		/// invariant-culture dictionary, so every lookup renders as <c>#key#</c>
-		/// until real words are loaded.
+		/// The process-wide dictionary, installed once at startup — usually by
+		/// <see cref="WordsBuilder.Digest(string)"/>, which builds and assigns it in one
+		/// call. Reads and writes are volatile, so the swap is safe from any thread.
+		/// Assigning also calls <see cref="IWords.SetCulture"/> on the new value. Starts
+		/// as an empty, invariant-culture dictionary, so every lookup renders as
+		/// <c>#key#</c> until real words are loaded.
 		/// </summary>
 		/// <exception cref="ArgumentNullException">The value assigned is <see langword="null"/>.</exception>
 		[DisallowNull, NotNull]

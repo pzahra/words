@@ -73,7 +73,7 @@ public class WordsInline : Span {
 				break;
 
 			case object[] arr:
-				text = string.Format(CultureInfo.CurrentUICulture, Words.Known[key], arr);
+				text = string.Format(CultureInfo.CurrentCulture, Words.Known[key], arr);
 				break;
 
 			case Array arr: {
@@ -81,7 +81,7 @@ public class WordsInline : Span {
 				for (int i = 0; i < arr.Length; ++i)
 					objs[i] = arr.GetValue(i)!;
 
-				text = string.Format(CultureInfo.CurrentUICulture, Words.Known[key], objs);
+				text = string.Format(CultureInfo.CurrentCulture, Words.Known[key], objs);
 				break;
 			}
 

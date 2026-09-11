@@ -1,3 +1,5 @@
+using System.Globalization;
+using Avalonia.Controls.Documents;
 using Avalonia.Headless.XUnit;
 using PatTech.Localization.Avalonia;
 using Xunit;
@@ -53,6 +55,34 @@ public class AvaWordsInlineTests {
 		}
 		finally {
 			Words.Known = original;
+		}
+	}
+
+	[AvaloniaFact]
+	public void PositionalArgs_FormatWithCurrentCulture_NotUiCulture() {
+		var originalKnown = Words.Known;
+		var originalCulture = CultureInfo.CurrentCulture;
+		var originalUiCulture = CultureInfo.CurrentUICulture;
+		try {
+			Words.Known = WordsBuilder.Create()
+				.Load(new StringReader("value-en=English\n\n[n]\nvalue={0}\n"))
+				.ToWords("en"); // also sets the thread cultures to en
+
+			// text language en (UI culture), but numbers follow CurrentCulture:
+			// German here, to prove the positional path honors CurrentCulture
+			CultureInfo.CurrentUICulture = new CultureInfo("en-US");
+			CultureInfo.CurrentCulture = new CultureInfo("de-DE");
+
+			var w = new WordsInline { Key = "n" };
+			w.Params = new object[] { 1.5 };
+
+			var run = Assert.IsType<Run>(w.Inlines[0]);
+			Assert.Equal("1,5", run.Text); // de-DE decimal comma, not en-US "1.5"
+		}
+		finally {
+			CultureInfo.CurrentCulture = originalCulture;
+			CultureInfo.CurrentUICulture = originalUiCulture;
+			Words.Known = originalKnown;
 		}
 	}
 }

@@ -9,11 +9,12 @@ Load your Words once, before any window shows up:
 ``` csharp
 public partial class App : Application {
 	public App() {
-		Words.Known = WordsBuilder.Create()
+		WordsBuilder.Create()
 			// LoadResource reads straight out of your pack resources.
 			.LoadResource("pack://application:,,,/My-Project;Component/Assets/words.ini")
-			// Select the language to use.
-			.ToWords("en");
+			// Select the language; Digest installs it as Words.Known. The flag also
+			// points WPF's binding culture at it — see "Match the binding culture".
+			.Digest("en", includeFrameworkElements: true);
 	}
 }
 ```
@@ -52,6 +53,26 @@ way down. Do not hot-swap the dictionary in a running UI. Save the choice and
 relaunch the process, with `--lang=xx` on the command line as the samples do
 or from a settings file as Wordsmith does, and let the new process load in the
 new language.
+
+### Match the binding culture to the language
+
+Words' own `WordsInline`, `WordsConverter` and `Words.Format` format numbers and
+dates with the thread's `CurrentCulture`, and `Digest` sets that for you. Plain
+WPF bindings — a `StringFormat`, someone else's converter — are the exception:
+they take their culture from `FrameworkElement.Language`, which defaults to
+`en-US` no matter what language you picked. The WPF `Digest` overload takes one
+extra flag to repoint it:
+
+``` csharp
+wb.Digest(lang, out var languages, includeFrameworkElements: true);
+```
+
+It is the core `Digest` — build, install as `Words.Known`, sync the thread
+cultures — plus the process-global `FrameworkElement.Language` step you would
+otherwise have to spell out as an `OverrideMetadata` call. It is one-shot: the
+first call sets it, later calls leave it. Leave the flag off (or call the core
+`Digest`) if you want English words but system number and date formats — set
+`CurrentCulture` yourself and the framework default stays put.
 
 ## Make hyperlinks go somewhere
 
