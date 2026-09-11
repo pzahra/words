@@ -25,9 +25,10 @@ namespace PatTech.Localization.Wpf {
 		///     Produces the visual for <paramref name="source"/>, or <see langword="null"/>
 		///     when there is nothing to show (the parser then falls back to the image's
 		///     alt text). Apply <see cref="ImageOptions.Foreground"/> yourself where it
-		///     makes sense; sizing, the <see cref="ImageOptions.Background"/> border and
-		///     the tooltip are applied uniformly by the parser afterwards. Exceptions are
-		///     treated the same as <see langword="null"/>.
+		///     makes sense (<see cref="BrushOption.ApplyTo"/> on the property to paint);
+		///     sizing, the <see cref="ImageOptions.Background"/> border and the tooltip are
+		///     applied uniformly by the parser afterwards. Exceptions are treated the same
+		///     as <see langword="null"/>.
 		/// </summary>
 		/// <param name="source">The image URI, scheme and all — but query-less: the query is pre-parsed into <paramref name="options"/> (raw pairs in <see cref="ImageOptions.Query"/>).</param>
 		/// <param name="options">The pre-parsed query options.</param>
@@ -48,10 +49,10 @@ namespace PatTech.Localization.Wpf {
 		public double? Width { get; init; }
 		/// <summary>Requested height from <c>?height=</c>, or <see langword="null"/> for the natural size (geometry, having none, defaults to the base font size).</summary>
 		public double? Height { get; init; }
-		/// <summary>Brush from <c>?background=</c>; the parser wraps the visual in a <see cref="Border"/> painted with it.</summary>
-		public Brush? Background { get; init; }
-		/// <summary>Brush from <c>?foreground=</c>; resolvers apply it to fillable content such as geometry.</summary>
-		public Brush? Foreground { get; init; }
+		/// <summary>From <c>?background=</c>: a color, or a brush resource as <c>staticres:key</c>/<c>dynres:key</c>; the parser wraps the visual in a <see cref="Border"/> painted with it.</summary>
+		public BrushOption? Background { get; init; }
+		/// <summary>From <c>?foreground=</c>: a color, or a brush resource as <c>staticres:key</c>/<c>dynres:key</c>; resolvers apply it to fillable content such as geometry via <see cref="BrushOption.ApplyTo"/>.</summary>
+		public BrushOption? Foreground { get; init; }
 		/// <summary>Every query option by name (case-insensitive), including the well-known ones above.</summary>
 		public IReadOnlyDictionary<string, string> Query { get; init; } = EmptyQuery;
 
@@ -74,8 +75,8 @@ namespace PatTech.Localization.Wpf {
 			return new ImageOptions {
 				Width = TryParseDouble(values, "width"),
 				Height = TryParseDouble(values, "height"),
-				Background = TryParseColorBrush(values, "background"),
-				Foreground = TryParseColorBrush(values, "foreground"),
+				Background = BrushOption.Parse(values.GetValueOrDefault("background")),
+				Foreground = BrushOption.Parse(values.GetValueOrDefault("foreground")),
 				Query = values,
 			};
 		}
@@ -118,21 +119,131 @@ namespace PatTech.Localization.Wpf {
 			return null;
 		}
 
-		private static Brush? TryParseColorBrush(Dictionary<string, string> query, string key) {
-			if (!query.TryGetValue(key, out var value) || string.IsNullOrWhiteSpace(value)) return null;
+	}
+
+	/// <summary>
+	///     A brush an image query asks for — <c>?foreground=</c> or <c>?background=</c>:
+	///     a literal color (<c>DarkRed</c>, <c>#80FF0000</c>), or a resource by
+	///     <c>x:Key</c> as <c>staticres:key</c> or <c>dynres:key</c>, found from where the
+	///     image lands in the tree the way the image schemes of the same name are.
+	///     <see cref="ApplyTo"/> is how it reaches an element: it sets the literal, or
+	///     wires the framework's own resource reference — static keeps the first brush
+	///     found, dynamic follows every swap, a theme change included.
+	/// </summary>
+	/// <remarks>
+	///     A <see cref="Color"/> resource is accepted and wrapped in a brush; any other
+	///     resource type throws, as a wrong-typed resource would anywhere else in WPF. A
+	///     key that resolves to nothing leaves the element's own value standing (a black
+	///     fill, no border) and gripes <c>IMG:RES</c> once the element is loaded, so a
+	///     typo never makes an icon transparent.
+	/// </remarks>
+	public sealed class BrushOption {
+		// one attached slot per element: the resource value as the framework resolves
+		// it, and where it is to go
+		private static readonly DependencyProperty ResourceValueProperty = DependencyProperty.RegisterAttached(
+			"ResourceValue", typeof(object), typeof(BrushOption), new PropertyMetadata(null, OnResourceValueChanged));
+		private static readonly DependencyProperty TargetProperty = DependencyProperty.RegisterAttached(
+			"Target", typeof(ResourceTarget), typeof(BrushOption));
+
+		private sealed record ResourceTarget(DependencyProperty Property, string Key, bool IsDynamic);
+
+		private BrushOption(Brush? brush, string? resourceKey, bool isDynamic) {
+			Brush = brush;
+			ResourceKey = resourceKey;
+			IsDynamic = isDynamic;
+		}
+
+		/// <summary>The literal brush, frozen; <see langword="null"/> when a resource was asked for.</summary>
+		public Brush? Brush { get; }
+		/// <summary>The resource key to look up; <see langword="null"/> for a literal.</summary>
+		public string? ResourceKey { get; }
+		/// <summary><see langword="true"/> for <c>dynres:</c>, a reference that follows later changes; <see langword="false"/> for a literal or <c>staticres:</c>.</summary>
+		public bool IsDynamic { get; }
+
+		/// <summary>
+		///     Parses one query value: <c>staticres:key</c>/<c>dynres:key</c> name a
+		///     resource, anything else is tried as a color. An unknown color name, or a
+		///     prefix with no key after it, parses to <see langword="null"/> — ignored, not
+		///     thrown, as if never asked for.
+		/// </summary>
+		/// <param name="value">The raw <c>?foreground=</c> or <c>?background=</c> value.</param>
+		public static BrushOption? Parse(string? value) {
+			if (string.IsNullOrWhiteSpace(value)) return null;
+			if (TryStripScheme(value, "dynres:", out var key)) return new BrushOption(null, key, isDynamic: true);
+			if (TryStripScheme(value, "staticres:", out key)) return new BrushOption(null, key, isDynamic: false);
 			try {
-				var converter = new ColorConverter();
-				if (converter.ConvertFromString(null, CultureInfo.InvariantCulture, value) is Color color) {
+				if (new ColorConverter().ConvertFromString(null, CultureInfo.InvariantCulture, value) is Color color) {
 					var brush = new SolidColorBrush(color);
 					// frozen brushes are thread-free and cheaper to render
 					brush.Freeze();
-					return brush;
+					return new BrushOption(brush, null, isDynamic: false);
 				}
 			}
 			catch {
 				// unknown color: pretend it was never asked for
 			}
 			return null;
+		}
+
+		private static bool TryStripScheme(string value, string scheme, out string key) {
+			key = value.StartsWith(scheme, StringComparison.OrdinalIgnoreCase) ? value[scheme.Length..].Trim() : "";
+			return key.Length > 0;
+		}
+
+		/// <summary>
+		///     Puts this brush on <paramref name="element"/>'s <paramref name="property"/>:
+		///     a literal is set outright; a resource becomes the framework's own reference,
+		///     resolved from the element's place in the tree once it has one.
+		/// </summary>
+		/// <param name="element">The element to paint.</param>
+		/// <param name="property">Its brush property, e.g. <see cref="Shape.FillProperty"/> or <see cref="Border.BackgroundProperty"/>.</param>
+		/// <exception cref="ArgumentNullException"><paramref name="element"/> or <paramref name="property"/> is <see langword="null"/>.</exception>
+		public void ApplyTo(FrameworkElement element, DependencyProperty property) {
+			ArgumentNullException.ThrowIfNull(element);
+			ArgumentNullException.ThrowIfNull(property);
+			if (Brush is not null) {
+				element.SetValue(property, Brush);
+				return;
+			}
+			element.SetValue(TargetProperty, new ResourceTarget(property, ResourceKey!, IsDynamic));
+			// evaluated from the element's place in the tree and re-evaluated when the
+			// tree or the dictionaries change — what {DynamicResource} does
+			element.SetResourceReference(ResourceValueProperty, ResourceKey!);
+			element.Loaded += OnLoaded;
+		}
+
+		private static void OnLoaded(object sender, RoutedEventArgs e) {
+			var element = (FrameworkElement)sender;
+			element.Loaded -= OnLoaded;
+			// in the tree, and still nothing: the key is wrong, so say so — once
+			if (element.GetValue(ResourceValueProperty) is null && element.GetValue(TargetProperty) is ResourceTarget target) {
+				ITakeException.Global.Warn($"IMG:RES:{(target.IsDynamic ? "dynres" : "staticres")}:{target.Key}");
+			}
+		}
+
+		private static void OnResourceValueChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) {
+			// nothing found (yet, or any more): leave whatever the element has standing
+			if (e.NewValue is null || d.GetValue(TargetProperty) is not ResourceTarget target) return;
+			d.SetValue(target.Property, ToBrush(e.NewValue, target.Key));
+			if (!target.IsDynamic) {
+				// static: pin the first value found — a local value replaces the
+				// resource reference, so later changes to the dictionary go unheard
+				d.SetValue(ResourceValueProperty, e.NewValue);
+			}
+		}
+
+		private static Brush ToBrush(object value, string key) {
+			switch (value) {
+				case Brush brush:
+					return brush;
+				case Color color: {
+					var brush = new SolidColorBrush(color);
+					brush.Freeze();
+					return brush;
+				}
+				default:
+					throw new InvalidCastException($"Resource '{key}': a {value.GetType().Name} is not a brush; expected a Brush or a Color");
+			}
 		}
 	}
 

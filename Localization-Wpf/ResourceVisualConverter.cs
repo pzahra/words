@@ -4,14 +4,16 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Shapes;
 using PathGeometry = System.Windows.Shapes.Path;
 
 namespace PatTech.Localization.Wpf {
 	/// <summary>
 	///     Turns a resolved resource into a fresh visual: an <see cref="ImageSource"/>
 	///     into an <see cref="Image"/>, a <see cref="Geometry"/> into a filled
-	///     <see cref="PathGeometry"/> (the <see cref="ImageOptions.Foreground"/> when given,
-	///     else black), a <see cref="DataTemplate"/> into newly loaded content. Every call
+	///     <see cref="PathGeometry"/> (the <see cref="ImageOptions.Foreground"/> when given —
+	///     a color or a resource brush — else black), a <see cref="DataTemplate"/> into
+	///     newly loaded content. Every call
 	///     builds anew, so one resource can show in many places — which is why a bare
 	///     element resource is not accepted: one instance cannot live under two parents.
 	///     Wrap it in a <see cref="DataTemplate"/> instead.
@@ -47,12 +49,11 @@ namespace PatTech.Localization.Wpf {
 			switch (value) {
 				case ImageSource imageSource:
 					return new Image { Source = imageSource, Stretch = Stretch.Uniform };
-				case Geometry geometry:
-					return new PathGeometry {
-						Data = geometry,
-						Fill = options.Foreground ?? Brushes.Black,
-						Stretch = Stretch.Uniform,
-					};
+				case Geometry geometry: {
+					var path = new PathGeometry { Data = geometry, Fill = Brushes.Black, Stretch = Stretch.Uniform };
+					options.Foreground?.ApplyTo(path, Shape.FillProperty);
+					return path;
+				}
 				case DataTemplate template:
 					// LoadContent builds a new tree every time: the reusable form of an element
 					return template.LoadContent() as FrameworkElement

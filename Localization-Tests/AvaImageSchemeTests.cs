@@ -5,6 +5,7 @@ using Avalonia.Controls.Templates;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Media.Immutable;
 using Avalonia.Styling;
 using PatTech.Localization.Avalonia;
 using Xunit;
@@ -85,7 +86,7 @@ public class AvaImageSchemeTests {
 
 		var container = Assert.IsType<InlineUIContainer>(inline);
 		var border = Assert.IsType<Border>(container.Child);
-		Assert.Equal(Colors.Red, Assert.IsType<SolidColorBrush>(border.Background).Color);
+		Assert.Equal(Colors.Red, Assert.IsAssignableFrom<ISolidColorBrush>(border.Background).Color);
 		Assert.Equal("tip", ToolTip.GetTip(border));
 		var textBlock = Assert.IsType<TextBlock>(border.Child);
 		Assert.Equal(32, textBlock.Width);
@@ -270,7 +271,7 @@ public class AvaImageSchemeTests {
 
 		Assert.Equal(24, options.Width);
 		Assert.Equal(12.5, options.Height);
-		Assert.Equal(Colors.DarkRed, Assert.IsType<SolidColorBrush>(options.Foreground).Color);
+		Assert.Equal(Colors.DarkRed, Assert.IsAssignableFrom<ISolidColorBrush>(options.Foreground?.Brush).Color);
 		Assert.Null(options.Background);
 		Assert.Equal("ContentSave", options.Query["kind"]);
 	}
@@ -281,6 +282,29 @@ public class AvaImageSchemeTests {
 
 		Assert.Null(options.Width);
 		Assert.Null(options.Background);
+	}
+
+	[Theory]
+	[InlineData("dynres:avaAccent", "avaAccent", true)]
+	[InlineData("staticres:avaAccent", "avaAccent", false)]
+	[InlineData("DYNRES:avaAccent", "avaAccent", true)]
+	public void BrushOption_Parse_ResourceKey_SpelledLikeTheImageSchemes(string value, string key, bool isDynamic) {
+		var option = BrushOption.Parse(value);
+
+		Assert.NotNull(option);
+		Assert.Null(option.Brush);
+		Assert.Equal(key, option.ResourceKey);
+		Assert.Equal(isDynamic, option.IsDynamic);
+	}
+
+	[Theory]
+	[InlineData("NotAColor")]
+	[InlineData("dynres:")]
+	[InlineData("staticres:   ")]
+	[InlineData("")]
+	public void BrushOption_Parse_Nonsense_IsNull(string value) {
+		// ignored, as if never asked for: a typo must not become a lookup
+		Assert.Null(BrushOption.Parse(value));
 	}
 
 	[AvaloniaFact]
@@ -324,7 +348,11 @@ public class AvaImageSchemeTests {
 
 	/// <inheritdoc cref="Attach(Inline, ResourceDictionary?, ThemeVariant?)"/>
 	/// <param name="window">The window, for tests that go on to change it.</param>
-	private static ResourceImage Attach(Inline inline, out Window window, ResourceDictionary? resources = null, ThemeVariant? theme = null) {
+	private static ResourceImage Attach(Inline inline, out Window window, ResourceDictionary? resources = null, ThemeVariant? theme = null)
+		=> Assert.IsType<ResourceImage>(AttachChild(inline, out window, resources, theme));
+
+	/// <summary>Same, for an image that resolved on the spot: hands back whatever the container holds.</summary>
+	private static Control AttachChild(Inline inline, out Window window, ResourceDictionary? resources = null, ThemeVariant? theme = null) {
 		window = new Window();
 		if (resources is not null) window.Resources = resources;
 		if (theme is not null) window.RequestedThemeVariant = theme;
@@ -333,7 +361,97 @@ public class AvaImageSchemeTests {
 		window.Show();
 		textBlock.Inlines!.Add(inline);
 		var container = Assert.IsType<InlineUIContainer>(inline);
-		return Assert.IsType<ResourceImage>(container.Child);
+		return container.Child;
+	}
+
+	[AvaloniaFact]
+	public void Foreground_DynResBrush_FollowsAResourceSwap() {
+		var local = new ResourceDictionary {
+			["avaTintGeo"] = StreamGeometry.Parse("M0,0 L4,4 L0,4 Z"),
+			["avaTint"] = new ImmutableSolidColorBrush(Colors.Red),
+		};
+		var host = Attach(new MarkdownParser().ToInline("![a](staticres:avaTintGeo?foreground=dynres:avaTint)"), local);
+		var path = Assert.IsType<global::Avalonia.Controls.Shapes.Path>(host.Child);
+		Assert.Equal(Colors.Red, Assert.IsAssignableFrom<ISolidColorBrush>(path.Fill).Color);
+
+		local["avaTint"] = new ImmutableSolidColorBrush(Colors.Blue); // a theme swap, in miniature
+
+		Assert.Equal(Colors.Blue, Assert.IsAssignableFrom<ISolidColorBrush>(path.Fill).Color);
+	}
+
+	[AvaloniaFact]
+	public void Foreground_DynResBrush_FollowsAThemeVariantChange() {
+		var themed = Themed("avaVariantTint", new ImmutableSolidColorBrush(Colors.Gold), new ImmutableSolidColorBrush(Colors.Silver));
+		themed["avaVariantTintGeo"] = StreamGeometry.Parse("M0,0 L4,4 L0,4 Z");
+		var host = Attach(new MarkdownParser().ToInline("![a](staticres:avaVariantTintGeo?foreground=dynres:avaVariantTint)"), out var window, themed, ThemeVariant.Light);
+		var path = Assert.IsType<global::Avalonia.Controls.Shapes.Path>(host.Child);
+		Assert.Equal(Colors.Gold, Assert.IsAssignableFrom<ISolidColorBrush>(path.Fill).Color);
+
+		window.RequestedThemeVariant = ThemeVariant.Dark; // the sample's dark-theme switch
+
+		Assert.Equal(Colors.Silver, Assert.IsAssignableFrom<ISolidColorBrush>(path.Fill).Color);
+	}
+
+	[AvaloniaFact]
+	public void Foreground_StaticResBrush_KeepsTheFirstValue() {
+		var local = new ResourceDictionary {
+			["avaPinGeo"] = StreamGeometry.Parse("M0,0 L4,4 L0,4 Z"),
+			["avaPinTint"] = new ImmutableSolidColorBrush(Colors.Red),
+		};
+		var host = Attach(new MarkdownParser().ToInline("![a](staticres:avaPinGeo?foreground=staticres:avaPinTint)"), local);
+		var path = Assert.IsType<global::Avalonia.Controls.Shapes.Path>(host.Child);
+
+		local["avaPinTint"] = new ImmutableSolidColorBrush(Colors.Blue);
+
+		Assert.Equal(Colors.Red, Assert.IsAssignableFrom<ISolidColorBrush>(path.Fill).Color); // {StaticResource} semantics
+	}
+
+	[AvaloniaFact]
+	public void Foreground_ColorResource_BecomesABrush() {
+		var local = new ResourceDictionary {
+			["avaColorGeo"] = StreamGeometry.Parse("M0,0 L4,4 L0,4 Z"),
+			["avaTintColor"] = Colors.Green, // a Color, the way theme dictionaries often keep them
+		};
+		var host = Attach(new MarkdownParser().ToInline("![a](staticres:avaColorGeo?foreground=dynres:avaTintColor)"), local);
+
+		var path = Assert.IsType<global::Avalonia.Controls.Shapes.Path>(host.Child);
+		Assert.Equal(Colors.Green, Assert.IsAssignableFrom<ISolidColorBrush>(path.Fill).Color);
+	}
+
+	[AvaloniaFact]
+	public void Foreground_MissingResource_LeavesTheDefaultBlack() {
+		var local = new ResourceDictionary { ["avaBlackGeo"] = StreamGeometry.Parse("M0,0 L4,4 L0,4 Z") };
+		var host = Attach(new MarkdownParser().ToInline("![a](staticres:avaBlackGeo?foreground=dynres:avaNoSuchBrush)"), local);
+
+		// a typo'd key keeps the icon visible: not transparent
+		var path = Assert.IsType<global::Avalonia.Controls.Shapes.Path>(host.Child);
+		Assert.Equal(Colors.Black, Assert.IsAssignableFrom<ISolidColorBrush>(path.Fill).Color);
+	}
+
+	[AvaloniaFact]
+	public void Foreground_WrongTypeResource_ThrowsNamingTheKey() {
+		var local = new ResourceDictionary {
+			["avaWrongGeo"] = StreamGeometry.Parse("M0,0 L4,4 L0,4 Z"),
+			["avaNotABrush"] = "text",
+		};
+
+		// a programming error, not a broken image: it throws where the resource meets the tree
+		var ex = Assert.Throws<InvalidCastException>(() => Attach(new MarkdownParser().ToInline("![a](staticres:avaWrongGeo?foreground=staticres:avaNotABrush)"), local));
+
+		Assert.Contains("avaNotABrush", ex.Message);
+	}
+
+	[AvaloniaFact]
+	public void Background_DynResBrush_WrapsInABorderThatFollows() {
+		var parser = new MarkdownParser();
+		parser.ImageSchemes["fake"] = new FakeResolver((_, _) => new TextBlock());
+		var local = new ResourceDictionary { ["avaPaper"] = new ImmutableSolidColorBrush(Colors.Red) };
+		var border = Assert.IsType<Border>(AttachChild(parser.ToInline("![a](fake:thing?background=dynres:avaPaper)"), out _, local));
+		Assert.Equal(Colors.Red, Assert.IsAssignableFrom<ISolidColorBrush>(border.Background).Color);
+
+		local["avaPaper"] = new ImmutableSolidColorBrush(Colors.Blue);
+
+		Assert.Equal(Colors.Blue, Assert.IsAssignableFrom<ISolidColorBrush>(border.Background).Color);
 	}
 
 	/// <summary>A dictionary whose only content is <paramref name="light"/>/<paramref name="dark"/> entries for <paramref name="key"/> — the shape of the sample's ThemeIcon.</summary>

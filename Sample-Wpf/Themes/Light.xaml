@@ -4,6 +4,8 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <SolidColorBrush x:Key="WindowBackground" Color="White"/>
     <SolidColorBrush x:Key="WindowForeground" Color="#1E1E1E"/>
-    <!-- a sun: the theme-scoped icon the sample shows through staticres: and dynres: -->
+    <!-- a sun, in gold: the theme-scoped icon the sample shows through staticres: and
+         dynres:, its brush asked for the same way (?foreground=dynres:ThemeIconBrush) -->
+    <SolidColorBrush x:Key="ThemeIconBrush" Color="Goldenrod"/>
     <Geometry x:Key="ThemeIcon">M8,0 L9.5,2.5 L6.5,2.5 Z M8,16 L6.5,13.5 L9.5,13.5 Z M0,8 L2.5,6.5 L2.5,9.5 Z M16,8 L13.5,9.5 L13.5,6.5 Z M2.3,2.3 L5,3 L3,5 Z M13.7,2.3 L13,5 L11,3 Z M2.3,13.7 L3,11 L5,13 Z M13.7,13.7 L11,13 L13,11 Z M8,4.5 A3.5,3.5 0 1 1 8,11.5 A3.5,3.5 0 1 1 8,4.5 Z</Geometry>
 </ResourceDictionary>

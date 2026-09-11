@@ -99,8 +99,10 @@ namespace PatTech.Localization.Wpf {
 					if (resolver.Resolve(source, options) is { } visual) {
 						ImageSizing.Apply(visual, options);
 						FrameworkElement outer = visual;
-						if (options.Background is not null) {
-							outer = new Border { Background = options.Background, Child = visual };
+						if (options.Background is { } background) {
+							var border = new Border { Child = visual };
+							background.ApplyTo(border, Border.BackgroundProperty);
+							outer = border;
 						}
 						if (!string.IsNullOrEmpty(tooltip)) {
 							ToolTipService.SetToolTip(outer, tooltip);

@@ -21,13 +21,17 @@
                 <ResourceInclude Source="avares://PatTech.Localization.Avalonia/Converters.axaml"/>
             </ResourceDictionary.MergedDictionaries>
             <!-- theme-scoped: the variant the app is in picks the value, so a dynres:
-                 image of ThemeIcon turns from sun to moon with the dark-theme switch,
-                 while a staticres: one keeps whatever it resolved at load -->
+                 image of ThemeIcon turns from sun to moon with the dark-theme switch —
+                 and from gold to silver, its brush asked for the same way
+                 (?foreground=dynres:ThemeIconBrush) — while a staticres: one keeps
+                 whatever it resolved at load -->
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="ThemeIconBrush" Color="Goldenrod"/>
                     <StreamGeometry x:Key="ThemeIcon">M8,0 L9.5,2.5 L6.5,2.5 Z M8,16 L6.5,13.5 L9.5,13.5 Z M0,8 L2.5,6.5 L2.5,9.5 Z M16,8 L13.5,9.5 L13.5,6.5 Z M2.3,2.3 L5,3 L3,5 Z M13.7,2.3 L13,5 L11,3 Z M2.3,13.7 L3,11 L5,13 Z M13.7,13.7 L11,13 L13,11 Z M8,4.5 A3.5,3.5 0 1 1 8,11.5 A3.5,3.5 0 1 1 8,4.5 Z</StreamGeometry>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="ThemeIconBrush" Color="Silver"/>
                     <StreamGeometry x:Key="ThemeIcon">M8,0 A8,8 0 0 0 8,16 A4,8 0 0 1 8,0 Z</StreamGeometry>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>

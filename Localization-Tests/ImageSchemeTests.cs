@@ -313,7 +313,7 @@ public class ImageSchemeTests {
 
 		Assert.Equal(24, options.Width);
 		Assert.Equal(12.5, options.Height);
-		Assert.Equal(Colors.DarkRed, Assert.IsType<SolidColorBrush>(options.Foreground).Color);
+		Assert.Equal(Colors.DarkRed, Assert.IsType<SolidColorBrush>(options.Foreground?.Brush).Color);
 		Assert.Null(options.Background);
 		Assert.Equal("ContentSave", options.Query["kind"]);
 	}
@@ -324,6 +324,29 @@ public class ImageSchemeTests {
 
 		Assert.Null(options.Width);
 		Assert.Null(options.Background);
+	}
+
+	[Theory]
+	[InlineData("dynres:wpfAccent", "wpfAccent", true)]
+	[InlineData("staticres:wpfAccent", "wpfAccent", false)]
+	[InlineData("DYNRES:wpfAccent", "wpfAccent", true)]
+	public void BrushOption_Parse_ResourceKey_SpelledLikeTheImageSchemes(string value, string key, bool isDynamic) {
+		var option = BrushOption.Parse(value);
+
+		Assert.NotNull(option);
+		Assert.Null(option.Brush);
+		Assert.Equal(key, option.ResourceKey);
+		Assert.Equal(isDynamic, option.IsDynamic);
+	}
+
+	[Theory]
+	[InlineData("NotAColor")]
+	[InlineData("dynres:")]
+	[InlineData("staticres:   ")]
+	[InlineData("")]
+	public void BrushOption_Parse_Nonsense_IsNull(string value) {
+		// ignored, as if never asked for: a typo must not become a lookup
+		Assert.Null(RunSta(() => BrushOption.Parse(value)));
 	}
 
 	[Fact]
@@ -366,14 +389,125 @@ public class ImageSchemeTests {
 	/// <paramref name="resources"/>, so a tree-scoped lookup has somewhere to look,
 	/// and hands back the resource host the image resolved to.
 	/// </summary>
-	private static ResourceImage Attach(Inline inline, ResourceDictionary? resources = null) {
+	private static ResourceImage Attach(Inline inline, ResourceDictionary? resources = null)
+		=> Assert.IsType<ResourceImage>(AttachChild(inline, resources));
+
+	/// <summary>Same, for an image that resolved on the spot: hands back whatever the container holds.</summary>
+	private static FrameworkElement AttachChild(Inline inline, ResourceDictionary? resources = null) {
 		var grid = new Grid();
 		if (resources is not null) grid.Resources = resources;
 		var textBlock = new TextBlock();
 		grid.Children.Add(textBlock);
 		textBlock.Inlines.Add(inline);
 		var container = Assert.IsType<InlineUIContainer>(inline);
-		return Assert.IsType<ResourceImage>(container.Child);
+		return (FrameworkElement)container.Child;
+	}
+
+	private static SolidColorBrush Frozen(Color color) {
+		var brush = new SolidColorBrush(color);
+		brush.Freeze();
+		return brush;
+	}
+
+	[Fact]
+	public void Foreground_DynResBrush_FollowsAResourceSwap() {
+		RunSta<object?>(() => {
+			_ = Application.Current ?? new Application();
+			var local = new ResourceDictionary {
+				["wpfTintGeo"] = Geometry.Parse("M0,0 L4,4 L0,4 Z"),
+				["wpfTint"] = Frozen(Colors.Red),
+			};
+			var host = Attach(new MarkdownParser().ToInline("![a](staticres:wpfTintGeo?foreground=dynres:wpfTint)"), local);
+			var path = Assert.IsType<System.Windows.Shapes.Path>(host.Child);
+			Assert.Equal(Colors.Red, Assert.IsType<SolidColorBrush>(path.Fill).Color);
+
+			local["wpfTint"] = Frozen(Colors.Blue); // a theme swap, in miniature
+
+			Assert.Equal(Colors.Blue, Assert.IsType<SolidColorBrush>(path.Fill).Color);
+			return null;
+		});
+	}
+
+	[Fact]
+	public void Foreground_StaticResBrush_KeepsTheFirstValue() {
+		RunSta<object?>(() => {
+			_ = Application.Current ?? new Application();
+			var local = new ResourceDictionary {
+				["wpfPinGeo"] = Geometry.Parse("M0,0 L4,4 L0,4 Z"),
+				["wpfPinTint"] = Frozen(Colors.Red),
+			};
+			var host = Attach(new MarkdownParser().ToInline("![a](staticres:wpfPinGeo?foreground=staticres:wpfPinTint)"), local);
+			var path = Assert.IsType<System.Windows.Shapes.Path>(host.Child);
+
+			local["wpfPinTint"] = Frozen(Colors.Blue);
+
+			Assert.Equal(Colors.Red, Assert.IsType<SolidColorBrush>(path.Fill).Color); // {StaticResource} semantics
+			return null;
+		});
+	}
+
+	[Fact]
+	public void Foreground_ColorResource_BecomesABrush() {
+		RunSta<object?>(() => {
+			_ = Application.Current ?? new Application();
+			var local = new ResourceDictionary {
+				["wpfColorGeo"] = Geometry.Parse("M0,0 L4,4 L0,4 Z"),
+				["wpfTintColor"] = Colors.Green, // a Color, the way theme dictionaries often keep them
+			};
+			var host = Attach(new MarkdownParser().ToInline("![a](staticres:wpfColorGeo?foreground=dynres:wpfTintColor)"), local);
+
+			var path = Assert.IsType<System.Windows.Shapes.Path>(host.Child);
+			Assert.Equal(Colors.Green, Assert.IsType<SolidColorBrush>(path.Fill).Color);
+			return null;
+		});
+	}
+
+	[Fact]
+	public void Foreground_MissingResource_LeavesTheDefaultBlack() {
+		RunSta<object?>(() => {
+			_ = Application.Current ?? new Application();
+			var local = new ResourceDictionary { ["wpfBlackGeo"] = Geometry.Parse("M0,0 L4,4 L0,4 Z") };
+			var host = Attach(new MarkdownParser().ToInline("![a](staticres:wpfBlackGeo?foreground=dynres:wpfNoSuchBrush)"), local);
+
+			// a typo'd key keeps the icon visible: not transparent
+			var path = Assert.IsType<System.Windows.Shapes.Path>(host.Child);
+			Assert.Equal(Colors.Black, Assert.IsType<SolidColorBrush>(path.Fill).Color);
+			return null;
+		});
+	}
+
+	[Fact]
+	public void Foreground_WrongTypeResource_ThrowsNamingTheKey() {
+		RunSta<object?>(() => {
+			_ = Application.Current ?? new Application();
+			var local = new ResourceDictionary {
+				["wpfWrongGeo"] = Geometry.Parse("M0,0 L4,4 L0,4 Z"),
+				["wpfNotABrush"] = "text",
+			};
+
+			// a programming error, not a broken image: it throws where the resource meets the tree
+			var ex = Assert.Throws<InvalidCastException>(() => Attach(new MarkdownParser().ToInline("![a](staticres:wpfWrongGeo?foreground=staticres:wpfNotABrush)"), local));
+
+			Assert.Contains("wpfNotABrush", ex.Message);
+			return null;
+		});
+	}
+
+	[Fact]
+	public void Background_DynResBrush_WrapsInABorderThatFollows() {
+		RunSta<object?>(() => {
+			_ = Application.Current ?? new Application();
+			var parser = new MarkdownParser();
+			parser.ImageSchemes["fake"] = new FakeResolver((_, _) => new TextBlock());
+			var local = new ResourceDictionary { ["wpfPaper"] = Frozen(Colors.Red) };
+			var border = Assert.IsType<Border>(AttachChild(parser.ToInline("![a](fake:thing?background=dynres:wpfPaper)"), local));
+			Assert.Equal(Colors.Red, Assert.IsType<SolidColorBrush>(border.Background).Color);
+
+			local["wpfPaper"] = Frozen(Colors.Blue);
+
+			Assert.Equal(Colors.Blue, Assert.IsType<SolidColorBrush>(border.Background).Color);
+			return null;
+		});
 	}
 
 	[Fact]

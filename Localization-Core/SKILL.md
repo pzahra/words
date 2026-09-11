@@ -115,7 +115,9 @@ properties, or logs.
   autolinks. Rendered underlined and blue; tooltips follow the pointer.
 - Images: `![alt](scheme:path?width=W&height=H&background=B&foreground=F)`.
   The query carries display options only — it is parsed off before the scheme
-  resolver sees the URI. Raster images render at natural size unless sized;
+  resolver sees the URI. `B`/`F` are a color, or a brush resource as
+  `staticres:key`/`dynres:key` (`dynres:` follows theme swaps; a missing key
+  keeps the default rather than going transparent). Raster images render at natural size unless sized;
   geometry defaults to the font height. Unresolvable images — unknown scheme,
   missing asset, even a malformed URI — degrade to `[🖼️!alt]` and gripe to
   the logger; they never throw. A link whose URI won't parse renders its

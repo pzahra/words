@@ -2,8 +2,10 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Controls.Templates;
+using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Media.Immutable;
 using Avalonia.Platform;
 using System.Globalization;
 using PathGeometry = Avalonia.Controls.Shapes.Path;
@@ -21,9 +23,10 @@ public interface IImageSchemeResolver {
 	///     Produces the visual for <paramref name="source"/>, or <see langword="null"/>
 	///     when there is nothing to show (the parser then falls back to the image's
 	///     alt text). Apply <see cref="ImageOptions.Foreground"/> yourself where it
-	///     makes sense; sizing, the <see cref="ImageOptions.Background"/> border and
-	///     the tooltip are applied uniformly by the parser afterwards. Exceptions are
-	///     treated the same as <see langword="null"/>.
+	///     makes sense (<see cref="BrushOption.ApplyTo"/> on the property to paint);
+	///     sizing, the <see cref="ImageOptions.Background"/> border and the tooltip are
+	///     applied uniformly by the parser afterwards. Exceptions are treated the same
+	///     as <see langword="null"/>.
 	/// </summary>
 	/// <param name="source">The image URI, scheme and all — but query-less: the query is pre-parsed into <paramref name="options"/> (raw pairs in <see cref="ImageOptions.Query"/>).</param>
 	/// <param name="options">The pre-parsed query options.</param>
@@ -44,10 +47,10 @@ public record class ImageOptions {
 	public double? Width { get; init; }
 	/// <summary>Requested height from <c>?height=</c>, or <see langword="null"/> for the natural size (geometry, having none, defaults to the base font size).</summary>
 	public double? Height { get; init; }
-	/// <summary>Brush from <c>?background=</c>; the parser wraps the visual in a <see cref="Border"/> painted with it.</summary>
-	public Brush? Background { get; init; }
-	/// <summary>Brush from <c>?foreground=</c>; resolvers apply it to fillable content such as geometry.</summary>
-	public Brush? Foreground { get; init; }
+	/// <summary>From <c>?background=</c>: a color, or a brush resource as <c>staticres:key</c>/<c>dynres:key</c>; the parser wraps the visual in a <see cref="Border"/> painted with it.</summary>
+	public BrushOption? Background { get; init; }
+	/// <summary>From <c>?foreground=</c>: a color, or a brush resource as <c>staticres:key</c>/<c>dynres:key</c>; resolvers apply it to fillable content such as geometry via <see cref="BrushOption.ApplyTo"/>.</summary>
+	public BrushOption? Foreground { get; init; }
 	/// <summary>Every query option by name (case-insensitive), including the well-known ones above.</summary>
 	public IReadOnlyDictionary<string, string> Query { get; init; } = EmptyQuery;
 
@@ -70,8 +73,8 @@ public record class ImageOptions {
 		return new ImageOptions {
 			Width = TryParseDouble(values, "width"),
 			Height = TryParseDouble(values, "height"),
-			Background = TryParseColorBrush(values, "background"),
-			Foreground = TryParseColorBrush(values, "foreground"),
+			Background = BrushOption.Parse(values.GetValueOrDefault("background")),
+			Foreground = BrushOption.Parse(values.GetValueOrDefault("foreground")),
 			Query = values,
 		};
 	}
@@ -114,16 +117,119 @@ public record class ImageOptions {
 		return null;
 	}
 
-	private static Brush? TryParseColorBrush(Dictionary<string, string> query, string key) {
-		if (!query.TryGetValue(key, out var value) || string.IsNullOrWhiteSpace(value)) return null;
+}
+
+/// <summary>
+///     A brush an image query asks for — <c>?foreground=</c> or <c>?background=</c>:
+///     a literal color (<c>DarkRed</c>, <c>#80FF0000</c>), or a resource by
+///     <c>x:Key</c> as <c>staticres:key</c> or <c>dynres:key</c>, found from where the
+///     image lands in the tree the way the image schemes of the same name are.
+///     <see cref="ApplyTo"/> is how it reaches a control: it sets the literal, or
+///     wires the framework's own resource lookup — static keeps the first brush found,
+///     dynamic follows every swap, a theme variant change included.
+/// </summary>
+/// <remarks>
+///     A <see cref="Color"/> resource is accepted and wrapped in a brush; any other
+///     resource type throws, as a wrong-typed resource would anywhere else in Avalonia.
+///     A key that resolves to nothing leaves the control's own value standing (a black
+///     fill, no border) — a static one gripes <c>IMG:RES</c> once — so a typo never
+///     makes an icon transparent.
+/// </remarks>
+public sealed class BrushOption {
+	private BrushOption(IBrush? brush, string? resourceKey, bool isDynamic) {
+		Brush = brush;
+		ResourceKey = resourceKey;
+		IsDynamic = isDynamic;
+	}
+
+	/// <summary>The literal brush, immutable; <see langword="null"/> when a resource was asked for.</summary>
+	public IBrush? Brush { get; }
+	/// <summary>The resource key to look up; <see langword="null"/> for a literal.</summary>
+	public string? ResourceKey { get; }
+	/// <summary><see langword="true"/> for <c>dynres:</c>, a reference that follows later changes; <see langword="false"/> for a literal or <c>staticres:</c>.</summary>
+	public bool IsDynamic { get; }
+
+	/// <summary>
+	///     Parses one query value: <c>staticres:key</c>/<c>dynres:key</c> name a
+	///     resource, anything else is tried as a color. An unknown color name, or a
+	///     prefix with no key after it, parses to <see langword="null"/> — ignored, not
+	///     thrown, as if never asked for.
+	/// </summary>
+	/// <param name="value">The raw <c>?foreground=</c> or <c>?background=</c> value.</param>
+	public static BrushOption? Parse(string? value) {
+		if (string.IsNullOrWhiteSpace(value)) return null;
+		if (TryStripScheme(value, "dynres:", out var key)) return new BrushOption(null, key, isDynamic: true);
+		if (TryStripScheme(value, "staticres:", out key)) return new BrushOption(null, key, isDynamic: false);
 		try {
-			return new SolidColorBrush(Color.Parse(value));
+			// immutable brushes are thread-free and cheaper to render
+			return new BrushOption(new ImmutableSolidColorBrush(Color.Parse(value)), null, isDynamic: false);
 		}
 		catch {
 			// unknown color: pretend it was never asked for
 			return null;
 		}
 	}
+
+	private static bool TryStripScheme(string value, string scheme, out string key) {
+		key = value.StartsWith(scheme, StringComparison.OrdinalIgnoreCase) ? value[scheme.Length..].Trim() : "";
+		return key.Length > 0;
+	}
+
+	/// <summary>
+	///     Puts this brush on <paramref name="control"/>'s <paramref name="property"/>:
+	///     a literal is set outright; a resource is looked up from the control's place
+	///     in the tree once it has one — live for <c>dynres:</c>, once for
+	///     <c>staticres:</c>.
+	/// </summary>
+	/// <param name="control">The control to paint.</param>
+	/// <param name="property">Its brush property, e.g. <see cref="Shape.FillProperty"/> or <see cref="Border.BackgroundProperty"/>.</param>
+	/// <exception cref="ArgumentNullException"><paramref name="control"/> or <paramref name="property"/> is <see langword="null"/>.</exception>
+	public void ApplyTo(Control control, StyledProperty<IBrush?> property) {
+		ArgumentNullException.ThrowIfNull(control);
+		ArgumentNullException.ThrowIfNull(property);
+		if (Brush is not null) {
+			control.SetValue(property, Brush);
+			return;
+		}
+		var key = ResourceKey!;
+		if (IsDynamic) {
+			// the framework's own live reference — what {DynamicResource} binds to — with
+			// the control's own value standing in while the key resolves to nothing
+			var fallback = control.GetValue(property);
+			control.Bind(property, control.GetResourceObservable(key, value
+				=> value is null or UnsetValueType ? fallback : ToBrush(value, key)));
+		}
+		else if (((ILogical)control).IsAttachedToLogicalTree) {
+			ResolveOnce(control, property, key);
+		}
+		else {
+			// static: one lookup from where the control lands — what {StaticResource} does
+			EventHandler<LogicalTreeAttachmentEventArgs>? attached = null;
+			attached = (_, _) => {
+				control.AttachedToLogicalTree -= attached;
+				ResolveOnce(control, property, key);
+			};
+			control.AttachedToLogicalTree += attached;
+		}
+	}
+
+	private static void ResolveOnce(Control control, StyledProperty<IBrush?> property, string key) {
+		// for the theme variant in effect: a ThemeDictionaries entry is invisible to
+		// the theme-less overload
+		if (control.TryFindResource(key, control.ActualThemeVariant, out var value) && value is not null) {
+			control.SetValue(property, ToBrush(value, key));
+		}
+		else {
+			// in the tree, and nothing: the key is wrong, so say so — once
+			ITakeException.Global.Warn($"IMG:RES:staticres:{key}");
+		}
+	}
+
+	private static IBrush ToBrush(object value, string key) => value switch {
+		IBrush brush => brush,
+		Color color => new ImmutableSolidColorBrush(color),
+		_ => throw new InvalidCastException($"Resource '{key}': a {value.GetType().Name} is not a brush; expected an IBrush or a Color"),
+	};
 }
 
 /// <summary>

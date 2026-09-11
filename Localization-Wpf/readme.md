@@ -127,6 +127,11 @@ anywhere else in WPF.
 Query options `width`, `height`, `background`, and `foreground`
 apply whatever the scheme; the query carries display options, not asset
 identity, so resolvers always receive the URI with it already split off.
+`background` and `foreground` take a color, or a brush resource spelled the way
+the image schemes are — `staticres:key` or `dynres:key`, found from where the
+image lands, and `dynres:` follows a theme swap (a `Color` resource is wrapped in
+a brush; any other type throws; a missing key leaves the default standing — black
+fill, no border — and gripes, rather than going transparent).
 Raster images render at their natural size unless `width` or `height` says
 otherwise; geometry, having no natural size, defaults to the font height.
 Anything that fails to resolve degrades to its alt text as `[🖼️!alt]`, because

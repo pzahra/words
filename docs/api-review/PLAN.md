@@ -75,9 +75,22 @@ Severity as reported: Core 5H/9M/4L · Authoring 7H/7M/3L (heaviest) · Wpf
   switch so the live reference has something to show: a theme-scoped
   `ThemeIcon` (sun in Light, moon in Dark — Avalonia `ThemeDictionaries`; WPF a
   swapped `Themes/*.xaml` merged dictionary) rendered through `staticres:` and
-  `dynres:` side by side, so only the live one changes. `?foreground=` as a
-  resource key stays "(later)": treating a non-color as a key would turn a
-  typo'd color name into a transparent icon instead of today's ignored → black.
+  `dynres:` side by side, so only the live one changes. `?foreground=` /
+  `?background=` as a resource key (Item 5, 2026-09-11): the ambiguity that kept
+  it "(later)" — a typo'd color read as a key — is sidestepped by spelling the
+  reference out, `staticres:key`/`dynres:key`, the vocabulary the image schemes
+  already teach, so a bare word is still only ever tried as a color.
+  `ImageOptions.Foreground`/`Background` became a `BrushOption` (a literal brush
+  or a key) whose `ApplyTo(element, property)` sets the literal or wires the
+  framework's own reference: WPF `SetResourceReference` on an attached slot whose
+  change callback paints the target (and pins it for static); Avalonia
+  `GetResourceObservable` with a converter for dynamic, `TryFindResource` for
+  the variant in effect on attach for static. A `Color` resource is wrapped in a
+  brush (theme dictionaries keep colors as often as brushes); a wrong type throws
+  as in 4b; a missing key leaves the element's own value standing — black fill,
+  no border — so a typo still cannot make an icon transparent. The samples'
+  `ThemeIcon` now takes its brush from the theme too (`ThemeIconBrush`: a gold
+  sun, a silver moon), which is what makes `dynres:` in a brush visible.
 - **Step 6 — `assets:` is a convenience, not a security boundary.** Keep the
   lexical `../` clamp; drop the readme's "no matter how creatively" promise
   (WPF + Ava). Still do the mechanical hardening: the readme's catch-all
@@ -242,7 +255,7 @@ Tick items as they land; keep this file in the addressing commit.
 - [x] `dynres:` scheme: a live reference that tracks theme (dark/light) swaps
 - [x] Build a `DataTemplate`/factory for element resources (WPF `LoadContent`; Ava `IDataTemplate.Build`)
 - [x] Converter as the shared sanitation layer (resolved resource → safe visual), XAML-usable
-- [ ] (later) `?foreground=`/`?background=` accept a resource key, not just a literal color
+- [x] `?foreground=`/`?background=` accept a brush resource as `staticres:key`/`dynres:key` (`BrushOption`; dynamic follows theme swaps) — 2026-09-11
 
 ### Step 5 — Contract bugs
 - [x] `MarkdownConverter` target-type logic + docs (both modules)

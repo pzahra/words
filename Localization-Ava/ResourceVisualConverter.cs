@@ -1,5 +1,6 @@
 using System.Globalization;
 using Avalonia.Controls;
+using Avalonia.Controls.Shapes;
 using Avalonia.Controls.Templates;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
@@ -10,8 +11,9 @@ namespace PatTech.Localization.Avalonia;
 /// <summary>
 ///     Turns a resolved resource into a fresh visual: an <see cref="IImage"/> into an
 ///     <see cref="Image"/>, a <see cref="Geometry"/> into a filled
-///     <see cref="PathGeometry"/> (the <see cref="ImageOptions.Foreground"/> when given,
-///     else black), an <see cref="IDataTemplate"/> into newly built content. Every call
+///     <see cref="PathGeometry"/> (the <see cref="ImageOptions.Foreground"/> when given — a
+///     color or a resource brush — else black), an <see cref="IDataTemplate"/> into newly
+///     built content. Every call
 ///     builds anew, so one resource can show in many places — which is why a bare
 ///     control resource is not accepted: one instance cannot live under two parents.
 ///     Wrap it in a <c>DataTemplate</c> instead.
@@ -46,12 +48,11 @@ public class ResourceVisualConverter : IValueConverter {
 		switch (value) {
 			case IImage image:
 				return new Image { Source = image, Stretch = Stretch.Uniform };
-			case Geometry geometry:
-				return new PathGeometry {
-					Data = geometry,
-					Fill = options.Foreground ?? (IBrush)Brushes.Black,
-					Stretch = Stretch.Uniform,
-				};
+			case Geometry geometry: {
+				var path = new PathGeometry { Data = geometry, Fill = Brushes.Black, Stretch = Stretch.Uniform };
+				options.Foreground?.ApplyTo(path, Shape.FillProperty);
+				return path;
+			}
 			case IDataTemplate template:
 				// Build makes a new control every time: the reusable form of a control
 				return template.Build(null)
