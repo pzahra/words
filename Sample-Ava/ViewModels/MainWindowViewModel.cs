@@ -1,11 +1,28 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Styling;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 
 namespace Sample_Ava.ViewModels {
 	public partial class MainWindowViewModel(IEnumerable<KeyValuePair<string, string>> langs, string lang) : ViewModelBase {
+		// starts from the variant actually in effect: "Default" in App.axaml follows the system
+		private bool isDarkTheme = Application.Current?.ActualThemeVariant == ThemeVariant.Dark;
+		/// <summary>
+		///     Flips the app between the Light and Dark theme variants. The images demo
+		///     shows the point: a `dynres:` image of the theme icon follows the switch, a
+		///     `staticres:` one keeps what it resolved at load.
+		/// </summary>
+		public bool IsDarkTheme {
+			get => isDarkTheme;
+			set {
+				if (ChangeProperty(ref isDarkTheme, value) && Application.Current is { } app) {
+					app.RequestedThemeVariant = value ? ThemeVariant.Dark : ThemeVariant.Light;
+				}
+			}
+		}
+
 		private double unread = 3;
 		public double Unread {
 			get => unread;
@@ -38,9 +55,9 @@ namespace Sample_Ava.ViewModels {
 			++commandCount;
 			AffectProperty(nameof(AppCommandParams));
 			if (uri.AbsolutePath == "changeLang" && Environment.ProcessPath is { } exe) {
-				// relaunch with the selected language on the command line
-				// (App.Initialize reads it back before loading the Words)
-				Process.Start(new ProcessStartInfo(exe, $"--lang={SelectedLanguage}"));
+				// relaunch with the selected language, and the current theme, on the
+				// command line (App.Initialize reads them back before loading the Words)
+				Process.Start(new ProcessStartInfo(exe, $"--lang={SelectedLanguage} --theme={(IsDarkTheme ? "dark" : "light")}"));
 				if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop) {
 					desktop.Shutdown();
 				}

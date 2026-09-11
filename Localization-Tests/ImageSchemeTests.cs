@@ -361,26 +361,19 @@ public class ImageSchemeTests {
 		});
 	}
 
-	[Fact]
-	public void StaticRes_ElementResource_IsRefusedWithGripe() {
-		RunSta<object?>(() => {
-			_ = Application.Current ?? new Application();
-			Application.Current!.Resources["wpfElem"] = new Button { Content = "x" };
-
-			var capture = new CaptureLogger();
-			var original = PatTech.Localization.Words.Logger;
-			try {
-				PatTech.Localization.Words.Logger = capture;
-				// a bare element is one shared instance: refused, not reparented
-				var visual = new StaticResImageResolver().Resolve(new Uri("staticres:wpfElem"), new ImageOptions());
-				Assert.Null(visual);
-			}
-			finally {
-				PatTech.Localization.Words.Logger = original;
-			}
-			Assert.Contains(capture.Messages, m => m.Contains("IMG:ELEM") && m.Contains("wpfElem"));
-			return null;
-		});
+	/// <summary>
+	/// Puts <paramref name="inline"/> in a TextBlock under a Grid carrying
+	/// <paramref name="resources"/>, so a tree-scoped lookup has somewhere to look,
+	/// and hands back the resource host the image resolved to.
+	/// </summary>
+	private static ResourceImage Attach(Inline inline, ResourceDictionary? resources = null) {
+		var grid = new Grid();
+		if (resources is not null) grid.Resources = resources;
+		var textBlock = new TextBlock();
+		grid.Children.Add(textBlock);
+		textBlock.Inlines.Add(inline);
+		var container = Assert.IsType<InlineUIContainer>(inline);
+		return Assert.IsType<ResourceImage>(container.Child);
 	}
 
 	[Fact]
@@ -388,15 +381,117 @@ public class ImageSchemeTests {
 		RunSta<object?>(() => {
 			_ = Application.Current ?? new Application();
 			Application.Current!.Resources["wpfGeo"] = Geometry.Parse("M0,0 L10,10 L0,10 Z");
-			var resolver = new StaticResImageResolver();
+			var parser = new MarkdownParser();
 
-			var first = resolver.Resolve(new Uri("staticres:wpfGeo"), new ImageOptions());
-			var second = resolver.Resolve(new Uri("staticres:wpfGeo"), new ImageOptions());
+			var a = Assert.IsType<System.Windows.Shapes.Path>(Attach(parser.ToInline("![a](staticres:wpfGeo)")).Child);
+			var b = Assert.IsType<System.Windows.Shapes.Path>(Attach(parser.ToInline("![b](staticres:wpfGeo)")).Child);
 
-			var a = Assert.IsType<System.Windows.Shapes.Path>(first);
-			var b = Assert.IsType<System.Windows.Shapes.Path>(second);
 			Assert.NotSame(a, b);        // reuse-safe: not one shared element
 			Assert.Same(a.Data, b.Data); // the geometry value itself shares freely
+			return null;
+		});
+	}
+
+	[Fact]
+	public void StaticRes_TreeScopedResource_FoundFromTheElementNotJustTheApp() {
+		RunSta<object?>(() => {
+			_ = Application.Current ?? new Application();
+			// on the Grid only: an app-level lookup would never see it
+			var local = new ResourceDictionary { ["wpfLocalGeo"] = Geometry.Parse("M0,0 L4,4 L0,4 Z") };
+
+			var host = Attach(new MarkdownParser().ToInline("![a](staticres:wpfLocalGeo)"), local);
+
+			Assert.IsType<System.Windows.Shapes.Path>(host.Child);
+			return null;
+		});
+	}
+
+	[Fact]
+	public void DynRes_FollowsAResourceSwap() {
+		RunSta<object?>(() => {
+			_ = Application.Current ?? new Application();
+			var first = Geometry.Parse("M0,0 L4,4 L0,4 Z");
+			var second = Geometry.Parse("M0,0 L8,8 L0,8 Z");
+			var local = new ResourceDictionary { ["wpfLiveGeo"] = first };
+			var host = Attach(new MarkdownParser().ToInline("![a](dynres:wpfLiveGeo)"), local);
+			Assert.Same(first, Assert.IsType<System.Windows.Shapes.Path>(host.Child).Data);
+
+			local["wpfLiveGeo"] = second; // a theme swap, in miniature
+
+			Assert.Same(second, Assert.IsType<System.Windows.Shapes.Path>(host.Child).Data);
+			return null;
+		});
+	}
+
+	[Fact]
+	public void StaticRes_KeepsTheFirstValue_IgnoringLaterSwaps() {
+		RunSta<object?>(() => {
+			_ = Application.Current ?? new Application();
+			var first = Geometry.Parse("M0,0 L4,4 L0,4 Z");
+			var local = new ResourceDictionary { ["wpfPinnedGeo"] = first };
+			var host = Attach(new MarkdownParser().ToInline("![a](staticres:wpfPinnedGeo)"), local);
+
+			local["wpfPinnedGeo"] = Geometry.Parse("M0,0 L8,8 L0,8 Z");
+
+			Assert.Same(first, Assert.IsType<System.Windows.Shapes.Path>(host.Child).Data); // {StaticResource} semantics
+			return null;
+		});
+	}
+
+	[Fact]
+	public void StaticRes_DataTemplateResource_LoadsFreshContentEachTime() {
+		RunSta<object?>(() => {
+			_ = Application.Current ?? new Application();
+			// the reusable form of an element: a template, loaded anew per image
+			var template = new DataTemplate { VisualTree = new FrameworkElementFactory(typeof(System.Windows.Shapes.Path)) };
+			template.Seal();
+			var local = new ResourceDictionary { ["wpfTemplate"] = template };
+			var parser = new MarkdownParser();
+
+			var a = Attach(parser.ToInline("![a](staticres:wpfTemplate)"), local).Child;
+			var b = Attach(parser.ToInline("![b](staticres:wpfTemplate)"), local).Child;
+
+			Assert.IsType<System.Windows.Shapes.Path>(a);
+			Assert.NotSame(a, b);
+			return null;
+		});
+	}
+
+	[Fact]
+	public void StaticRes_MissingResource_RendersAltText() {
+		RunSta<object?>(() => {
+			_ = Application.Current ?? new Application();
+
+			var host = Attach(new MarkdownParser().ToInline("![the alt](staticres:wpfNoSuchKey)"));
+
+			// a words.ini typo must not eat the sentence
+			Assert.Equal("[🖼️!the alt]", Assert.IsType<TextBlock>(host.Child).Text);
+			return null;
+		});
+	}
+
+	[Fact]
+	public void ResourceVisualConverter_ElementResource_Throws() {
+		RunSta<object?>(() => {
+			// a bare element is one shared instance that can't live under two parents:
+			// the wrong type, so it throws — as a wrong-typed resource would anywhere in WPF
+			var ex = Assert.Throws<InvalidCastException>(() => ResourceVisualConverter.ToVisual(new Button(), new ImageOptions()));
+
+			Assert.Contains("DataTemplate", ex.Message); // and says what the reusable form is
+			return null;
+		});
+	}
+
+	[Fact]
+	public void StaticRes_ElementResource_ThrowsNamingTheKey() {
+		RunSta<object?>(() => {
+			_ = Application.Current ?? new Application();
+			Application.Current!.Resources["wpfElem"] = new Button { Content = "x" };
+
+			// a programming error, not a broken image: the parser lets it through
+			var ex = Assert.Throws<InvalidCastException>(() => new MarkdownParser().ToInline("![a](staticres:wpfElem)"));
+
+			Assert.Contains("wpfElem", ex.Message);
 			return null;
 		});
 	}

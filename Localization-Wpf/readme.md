@@ -107,12 +107,20 @@ the picture comes from:
 value=Press ![save icon](staticres:SaveIconGeometry?height=16&foreground=DarkGreen) to save.
 ```
 
-Out of the box the parser speaks `staticres:` (application resource by
-`x:Key`), `pack:` (WPF pack URIs), `resx:` (a `Resources` class in your loaded
-assemblies), and `assets:` (files under the application's `Assets` folder. It's
-a convenience, not a security boundary: the path is lexically clamped to that
-folder — `../` and rooted paths resolve to nothing — and the scheme only ever
-loads images, so a symlink someone planted inside `Assets` is out of scope).
+Out of the box the parser speaks `staticres:` and `dynres:` (a resource by
+`x:Key`, found from where the image lands in the tree — the window or user
+control it is in, then the application — the way `{StaticResource}` and
+`{DynamicResource}` are; `dynres:` stays live, so swapping the resource for a
+theme change re-renders it), `pack:` (WPF pack URIs), `resx:` (a `Resources`
+class in your loaded assemblies), and `assets:` (files under the application's
+`Assets` folder. It's a convenience, not a security boundary: the path is
+lexically clamped to that folder — `../` and rooted paths resolve to nothing —
+and the scheme only ever loads images, so a symlink someone planted inside
+`Assets` is out of scope). A resource renders as a fresh visual every time: an
+`ImageSource` in an `Image`, a `Geometry` in a filled `Path`, a `DataTemplate`
+as newly loaded content — which is how you reuse an element, since one instance
+can't live under two parents. Any other resource type throws, as it would
+anywhere else in WPF.
 Query options `width`, `height`, `background`, and `foreground`
 apply whatever the scheme; the query carries display options, not asset
 identity, so resolvers always receive the URI with it already split off.
@@ -151,6 +159,9 @@ For values that only exist at runtime, there are converters:
   of descriptions or one delimited string (`AsArray="False"`).
 - `ArrayMultiConverter` — gathers a `MultiBinding` into the array that
   `WordsInline.Params` wants.
+- `ResourceVisualConverter` — turns a resource value (`ImageSource`, `Geometry`,
+  `DataTemplate`) into a fresh visual; what the `staticres:`/`dynres:` image
+  schemes render through, should you want the same from a binding.
 
 None of them need configuring, so the package ships them pre-instantiated in
 `Converters.xaml` — merge it once:
@@ -167,4 +178,5 @@ None of them need configuring, so the package ships them pre-instantiated in
 
 and every view can say `{StaticResource WordsMarkdown}`, `WordsFormat`,
 `WordsEnumDescription`, `WordsFlagsDescription` (joined text),
-`WordsFlagsDescriptionList` (one description per flag), or `WordsParamsArray`.
+`WordsFlagsDescriptionList` (one description per flag), `WordsParamsArray`, or
+`WordsResourceVisual`.

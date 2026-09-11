@@ -2,7 +2,6 @@ using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Logging;
 using Avalonia.Media;
-using PathGeometry = Avalonia.Controls.Shapes.Path;
 
 namespace PatTech.Localization.Avalonia;
 
@@ -13,15 +12,19 @@ namespace PatTech.Localization.Avalonia;
 /// <remarks>
 ///     Image URIs are resolved through the <see cref="ImageSchemes"/> registry. Out of
 ///     the box that covers <c>avares:</c> (embedded assets), <c>assets:</c> (files under
-///     the application's <c>Assets</c> folder), and <c>staticres:</c> (application
-///     resource by <c>x:Key</c>); register your own <see cref="IImageSchemeResolver"/>
+///     the application's <c>Assets</c> folder), and <c>staticres:</c> and <c>dynres:</c>
+///     (a resource by <c>x:Key</c>, found from where the image lands in the tree —
+///     static once, dynamic live); register your own <see cref="IImageSchemeResolver"/>
 ///     to teach it more. The query string may carry <c>width</c>, <c>height</c>,
 ///     <c>background</c>, and <c>foreground</c> options, applied uniformly whatever
 ///     the scheme. Anything that fails to resolve degrades to the image's alt text.
 /// </remarks>
 /// <param name="baseFontSize">Font size the output is destined for; sets the sub/superscript size (80% of it) and the default height of geometry icons.</param>
 /// <param name="logger">An interface for passing on logging instructions to the caller.</param>
-public class MarkdownParser(float baseFontSize = 13, ITakeException? logger = null) : MarkdownParser<Inline>(logger), IMarkdownParser {
+public class MarkdownParser(float baseFontSize = MarkdownParser.DefaultBaseFontSize, ITakeException? logger = null) : MarkdownParser<Inline>(logger), IMarkdownParser {
+	/// <summary>The font size assumed when none is given: a typical body text.</summary>
+	public const float DefaultBaseFontSize = 13;
+
 	private static MarkdownParser _Default = new(logger: ITakeException.Global);
 	/// <summary>
 	///     The shared parser used by <see cref="WordsInline"/> and
@@ -47,6 +50,7 @@ public class MarkdownParser(float baseFontSize = 13, ITakeException? logger = nu
 		["avares"] = new AvaresImageResolver(),
 		["assets"] = new AssetsImageResolver(),
 		["staticres"] = new StaticResImageResolver(),
+		["dynres"] = new DynResImageResolver(),
 	};
 
 	/// <summary>Creates a plain <see cref="global::Avalonia.Controls.Documents.Run"/> for unformatted text.</summary>
@@ -85,9 +89,10 @@ public class MarkdownParser(float baseFontSize = 13, ITakeException? logger = nu
 	protected override Inline Image(Uri source, string? altText, string? tooltip) {
 		try {
 			if (ImageSchemes.TryGetValue(source.Scheme ?? string.Empty, out var resolver)) {
-				var options = ImageOptions.Parse(ref source);
+				// the query options, plus the rendering context a resolver can't know
+				var options = ImageOptions.Parse(ref source) with { BaseFontSize = baseFontSize, AltText = altText };
 				if (resolver.Resolve(source, options) is { } visual) {
-					ApplySize(visual, options);
+					ImageSizing.Apply(visual, options);
 					Control outer = visual;
 					if (options.Background is not null) {
 						outer = new Border { Background = options.Background, Child = visual };
@@ -100,40 +105,18 @@ public class MarkdownParser(float baseFontSize = 13, ITakeException? logger = nu
 			}
 			logger.Warn("IMG:RES:" + source);
 		}
-		catch(Exception ex) {
-			// a broken image must not take the paragraph down with it
+		catch (Exception ex) when (ex is not InvalidCastException) {
+			// a broken image must not take the paragraph down with it — but a
+			// resource of the wrong type is a programming error, and throws
 			logger.Error(ex, "IMG:RES:" + source);
 		}
 
-		return new Run { Text = $"[🖼️!{altText}]" };
+		return new Run { Text = AltPlaceholder(altText) };
 	}
 
-	private void ApplySize(Control control, ImageOptions options) {
-		var width = CleanDimension(options.Width);
-		var height = CleanDimension(options.Height);
-		if (width is double w) control.Width = w;
-		if (height is double h) control.Height = h;
-		if (width is null && height is null) {
-			// geometry has no natural size, so default it to the font height
-			if (control is PathGeometry) control.Height = baseFontSize;
-			// raster images get pinned to their natural size: the TextBlock measures
-			// embedded controls with the whole line's constraint, and an unpinned
-			// Stretch.Uniform image balloons to fill it
-			else if (control is Image { Source: { } source }) {
-				control.Width = source.Size.Width;
-				control.Height = source.Size.Height;
-			}
-		}
-	}
+	/// <summary>The stand-in for an image that resolved to nothing: its alt text, marked.</summary>
+	internal static string AltPlaceholder(string? altText) => $"[🖼️!{altText}]";
 
-	// the largest a requested dimension may be, so a runaway ?width= can't ask
-	// the layout to allocate an enormous image
-	private const double MaxDimension = 4096;
-
-	// a requested dimension must be finite and non-negative, and is capped;
-	// anything else is treated as unspecified (natural sizing), never thrown
-	private static double? CleanDimension(double? value)
-		=> value is double v && double.IsFinite(v) && v >= 0 ? (v > MaxDimension ? MaxDimension : v) : null;
 
 	/// <summary>Makes the content bold.</summary>
 	protected override void Embolden(ref Inline content) => content.FontWeight = FontWeight.Bold;

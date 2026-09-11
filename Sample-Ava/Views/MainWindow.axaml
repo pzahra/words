@@ -45,6 +45,10 @@
                   SelectedValueBinding="{ReflectionBinding Key}"
                   SelectedValue="{Binding SelectedLanguage, Mode=TwoWay}"/>
         <TextBlock VerticalAlignment="Center"><l:WordsInline Key="main.change-lang"/></TextBlock>
+        <!-- flips the theme variant; watch the theme icon in the images section -->
+        <CheckBox VerticalAlignment="Center" Margin="12,0,0,0"
+                  Content="{l:Words main.dark-theme}"
+                  IsChecked="{Binding IsDarkTheme, Mode=TwoWay}"/>
       </StackPanel>
 
       <TextBlock Classes="h" Text="{l:Words section.formatting}"/>

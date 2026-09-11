@@ -50,6 +50,34 @@ Severity as reported: Core 5H/9M/4L · Authoring 7H/7M/3L (heaviest) · Wpf
   sanitation layer — one cluster ("let the framework resolve, render via
   template/converter") that lands together. Hosting arbitrary controls (input
   controls) stays a when-actually-called-for concern.
+- **Step 4b — let the framework resolve; render through a converter.**
+  `staticres:` and `dynres:` now hand back a `ResourceImage` host that carries
+  the key and resolves it from where it lands in the tree, through the
+  framework's own reference (WPF `SetResourceReference`; Avalonia
+  `TryFindResource`/`GetResourceObservable`, asking for the theme variant in
+  effect — a `ThemeDictionaries` entry is invisible to a theme-less lookup,
+  which is how the sample's static icon first degraded) — so a window's or user control's
+  resource is found, not only the app's. Static pins the first value found
+  (`{StaticResource}` semantics); dynamic follows every swap
+  (`{DynamicResource}`: a theme change re-renders). The type dispatch moved out
+  of the resolvers into `ResourceVisualConverter` (XAML-usable as
+  `WordsResourceVisual`): `ImageSource`/`IImage` → `Image`, `Geometry` → `Path`,
+  and a `DataTemplate` loads fresh content each time — the reusable form the
+  old `IMG:ELEM` gripe pointed at, now actually built. Per Patrick, keep it
+  simple: a resource that exists but is the wrong type throws
+  (`InvalidCastException`, as a wrong-typed resource would anywhere in the
+  framework; from a XAML binding it surfaces as a binding error), and the
+  parser's broken-image catch lets that one through. A missing key still
+  renders the alt text — a `words.ini` typo must not eat the sentence. Sizing
+  moved into a shared `ImageSizing` so the host can size what it resolves
+  later, and `ImageOptions` became a record carrying the rendering context the
+  parser fills in (`BaseFontSize`, `AltText`). Both samples grew a dark/light
+  switch so the live reference has something to show: a theme-scoped
+  `ThemeIcon` (sun in Light, moon in Dark — Avalonia `ThemeDictionaries`; WPF a
+  swapped `Themes/*.xaml` merged dictionary) rendered through `staticres:` and
+  `dynres:` side by side, so only the live one changes. `?foreground=` as a
+  resource key stays "(later)": treating a non-color as a key would turn a
+  typo'd color name into a transparent icon instead of today's ignored → black.
 - **Step 6 — `assets:` is a convenience, not a security boundary.** Keep the
   lexical `../` clamp; drop the readme's "no matter how creatively" promise
   (WPF + Ava). Still do the mechanical hardening: the readme's catch-all
@@ -71,9 +99,10 @@ Severity as reported: Core 5H/9M/4L · Authoring 7H/7M/3L (heaviest) · Wpf
   wraps already-sanitized content, so its own escapes survive. Format params still
   carry markdown (a dynamic link becomes a proper OSC-8 hyperlink via the
   converter), but raw control chars are stripped whatever their source.
-- **Step 8 — culture tags deferred; formatting culture unified.** Script-based
-  tags (`zh-Hant-TW` etc.) are not on the roadmap; skip `CultureInfo`
-  canonicalization / `Parent` fallback for now. Done: one formatting culture,
+- **Step 8 — culture tags closed; formatting culture unified.** Script-based
+  tags (`zh-Hant-TW` etc.) are not on the roadmap, and two levels of language
+  id (`en`, `en-GB`) are the ceiling, so `CultureInfo` canonicalization /
+  `Parent` fallback is closed rather than deferred. Done: one formatting culture,
   `CurrentCulture`, across `WordsInline` (positional and named), `WordsConverter`
   and `Words.Format` — the .NET convention for number/date formatting. Language
   selection (`ToWords`) still sets it to the chosen language by default (synced),
@@ -200,10 +229,10 @@ Tick items as they land; keep this file in the addressing commit.
 - [x] Image dimension validation (finite, non-negative, capped)
 
 ### Step 4b — Dynamic / framework-resolved resources (follow-on, with `dynres:`)
-- [ ] Resolve `staticres:` through a framework resource reference (fixes app-only scope)
-- [ ] `dynres:` scheme: a live reference that tracks theme (dark/light) swaps
-- [ ] Build a `DataTemplate`/factory for element resources (WPF `LoadContent`; Ava `IDataTemplate.Build`)
-- [ ] Converter as the shared sanitation layer (resolved resource → safe visual), XAML-usable
+- [x] Resolve `staticres:` through a framework resource reference (fixes app-only scope)
+- [x] `dynres:` scheme: a live reference that tracks theme (dark/light) swaps
+- [x] Build a `DataTemplate`/factory for element resources (WPF `LoadContent`; Ava `IDataTemplate.Build`)
+- [x] Converter as the shared sanitation layer (resolved resource → safe visual), XAML-usable
 - [ ] (later) `?foreground=`/`?background=` accept a resource key, not just a literal color
 
 ### Step 5 — Contract bugs
@@ -223,5 +252,5 @@ Tick items as they land; keep this file in the addressing commit.
 - [x] Document single-startup / UI-thread contract (core readme)
 
 ### Step 8 — Culture / tags (deferred)
-- [ ] Tag canonicalization / `Parent` fallback — deferred (locales not on roadmap)
+- [x] Tag canonicalization / `Parent` fallback — **won't do** (2026-09-11): two levels of language id (`en`, `en-GB`) are the ceiling; no script subtags
 - [x] One formatting culture (`CurrentCulture`) across `WordsInline`/`WordsConverter`/`Words.Format`; `Digest` one-call startup (Theme E) with a WPF `includeFrameworkElements` overload; `showFallback` → fluent `Debug(bool)`

@@ -40,7 +40,7 @@ namespace PatTech.Localization.Wpf {
 	///     get typed properties; everything else stays available in <see cref="Query"/>
 	///     for custom <see cref="IImageSchemeResolver"/>s with bespoke needs.
 	/// </summary>
-	public class ImageOptions {
+	public record class ImageOptions {
 		private static readonly IReadOnlyDictionary<string, string> EmptyQuery
 			= new Dictionary<string, string>();
 
@@ -54,6 +54,15 @@ namespace PatTech.Localization.Wpf {
 		public Brush? Foreground { get; init; }
 		/// <summary>Every query option by name (case-insensitive), including the well-known ones above.</summary>
 		public IReadOnlyDictionary<string, string> Query { get; init; } = EmptyQuery;
+
+		/// <summary>
+		///     Rendering context rather than a query option: the font size the parser is
+		///     rendering for. Geometry, having no natural size, defaults its height to it.
+		///     The parser fills it in; built by hand it is the parser's default.
+		/// </summary>
+		public double BaseFontSize { get; init; } = MarkdownParser.DefaultBaseFontSize;
+		/// <summary>Rendering context: the image's alt text, shown when the source resolves to nothing. The parser fills it in.</summary>
+		public string? AltText { get; init; }
 
 		/// <summary>
 		///     Parses a URI query string (with or without the leading <c>?</c>) into options.
@@ -128,46 +137,36 @@ namespace PatTech.Localization.Wpf {
 	}
 
 	/// <summary>
-	///     Resolves <c>staticres:key</c> from the application's resources (<c>x:Key</c>
-	///     lookup, merged dictionaries included): an <see cref="ImageSource"/> becomes an
-	///     <see cref="Image"/> and a <see cref="Geometry"/> becomes a filled
-	///     <see cref="PathGeometry"/> — each in a fresh host, so the same key renders
-	///     safely more than once. A resource that is itself an element (a
-	///     <see cref="FrameworkElement"/>) is refused: it is a single instance that can't
-	///     live under two parents, so wrap it in a <see cref="DataTemplate"/> to reuse it.
+	///     Resolves <c>staticres:key</c> the way <c>{StaticResource key}</c> does: the
+	///     resource is looked up from where the image lands in the tree — the window or
+	///     user control it is in, then the application — and the first value found is
+	///     kept. It renders through <see cref="ResourceVisualConverter"/> as a fresh
+	///     visual each time (an <see cref="ImageSource"/> in an <see cref="Image"/>, a
+	///     <see cref="Geometry"/> in a filled <see cref="PathGeometry"/>, a
+	///     <see cref="DataTemplate"/> as newly loaded content), so one key renders safely
+	///     in as many places as you like. Any other resource type throws, as it would
+	///     anywhere else in WPF; a missing key renders the alt text.
 	/// </summary>
 	public class StaticResImageResolver : IImageSchemeResolver {
 		/// <inheritdoc/>
-		public FrameworkElement? Resolve(Uri source, ImageOptions options) {
-			var key = (source.AbsolutePath ?? source.OriginalString).TrimStart('/');
-			switch (FindResource(key)) {
-				case ImageSource imageSource:
-					return new Image { Source = imageSource, Stretch = Stretch.Uniform };
-				case Geometry geometry:
-					return new PathGeometry {
-						Data = geometry,
-						Fill = options.Foreground ?? Brushes.Black,
-						Stretch = Stretch.Uniform,
-					};
-				case FrameworkElement:
-					// an element resource is one shared instance: returned as-is it
-					// would land under two parents on reuse, and mutating it (a Shape's
-					// fill) would leak. Refuse it; a DataTemplate is the reusable form.
-					ITakeException.Global.Warn($"IMG:ELEM:`{key}` is a shared element; wrap it in a DataTemplate to reuse it safely");
-					return null;
-				default:
-					return null;
-			}
-		}
+		public FrameworkElement? Resolve(Uri source, ImageOptions options)
+			=> new ResourceImage(ResourceKey(source), options, isDynamic: false);
 
-		private static object? FindResource(string key) {
-			if (Application.Current is null) return null;
-			if (Application.Current.Resources.Contains(key)) return Application.Current.Resources[key];
-			foreach (var dictionary in Application.Current.Resources.MergedDictionaries) {
-				if (dictionary.Contains(key)) return dictionary[key];
-			}
-			return null;
-		}
+		/// <summary>The <c>x:Key</c> named by a <c>scheme:key</c> URI.</summary>
+		internal static string ResourceKey(Uri source)
+			=> (source.AbsolutePath ?? source.OriginalString).TrimStart('/');
+	}
+
+	/// <summary>
+	///     Resolves <c>dynres:key</c> the way <c>{DynamicResource key}</c> does: the same
+	///     lookup and the same visuals as <see cref="StaticResImageResolver"/>, but the
+	///     reference stays live — swap the resource (a theme change, say) and the image
+	///     re-renders.
+	/// </summary>
+	public class DynResImageResolver : IImageSchemeResolver {
+		/// <inheritdoc/>
+		public FrameworkElement? Resolve(Uri source, ImageOptions options)
+			=> new ResourceImage(StaticResImageResolver.ResourceKey(source), options, isDynamic: true);
 	}
 
 	/// <summary>
@@ -295,5 +294,39 @@ namespace PatTech.Localization.Wpf {
 		/// </summary>
 		internal static string? ResolveAssetPath(Uri source)
 			=> FolderImageResolver.ResolvePath(source, AssetsRoot);
+	}
+
+	/// <summary>
+	///     Applies an image's requested size — or its natural default — to the visual
+	///     that renders it. Shared by the parser, for visuals a resolver hands back on
+	///     the spot, and by <see cref="ResourceImage"/>, for a resource that resolves
+	///     later, once the host is in the tree.
+	/// </summary>
+	internal static class ImageSizing {
+		// the largest a requested dimension may be, so a runaway ?width= can't ask
+		// the layout to allocate an enormous image
+		private const double MaxDimension = 4096;
+
+		public static void Apply(FrameworkElement element, ImageOptions options) {
+			var width = Clean(options.Width);
+			var height = Clean(options.Height);
+			if (width is double w) element.Width = w;
+			if (height is double h) element.Height = h;
+			if (width is null && height is null) {
+				// geometry has no natural size, so default it to the font height
+				if (element is PathGeometry) element.Height = options.BaseFontSize;
+				// raster images get pinned to their natural size: measured with the
+				// whole line's constraint, an unpinned Stretch.Uniform image balloons
+				else if (element is Image { Source: { } source }) {
+					element.Width = source.Width;
+					element.Height = source.Height;
+				}
+			}
+		}
+
+		// a requested dimension must be finite and non-negative, and is capped;
+		// anything else is treated as unspecified (natural sizing), never thrown
+		private static double? Clean(double? value)
+			=> value is double v && double.IsFinite(v) && v >= 0 ? (v > MaxDimension ? MaxDimension : v) : null;
 	}
 }

@@ -20,4 +20,5 @@
   <l:FlagsDescriptionConverter x:Key="WordsFlagsDescription" AsArray="False"/>
   <l:FlagsDescriptionConverter x:Key="WordsFlagsDescriptionList"/>
   <l:ArrayMultiConverter x:Key="WordsParamsArray"/>
+  <l:ResourceVisualConverter x:Key="WordsResourceVisual"/>
 </ResourceDictionary>

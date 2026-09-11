@@ -92,8 +92,15 @@ Out of the box the parser speaks `avares:` (embedded assets), `assets:` (files
 under the application's `Assets` folder. It's a convenience, not a security
 boundary: the path is lexically clamped to that folder — `../` and rooted paths
 resolve to nothing — and the scheme only ever loads images, so a symlink someone
-planted inside `Assets` is out of scope), and `staticres:` (application
-resource by `x:Key`). Query options `width`, `height`, `background`, and
+planted inside `Assets` is out of scope), and `staticres:` and `dynres:` (a
+resource by `x:Key`, found from where the image lands in the tree — the window
+or user control it is in, then the application — the way `{StaticResource}` and
+`{DynamicResource}` are; `dynres:` stays live, so a theme variant change
+re-renders it). A resource renders as a fresh visual every time: an `IImage` in
+an `Image`, a `Geometry` in a filled `Path`, a `DataTemplate` as newly built
+content — which is how you reuse a control, since one instance can't live under
+two parents. Any other resource type throws, as it would anywhere else in
+Avalonia. Query options `width`, `height`, `background`, and
 `foreground` apply whatever the scheme; the query carries display options, not
 asset identity, so resolvers always receive the URI with it already split off.
 Raster images render at their natural size unless `width` or `height` says
@@ -132,6 +139,9 @@ For values that only exist at runtime, there are converters:
   of descriptions or one delimited string (`AsArray="False"`).
 - `ArrayMultiConverter` — gathers a `MultiBinding` into the array that
   `WordsInline.Params` wants.
+- `ResourceVisualConverter` — turns a resource value (`IImage`, `Geometry`,
+  `DataTemplate`) into a fresh visual; what the `staticres:`/`dynres:` image
+  schemes render through, should you want the same from a binding.
 
 None of them need configuring, so the package ships them pre-instantiated in
 `Converters.axaml` — merge it once:
@@ -148,11 +158,13 @@ None of them need configuring, so the package ships them pre-instantiated in
 
 and every view can say `{StaticResource WordsMarkdown}`, `WordsFormat`,
 `WordsEnumDescription`, `WordsFlagsDescription` (joined text),
-`WordsFlagsDescriptionList` (one description per flag), or `WordsParamsArray`.
+`WordsFlagsDescriptionList` (one description per flag), `WordsParamsArray`, or
+`WordsResourceVisual`.
 
 ## See it all at once
 
 The [Sample-Ava](../Sample-Ava) project is the full tour: formatting, entities
 and emoji, tooltipped and in-app hyperlinks, every image scheme, live format
-parameters, a markdown playground, and a language dropdown that relaunches the
-app in the selected language.
+parameters, a markdown playground, a dark/light switch that shows a `dynres:`
+image following the theme while its `staticres:` twin stays put, and a
+language dropdown that relaunches the app in the selected language.

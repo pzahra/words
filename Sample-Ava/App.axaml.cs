@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Styling;
 using PatTech.Localization;
 using PatTech.Localization.Avalonia;
 using Sample_Ava.ViewModels;
@@ -14,9 +15,13 @@ namespace Sample_Ava {
 		IEnumerable<KeyValuePair<string, string>> langs = [];
 		string lang = "it";
 		public override void Initialize() {
-			// honor `--lang=xx` from a changeLang relaunch (see MainWindowViewModel.TakeAppCommand)
+			// honor `--lang=xx` and `--theme=dark|light` from a changeLang relaunch
+			// (see MainWindowViewModel.TakeAppCommand); without --theme, "Default"
+			// in App.axaml follows the system
+			string? theme = null;
 			foreach (var arg in Environment.GetCommandLineArgs()) {
 				if (arg.StartsWith("--lang=")) lang = arg["--lang=".Length..];
+				else if (arg.StartsWith("--theme=")) theme = arg["--theme=".Length..];
 			}
 			// one call loads, installs Words.Known (which syncs the thread cultures)
 			// and hands back the language menu
@@ -25,6 +30,8 @@ namespace Sample_Ava {
 				.Digest(lang, out var languages);
 			langs = [.. languages];
 			AvaloniaXamlLoader.Load(this);
+			if (theme is "dark") RequestedThemeVariant = ThemeVariant.Dark;
+			else if (theme is "light") RequestedThemeVariant = ThemeVariant.Light;
 		}
 
 		public override void OnFrameworkInitializationCompleted() {

@@ -3,7 +3,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:l="https://github.com/pzahra/words"
         Title="{l:Words main.title}"
-        Width="700" Height="760">
+        Width="700" Height="760"
+        Background="{DynamicResource WindowBackground}"
+        Foreground="{DynamicResource WindowForeground}">
+  <!-- the window brushes come from the theme dictionary (Themes/Light.xaml or
+       Dark.xaml); DynamicResource follows the swap, the way a dynres: image does -->
 
   <Window.Resources>
     <Style x:Key="h" TargetType="TextBlock">
@@ -34,6 +38,10 @@
                   SelectedValuePath="Key"
                   SelectedValue="{Binding SelectedLanguage}"/>
         <TextBlock VerticalAlignment="Center" Margin="12,0,0,0"><l:WordsInline Key="main.change-lang"/></TextBlock>
+        <!-- swaps the theme dictionary; watch the theme icon in the images section -->
+        <CheckBox VerticalAlignment="Center" Margin="24,0,0,0"
+                  Content="{l:Words main.dark-theme}"
+                  IsChecked="{Binding IsDarkTheme}"/>
       </StackPanel>
 
       <TextBlock Style="{StaticResource h}" Text="{l:Words section.formatting}"/>

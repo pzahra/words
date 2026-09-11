@@ -2,7 +2,20 @@ using System.Diagnostics;
 using System.Windows;
 
 namespace Sample_Wpf.ViewModels {
-	public class MainWindowViewModel(IEnumerable<KeyValuePair<string, string>> langs, string lang) : ViewModelBase {
+	public class MainWindowViewModel(IEnumerable<KeyValuePair<string, string>> langs, string lang, bool isDark) : ViewModelBase {
+		private bool isDarkTheme = isDark;
+		/// <summary>
+		///     Flips the app between Themes/Light.xaml and Themes/Dark.xaml. The images
+		///     demo shows the point: a `dynres:` image of the theme icon follows the swap,
+		///     a `staticres:` one keeps what it resolved at load.
+		/// </summary>
+		public bool IsDarkTheme {
+			get => isDarkTheme;
+			set {
+				if (ChangeProperty(ref isDarkTheme, value)) ((App)Application.Current).ApplyTheme(value);
+			}
+		}
+
 		private double unread = 3;
 		public double Unread {
 			get => unread;
@@ -35,9 +48,9 @@ namespace Sample_Wpf.ViewModels {
 			++commandCount;
 			AffectProperty(nameof(AppCommandParams));
 			if (uri.AbsolutePath == "changeLang" && Environment.ProcessPath is { } exe) {
-				// relaunch with the selected language on the command line
-				// (App.OnStartup reads it back before loading the Words)
-				Process.Start(new ProcessStartInfo(exe, $"--lang={SelectedLanguage}"));
+				// relaunch with the selected language, and the current theme, on the
+				// command line (App.OnStartup reads them back before loading the Words)
+				Process.Start(new ProcessStartInfo(exe, $"--lang={SelectedLanguage} --theme={(IsDarkTheme ? "dark" : "light")}"));
 				Application.Current.Shutdown();
 			}
 		}

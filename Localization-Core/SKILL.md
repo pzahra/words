@@ -135,8 +135,11 @@ Title="{l:Words main.title}">          <!-- plain string, resolved once -->
   in-app commands:
   `Hyperlink.RegisterGlobalNavigateHandler(uri => { ... })`.
 - Image schemes: `avares:` (embedded assets), `assets:` (files under the app's
-  `Assets` folder only — escapes are clamped), `staticres:` (resource by
-  `x:Key`; `IImage`, `Geometry`, or any `Control`).
+  `Assets` folder only — escapes are clamped), `staticres:` and `dynres:`
+  (resource by `x:Key`, found from where the image lands in the tree like
+  `{StaticResource}`/`{DynamicResource}`; `dynres:` follows theme swaps. The
+  value may be an `IImage`, a `Geometry`, or a `DataTemplate` — the reusable
+  form of a control; any other type throws).
 - Converters: `MarkdownConverter` (bound string → inlines/TextBlock),
   `WordsConverter` (bound value → template named by `ConverterParameter`),
   `EnumDescriptionConverter` (enum → display text; parameter picks the
@@ -147,7 +150,8 @@ Title="{l:Words main.title}">          <!-- plain string, resolved once -->
   `pack://application:,,,/PatTech.Localization.WPF;component/Converters.xaml`)
   into App resources once, then use `{StaticResource WordsMarkdown}`,
   `WordsFormat`, `WordsEnumDescription`, `WordsFlagsDescription` (joined),
-  `WordsFlagsDescriptionList`, `WordsParamsArray`.
+  `WordsFlagsDescriptionList`, `WordsParamsArray`, `WordsResourceVisual`
+  (resource value → fresh visual).
 - Teach new schemes: `MarkdownParser.Default.ImageSchemes["md"] = resolver;`
   where resolver implements `IImageSchemeResolver`.
 
@@ -155,7 +159,7 @@ Title="{l:Words main.title}">          <!-- plain string, resolved once -->
 
 Same shapes as Avalonia (`{l:Words}`, `WordsInline`, converters). Load with
 `.LoadResource("pack://application:,,,/Proj;Component/Assets/words.ini")`.
-Image schemes: `staticres:`, `pack:`, `resx:`, `assets:`.
+Image schemes: `staticres:`, `dynres:`, `pack:`, `resx:`, `assets:`.
 
 ## Console (`PatTech.Localization.Core`)
 

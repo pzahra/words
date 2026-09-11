@@ -6,11 +6,18 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <!-- the package's ready-made converters: WordsMarkdown, WordsFormat,
-                     WordsEnumDescription, WordsFlagsDescription(List), WordsParamsArray -->
+                     WordsEnumDescription, WordsFlagsDescription(List), WordsParamsArray, WordsResourceVisual -->
                 <ResourceDictionary Source="pack://application:,,,/PatTech.Localization.WPF;component/Converters.xaml"/>
+                <!-- the theme: window brushes and the sun/moon ThemeIcon. App.ApplyTheme
+                     swaps this entry for Dark.xaml, and everything referencing it follows -->
+                <ResourceDictionary Source="pack://application:,,,/Sample-Wpf;component/Themes/Light.xaml"/>
             </ResourceDictionary.MergedDictionaries>
-            <!-- resolved by markdown images through the staticres: scheme -->
+            <!-- resolved by markdown images through the staticres: and dynres: schemes -->
             <Geometry x:Key="StarGeometry">M 8,0 L 10.47,5.53 16,6.11 11.8,9.88 13.06,16 8,12.94 2.94,16 4.2,9.88 0,6.11 5.53,5.53 Z</Geometry>
+            <!-- an element can't be shared between images, so a DataTemplate is its reusable form: loaded fresh each time -->
+            <DataTemplate x:Key="HeartTemplate">
+                <Path Data="M 8,14 C 8,14 1,9 1,5 A 3.5,3.5 0 0 1 8,4 A 3.5,3.5 0 0 1 15,5 C 15,9 8,14 8,14 Z" Fill="Crimson" Stretch="Uniform"/>
+            </DataTemplate>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

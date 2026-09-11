@@ -1,9 +1,11 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
+using Avalonia.Controls.Templates;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Styling;
 using PatTech.Localization.Avalonia;
 using Xunit;
 
@@ -310,35 +312,147 @@ public class AvaImageSchemeTests {
 		Assert.True(double.IsNaN(textBlock.Width));
 	}
 
-	[AvaloniaFact]
-	public void StaticRes_ElementResource_IsRefusedWithGripe() {
-		Application.Current!.Resources["avaElem"] = new Button { Content = "x" };
+	/// <summary>
+	/// Shows <paramref name="inline"/> in a TextBlock in a Window carrying
+	/// <paramref name="resources"/> (and, when given, a requested <paramref name="theme"/>),
+	/// so a tree-scoped lookup has somewhere to look, and hands back the resource host
+	/// the image resolved to. The window is shown first, so adding the inline is what
+	/// attaches it — and resolves it.
+	/// </summary>
+	private static ResourceImage Attach(Inline inline, ResourceDictionary? resources = null, ThemeVariant? theme = null)
+		=> Attach(inline, out _, resources, theme);
 
-		var capture = new CaptureLogger();
-		var original = Words.Logger;
-		try {
-			Words.Logger = capture;
-			// a bare element is one shared instance: refused, not reparented
-			var visual = new StaticResImageResolver().Resolve(new Uri("staticres:avaElem"), new ImageOptions());
-			Assert.Null(visual);
-		}
-		finally {
-			Words.Logger = original;
-		}
-		Assert.Contains(capture.Messages, m => m.Contains("IMG:ELEM") && m.Contains("avaElem"));
+	/// <inheritdoc cref="Attach(Inline, ResourceDictionary?, ThemeVariant?)"/>
+	/// <param name="window">The window, for tests that go on to change it.</param>
+	private static ResourceImage Attach(Inline inline, out Window window, ResourceDictionary? resources = null, ThemeVariant? theme = null) {
+		window = new Window();
+		if (resources is not null) window.Resources = resources;
+		if (theme is not null) window.RequestedThemeVariant = theme;
+		var textBlock = new TextBlock();
+		window.Content = textBlock;
+		window.Show();
+		textBlock.Inlines!.Add(inline);
+		var container = Assert.IsType<InlineUIContainer>(inline);
+		return Assert.IsType<ResourceImage>(container.Child);
+	}
+
+	/// <summary>A dictionary whose only content is <paramref name="light"/>/<paramref name="dark"/> entries for <paramref name="key"/> — the shape of the sample's ThemeIcon.</summary>
+	private static ResourceDictionary Themed(string key, object light, object dark) {
+		var themed = new ResourceDictionary();
+		themed.ThemeDictionaries[ThemeVariant.Light] = new ResourceDictionary { [key] = light };
+		themed.ThemeDictionaries[ThemeVariant.Dark] = new ResourceDictionary { [key] = dark };
+		return themed;
+	}
+
+	[AvaloniaFact]
+	public void StaticRes_ThemeScopedResource_FoundForTheVariantInEffect() {
+		// the sample's ThemeIcon lives in ThemeDictionaries, not the plain dictionary:
+		// a theme-less lookup never sees it, so the static path must ask for the variant
+		var light = StreamGeometry.Parse("M0,0 L4,4 L0,4 Z");
+		var dark = StreamGeometry.Parse("M0,0 L8,8 L0,8 Z");
+
+		var host = Attach(new MarkdownParser().ToInline("![a](staticres:avaThemedGeo)"), Themed("avaThemedGeo", light, dark), ThemeVariant.Light);
+
+		Assert.Same(light, Assert.IsType<global::Avalonia.Controls.Shapes.Path>(host.Child).Data);
+	}
+
+	[AvaloniaFact]
+	public void DynRes_FollowsAThemeVariantChange() {
+		var light = StreamGeometry.Parse("M0,0 L4,4 L0,4 Z");
+		var dark = StreamGeometry.Parse("M0,0 L8,8 L0,8 Z");
+		var host = Attach(new MarkdownParser().ToInline("![a](dynres:avaVariantGeo)"), out var window, Themed("avaVariantGeo", light, dark), ThemeVariant.Light);
+		Assert.Same(light, Assert.IsType<global::Avalonia.Controls.Shapes.Path>(host.Child).Data);
+
+		window.RequestedThemeVariant = ThemeVariant.Dark; // the sample's dark-theme switch
+
+		Assert.Same(dark, Assert.IsType<global::Avalonia.Controls.Shapes.Path>(host.Child).Data);
 	}
 
 	[AvaloniaFact]
 	public void StaticRes_GeometryResource_GivesAFreshHostEachResolve() {
 		Application.Current!.Resources["avaGeo"] = StreamGeometry.Parse("M0,0 L10,10 L0,10 Z");
-		var resolver = new StaticResImageResolver();
+		var parser = new MarkdownParser();
 
-		var first = resolver.Resolve(new Uri("staticres:avaGeo"), new ImageOptions());
-		var second = resolver.Resolve(new Uri("staticres:avaGeo"), new ImageOptions());
+		var a = Assert.IsType<global::Avalonia.Controls.Shapes.Path>(Attach(parser.ToInline("![a](staticres:avaGeo)")).Child);
+		var b = Assert.IsType<global::Avalonia.Controls.Shapes.Path>(Attach(parser.ToInline("![b](staticres:avaGeo)")).Child);
 
-		var a = Assert.IsType<global::Avalonia.Controls.Shapes.Path>(first);
-		var b = Assert.IsType<global::Avalonia.Controls.Shapes.Path>(second);
 		Assert.NotSame(a, b);        // reuse-safe: not one shared element
 		Assert.Same(a.Data, b.Data); // the geometry value itself shares freely
+	}
+
+	[AvaloniaFact]
+	public void StaticRes_TreeScopedResource_FoundFromTheElementNotJustTheApp() {
+		// on the Window only: an app-level lookup would never see it
+		var local = new ResourceDictionary { ["avaLocalGeo"] = StreamGeometry.Parse("M0,0 L4,4 L0,4 Z") };
+
+		var host = Attach(new MarkdownParser().ToInline("![a](staticres:avaLocalGeo)"), local);
+
+		Assert.IsType<global::Avalonia.Controls.Shapes.Path>(host.Child);
+	}
+
+	[AvaloniaFact]
+	public void DynRes_FollowsAResourceSwap() {
+		var first = StreamGeometry.Parse("M0,0 L4,4 L0,4 Z");
+		var second = StreamGeometry.Parse("M0,0 L8,8 L0,8 Z");
+		var local = new ResourceDictionary { ["avaLiveGeo"] = first };
+		var host = Attach(new MarkdownParser().ToInline("![a](dynres:avaLiveGeo)"), local);
+		Assert.Same(first, Assert.IsType<global::Avalonia.Controls.Shapes.Path>(host.Child).Data);
+
+		local["avaLiveGeo"] = second; // a theme swap, in miniature
+
+		Assert.Same(second, Assert.IsType<global::Avalonia.Controls.Shapes.Path>(host.Child).Data);
+	}
+
+	[AvaloniaFact]
+	public void StaticRes_KeepsTheFirstValue_IgnoringLaterSwaps() {
+		var first = StreamGeometry.Parse("M0,0 L4,4 L0,4 Z");
+		var local = new ResourceDictionary { ["avaPinnedGeo"] = first };
+		var host = Attach(new MarkdownParser().ToInline("![a](staticres:avaPinnedGeo)"), local);
+
+		local["avaPinnedGeo"] = StreamGeometry.Parse("M0,0 L8,8 L0,8 Z");
+
+		Assert.Same(first, Assert.IsType<global::Avalonia.Controls.Shapes.Path>(host.Child).Data); // {StaticResource} semantics
+	}
+
+	[AvaloniaFact]
+	public void StaticRes_DataTemplateResource_BuildsFreshContentEachTime() {
+		// the reusable form of a control: a template, built anew per image. One
+		// template, but a dictionary per window: an Avalonia ResourceDictionary
+		// takes a single owner, so it can't be handed to two windows
+		var template = new FuncDataTemplate<object?>((_, _) => new global::Avalonia.Controls.Shapes.Path());
+		var parser = new MarkdownParser();
+
+		var a = Attach(parser.ToInline("![a](staticres:avaTemplate)"), new ResourceDictionary { ["avaTemplate"] = template }).Child;
+		var b = Attach(parser.ToInline("![b](staticres:avaTemplate)"), new ResourceDictionary { ["avaTemplate"] = template }).Child;
+
+		Assert.IsType<global::Avalonia.Controls.Shapes.Path>(a);
+		Assert.NotSame(a, b);
+	}
+
+	[AvaloniaFact]
+	public void StaticRes_MissingResource_RendersAltText() {
+		var host = Attach(new MarkdownParser().ToInline("![the alt](staticres:avaNoSuchKey)"));
+
+		// a words.ini typo must not eat the sentence
+		Assert.Equal("[🖼️!the alt]", Assert.IsType<TextBlock>(host.Child).Text);
+	}
+
+	[AvaloniaFact]
+	public void ResourceVisualConverter_ControlResource_Throws() {
+		// a bare control is one shared instance that can't live under two parents:
+		// the wrong type, so it throws — as a wrong-typed resource would anywhere in Avalonia
+		var ex = Assert.Throws<InvalidCastException>(() => ResourceVisualConverter.ToVisual(new Button(), new ImageOptions()));
+
+		Assert.Contains("DataTemplate", ex.Message); // and says what the reusable form is
+	}
+
+	[AvaloniaFact]
+	public void StaticRes_ControlResource_ThrowsNamingTheKey() {
+		var local = new ResourceDictionary { ["avaElem"] = new Button { Content = "x" } };
+
+		// a programming error, not a broken image: it throws where the resource meets the tree
+		var ex = Assert.Throws<InvalidCastException>(() => Attach(new MarkdownParser().ToInline("![a](staticres:avaElem)"), local));
+
+		Assert.Contains("avaElem", ex.Message);
 	}
 }
