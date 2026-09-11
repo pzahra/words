@@ -5,14 +5,16 @@ using System.Globalization;
 namespace PatTech.Localization {
 	/// <summary>
 	/// The standard <see cref="IWords"/> implementation: a flattened provider paired
-	/// with the culture of its language. Lookups render <c>{$constant}</c> and
-	/// <c>{&gt;key}</c> references via
+	/// with the cultures it applies — the language's for the UI and, for formatting,
+	/// either the same or (after <see cref="WordsBuilder.UseSystemNumbers"/>) the
+	/// system's. Lookups render <c>{$constant}</c> and <c>{&gt;key}</c> references via
 	/// <see cref="Words.RenderKey(IWordsProvider, string, object[])"/>, so missing keys
 	/// come back as <c>#key#</c> rather than throwing.
 	/// </summary>
 	/// <param name="provider">The flattened words for the selected language, typically from <see cref="WordsBuilder.Flatten(string)"/>.</param>
-	/// <param name="setCulture">The culture applied by <see cref="SetCulture"/>.</param>
-	public class CulturedWords(IWordsProvider provider, CultureInfo setCulture) : IWords {
+	/// <param name="setCulture">The formatting culture applied by <see cref="SetCulture"/>.</param>
+	/// <param name="setUICulture">The UI culture applied by <see cref="SetCulture"/>; <see langword="null"/> to use <paramref name="setCulture"/> for both.</param>
+	public class CulturedWords(IWordsProvider provider, CultureInfo setCulture, CultureInfo? setUICulture = null) : IWords {
 		/// <inheritdoc/>
 		public string this[string key] => GetValue(key);
 
@@ -21,14 +23,12 @@ namespace PatTech.Localization {
 
 		/// <summary>
 		/// Sets the current thread's culture and UI culture, and the process-wide
-		/// defaults for future threads, to the culture this dictionary was built with.
+		/// defaults for future threads, to the cultures this dictionary was built with.
 		/// </summary>
-		public void SetCulture()
-			=> CultureInfo.DefaultThreadCurrentCulture
-			= CultureInfo.DefaultThreadCurrentUICulture
-			= CultureInfo.CurrentCulture
-			= CultureInfo.CurrentUICulture
-			= setCulture;
+		public void SetCulture() {
+			CultureInfo.DefaultThreadCurrentCulture = CultureInfo.CurrentCulture = setCulture;
+			CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.CurrentUICulture = setUICulture ?? setCulture;
+		}
 
 		/// <summary>
 		/// Looks up and renders <paramref name="key"/>; a missing key renders as

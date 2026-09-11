@@ -15,6 +15,12 @@ public override void Initialize() {
 }
 ```
 
+`Digest` also sets the thread cultures to the language, so numbers and dates in
+format parameters follow your words; chain `.UseSystemNumbers()` before it to
+keep the system's regional format instead, words unchanged. `WordsConverter`
+formats with the culture the binding hands it — `CurrentCulture` unless a
+`ConverterCulture` says otherwise — like any Avalonia converter.
+
 ## Handle Hyperlinks
 
 Markdown links render underlined and blue in the traditional manner, carry

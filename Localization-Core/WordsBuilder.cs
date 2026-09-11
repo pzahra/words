@@ -8,9 +8,10 @@ namespace PatTech.Localization {
 	/// <summary>
 	/// Loads one or more <c>words.ini</c> sources and turns them into an
 	/// <see cref="IWords"/> dictionary for a chosen language. Stack as many
-	/// <c>Load</c> calls as you like, then finish with <see cref="Digest(string)"/> to
-	/// install the result as <see cref="Words.Known"/> (or <see cref="ToWords(string)"/>
-	/// to only build it).
+	/// <c>Load</c> calls as you like, flip <see cref="Debug"/> or
+	/// <see cref="UseSystemNumbers"/> if you need them, then finish with
+	/// <see cref="Digest(string)"/> to install the result as <see cref="Words.Known"/>
+	/// (or <see cref="ToWords(string)"/> to only build it).
 	/// </summary>
 	public class WordsBuilder {
 		/// <summary>
@@ -26,6 +27,7 @@ namespace PatTech.Localization {
 		private readonly WordsParserToWordsProvider _builder;
 		private readonly WordsParser _parser;
 		private bool _showFallback;
+		private bool _useSystemNumbers;
 
 		private WordsBuilder(WordsParserToWordsProvider builder, WordsParser parser) {
 			ArgumentNullException.ThrowIfNull(builder);
@@ -128,6 +130,20 @@ namespace PatTech.Localization {
 		}
 
 		/// <summary>
+		/// Keeps numbers and dates in the system's regional format — the culture the
+		/// process started in, <see cref="Words.SystemCulture"/> — while the words follow
+		/// the selected language. Off by default, where the formatting culture is the
+		/// language's own (<c>de</c> words come with decimal commas). Like
+		/// <see cref="Debug"/>, it applies to every dictionary this builder then produces,
+		/// so chain it before <see cref="Digest(string)"/>.
+		/// </summary>
+		/// <param name="useSystemNumbers"><see langword="true"/> for the system's formatting; <see langword="false"/> to switch back to the language's.</param>
+		public WordsBuilder UseSystemNumbers(bool useSystemNumbers = true) {
+			_useSystemNumbers = useSystemNumbers;
+			return this;
+		}
+
+		/// <summary>
 		/// Merges the loaded languages into a single read-only provider for
 		/// <paramref name="languageCode"/>. Per key, the value comes from the exact
 		/// language (e.g. <c>en-GB</c>) first, then its language family (<c>en</c>),
@@ -199,14 +215,16 @@ namespace PatTech.Localization {
 
 		/// <inheritdoc cref="ToWords(string, out IEnumerable{KeyValuePair{string, string}})"/>
 		public IWords ToWords(string languageCode) {
-			var cultureInfo = CultureInfo.CreateSpecificCulture(languageCode);
-			return new CulturedWords(Flatten(languageCode), cultureInfo);
+			var uiCulture = CultureInfo.CreateSpecificCulture(languageCode);
+			var culture = _useSystemNumbers ? Words.SystemCulture : uiCulture;
+			return new CulturedWords(Flatten(languageCode), culture, uiCulture);
 		}
 
 		/// <summary>
-		/// <see cref="Flatten(string)"/> plus a culture: builds the final
-		/// <see cref="IWords"/> for <paramref name="languageCode"/>, carrying the matching
-		/// <see cref="CultureInfo"/> so assigning it to <see cref="Words.Known"/> also
+		/// <see cref="Flatten(string)"/> plus cultures: builds the final
+		/// <see cref="IWords"/> for <paramref name="languageCode"/>, carrying the language's
+		/// <see cref="CultureInfo"/> (with the system's for formatting after
+		/// <see cref="UseSystemNumbers"/>) so assigning it to <see cref="Words.Known"/> also
 		/// sets the thread cultures. Builds only; <see cref="Digest(string)"/> is the
 		/// same thing installed as the process-wide dictionary in one call.
 		/// </summary>
@@ -226,7 +244,7 @@ namespace PatTech.Localization {
 
 		/// <summary>
 		/// The one-call startup: builds the dictionary for <paramref name="languageCode"/>
-		/// and installs it as <see cref="Words.Known"/>, which applies its culture to this
+		/// and installs it as <see cref="Words.Known"/>, which applies its cultures to this
 		/// thread and to threads yet to come. Typically the last call in the builder
 		/// chain. <see cref="ToWords(string)"/> is the same build without the install, for
 		/// a dictionary that is not the process-wide one.

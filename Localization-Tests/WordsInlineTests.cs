@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.ExceptionServices;
+using System.Windows.Controls;
 using System.Windows.Documents;
 using PatTech.Localization.Wpf;
 using Xunit;
@@ -138,5 +139,38 @@ public class WordsInlineTests {
 			CultureInfo.DefaultThreadCurrentCulture = originalDefault;
 			CultureInfo.DefaultThreadCurrentUICulture = originalDefaultUi;
 		}
+	}
+
+	[Fact]
+	public void Digest_WpfOverload_IncludeFrameworkElements_RepointsLanguage_ForControlsAndFlowContent() {
+		// The one test that flips the flag: the override is process-global and one-shot,
+		// so it runs once, here, and every element created afterwards in this process
+		// defaults to the culture it set. Controls (FrameworkElement) and flow content
+		// (TextElement: a Run is not a FrameworkElement, and a default is not inherited)
+		// must both follow, or a bound Run would still format en-US.
+		RunSta<object?>(() => {
+			var originalKnown = Words.Known;
+			var originalCulture = CultureInfo.CurrentCulture;
+			var originalUiCulture = CultureInfo.CurrentUICulture;
+			var originalDefault = CultureInfo.DefaultThreadCurrentCulture;
+			var originalDefaultUi = CultureInfo.DefaultThreadCurrentUICulture;
+			try {
+				WordsBuilder.Create()
+					.Load(new StringReader("value-de=Deutsch\n\n[k]\nvalue=v\n"))
+					.Digest("de", includeFrameworkElements: true);
+
+				var expected = CultureInfo.CreateSpecificCulture("de");
+				Assert.Equal(expected, new TextBlock().Language.GetSpecificCulture()); // a control
+				Assert.Equal(expected, new Run().Language.GetSpecificCulture());       // flow content
+				return null;
+			}
+			finally {
+				Words.Known = originalKnown;
+				CultureInfo.CurrentCulture = originalCulture;
+				CultureInfo.CurrentUICulture = originalUiCulture;
+				CultureInfo.DefaultThreadCurrentCulture = originalDefault;
+				CultureInfo.DefaultThreadCurrentUICulture = originalDefaultUi;
+			}
+		});
 	}
 }

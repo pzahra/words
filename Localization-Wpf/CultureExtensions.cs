@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Documents;
 using System.Windows.Markup;
 
 namespace PatTech.Localization.Wpf {
@@ -24,23 +25,29 @@ namespace PatTech.Localization.Wpf {
 		///     — build, install as <see cref="Words.Known"/>, sync the thread cultures — plus
 		///     the one WPF step apps tend to leave out: when
 		///     <paramref name="includeFrameworkElements"/> is true, the default
-		///     <see cref="FrameworkElement.LanguageProperty"/> is pointed at the selected
-		///     language too, so ordinary bindings (<c>StringFormat</c>, other converters)
-		///     format in it instead of WPF's built-in <c>en-US</c>.
+		///     <see cref="FrameworkElement.LanguageProperty"/> is pointed at the formatting
+		///     culture just installed, so bindings — <c>StringFormat</c>,
+		///     <see cref="WordsConverter"/>, anyone's converter — format in it instead of
+		///     WPF's built-in <c>en-US</c>.
 		/// </summary>
 		/// <remarks>
-		///     Words' own <see cref="WordsInline"/> and <see cref="WordsConverter"/> already
-		///     format with <see cref="CultureInfo.CurrentCulture"/>, so they follow the
-		///     language either way; the flag is for everything else bound in XAML. The
-		///     override is process-global and one-shot — the first call sets it and later
-		///     calls leave it — so apply it once at startup, in keeping with the rest of
-		///     the library's contract. Leave it off for English words with system number
-		///     and date formats, and set <see cref="CultureInfo.CurrentCulture"/> yourself.
+		///     <see cref="WordsInline"/> and <c>Words.Format</c> use the thread's
+		///     <see cref="CultureInfo.CurrentCulture"/> and follow the language either way;
+		///     bindings take the target element's <c>Language</c>, which is what the flag
+		///     repoints — for controls and for the <see cref="TextElement"/> flow content a
+		///     bound <see cref="Run"/> lives in. It points at whichever formatting culture
+		///     <c>Digest</c> installed: the language's, or the system's after
+		///     <see cref="WordsBuilder.UseSystemNumbers"/>, so English words with system
+		///     numbers reach the bindings too. A single element or binding can still say
+		///     otherwise with <c>xml:lang</c> or <c>ConverterCulture</c>. The override is
+		///     process-global and one-shot — the first call sets it and later calls leave it
+		///     — so apply it once at startup, in keeping with the rest of the library's
+		///     contract; leave it off to keep WPF's own default.
 		/// </remarks>
 		/// <param name="builder">The builder with your words loaded.</param>
 		/// <param name="languageCode">The language to select, e.g. <c>"en"</c> or <c>"en-GB"</c>.</param>
 		/// <param name="languages">Return a list of available languages (see <see cref="WordsBuilder.GetLanguages"/>)</param>
-		/// <param name="includeFrameworkElements">Also make WPF bindings default to this language.</param>
+		/// <param name="includeFrameworkElements">Also make WPF bindings default to the installed formatting culture.</param>
 		/// <returns>The installed dictionary, the same object now in <see cref="Words.Known"/>.</returns>
 		/// <exception cref="ArgumentNullException"><paramref name="builder"/> is <see langword="null"/>.</exception>
 		public static IWords Digest(this WordsBuilder builder, string languageCode, out IEnumerable<KeyValuePair<string, string>> languages, bool includeFrameworkElements) {
@@ -51,15 +58,19 @@ namespace PatTech.Localization.Wpf {
 		}
 
 		/// <summary>
-		///     Points WPF's default <c>FrameworkElement.Language</c> at the current culture,
-		///     which the Digest just set. Once per process: OverrideMetadata cannot be
-		///     called twice for the same type.
+		///     Points WPF's default <c>Language</c> at the current culture, which the Digest
+		///     just set. Once per process: OverrideMetadata cannot be called twice for the
+		///     same type.
 		/// </summary>
 		private static void ApplyToFrameworkElements() {
 			if (frameworkElementCultureApplied) return;
-			FrameworkElement.LanguageProperty.OverrideMetadata(
-				typeof(FrameworkElement),
-				new FrameworkPropertyMetadata(XmlLanguage.GetLanguage(CultureInfo.CurrentCulture.IetfLanguageTag)));
+			var language = XmlLanguage.GetLanguage(CultureInfo.CurrentCulture.IetfLanguageTag);
+			// controls, then flow content: a default is not inherited down the tree, and a
+			// bound Run is a FrameworkContentElement, which owns its own en-US metadata
+			// (AddOwner) and cannot be overridden again — TextElement, the root of every
+			// inline and block, can
+			FrameworkElement.LanguageProperty.OverrideMetadata(typeof(FrameworkElement), new FrameworkPropertyMetadata(language));
+			FrameworkElement.LanguageProperty.OverrideMetadata(typeof(TextElement), new FrameworkPropertyMetadata(language));
 			frameworkElementCultureApplied = true;
 		}
 	}

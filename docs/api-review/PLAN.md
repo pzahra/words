@@ -103,23 +103,32 @@ Severity as reported: Core 5H/9M/4L · Authoring 7H/7M/3L (heaviest) · Wpf
   tags (`zh-Hant-TW` etc.) are not on the roadmap, and two levels of language
   id (`en`, `en-GB`) are the ceiling, so `CultureInfo` canonicalization /
   `Parent` fallback is closed rather than deferred. Done: one formatting culture,
-  `CurrentCulture`, across `WordsInline` (positional and named), `WordsConverter`
-  and `Words.Format` — the .NET convention for number/date formatting. Language
-  selection (`ToWords`) still sets it to the chosen language by default (synced),
-  but formatting is left decoupled from the text: set `CurrentCulture` yourself
-  for English words with system decimal commas or system dates. `WordsConverter`
-  no longer relies on the binding's culture (WPF's defaults to `en-US`); the
-  static `Format(…, culture)` overload still takes an explicit one. Startup is
-  one call: `WordsBuilder.Digest(lang[, out languages])` builds the dictionary and
-  installs it as `Words.Known`, turning the setter's hidden culture side-effect
-  (Theme E) into a deliberate, named verb; `ToWords` stays as the build-only
-  path. The `showFallback` debug flag moved off the `ToWords`/`Flatten`
-  parameters onto a fluent `Debug(bool)` switch — otherwise a WPF `Digest(lang,
-  bool)` overload would silently bind to the core `showFallback` bool, since C#
-  never consults extensions while an instance method fits. WPF then overloads
-  `Digest` with `includeFrameworkElements` to also repoint
-  `FrameworkElement.Language` (which drives ordinary bindings) without digging
-  for the `OverrideMetadata` incantation.
+  `CurrentCulture`, across `WordsInline` (positional and named) and
+  `Words.Format` — the .NET convention for number/date formatting — while
+  `WordsConverter` formats with the culture the binding hands it, as every
+  converter does (follow-up, 2026-09-11: it briefly used `CurrentCulture` too,
+  until the WPF `Digest` flag below made the binding culture trustworthy;
+  Avalonia's is `CurrentCulture` unless a `ConverterCulture` says otherwise, so
+  the two agree by default). Language selection (`ToWords`) sets the formatting
+  culture to the chosen language by default, and `UseSystemNumbers()` on the
+  builder is the named alternative — English words, system numbers: the
+  dictionary then carries the language as its UI culture and
+  `Words.SystemCulture` (the process's starting culture, captured before Words
+  touches anything) as its formatting culture, and `SetCulture` applies each to
+  its own slot. Startup is one call: `WordsBuilder.Digest(lang[, out languages])`
+  builds the dictionary and installs it as `Words.Known`, turning the setter's
+  hidden culture side-effect (Theme E) into a deliberate, named verb; `ToWords`
+  stays as the build-only path. The `showFallback` debug flag moved off the
+  `ToWords`/`Flatten` parameters onto a fluent `Debug(bool)` switch — otherwise
+  a WPF `Digest(lang, bool)` overload would silently bind to the core
+  `showFallback` bool, since C# never consults extensions while an instance
+  method fits. WPF then overloads `Digest` with `includeFrameworkElements` to
+  also repoint `FrameworkElement.Language` (which drives ordinary bindings)
+  without digging for the `OverrideMetadata` incantation — two of them, it turns
+  out: a default is not inherited down the tree, and flow content is
+  `FrameworkContentElement`, which owns its own `en-US` metadata via `AddOwner`
+  and cannot be overridden again, so `TextElement` (the root of every inline and
+  block) gets the second, or a bound `Run` would stay at `en-US`.
 
 ## Themes
 
@@ -254,3 +263,4 @@ Tick items as they land; keep this file in the addressing commit.
 ### Step 8 — Culture / tags (deferred)
 - [x] Tag canonicalization / `Parent` fallback — **won't do** (2026-09-11): two levels of language id (`en`, `en-GB`) are the ceiling; no script subtags
 - [x] One formatting culture (`CurrentCulture`) across `WordsInline`/`WordsConverter`/`Words.Format`; `Digest` one-call startup (Theme E) with a WPF `includeFrameworkElements` overload; `showFallback` → fluent `Debug(bool)`
+- [x] Follow-up (2026-09-11): `WordsConverter` formats with the binding's culture; `UseSystemNumbers()` + `Words.SystemCulture`; the WPF `Language` override reaches `TextElement` flow content; Wordsmith loads via `Digest`

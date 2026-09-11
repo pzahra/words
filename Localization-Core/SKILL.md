@@ -70,6 +70,10 @@ var menu = builder.GetLanguages();         // code/label pairs for a language me
 Formatting: `Words.Known.Format("key", args)` works like `string.Format`;
 `Words.Known.FormatByName("key", obj)` fills `{PropertyName}` /
 `{PropertyName:format}` tags from `obj`'s public fields and properties.
+Numbers and dates in parameters format with the thread's `CurrentCulture`,
+which `Digest` sets to the language; `.UseSystemNumbers()` before `Digest`
+keeps the system's regional format (`Words.SystemCulture`) with the words
+unchanged. `WordsConverter` formats with the culture the binding hands it.
 `LazyWords` defers a lookup for statics that initialize before loading.
 `[Words("key")]` on enum members plus `Enum.Describe` provides `key`,
 `key.tooltip`, `key.sub`, `key.desc`, `key.unit` variants.
@@ -158,7 +162,11 @@ Title="{l:Words main.title}">          <!-- plain string, resolved once -->
 ## WPF (`PatTech.Localization.WPF`)
 
 Same shapes as Avalonia (`{l:Words}`, `WordsInline`, converters). Load with
-`.LoadResource("pack://application:,,,/Proj;Component/Assets/words.ini")`.
+`.LoadResource("pack://application:,,,/Proj;Component/Assets/words.ini")` and
+digest with the WPF overload, `.Digest(lang, includeFrameworkElements: true)`:
+WPF hands bindings (`StringFormat`, `WordsConverter`) the element's `Language`,
+`en-US` by default, and the flag repoints it — controls and flow content alike
+— at the formatting culture just installed.
 Image schemes: `staticres:`, `dynres:`, `pack:`, `resx:`, `assets:`.
 
 ## Console (`PatTech.Localization.Core`)

@@ -22,7 +22,9 @@ public partial class App : Application {
 		ApplyTheme(dark);
 		// one call loads, installs Words.Known (which syncs the thread cultures) and
 		// hands back the language menu; the flag also points FrameworkElement.Language
-		// at it, so ordinary WPF bindings (StringFormat and the like) stop defaulting to en-US
+		// at it, so ordinary WPF bindings (StringFormat and the like) stop defaulting to
+		// en-US. (.UseSystemNumbers() before Digest would keep the Italian words but
+		// format their numbers and dates the way this system does)
 		Words.Builder()
 			.LoadResource("pack://application:,,,/Sample-Wpf;Component/Assets/sample.ini")
 			.Digest(lang, out var languages, includeFrameworkElements: true);

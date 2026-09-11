@@ -24,7 +24,9 @@ namespace Sample_Ava {
 				else if (arg.StartsWith("--theme=")) theme = arg["--theme=".Length..];
 			}
 			// one call loads, installs Words.Known (which syncs the thread cultures)
-			// and hands back the language menu
+			// and hands back the language menu. (.UseSystemNumbers() before Digest would
+			// keep the Italian words but format their numbers and dates the way this
+			// system does)
 			Words.Builder()
 				.LoadResource("avares://Sample-Ava/Assets/sample.ini")
 				.Digest(lang, out var languages);

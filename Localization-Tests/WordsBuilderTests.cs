@@ -73,6 +73,62 @@ public class WordsBuilderTests {
 		}
 	}
 
+	/// <summary>A language the system is not in, so the two cultures can be told apart.</summary>
+	private static string NotTheSystemsLanguage
+		=> Words.SystemCulture.TwoLetterISOLanguageName == "de" ? "fr" : "de";
+
+	[Fact]
+	public void UseSystemNumbers_KeepsSystemFormatting_WordsFollowTheLanguage() {
+		var originalKnown = Words.Known;
+		var originalCulture = CultureInfo.CurrentCulture;
+		var originalUiCulture = CultureInfo.CurrentUICulture;
+		var originalDefault = CultureInfo.DefaultThreadCurrentCulture;
+		var originalDefaultUi = CultureInfo.DefaultThreadCurrentUICulture;
+		try {
+			var lang = NotTheSystemsLanguage;
+			var words = WordsBuilder.Create().Load(new StringReader(Ini)).UseSystemNumbers().Digest(lang);
+
+			Assert.Same(words, Words.Known);
+			var language = CultureInfo.CreateSpecificCulture(lang);
+			Assert.Equal(language, CultureInfo.CurrentUICulture);                 // the text's language...
+			Assert.Equal(language, CultureInfo.DefaultThreadCurrentUICulture);
+			Assert.Equal(Words.SystemCulture, CultureInfo.CurrentCulture);        // ...the system's numbers
+			Assert.Equal(Words.SystemCulture, CultureInfo.DefaultThreadCurrentCulture);
+		}
+		finally {
+			Words.Known = originalKnown;
+			CultureInfo.CurrentCulture = originalCulture;
+			CultureInfo.CurrentUICulture = originalUiCulture;
+			CultureInfo.DefaultThreadCurrentCulture = originalDefault;
+			CultureInfo.DefaultThreadCurrentUICulture = originalDefaultUi;
+		}
+	}
+
+	[Fact]
+	public void UseSystemNumbers_IsOffByDefault_AndSwitchesBackOff() {
+		var originalKnown = Words.Known;
+		var originalCulture = CultureInfo.CurrentCulture;
+		var originalUiCulture = CultureInfo.CurrentUICulture;
+		var originalDefault = CultureInfo.DefaultThreadCurrentCulture;
+		var originalDefaultUi = CultureInfo.DefaultThreadCurrentUICulture;
+		try {
+			var lang = NotTheSystemsLanguage;
+			var language = CultureInfo.CreateSpecificCulture(lang);
+
+			WordsBuilder.Create().Load(new StringReader(Ini)).Digest(lang);
+			Assert.Equal(language, CultureInfo.CurrentCulture); // off by default: numbers in the language
+			WordsBuilder.Create().Load(new StringReader(Ini)).UseSystemNumbers().UseSystemNumbers(false).Digest(lang);
+			Assert.Equal(language, CultureInfo.CurrentCulture); // and back off again
+		}
+		finally {
+			Words.Known = originalKnown;
+			CultureInfo.CurrentCulture = originalCulture;
+			CultureInfo.CurrentUICulture = originalUiCulture;
+			CultureInfo.DefaultThreadCurrentCulture = originalDefault;
+			CultureInfo.DefaultThreadCurrentUICulture = originalDefaultUi;
+		}
+	}
+
 	[Fact]
 	public void ToWords_BuildsWithoutInstalling() {
 		var originalKnown = Words.Known;

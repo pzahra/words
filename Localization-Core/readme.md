@@ -129,15 +129,18 @@ first lookup renders and you never touch the concurrency questions the statics
 would otherwise raise.
 
 Numbers and dates in substituted arguments format with the thread's
-`CurrentCulture` — the same one whether they flow through `WordsInline`,
-`WordsConverter`, or `Words.Format`. Selecting a language with `Digest` sets both
-the *UI* culture (which picks the text) and the *formatting* culture to that
-language, so by default your numbers match your words. Want English text but,
-say, system decimal commas or system date formats? Set `CurrentCulture` yourself
-after selecting the language — the formatting culture is yours to control,
-independent of the text. (`WordsConverter`'s `culture` argument is not used for
-this; call the static `WordsConverter.Format` overload if you need an explicit
-one for a single conversion.)
+`CurrentCulture` — the same one whether they flow through `WordsInline` or
+`Words.Format`. Selecting a language with `Digest` sets both the *UI* culture
+(which picks the text) and the *formatting* culture to that language, so by
+default your numbers match your words. Want English text but, say, system
+decimal commas or system date formats? Chain `.UseSystemNumbers()` before
+`Digest`: the words stay in the language (still the UI culture), while the
+formatting culture stays the one the process started in — `Words.SystemCulture`,
+captured before Words touches anything. `WordsConverter`, being a converter,
+formats with the culture the binding hands it, like any other: Avalonia passes
+`CurrentCulture` unless a `ConverterCulture` says otherwise, so it agrees with
+the above; WPF passes the element's `Language`, `en-US` unless the WPF `Digest`
+flag repoints it — see the WPF readme.
 
 The `!` prefix is for multi-assembly setups: each assembly ships its own
 `words.ini`, and a subordinate library may carry more languages than the

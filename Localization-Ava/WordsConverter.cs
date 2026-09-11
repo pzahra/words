@@ -30,7 +30,7 @@ public class WordsConverter(IWords? words = null, ITakeException? logger = null)
 	/// <param name="value">The value to localize.</param>
 	/// <param name="targetType">Ignored; the result is always a string.</param>
 	/// <param name="parameter">The key to the Words entry.</param>
-	/// <param name="culture">Not used for formatting: WordsConverter formats with the thread's CurrentCulture, matching WordsInline, so number/date formatting follows one app-wide culture. Set CurrentCulture to control it; the static Format overload takes an explicit culture if you need one.</param>
+	/// <param name="culture">The culture numbers and dates format in — what Avalonia hands every converter: the binding's <c>ConverterCulture</c>, else the thread's <c>CurrentCulture</c>, which <c>Digest</c> set to the language's (or the system's after <see cref="WordsBuilder.UseSystemNumbers"/>).</param>
 	/// <returns>A localized string.</returns>
 	public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) {
 		if (parameter is null) {
@@ -42,7 +42,7 @@ public class WordsConverter(IWords? words = null, ITakeException? logger = null)
 			return $"#{text}#";
 		}
 		else if (parameter is string key) {
-			return Format(words ?? Words.Known, value, key, CultureInfo.CurrentCulture);
+			return Format(words ?? Words.Known, value, key, culture);
 		}
 		else {
 			var text = parameter.ToString() ?? "";

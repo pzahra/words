@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -48,9 +49,11 @@ namespace PatTech.Localization {
 		bool TryGetValue(string key, [MaybeNullWhen(false), Localized] out string value);
 
 		/// <summary>
-		/// Applies this dictionary's culture to the current thread and to the
-		/// process-wide defaults, so number/date formatting matches the selected language.
-		/// Called automatically when assigning <see cref="Words.Known"/>.
+		/// Applies this dictionary's cultures to the current thread and to the
+		/// process-wide defaults: the UI culture is the selected language, the formatting
+		/// culture the one it was built with — the same, unless the builder was told
+		/// <see cref="WordsBuilder.UseSystemNumbers"/>. Called automatically when
+		/// assigning <see cref="Words.Known"/>.
 		/// </summary>
 		void SetCulture();
 	}
@@ -62,7 +65,7 @@ namespace PatTech.Localization {
 	/// <c>String.Format</c>-style helpers, including named-parameter formatting.
 	/// </summary>
 	public static class Words {
-		private static IWords _Known = new CulturedWords(WordsProvider.Empty(), System.Globalization.CultureInfo.InvariantCulture);
+		private static IWords _Known = new CulturedWords(WordsProvider.Empty(), CultureInfo.InvariantCulture);
 		private static readonly Regex rxFormatTag = new(
 				@"\{[\s-[\r\n]]*(?<1>(?=[_a-zA-Z])\w+)[\s-[\r\n]]*(:[\s-[\r\n]]*(?<2>[^\r\n}]*(?<!\s))[\s-[\r\n]]*)?\}",
 				RegexOptions.Compiled | RegexOptions.ExplicitCapture);
@@ -88,6 +91,12 @@ namespace PatTech.Localization {
 				value.SetCulture();
 			}
 		}
+		/// <summary>
+		/// The culture the process started in — the system's regional format, captured the
+		/// first time Words is touched, before any <see cref="Known"/> assignment could move
+		/// the thread cultures. <see cref="WordsBuilder.UseSystemNumbers"/> formats with it.
+		/// </summary>
+		public static CultureInfo SystemCulture { get; } = CultureInfo.CurrentCulture;
 		/// <summary>
 		/// Receives warnings about missing keys, unknown constants, circular references
 		/// and absent format fields. Defaults to a logger that discards everything;

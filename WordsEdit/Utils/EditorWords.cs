@@ -45,11 +45,11 @@ public static class EditorWords {
 		WordsBuilder builder = Builder(logger);
 		Languages = [.. builder.GetLanguages()];
 		try {
-			Words.Known = builder.ToWords(languageCode);
+			builder.Digest(languageCode);
 			Current = languageCode;
 		}
 		catch (CultureNotFoundException) {
-			Words.Known = builder.ToWords(Fallback);
+			builder.Digest(Fallback);
 			Current = Fallback;
 		}
 	}

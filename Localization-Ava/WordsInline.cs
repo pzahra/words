@@ -14,8 +14,10 @@ namespace PatTech.Localization.Avalonia;
 ///     The resolved text may contain format placeholders, filled from <see cref="Params"/>:
 ///     an array supplies positional <c>{0}</c>-style arguments, while any other single object
 ///     supplies <c>{Name}</c>-style placeholders looked up by field or property name (see
-///     <see cref="Words.FormatByName(string, object?, object?[])"/>). The rendered inlines are
-///     rebuilt whenever <see cref="Key"/> or <see cref="Params"/> changes.
+///     <see cref="Words.FormatByName(string, object?, object?[])"/>). Placeholders format
+///     with the thread's <see cref="CultureInfo.CurrentCulture"/> — the formatting culture
+///     <c>Digest</c> installed, the same one a plain <c>Words.Format</c> uses. The rendered
+///     inlines are rebuilt whenever <see cref="Key"/> or <see cref="Params"/> changes.
 /// </remarks>
 public class WordsInline : Span {
 	/// <summary>Identifies the <see cref="Key"/> styled property.</summary>

@@ -14,8 +14,11 @@ namespace PatTech.Localization.Wpf {
 	///     The resolved text may contain format placeholders, filled from <see cref="Params"/>:
 	///     an array supplies positional <c>{0}</c>-style arguments, while any other single object
 	///     supplies <c>{Name}</c>-style placeholders looked up by field or property name (see
-	///     <see cref="Words.FormatByName(string, object?, object?[])"/>). The rendered inlines are
-	///     rebuilt whenever <see cref="Key"/> or <see cref="Params"/> changes.
+	///     <see cref="Words.FormatByName(string, object?, object?[])"/>). Placeholders format
+	///     with the thread's <see cref="CultureInfo.CurrentCulture"/> — the formatting culture
+	///     <c>Digest</c> installed — rather than this element's <c>Language</c>, so the inline
+	///     and a plain <c>Words.Format</c> agree. The rendered inlines are rebuilt whenever
+	///     <see cref="Key"/> or <see cref="Params"/> changes.
 	/// </remarks>
 	[ContentProperty(nameof(Params))]
 	public class WordsInline : Span {

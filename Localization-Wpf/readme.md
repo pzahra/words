@@ -56,23 +56,26 @@ new language.
 
 ### Match the binding culture to the language
 
-Words' own `WordsInline`, `WordsConverter` and `Words.Format` format numbers and
-dates with the thread's `CurrentCulture`, and `Digest` sets that for you. Plain
-WPF bindings — a `StringFormat`, someone else's converter — are the exception:
-they take their culture from `FrameworkElement.Language`, which defaults to
-`en-US` no matter what language you picked. The WPF `Digest` overload takes one
-extra flag to repoint it:
+Words' own `WordsInline` and `Words.Format` format numbers and dates with the
+thread's `CurrentCulture`, and `Digest` sets that for you. Bindings are another
+matter — a `StringFormat`, `WordsConverter`, someone else's converter: WPF hands
+them the target element's `Language`, which defaults to `en-US` no matter what
+language you picked. The WPF `Digest` overload takes one extra flag to repoint it:
 
 ``` csharp
 wb.Digest(lang, out var languages, includeFrameworkElements: true);
 ```
 
 It is the core `Digest` — build, install as `Words.Known`, sync the thread
-cultures — plus the process-global `FrameworkElement.Language` step you would
-otherwise have to spell out as an `OverrideMetadata` call. It is one-shot: the
-first call sets it, later calls leave it. Leave the flag off (or call the core
-`Digest`) if you want English words but system number and date formats — set
-`CurrentCulture` yourself and the framework default stays put.
+cultures — plus the process-global `Language` step you would otherwise spell
+out as `OverrideMetadata` calls: one for controls and one for the `TextElement`
+flow content a bound `Run` lives in, since a default is not inherited down the
+tree. It is one-shot: the first call sets it, later calls leave it. It points at
+whichever formatting culture `Digest` installed, so `.UseSystemNumbers()` before
+it gives you English words with the system's number and date formats in the
+bindings too. A single element or binding can still say otherwise with
+`xml:lang` or `ConverterCulture`, as in any WPF app. Leave the flag off (or call
+the core `Digest`) to keep WPF's own default.
 
 ## Make hyperlinks go somewhere
 
