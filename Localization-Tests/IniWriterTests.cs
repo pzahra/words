@@ -439,6 +439,67 @@ public class IniWriterTests {
 	}
 
 	[Fact]
+	public void IniWriter_DoublesEveryApostropheInValues_SoNoLoneQuoteReachesAValueLine() {
+		// Doubling apostrophes is not for the parser's sake: it reads a lone `'`
+		// back unchanged (see Parser_ReadsALoneApostropheVerbatim below), so a
+		// write/read/compare passes with or without it. The point is an ini syntax
+		// highlighter that treats `'` as a multiline string delimiter — a lone
+		// apostrophe sends it colouring the rest of the file as a string. So the
+		// guard is on the bytes written: every value-bearing line carries an even
+		// number of apostrophes, never a stray one.
+		var tree = new FakeNode("F", new FakeNode("F.k"));
+		var key = new WordsKey("F.k") {
+			DefaultValue = "don't stop",
+			Context = "the user's account",
+			Comment = "O'Brien's note",
+		};
+		key.Entries["it"] = new WordsEntry {
+			Value = "l'italiano's quote",
+			Context = "l'contesto",
+			Comment = "l'commento",
+		};
+		Dictionary<string, WordsKey> allKeys = new() { ["F.k"] = key };
+
+		var ini = Write(tree, allKeys);
+
+		foreach (var line in ini.Split('\n')) {
+			var trimmed = line.TrimEnd('\r');
+			if (trimmed.StartsWith(';')) continue; // comments are written verbatim, by design
+			var apostrophes = trimmed.Count(c => c == '\'');
+			Assert.True(apostrophes % 2 == 0, $"lone apostrophe on line: {trimmed}");
+		}
+		// and it really is doubling, not stripping the apostrophe out
+		Assert.Contains("don''t stop", ini);
+		Assert.Contains("l''italiano''s quote", ini);
+	}
+
+	[Fact]
+	public void Parser_ReadsALoneApostropheVerbatim_SoRoundTripAloneCannotGuardDoubling() {
+		// A hand-written lone apostrophe reads back as-is: the unescape only
+		// collapses doubled pairs. This is why the guard above checks the written
+		// bytes — a plain round trip would pass even if the doubling regressed.
+		var reloaded = Reload("[k]\nvalue=don't stop\n");
+
+		Assert.Equal("don't stop", reloaded["k"].DefaultValue);
+	}
+
+	[Fact]
+	public void IniWriter_CommentLines_KeepASingleApostrophe_TheParserReadsThemVerbatim() {
+		// The one place apostrophes stay single: `;` comment lines. The parser hands
+		// comment text back raw (no unescape), so doubling here would corrupt the
+		// comment on reload. A standalone comment node marks that boundary.
+		var tree = new FakeNode("F", new FakeComment("don't double me"), new FakeNode("F.k"));
+		Dictionary<string, WordsKey> allKeys = new() {
+			["F.k"] = new WordsKey("F.k") { DefaultValue = "v" },
+		};
+
+		var ini = Write(tree, allKeys);
+
+		Assert.Contains(";don't double me", ini);
+		Assert.DoesNotContain("don''t double me", ini);
+	}
+
+	[Fact]
 	public void WriteAtomic_ReplacesTheFileAndLeavesNoTemp() {
 		var dir = Path.Combine(Path.GetTempPath(), $"IniWriterAtomic-{Guid.NewGuid():N}");
 		Directory.CreateDirectory(dir);
