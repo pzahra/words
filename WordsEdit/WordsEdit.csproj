@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
     <ImplicitUsings>true</ImplicitUsings>
-    <ApplicationIcon>Resources\words.ico</ApplicationIcon>
+    <ApplicationIcon>..\docs\wordsmith.ico</ApplicationIcon>
     <AssemblyName>Wordsmith</AssemblyName>
     <Version>$(WordsmithVersion)</Version>
   </PropertyGroup>

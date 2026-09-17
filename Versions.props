@@ -9,7 +9,7 @@
     <!-- PatTech.Localization.Analyzer: also the version the API packages depend on -->
     <AnalyzerVersion>1.3.0</AnalyzerVersion>
     <!-- Wordsmith, the editor -->
-    <WordsmithVersion>1.0.0</WordsmithVersion>
+    <WordsmithVersion>1.1.0</WordsmithVersion>
   </PropertyGroup>
 
 </Project>

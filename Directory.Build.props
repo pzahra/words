@@ -15,7 +15,7 @@
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <PackageIcon>icon.png</PackageIcon>
+    <PackageIcon>localize.png</PackageIcon>
   </PropertyGroup>
 
   <!-- Source Link and symbols: the SDK wires GitHub Source Link on its own when
@@ -29,7 +29,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="$(MSBuildThisFileDirectory)icon.png" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)docs\localize.png" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>
 
 </Project>
