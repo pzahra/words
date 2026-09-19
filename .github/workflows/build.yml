@@ -41,12 +41,15 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/analyzer/')
         run: dotnet pack LocalizationAnalyzer/LocalizationAnalyzer.Package/LocalizationAnalyzer.Package.csproj -c Release -o artifacts
 
+      # Core/WPF/Avalonia set GeneratePackageOnBuild for local dev, which makes a
+      # bare `dotnet pack` run the pack target without building first (NU5026: the
+      # output dll is missing). Turn it off here so pack builds, then packs.
       - name: Pack API packages
         if: startsWith(github.ref, 'refs/tags/api/')
         run: |
-          dotnet pack Localization-Core/Localization-Core.csproj -c Release -o artifacts
-          dotnet pack Localization-Wpf/Localization-Wpf.csproj  -c Release -o artifacts
-          dotnet pack Localization-Ava/Localization-Ava.csproj  -c Release -o artifacts
+          dotnet pack Localization-Core/Localization-Core.csproj -c Release -o artifacts -p:GeneratePackageOnBuild=false
+          dotnet pack Localization-Wpf/Localization-Wpf.csproj  -c Release -o artifacts -p:GeneratePackageOnBuild=false
+          dotnet pack Localization-Ava/Localization-Ava.csproj  -c Release -o artifacts -p:GeneratePackageOnBuild=false
 
       - name: NuGet login
         uses: NuGet/login@v1
