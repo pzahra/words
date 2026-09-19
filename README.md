@@ -2,6 +2,12 @@
 
 Gives you Words.
 
+[![tests](https://github.com/pzahra/words/actions/workflows/tests.yml/badge.svg)](https://github.com/pzahra/words/actions/workflows/tests.yml)
+[![Core](https://img.shields.io/nuget/v/PatTech.Localization.Core?label=Core)](https://www.nuget.org/packages/PatTech.Localization.Core)
+[![WPF](https://img.shields.io/nuget/v/PatTech.Localization.WPF?label=WPF)](https://www.nuget.org/packages/PatTech.Localization.WPF)
+[![Avalonia](https://img.shields.io/nuget/v/PatTech.Localization.Avalonia?label=Avalonia)](https://www.nuget.org/packages/PatTech.Localization.Avalonia)
+[![Analyzer](https://img.shields.io/nuget/v/PatTech.Localization.Analyzer?label=Analyzer)](https://www.nuget.org/packages/PatTech.Localization.Analyzer)
+
 You write your strings in a `words.ini` file. Words reads them, picks the right
 language, fills in the parameters, follows the references, renders the markdown,
 and hands the result back wherever you asked for it — code, XAML, or AXAML.

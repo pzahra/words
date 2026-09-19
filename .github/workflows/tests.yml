@@ -1,0 +1,40 @@
+# Runs the test suites on every push to main and every pull request, so the
+# README's status badge reflects whether the tests pass. Publishing lives in
+# build.yml and release-editor.yml; this workflow only tests.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest      # Localization-Tests and WordsEdit.Tests are WPF (net*-windows)
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      # One suite per step — the solution can't build on a bare runner (the .Vsix
+      # needs the Visual Studio SDK), and a failing step fails the job.
+      - name: Localization tests
+        run: dotnet test Localization-Tests/Localization-Tests.csproj --nologo
+
+      - name: Analyzer tests
+        run: dotnet test LocalizationAnalyzer/LocalizationAnalyzer.Test/LocalizationAnalyzer.Test.csproj --nologo
+
+      - name: Editor tests
+        run: dotnet test WordsEdit.Tests/WordsEdit.Tests.csproj --nologo
+
+      - name: WordsXaml tests
+        run: dotnet test WordsXaml/src/dotnet/WordsXaml.Tests/WordsXaml.Tests.csproj --nologo

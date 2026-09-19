@@ -27,11 +27,11 @@ jobs:
   publish:
     runs-on: windows-latest      # the WPF package targets net*-windows, so packing needs Windows
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0         # full history, so Source Link resolves the commit
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
