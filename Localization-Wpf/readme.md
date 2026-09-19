@@ -188,3 +188,10 @@ and every view can say `{StaticResource WordsMarkdown}`, `WordsFormat`,
 `WordsEnumDescription`, `WordsFlagsDescription` (joined text),
 `WordsFlagsDescriptionList` (one description per flag), `WordsParamsArray`, or
 `WordsResourceVisual`.
+
+## The rest of the suite
+
+- **[PatTech.Localization.Core](https://www.nuget.org/packages/PatTech.Localization.Core)** — the engine: `words.ini` files, lookups by key, languages and fallbacks, `{0}`/`{Name}` parameters, `{>key}` references, a markdown dialect.
+- **[PatTech.Localization.Avalonia](https://www.nuget.org/packages/PatTech.Localization.Avalonia)** — the same as this, for Avalonia's AXAML.
+- **[PatTech.Localization.Analyzer](https://www.nuget.org/packages/PatTech.Localization.Analyzer)** — the `[Localized]` attribute and rule PTL001, which flags a localized seam handed a raw string. It arrives with Core.
+- **Wordsmith** — the desktop editor for `words.ini` files, published on [GitHub Releases](https://github.com/pzahra/words/releases).

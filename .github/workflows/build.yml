@@ -1,0 +1,69 @@
+# Publishes NuGet packages to nuget.org via Trusted Publishing (OIDC): no API key
+# is stored. On each run nuget.org mints a short-lived key from this workflow's own
+# identity, matched against the trusted-publishing policy bound to the repo owner,
+# this repository, and this file's path (.github/workflows/build.yml).
+#
+# Two independent release lines, told apart by the tag prefix:
+#   api/X.Y.Z       -> Core, WPF and Avalonia (one API surface, released together)
+#   analyzer/X.Y.Z  -> the analyzer package on its own
+#
+# Versions come from Versions.props, not the tag — the tag only decides when to
+# publish. Bump the props, commit, then tag that commit. Core/WPF/Avalonia depend
+# on the analyzer at AnalyzerVersion and restore it from nuget.org, so publish an
+# analyzer/ tag before an api/ tag whenever the analyzer version changed.
+name: build
+
+on:
+  push:
+    tags:
+      - 'api/[0-9]+.[0-9]+.[0-9]+'
+      - 'analyzer/[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: read
+  id-token: write        # required so the runner can request the OIDC token
+
+jobs:
+  publish:
+    runs-on: windows-latest      # the WPF package targets net*-windows, so packing needs Windows
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0         # full history, so Source Link resolves the commit
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Pack analyzer
+        if: startsWith(github.ref, 'refs/tags/analyzer/')
+        run: dotnet pack LocalizationAnalyzer/LocalizationAnalyzer.Package/LocalizationAnalyzer.Package.csproj -c Release -o artifacts
+
+      - name: Pack API packages
+        if: startsWith(github.ref, 'refs/tags/api/')
+        run: |
+          dotnet pack Localization-Core/Localization-Core.csproj -c Release -o artifacts
+          dotnet pack Localization-Wpf/Localization-Wpf.csproj  -c Release -o artifacts
+          dotnet pack Localization-Ava/Localization-Ava.csproj  -c Release -o artifacts
+
+      - name: NuGet login
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: pzahra                   # nuget.org account that owns the trusted-publishing policy
+
+      # dotnet nuget push takes a single path and does not expand a wildcard here
+      # (pwsh passes it through literally), and it accepts only one package per
+      # call — so enumerate and push each. A .nupkg push carries its sibling
+      # .snupkg; --skip-duplicate lets an already-published version pass.
+      - name: Push to nuget.org
+        shell: pwsh
+        run: |
+          $pkgs = Get-ChildItem artifacts/*.nupkg -ErrorAction SilentlyContinue
+          if (-not $pkgs) { throw "No .nupkg found in artifacts to push." }
+          foreach ($pkg in $pkgs) {
+            dotnet nuget push $pkg.FullName --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+            if ($LASTEXITCODE -ne 0) { throw "Push failed for $($pkg.Name)" }
+          }

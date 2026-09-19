@@ -1,0 +1,52 @@
+# Builds Wordsmith and publishes it as a GitHub Release when an editor/ tag is
+# pushed. No nuget.org involvement, so no OIDC — just the built-in token, with
+# permission to create the release.
+#
+#   editor/X.Y.Z  -> a GitHub Release holding a self-contained win-x64 build
+#
+# The editor's assembly version comes from WordsmithVersion in Versions.props;
+# keep it in step with the tag. Wordsmith references the analyzer package, so its
+# AnalyzerVersion must already be on nuget.org before this runs.
+name: release-editor
+
+on:
+  push:
+    tags:
+      - 'editor/[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write        # to create the release
+
+jobs:
+  release:
+    runs-on: windows-latest      # Wordsmith is WPF (net10.0-windows)
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # editor/1.1.0 -> 1.1.0, for the archive name and release title
+      - name: Version from tag
+        id: ver
+        shell: pwsh
+        run: echo "value=$('${{ github.ref_name }}'.Split('/')[-1])" >> $env:GITHUB_OUTPUT
+
+      - name: Publish Wordsmith
+        run: dotnet publish WordsEdit/WordsEdit.csproj -c Release -r win-x64 --self-contained true -o publish
+
+      - name: Zip the build
+        shell: pwsh
+        run: Compress-Archive -Path publish/* -DestinationPath "Wordsmith-${{ steps.ver.outputs.value }}-win-x64.zip"
+
+      # The tag already exists (it triggered this run), so this attaches the build
+      # to a release for it and auto-writes notes from the commits since the last.
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "${{ github.ref_name }}"
+          "Wordsmith-${{ steps.ver.outputs.value }}-win-x64.zip"
+          --title "Wordsmith ${{ steps.ver.outputs.value }}"
+          --generate-notes

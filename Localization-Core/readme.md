@@ -183,7 +183,7 @@ with it, so an argument can carry markdown of its own — a dynamic
 escaped: treat format arguments as author-trusted, and don't build them from
 untrusted input you wouldn't want rendered (and, for the terminal renderer,
 raw control characters are stripped from every value whatever their source —
-see [ConsoleWords](ConsoleWords.cs)).
+see [ConsoleWords](https://github.com/pzahra/words/blob/main/Localization-Core/ConsoleWords.cs)).
 
 ## Teach your agents
 
@@ -225,4 +225,11 @@ The `Console.WriteWords` extension needs .NET 10 (it hangs static members off
 ``` csharp
 var parser = new ConsoleMarkdownParser(useAnsi: !Console.IsOutputRedirected);
 Console.WriteLine(parser.ToInline(Words.Known["main.title"]));
-```
+```
+
+## The rest of the suite
+
+- **[PatTech.Localization.WPF](https://www.nuget.org/packages/PatTech.Localization.WPF)** — Words in the XAML: the `{l:Words key}` markup extension, markdown inlines, converters and image schemes.
+- **[PatTech.Localization.Avalonia](https://www.nuget.org/packages/PatTech.Localization.Avalonia)** — the same, for Avalonia's AXAML.
+- **[PatTech.Localization.Analyzer](https://www.nuget.org/packages/PatTech.Localization.Analyzer)** — the `[Localized]` attribute and rule PTL001, which flags a localized seam handed a raw string. Core already depends on it, so you have it.
+- **Wordsmith** — the desktop editor for `words.ini` files, published on [GitHub Releases](https://github.com/pzahra/words/releases).

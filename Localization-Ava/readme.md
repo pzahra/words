@@ -174,8 +174,15 @@ and every view can say `{StaticResource WordsMarkdown}`, `WordsFormat`,
 
 ## See it all at once
 
-The [Sample-Ava](../Sample-Ava) project is the full tour: formatting, entities
+The [Sample-Ava](https://github.com/pzahra/words/tree/main/Sample-Ava) project is the full tour: formatting, entities
 and emoji, tooltipped and in-app hyperlinks, every image scheme, live format
 parameters, a markdown playground, a dark/light switch that shows a `dynres:`
 image following the theme while its `staticres:` twin stays put, and a
 language dropdown that relaunches the app in the selected language.
+
+## The rest of the suite
+
+- **[PatTech.Localization.Core](https://www.nuget.org/packages/PatTech.Localization.Core)** — the engine: `words.ini` files, lookups by key, languages and fallbacks, `{0}`/`{Name}` parameters, `{>key}` references, a markdown dialect.
+- **[PatTech.Localization.WPF](https://www.nuget.org/packages/PatTech.Localization.WPF)** — the same as this, for WPF's XAML.
+- **[PatTech.Localization.Analyzer](https://www.nuget.org/packages/PatTech.Localization.Analyzer)** — the `[Localized]` attribute and rule PTL001, which flags a localized seam handed a raw string. It arrives with Core.
+- **Wordsmith** — the desktop editor for `words.ini` files, published on [GitHub Releases](https://github.com/pzahra/words/releases).

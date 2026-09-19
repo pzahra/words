@@ -25,7 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\readme.md" Pack="true" PackagePath="\" />
+    <None Include="readme.md" Pack="true" PackagePath="\" />
     <None Update="tools\*.ps1" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="" />
   </ItemGroup>
 
