@@ -64,6 +64,19 @@ project that references Words and the next build drops an agent skill into
 `.claude/skills/pattech-words/`, teaching them the whole API — see the
 [Core readme](Localization-Core/readme.md#teach-your-agents).
 
+## Why its own format?
+
+`words.ini` is a *runtime* format: the app reads it directly — no build step, no
+compiler, no satellite assemblies — which is the one thing the usual suspects
+aren't built for. XLIFF is an *interchange* format (the I is for Interchange),
+the translation industry's handoff file, almost always converted to something
+else before an app runs off it; resx works at runtime but ties you to XML and
+the .NET tooling, one file per culture. So Words keeps a lean, hand-editable,
+diffable file it feeds off as-is — and it carries things neither of those
+models: cross-file references and constants, typed format parameters, and a
+markdown dialect. Meeting translators on *their* formats is a separate job, for
+import and export (planned) to handle; it needn't be the format the app runs on.
+
 ## Building
 
 [Words.slnx](Words.slnx) is the solution. Open it in Visual Studio, or:
