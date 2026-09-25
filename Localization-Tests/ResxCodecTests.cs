@@ -75,11 +75,12 @@ public class ResxCodecTests {
 			Assert.Equal(expected, codec.Discover(Path.Combine(folder, "Strings.fr.resx")));
 			Assert.Equal(expected, codec.Discover(Path.Combine(folder, "Strings.resx"))); //whichever of the set is picked
 
-			//no neutral file: the cultures alone, and Read says so
+			//no neutral file: the cultures alone, and Read says so; the native ini is still the stem's
 			File.Delete(Path.Combine(folder, "Strings.resx"));
 			IReadOnlyList<string> cultures = codec.Discover(Path.Combine(folder, "Strings.de-DE.resx"));
 			Assert.Equal(expected[1..], cultures);
 			Assert.Contains(codec.Read(cultures).Errors, error => error.Contains("no neutral"));
+			Assert.Equal(Path.Combine(folder, "Strings.ini"), codec.NativePath(cultures));
 		}
 		finally {
 			Directory.Delete(folder, recursive: true);
@@ -260,6 +261,47 @@ value=Open
 				Assert.Equal(before.Entries["fr"].Context, after.Entries["fr"].Context);
 			}
 			Assert.Equal(session.KeysOf(imported).Count(), session.KeysOf(again).Count());
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
+	public void Values_KeepTheirWhitespaceAndMarkupCharacters_AndCdataReadsAsText() {
+		string folder = Folder();
+		try {
+			var session = new WordsSession();
+			WordsFile file = session.Load(new StringReader("value-fr=Français\n\n[padded]\nvalue=x\nvalue-fr=y\n\n[blank]\nvalue=x\n\n[lines]\nvalue=x\n\n[markup]\nvalue=x\n"), Path.Combine(folder, "Main.ini"));
+			session.Keys["Main.padded"].DefaultValue = "  padded  ";
+			session.Keys["Main.padded"].Entries["fr"].Value = "\tonglet ";
+			session.Keys["Main.blank"].DefaultValue = " ";
+			session.Keys["Main.lines"].DefaultValue = "one\ntwo\n";
+			session.Keys["Main.markup"].DefaultValue = "<a> & \"b\" <https://x.y>";
+			var codec = new ResxCodec();
+			var source = new ExportSource(session, file, KeyTree.Build(session, file));
+			List<string> gripes = [];
+			foreach (ExportUnit unit in codec.Plan(source, Path.Combine(folder, "Strings.resx"))) {
+				IniWriter.WriteAtomic(unit.Path, writer => codec.Write(source, unit, writer, gripes));
+			}
+
+			string neutral = File.ReadAllText(Path.Combine(folder, "Strings.resx"));
+			Assert.Contains("<value>  padded  </value>", neutral); //no trimming, no CDATA: entities
+			Assert.Contains("<value>&lt;a&gt; &amp; \"b\" &lt;https://x.y&gt;</value>", neutral);
+
+			ILoadedWords back = codec.Read(codec.Discover(Path.Combine(folder, "Strings.resx")));
+			Assert.Equal("  padded  ", back.WordKeys["padded"].DefaultValue);
+			Assert.Equal("\tonglet ", back.WordKeys["padded"].Entries["fr"].Value);
+			Assert.Equal(" ", back.WordKeys["blank"].DefaultValue); //whitespace alone survives: xml:space="preserve" makes it significant
+			Assert.Equal("one\ntwo\n", back.WordKeys["lines"].DefaultValue); //newlines come back as \n, the ini parser's own
+			Assert.Equal("<a> & \"b\" <https://x.y>", back.WordKeys["markup"].DefaultValue);
+
+			//another tool's CDATA reads as the text it wraps; whitespace alone outside
+			//an xml:space="preserve" scope is insignificant to XML, and gone
+			File.WriteAllText(Path.Combine(folder, "Cdata.resx"), "<root><data name=\"k\" xml:space=\"preserve\"><value><![CDATA[<b>bold</b> & more]]></value></data><data name=\"w\"><value> </value></data></root>");
+			ILoadedWords cdata = codec.Read([Path.Combine(folder, "Cdata.resx")]);
+			Assert.Equal("<b>bold</b> & more", cdata.WordKeys["k"].DefaultValue);
+			Assert.Equal("", cdata.WordKeys["w"].DefaultValue);
 		}
 		finally {
 			Directory.Delete(folder, recursive: true);

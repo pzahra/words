@@ -83,6 +83,14 @@ namespace PatTech.Localization.Authoring {
 		IReadOnlyList<string> Discover(string path);
 
 		/// <summary>
+		///     The native <c>.ini</c> a set loads as — where Save then writes, the
+		///     foreign files left alone: the pick with the ini extension for a
+		///     one-file format, the stem's for one file per culture, so a set of
+		///     <c>Strings.*.resx</c> becomes <c>Strings.ini</c> beside it.
+		/// </summary>
+		string NativePath(IReadOnlyList<string> paths);
+
+		/// <summary>
 		///     Reads a set — what <see cref="Discover"/> returned, or what the user
 		///     kept of it — into the document surface. Bad content never throws: what
 		///     was dropped or guessed goes to <see cref="ILoadedWords.Errors"/>. I/O

@@ -67,16 +67,17 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>
 		///     Imports: <paramref name="importer"/> reads <paramref name="paths"/> — what
 		///     its <see cref="IWordsImporter.Discover"/> returned, or what the user kept
-		///     of it — and the result loads as a native file: the primary path with the
-		///     <c>.ini</c> extension, so Save writes ini and the foreign file is never
-		///     written back. Through the ini importer this is <see cref="Load(string)"/>.
+		///     of it — and the result loads as a native file, the one the importer
+		///     <see cref="IWordsImporter.NativePath">names</see>, so Save writes ini and
+		///     the foreign files are never written back. Through the ini importer this
+		///     is <see cref="Load(string)"/>.
 		/// </summary>
 		/// <exception cref="ArgumentException">No paths.</exception>
 		public WordsFile Import(IWordsImporter importer, IReadOnlyList<string> paths, FormatOptions? options = null) {
 			if (paths.Count == 0) {
 				throw new ArgumentException("nothing to import", nameof(paths));
 			}
-			return Load(importer.Read(paths, options), System.IO.Path.ChangeExtension(paths[0], ".ini"));
+			return Load(importer.Read(paths, options), importer.NativePath(paths));
 		}
 
 		/// <summary>

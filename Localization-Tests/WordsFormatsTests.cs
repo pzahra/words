@@ -62,6 +62,7 @@ value-fr=Ouvrir
 		public WordsFormatInfo Info { get; } = new("foo", [".foo"], WordsFeatures.None);
 		public TextReader? Init() => null;
 		public IReadOnlyList<string> Discover(string path) => [path];
+		public string NativePath(IReadOnlyList<string> paths) => Path.ChangeExtension(paths[0], ".ini");
 		public ILoadedWords Read(IReadOnlyList<string> paths, FormatOptions? options = null) {
 			var loaded = new LoadedWords();
 			loaded.Declare("en", "English");
@@ -213,7 +214,7 @@ value-fr=Ouvrir
 	public void Registry_FindsByIdAndExtension_RefusesADuplicate() {
 		WordsFormats formats = WordsFormats.BuiltIn();
 
-		Assert.Equal(["ini", "resx"], formats.All.Select(format => format.Info.Id));
+		Assert.Equal(["ini", "resx", "xliff"], formats.All.Select(format => format.Info.Id));
 		IWordsFormat ini = formats.All[0];
 		Assert.IsType<IniCodec>(ini);
 		Assert.Same(ini, formats.Find("ini"));
@@ -222,12 +223,14 @@ value-fr=Ouvrir
 		Assert.Same(ini, formats.ImporterFor(Path.Combine("x", "Strings.INI"))); //extensions compare loosely
 		Assert.Same(ini, formats.ExporterFor("Strings.ini"));
 		Assert.IsType<ResxCodec>(formats.ImporterFor("Strings.fr.resx"));
+		Assert.IsType<XliffCodec>(formats.ImporterFor("Strings.fr.xlf"));
+		Assert.IsType<XliffCodec>(formats.ExporterFor("Strings.xliff"));
 		Assert.Null(formats.ImporterFor("Strings.csv"));
 		Assert.Equal("format.ini.name", ini.Info.NameKey);
 
 		formats.Add(new FooImporter());
-		Assert.Equal(["ini", "resx", "foo"], formats.Importers.Select(format => format.Info.Id));
-		Assert.Equal(["ini", "resx"], formats.Exporters.Select(format => format.Info.Id)); //an importer alone does not export
+		Assert.Equal(["ini", "resx", "xliff", "foo"], formats.Importers.Select(format => format.Info.Id));
+		Assert.Equal(["ini", "resx", "xliff"], formats.Exporters.Select(format => format.Info.Id)); //an importer alone does not export
 		Assert.Throws<ArgumentException>(() => formats.Add(new FooImporter()));
 	}
 
@@ -250,6 +253,7 @@ value-fr=Ouvrir
 		IWords stacked = WordsFormats.BuiltIn().LoadWords(WordsBuilder.Create()).ToWords("en");
 		Assert.Equal("Words", stacked["format.ini.name"]);
 		Assert.Equal(".NET resources", stacked["format.resx.name"]);
+		Assert.Equal("XLIFF 1.2", stacked["format.xliff.name"]);
 		Assert.Empty(WordsFormats.BuiltIn().LoadWords(WordsBuilder.Create()).GetLanguages());
 	}
 }

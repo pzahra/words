@@ -393,7 +393,9 @@ id or by a file's extension, and stacks their words.
 flows through the exact pipeline the ini loader does: label disambiguation
 (`strings`, `strings-2`), empty-key dropping, language backfill,
 reload-in-place. `WordsSession.Import` is `Read` then `Load` at the native path
-(below). Importers inherit the whole of loading for free, and are tested the
+the importer names (below): the pick with the ini extension for a one-file
+format, the stem's — `Strings.ini` beside `Strings.*.resx` — for one file per
+culture. Importers inherit the whole of loading for free, and are tested the
 same way. On the way out, an `ExportSource` — the file, its tree and the
 session, refused on the same terms as Save — is what `Plan` and `Write` take:
 its keys in tree order, its language table, and what it uses of the model.
@@ -447,13 +449,20 @@ the translator-facing comment channels, which resx has no slot for, drop with a
 gripe. A constant keeps its `$` in the resource name and comes back a constant;
 a culture file carries only what is translated, since an empty satellite entry
 would shadow the default rather than fall back to it; typed and binary
-resources are skipped on the way in, with a gripe. `xliff`, the one that barely loses: `<source>`/`<target>` are the default
-and the entry value, `<note>` the context and comment channels kept apart, and
-the trans-unit state (`needs-translation`, `approved`) maps onto the stale and
-needs-review flags every other format throws away. A spreadsheet importer waits
-until it earns its options dialog: an Excel export cannot be trusted to say which
-columns are even languages, and guessing wrong is worse than not reading it — it
-is the format that will prove the `ImportOptions` seam.
+resources are skipped on the way in, with a gripe. `xliff` (1.2, the version the
+tools speak; 2.0 is refused with a gripe), the one that barely loses: one file
+per target language, `<source>`/`<target>` the default and the entry value, the
+four note channels `<note>`s told apart by `from` (developer, translator) and
+`annotates` (source, target), and the target state carrying what every other
+format throws away — an untranslated entry is `needs-translation`, a stale one
+`needs-review-translation` with its stale text in a Words-namespace attribute,
+the review flag `approved="no"`; a constant keeps its `$` and is
+`translate="no"`; parameters ride as Words extension elements. The default
+text being languageless while XLIFF insists on a `source-language`, the
+`source-language` option names it, `en` unless told otherwise. A spreadsheet
+importer waits until it earns its options dialog: an Excel export cannot be
+trusted to say which columns are even languages, and guessing wrong is worse
+than not reading it — it is the format that will prove the `FormatOptions` seam.
 
 **Third-party formats.** A second repository, pinned as a submodule and
 PR-reviewed, compiled from source: no runtime loading, no signing, none of the

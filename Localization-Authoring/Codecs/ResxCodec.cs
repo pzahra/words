@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Xml;
 using System.Xml.Linq;
 
@@ -51,6 +50,9 @@ namespace PatTech.Localization.Authoring.Codecs {
 			return set;
 		}
 
+		/// <summary>The stem's <c>.ini</c>: <c>Strings.ini</c> for a set of <c>Strings.*.resx</c>, with or without the neutral file.</summary>
+		public string NativePath(IReadOnlyList<string> paths) => FileNames.NativePath(paths);
+
 		/// <inheritdoc/>
 		public ILoadedWords Read(IReadOnlyList<string> paths, FormatOptions? options = null) {
 			var loaded = new LoadedWords();
@@ -63,8 +65,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 				string file = Path.GetFileName(path);
 				string code = Split(file).Code;
 				if (code != "") {
-					CultureInfo culture = CultureInfo.GetCultureInfo(code);
-					loaded.Declare(code, culture.NativeName, culture.EnglishName);
+					FileNames.Declare(loaded, code);
 				}
 				XDocument document;
 				try {
@@ -90,7 +91,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 					}
 					string value = (string?)data.Element("value") ?? "";
 					string comment = (string?)data.Element("comment") ?? "";
-					WordsKey key = loaded.Key(BlockKey(name, file, loaded.Errors));
+					WordsKey key = loaded.Key(FileNames.BlockKey(name, file, loaded.Errors));
 					if (code == "") {
 						key.DefaultValue = value;
 						key.Context = comment;
@@ -103,19 +104,6 @@ namespace PatTech.Localization.Authoring.Codecs {
 				}
 			}
 			return loaded;
-		}
-
-		//a resx name is any string; a block key is anything but `]`, and a leading
-		//dot would read as relative to the block before it
-		private static string BlockKey(string name, string file, List<string> gripes) {
-			string blockKey = name.Replace(']', '_').TrimStart('.');
-			if (blockKey == "") {
-				blockKey = "_";
-			}
-			if (blockKey != name) {
-				gripes.Add($"{file}: '{name}' is no words.ini key, loaded as '{blockKey}'");
-			}
-			return blockKey;
 		}
 
 		/// <summary>
@@ -147,8 +135,9 @@ namespace PatTech.Localization.Authoring.Codecs {
 				Header("reader", "System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"),
 				Header("writer", "System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"));
 			if (code is null) {
-				Drop("the preamble and the comments between blocks", source.File.Preamble != "" || (source.Used() & WordsFeatures.FreeComments) != 0 ? 1 : 0);
-				Drop("the settings references", source.File.Settings != "" || source.File.LanguageSettings.Values.Any(path => path != "") ? 1 : 0);
+				WordsFeatures used = source.Used();
+				Drop("the preamble and the comments between blocks", (used & WordsFeatures.FreeComments) != 0 ? 1 : 0);
+				Drop("the settings references", (used & WordsFeatures.Settings) != 0 ? 1 : 0);
 			}
 			foreach (WordsKey key in source.Keys()) {
 				string name = key.BlockKey[(key.BlockKey.IndexOf('.') + 1)..];
@@ -172,14 +161,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 			foreach (var (what, count) in dropped) {
 				gripes.Add($"{file}: dropped {what} ({count}): resx has no slot for it");
 			}
-
-			writer.Write("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
-			writer.Write(writer.NewLine);
-			var settings = new XmlWriterSettings { Indent = true, IndentChars = "  ", OmitXmlDeclaration = true, NewLineChars = writer.NewLine, CloseOutput = false };
-			using (XmlWriter xml = XmlWriter.Create(writer, settings)) {
-				root.Save(xml);
-			}
-			writer.Write(writer.NewLine);
+			XmlText.Write(writer, root);
 
 			void Drop(string what, int count) {
 				if (count != 0) {
@@ -208,28 +190,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 		///     culture answers to (<c>Strings.Designer.resx</c>) have an empty code.
 		///     The code comes back in canonical casing.
 		/// </summary>
-		public static (string Stem, string Code) Split(string fileName) {
-			string name = fileName.EndsWith(Extension, StringComparison.OrdinalIgnoreCase) ? fileName[..^Extension.Length] : fileName;
-			int dot = name.LastIndexOf('.');
-			if (dot > 0 && TryCulture(name[(dot + 1)..], out string code)) {
-				return (name[..dot], code);
-			}
-			return (name, "");
-		}
-
-		private static bool TryCulture(string tail, out string code) {
-			code = "";
-			if (tail == "" || !tail.All(c => char.IsLetterOrDigit(c) || c == '-')) {
-				return false;
-			}
-			try {
-				CultureInfo.GetCultureInfo(tail, predefinedOnly: true);
-				code = WordsParser.NormalizeLanguageCasing(tail);
-				return true;
-			}
-			catch (Exception e) when (e is CultureNotFoundException or ArgumentException) {
-				return false;
-			}
-		}
+		public static (string Stem, string Code) Split(string fileName)
+			=> FileNames.SplitCulture(fileName.EndsWith(Extension, StringComparison.OrdinalIgnoreCase) ? fileName[..^Extension.Length] : fileName);
 	}
 }

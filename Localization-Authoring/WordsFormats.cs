@@ -17,11 +17,12 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>The formats that write.</summary>
 		public IEnumerable<IWordsExporter> Exporters => formats.OfType<IWordsExporter>();
 
-		/// <summary>The built-in formats, registered: <see cref="IniCodec"/>, <see cref="ResxCodec"/>.</summary>
+		/// <summary>The built-in formats, registered: <see cref="IniCodec"/>, <see cref="ResxCodec"/>, <see cref="XliffCodec"/>.</summary>
 		public static WordsFormats BuiltIn() {
 			var registry = new WordsFormats();
 			registry.Add(new IniCodec());
 			registry.Add(new ResxCodec());
+			registry.Add(new XliffCodec());
 			return registry;
 		}
 

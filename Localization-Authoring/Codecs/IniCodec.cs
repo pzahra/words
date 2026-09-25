@@ -21,6 +21,9 @@ namespace PatTech.Localization.Authoring.Codecs {
 		/// <summary>One file carries every language: the pick alone.</summary>
 		public IReadOnlyList<string> Discover(string path) => [path];
 
+		/// <summary>The file itself: importing ini is loading it.</summary>
+		public string NativePath(IReadOnlyList<string> paths) => Path.ChangeExtension(paths[0], ".ini");
+
 		/// <inheritdoc/>
 		/// <exception cref="ArgumentException">Not exactly one path: ini is one file.</exception>
 		public ILoadedWords Read(IReadOnlyList<string> paths, FormatOptions? options = null) {

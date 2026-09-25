@@ -147,7 +147,7 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		/// <summary><paramref name="addition"/> onto <paramref name="existing"/> on a new line; an empty or duplicate addition adds nothing.</summary>
-		private static string Fold(string existing, string addition)
+		internal static string Fold(string existing, string addition)
 			=> addition == "" || existing == addition ? existing
 			 : existing == "" ? addition
 			 : existing + "\n" + addition;
