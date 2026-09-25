@@ -156,4 +156,27 @@ public class WordsBuilderTests {
 		Assert.Equal("default", wb.ToWords("de")["k"]);                      // off by default
 		Assert.Equal("default", wb.Debug().Debug(false).ToWords("de")["k"]); // and back off again
 	}
+
+	private sealed class Gripes : ITakeException {
+		public List<string> Warnings { get; } = [];
+		public void Warn(string text) => Warnings.Add(text);
+		public void Error(Exception exception, string message) => Warnings.Add(message);
+	}
+
+	[Fact]
+	public void Load_StackedFile_RelabelsALanguageSilently_ButWarnsOnAClobberedKey() {
+		// a subordinate file declares its languages with !labels and the host lists
+		// them: the relabel is the stacking pattern, not a clobbered key
+		var gripes = new Gripes();
+		var wb = WordsBuilder.Create(gripes)
+			.Load(new StringReader("value-en=!English\n\n[k]\nvalue=lib\n\n[lib.only]\nvalue=L\n"))
+			.Load(new StringReader("value-en=English\n\n[k]\nvalue=host\n"));
+
+		string gripe = Assert.Single(gripes.Warnings);
+		Assert.StartsWith("WB:KOVR:`k`", gripe);
+		Assert.Equal("host", wb.ToWords("en")["k"]);
+		Assert.Equal("L", wb.ToWords("en")["lib.only"]);
+		Assert.Equal(["en"], wb.GetLanguages().Select(language => language.Key));
+		Assert.Equal("English", wb.GetLanguages().Single().Value); //the host's label wins
+	}
 }

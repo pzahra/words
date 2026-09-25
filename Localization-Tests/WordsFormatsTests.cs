@@ -213,18 +213,21 @@ value-fr=Ouvrir
 	public void Registry_FindsByIdAndExtension_RefusesADuplicate() {
 		WordsFormats formats = WordsFormats.BuiltIn();
 
-		IWordsFormat ini = Assert.Single(formats.All);
+		Assert.Equal(["ini", "resx"], formats.All.Select(format => format.Info.Id));
+		IWordsFormat ini = formats.All[0];
 		Assert.IsType<IniCodec>(ini);
 		Assert.Same(ini, formats.Find("ini"));
-		Assert.Null(formats.Find("resx"));
+		Assert.IsType<ResxCodec>(formats.Find("resx"));
+		Assert.Null(formats.Find("csv"));
 		Assert.Same(ini, formats.ImporterFor(Path.Combine("x", "Strings.INI"))); //extensions compare loosely
 		Assert.Same(ini, formats.ExporterFor("Strings.ini"));
-		Assert.Null(formats.ImporterFor("Strings.resx"));
+		Assert.IsType<ResxCodec>(formats.ImporterFor("Strings.fr.resx"));
+		Assert.Null(formats.ImporterFor("Strings.csv"));
 		Assert.Equal("format.ini.name", ini.Info.NameKey);
 
 		formats.Add(new FooImporter());
-		Assert.Equal(["ini", "foo"], formats.Importers.Select(format => format.Info.Id));
-		Assert.Equal(["ini"], formats.Exporters.Select(format => format.Info.Id)); //an importer alone does not export
+		Assert.Equal(["ini", "resx", "foo"], formats.Importers.Select(format => format.Info.Id));
+		Assert.Equal(["ini", "resx"], formats.Exporters.Select(format => format.Info.Id)); //an importer alone does not export
 		Assert.Throws<ArgumentException>(() => formats.Add(new FooImporter()));
 	}
 
@@ -244,7 +247,9 @@ value-fr=Ouvrir
 		Assert.Equal("Overridden", words["format.ini.name"]);
 		Assert.Equal(["en"], builder.GetLanguages().Select(language => language.Key));
 
-		Assert.Equal("Words", WordsFormats.BuiltIn().LoadWords(WordsBuilder.Create()).ToWords("en")["format.ini.name"]);
+		IWords stacked = WordsFormats.BuiltIn().LoadWords(WordsBuilder.Create()).ToWords("en");
+		Assert.Equal("Words", stacked["format.ini.name"]);
+		Assert.Equal(".NET resources", stacked["format.resx.name"]);
 		Assert.Empty(WordsFormats.BuiltIn().LoadWords(WordsBuilder.Create()).GetLanguages());
 	}
 }

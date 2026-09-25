@@ -47,11 +47,16 @@ namespace PatTech.Localization {
 					}
 
 					if (!language.TryAdd(blockKey, value)) {
-						logger.Warn(string.Format(
-							"WB:KOVR:`{0}`-`{1}` = {2}",
-							blockKey,
-							languageCode,
-							value));
+						// a later file relabelling a language (a host listing what a
+						// subordinate file declared with a !label) is the stacking
+						// pattern at work, not a key clobbered: no warning for labels
+						if (blockKey != "") {
+							logger.Warn(string.Format(
+								"WB:KOVR:`{0}`-`{1}` = {2}",
+								blockKey,
+								languageCode,
+								value));
+						}
 						language[blockKey] = value;
 					}
 					break;

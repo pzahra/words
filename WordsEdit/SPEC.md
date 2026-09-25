@@ -441,10 +441,13 @@ stable for the fields that format carries; a foreign file taken through ini and
 back is normalized, the way a first load normalizes ini itself.
 
 **The built-ins.** `ini`, the native format written to the interface. `resx`: a
-file's `<comment>` is its language's context as provided — the default file to
+file's `<comment>` is its language's context as provided — the neutral file to
 the key's context, each `Strings.xx.resx` to that language's entry context — and
 the translator-facing comment channels, which resx has no slot for, drop with a
-gripe. `xliff`, the one that barely loses: `<source>`/`<target>` are the default
+gripe. A constant keeps its `$` in the resource name and comes back a constant;
+a culture file carries only what is translated, since an empty satellite entry
+would shadow the default rather than fall back to it; typed and binary
+resources are skipped on the way in, with a gripe. `xliff`, the one that barely loses: `<source>`/`<target>` are the default
 and the entry value, `<note>` the context and comment channels kept apart, and
 the trans-unit state (`needs-translation`, `approved`) maps onto the stale and
 needs-review flags every other format throws away. A spreadsheet importer waits
