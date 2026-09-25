@@ -61,14 +61,21 @@ One namespace gives you everything (`pattech.words`, the older name, still works
 - `<l:WordsInline Key="key"/>` — an inline that renders the value, markdown
   and all, inside a `TextBlock` or other flow content.
 
-`WordsInline` also fills format placeholders from its `Params` property: bind
-an array for positional `{0}` tags, or any other object for `{Name}` tags read
-off its public fields and properties. The inlines re-render whenever `Key` or
-`Params` changes.
+`WordsInline` also fills format placeholders. Bind its `Params` property when
+there is an object or an array to hand to Format: an array fills positional
+`{0}` tags, any other object fills `{Name}` tags read off its public fields
+and properties. Or populate the content with bindings and let the AXAML build
+that array instead — a stack of `Binding`s, or one `MultiBinding` — evaluated
+live, so the inline follows its sources. A constant among them is a `Binding`
+with a `Source` and no path; a lone child sets `Params` as it is, so a bound
+array or a named object works as it would set directly. Either way the inlines
+re-render whenever `Key` or the arguments change.
 
 ``` xml
 	<TextBlock>
-      <l:WordsInline Key="main.unread" Params="{Binding UnreadParams}"/>
+      <l:WordsInline Key="main.unread">
+        <Binding Path="Unread"/>
+      </l:WordsInline>
     </TextBlock>
 ```
 
@@ -149,7 +156,8 @@ For values that only exist at runtime, there are converters:
 - `FlagsDescriptionConverter` — the same for `[Flags]` combinations, as a list
   of descriptions or one delimited string (`AsArray="False"`).
 - `ArrayMultiConverter` — gathers a `MultiBinding` into the array that
-  `WordsInline.Params` wants.
+  `WordsInline.Params` wants; a `MultiBinding` child of `WordsInline` gets it
+  without asking.
 - `ResourceVisualConverter` — turns a resource value (`IImage`, `Geometry`,
   `DataTemplate`) into a fresh visual; what the `staticres:`/`dynres:` image
   schemes render through, should you want the same from a binding.

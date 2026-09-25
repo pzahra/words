@@ -65,7 +65,8 @@
       <TextBlock Classes="demo"><l:WordsInline Key="demo.images"/></TextBlock>
 
       <TextBlock Classes="h" Text="{l:Words section.params}"/>
-      <TextBlock Classes="demo"><l:WordsInline Key="demo.params-positional" Params="{Binding UnreadParams}"/></TextBlock>
+      <!-- a child Binding is the argument: no array-building property, no MultiBinding -->
+      <TextBlock Classes="demo"><l:WordsInline Key="demo.params-positional"><Binding Path="Unread"/></l:WordsInline></TextBlock>
       <Slider Minimum="0" Maximum="42" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Unread}"/>
       <TextBlock Classes="demo"><l:WordsInline Key="demo.params-named" Params="{Binding Profile}"/></TextBlock>
 

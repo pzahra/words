@@ -1,7 +1,10 @@
+using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.ExceptionServices;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Documents;
+using System.Windows.Threading;
 using PatTech.Localization.Wpf;
 using Xunit;
 
@@ -170,6 +173,134 @@ public class WordsInlineTests {
 				CultureInfo.CurrentUICulture = originalUiCulture;
 				CultureInfo.DefaultThreadCurrentCulture = originalDefault;
 				CultureInfo.DefaultThreadCurrentUICulture = originalDefaultUi;
+			}
+		});
+	}
+
+	// The children of a WordsInline are its arguments: a stack of Bindings needs no
+	// WordsInline.Params / MultiBinding / ArrayMultiConverter nest to become the
+	// positional array, and it follows its sources. The twin of the Avalonia tests,
+	// except that WPF admits a Binding child only in a Collection<BindingBase>, so
+	// a constant rides as a Binding with a Source and no path.
+
+	private sealed class Model : INotifyPropertyChanged {
+		private string first = "a";
+		public string First {
+			get => first;
+			set { first = value; PropertyChanged?.Invoke(this, new(nameof(First))); }
+		}
+		public string Second { get; set; } = "b";
+		public event PropertyChangedEventHandler? PropertyChanged;
+	}
+
+	/// <summary>The children resolve on the next dispatcher turn; run the queue to there.</summary>
+	private static void Pump() {
+		var frame = new DispatcherFrame();
+		Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => frame.Continue = false));
+		Dispatcher.PushFrame(frame);
+	}
+
+	private static string Text(WordsInline w) => string.Concat(w.Inlines.OfType<Run>().Select(r => r.Text));
+
+	private static WordsInline Greeting(string value, object? dataContext = null) {
+		Words.Known = WordsBuilder.Create()
+			.Load(new StringReader($"value-en=English\n\n[greet]\nvalue={value}\n"))
+			.ToWords("en");
+		return new WordsInline { Key = "greet", DataContext = dataContext };
+	}
+
+	[Fact]
+	public void ChildBindings_BecomePositionalArgs_AndFollowTheirSources() {
+		RunSta<object?>(() => {
+			var original = Words.Known;
+			try {
+				var model = new Model();
+				var w = Greeting("Hello {0} {1}", model);
+				w.Args.Add(new Binding(nameof(Model.First)));
+				w.Args.Add(new Binding(nameof(Model.Second)));
+				Pump();
+				Assert.Equal("Hello a b", Text(w));
+
+				model.First = "x";
+				Pump();
+				Assert.Equal("Hello x b", Text(w));
+				return null;
+			}
+			finally {
+				Words.Known = original;
+			}
+		});
+	}
+
+	[Fact]
+	public void BareMultiBindingChild_GetsTheArrayConverter() {
+		RunSta<object?>(() => {
+			var original = Words.Known;
+			try {
+				var w = Greeting("Hello {0} {1}", new Model());
+				var multi = new MultiBinding();
+				multi.Bindings.Add(new Binding(nameof(Model.First)));
+				multi.Bindings.Add(new Binding(nameof(Model.Second)));
+				w.Args.Add(multi);   // no converter of its own
+				Pump();
+				Assert.Equal("Hello a b", Text(w));
+				return null;
+			}
+			finally {
+				Words.Known = original;
+			}
+		});
+	}
+
+	[Fact]
+	public void OneBoundObject_IsStillTheNamedObject() {
+		RunSta<object?>(() => {
+			var original = Words.Known;
+			try {
+				var w = Greeting("Hi {Name}");
+				w.Args.Add(new Binding { Source = new { Name = "Pat" } });   // no path: the object itself, not wrapped in an array
+				Pump();
+				Assert.Equal("Hi Pat", Text(w));
+				return null;
+			}
+			finally {
+				Words.Known = original;
+			}
+		});
+	}
+
+	[Fact]
+	public void ConstantsAsBindingSources_BecomePositionalArgs() {
+		RunSta<object?>(() => {
+			var original = Words.Known;
+			try {
+				var w = Greeting("Hello {0} {1}");
+				w.Args.Add(new Binding { Source = "a" });   // a constant is a Binding with a Source
+				w.Args.Add(new Binding { Source = "b" });
+				Pump();
+				Assert.Equal("Hello a b", Text(w));
+				return null;
+			}
+			finally {
+				Words.Known = original;
+			}
+		});
+	}
+
+	[Fact]
+	public void ConstantsAndBindings_MixOnOneMultiBinding() {
+		RunSta<object?>(() => {
+			var original = Words.Known;
+			try {
+				var w = Greeting("Hello {0} {1}", new Model());
+				w.Args.Add(new Binding { Source = "lit" });
+				w.Args.Add(new Binding(nameof(Model.Second)));
+				Pump();
+				Assert.Equal("Hello lit b", Text(w));
+				return null;
+			}
+			finally {
+				Words.Known = original;
 			}
 		});
 	}

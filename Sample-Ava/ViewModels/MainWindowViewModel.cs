@@ -24,14 +24,11 @@ namespace Sample_Ava.ViewModels {
 		}
 
 		private double unread = 3;
+		/// <summary>The `demo.params-positional` argument, bound as the inline's child.</summary>
 		public double Unread {
 			get => unread;
-			set {
-				if (ChangeProperty(ref unread, value)) AffectProperty(nameof(UnreadParams));
-			}
+			set => ChangeProperty(ref unread, value);
 		}
-		/// <summary>Positional arguments for the `demo.params-positional` Words.</summary>
-		public object[] UnreadParams => [(int)unread];
 		public IEnumerable<KeyValuePair<string, string>> Languages => langs;
 		public string SelectedLanguage { get; set; } = lang;
 

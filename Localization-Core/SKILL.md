@@ -134,11 +134,21 @@ xmlns:l="https://github.com/pzahra/words"
 Title="{l:Words main.title}">          <!-- plain string, resolved once -->
 <TextBlock>
   <l:WordsInline Key="main.body" Params="{Binding Args}"/>  <!-- markdown -->
+  <l:WordsInline Key="main.unread">      <!-- the XAML builds the {0} array -->
+    <Binding Path="Unread"/>
+  </l:WordsInline>
 </TextBlock>
 ```
 
-- `WordsInline.Params`: an array fills `{0}` positional tags; any other object
-  fills `{Name}` tags by property. Re-renders when `Key` or `Params` changes.
+- `WordsInline.Params`: bind it when there is an object or an array to hand
+  to Format — an array fills `{0}` positional tags; any other object fills
+  `{Name}` tags by property. Or populate the content with bindings and the
+  XAML builds the array: a stack of `Binding`s or one `MultiBinding`,
+  evaluated live. A constant is a `Binding` with a `Source` and no path; a
+  lone child sets `Params` as it is (a bound array or named object). Children
+  are bindings only (WPF admits nothing else in a `Collection<BindingBase>`)
+  and on WPF a `MultiBinding` child stands alone. Re-renders when `Key` or the
+  arguments change.
 - Load with `.LoadResource("avares://Proj/Assets/words.ini")`.
 - Hyperlink clicks route through one global handler; custom schemes make
   in-app commands:
@@ -154,7 +164,8 @@ Title="{l:Words main.title}">          <!-- plain string, resolved once -->
   `EnumDescriptionConverter` (enum → display text; parameter picks the
   Describe format), `FlagsDescriptionConverter` (flags → list or joined text
   with `AsArray="False"`), `ArrayMultiConverter` (MultiBinding → the array
-  `WordsInline.Params` wants). All ship pre-instantiated: merge
+  `WordsInline.Params` wants; a `MultiBinding` child of `WordsInline` gets it
+  for free). All ship pre-instantiated: merge
   `avares://PatTech.Localization.Avalonia/Converters.axaml` (WPF:
   `pack://application:,,,/PatTech.Localization.WPF;component/Converters.xaml`)
   into App resources once, then use `{StaticResource WordsMarkdown}`,
