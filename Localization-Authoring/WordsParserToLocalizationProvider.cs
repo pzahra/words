@@ -1,7 +1,11 @@
 using PatTech.Localization;
 
 namespace PatTech.Localization.Authoring {
-	public class WordsParserToLocalizationProvider : IWordsParserConsumer {
+	/// <summary>
+	///     The ini reader: the parser's events, gathered into the document surface
+	///     (<see cref="ILoadedWords"/>) the session loads.
+	/// </summary>
+	public class WordsParserToLocalizationProvider : IWordsParserConsumer, ILoadedWords {
 		public IReadOnlyList<string> Errors => errors;
 		public IReadOnlyDictionary<string, WordsKey> WordKeys => wordKeys;
 		public IReadOnlyDictionary<string, LanguageEntry> KnownLanguages => knownLanguages;

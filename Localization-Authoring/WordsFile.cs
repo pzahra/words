@@ -54,7 +54,7 @@ namespace PatTech.Localization.Authoring {
 		/// </summary>
 		public IReadOnlyDictionary<string, string> BlockComments { get; }
 
-		internal WordsFile(string path, string label, WordsParserToLocalizationProvider loaded) {
+		internal WordsFile(string path, string label, ILoadedWords loaded) {
 			Path = path;
 			Label = label;
 			Preamble = loaded.Preamble;

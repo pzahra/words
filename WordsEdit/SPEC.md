@@ -377,20 +377,26 @@ If ini cannot be a plugin, the interface is wrong.
 **Where it lives.** In `PatTech.Localization.Authoring`, tested headless against
 the document model like everything else there (Architecture rules: the
 processing lives in Authoring, the ViewModels only gather intent). A format is
-three interfaces. `IWordsFormat` carries a descriptor — id, extensions,
-direction, and a `WordsFeatures` flag of what it preserves — and an `Init()`
-that hands back a `words.ini` stream (below). `IWordsImporter` adds `Discover`
-and `Read`; `IWordsExporter` adds `Plan` and `Write`; a format that goes both
-ways — a *codec* — implements both, and the built-ins live under
-`PatTech.Localization.Authoring.Codecs`. An `ImportOptions`/`ExportOptions` bag
-rides along for the formats that cannot be read until they are configured.
+three interfaces. `IWordsFormat` carries a descriptor — id, extensions, and a
+`WordsFeatures` flag of what it preserves; its direction is which of the other
+two it implements — and an `Init()` that hands back a `words.ini` fragment
+(below). `IWordsImporter` adds `Discover` and `Read`; `IWordsExporter` adds
+`Plan` and `Write`; a format that goes both ways — a *codec* — implements both,
+and the built-ins live under `PatTech.Localization.Authoring.Codecs`. A
+`FormatOptions` bag rides along for the formats that cannot be read until they
+are configured. The registry (`WordsFormats`) holds the formats, finds one by
+id or by a file's extension, and stacks their words.
 
 **One load path.** `WordsSession.Load` gains a sibling taking an `ILoadedWords`
-— the surface `WordsParserToLocalizationProvider` already satisfies — so an
-importer produces that surface and flows through the exact pipeline the ini
-loader does: label disambiguation (`strings`, `strings-2`), empty-key dropping,
-language backfill, reload-in-place. Importers inherit the whole of loading for
-free, and are tested the same way.
+— the surface `WordsParserToLocalizationProvider` already satisfies, and
+`LoadedWords` is for filling by hand — so an importer produces that surface and
+flows through the exact pipeline the ini loader does: label disambiguation
+(`strings`, `strings-2`), empty-key dropping, language backfill,
+reload-in-place. `WordsSession.Import` is `Read` then `Load` at the native path
+(below). Importers inherit the whole of loading for free, and are tested the
+same way. On the way out, an `ExportSource` — the file, its tree and the
+session, refused on the same terms as Save — is what `Plan` and `Write` take:
+its keys in tree order, its language table, and what it uses of the model.
 
 **Fan-in, fan-out.** A format is a *set* of streams, not one. `words.ini` is one
 file carrying every language; resx is one file per culture (`Strings.resx`,
@@ -402,22 +408,28 @@ confirm the file list and its overwrites before a byte lands. This is Merge and
 Split in another costume: a language maps to a file, which `WordsOperations`
 already models.
 
-**Each format brings its own words.** `Init()` returns a `words.ini` fragment;
-the editor loads its own `Resources/words.ini`, then every registered format's,
+**Each format brings its own words.** `Init()` returns a `words.ini` fragment,
+its languages declared with `!` labels so they stay off the editor's menu; the
+editor loads every registered format's, then its own `Resources/words.ini`,
 then digests (`WordsBuilder` stacks sources last-in-wins, so the editor's file
 loads last and a plugin never clobbers it). A format namespaces its keys
-`format.<id>.*` and its descriptor names its display string by *key*, not
-literal, so the Import and Export dropdowns are built from the registry and a new
-format's chrome arrives with it — localizable, analyzer-guarded, no hardcoded
-English (a lookup key is key-caps, not words). A format's *gripes* stay plain
-diagnostic strings, the `WordsFile.Errors` convention, not chrome.
+`format.<id>.*` and its descriptor names its display string by *key*
+(`format.<id>.name`), not literal, so the Import and Export dropdowns are built
+from the registry and a new format's chrome arrives with it — localizable,
+analyzer-guarded, no hardcoded English (a lookup key is key-caps, not words).
+A format's *gripes* stay plain diagnostic strings, the `WordsFile.Errors`
+convention, not chrome.
 
 **Loss is declared, not suffered.** The Words model is a superset of what most
 formats hold, so export drops things — and says so, first. A format declares
-(`WordsFeatures`) what it preserves; the loss preview is what *this* document
-actually uses minus what the format keeps, so it warns about parameters only when
-a key has them. `Read` and `Write` take a log and report what they dropped or
-guessed, behind the same gripes button the previews and load errors use.
+(`WordsFeatures`) what it preserves — the context and comment channels, key
+and per-language; parameters; stale marks and the review flag; constants;
+freeform comments; settings references. Values every format keeps, so they
+are not a feature. The loss preview (`format.Loses(source)`) is what *this*
+document actually uses minus what the format keeps, so it warns about
+parameters only when a key has them. `Read` reports what it dropped or guessed
+in the surface's `Errors`; `Write` takes a gripe list; both land behind the
+same gripes button the previews and load errors use.
 
 **Save never routes through it.** Import is one-way: the foreign file becomes an
 in-session `WordsFile` whose path is a native `.ini`, so Ctrl+S writes ini and

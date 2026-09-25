@@ -42,7 +42,7 @@ namespace PatTech.Localization.Authoring {
 		//a freshly parsed file's languages join the union: the first file's table
 		//replaces the placeholder default; a real label upgrades a !code placeholder;
 		//an English name fills in where the union only had the native one
-		internal void Absorb(WordsParserToLocalizationProvider loaded, bool firstFile) {
+		internal void Absorb(ILoadedWords loaded, bool firstFile) {
 			if (firstFile) {
 				Known.Clear();
 			}

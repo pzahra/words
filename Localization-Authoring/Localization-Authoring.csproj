@@ -13,6 +13,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- each built-in format's own words, handed back by its Init() -->
+    <EmbeddedResource Include="Codecs\*.words.ini" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Localization-Core\Localization-Core.csproj" />
   </ItemGroup>
 

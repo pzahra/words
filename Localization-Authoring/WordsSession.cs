@@ -52,20 +52,46 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		/// <summary>
-		///     Loads one file: its keys join the store prefixed with the file's label
-		///     (empty keys — bare headers — are dropped, so a bare <c>[group]</c>
-		///     round-trips as a group), its languages join the table and every key
-		///     is backfilled for them. Loading a path already loaded replaces that
-		///     file in place: its old keys go first, so a key deleted on disk does
-		///     not survive the reload. Bad content never throws; the parser's gripes
-		///     land in <see cref="WordsFile.Errors"/>.
+		///     Loads one ini file: the parser reads it and <see cref="Load(ILoadedWords, string)"/>
+		///     takes it from there. Bad content never throws; the parser's gripes land
+		///     in <see cref="WordsFile.Errors"/>.
 		/// </summary>
 		/// <param name="reader">The file's text.</param>
 		/// <param name="path">Where it came from — the file's identity and its save target.</param>
 		public WordsFile Load(TextReader reader, string path) {
 			var loaded = new WordsParserToLocalizationProvider();
 			new WordsParser(loaded).Load(reader);
+			return Load(loaded, path);
+		}
 
+		/// <summary>
+		///     Imports: <paramref name="importer"/> reads <paramref name="paths"/> — what
+		///     its <see cref="IWordsImporter.Discover"/> returned, or what the user kept
+		///     of it — and the result loads as a native file: the primary path with the
+		///     <c>.ini</c> extension, so Save writes ini and the foreign file is never
+		///     written back. Through the ini importer this is <see cref="Load(string)"/>.
+		/// </summary>
+		/// <exception cref="ArgumentException">No paths.</exception>
+		public WordsFile Import(IWordsImporter importer, IReadOnlyList<string> paths, FormatOptions? options = null) {
+			if (paths.Count == 0) {
+				throw new ArgumentException("nothing to import", nameof(paths));
+			}
+			return Load(importer.Read(paths, options), System.IO.Path.ChangeExtension(paths[0], ".ini"));
+		}
+
+		/// <summary>
+		///     The one load path — the ini reader and every importer come through
+		///     here. Loads one file: its keys join the store prefixed with the file's
+		///     label (empty keys — bare headers — are dropped, so a bare <c>[group]</c>
+		///     round-trips as a group), its languages join the table and every key
+		///     is backfilled for them. Loading a path already loaded replaces that
+		///     file in place: its old keys go first, so a key deleted on disk does
+		///     not survive the reload. The reader's gripes land in
+		///     <see cref="WordsFile.Errors"/>.
+		/// </summary>
+		/// <param name="loaded">The file, read into the document surface.</param>
+		/// <param name="path">Where it came from — the file's identity and its save target.</param>
+		public WordsFile Load(ILoadedWords loaded, string path) {
 			WordsFile? previous = FileAt(path);
 			int position = previous is null ? files.Count : files.IndexOf(previous);
 			string label = previous?.Label ?? UniqueLabel(System.IO.Path.GetFileNameWithoutExtension(path));
@@ -154,8 +180,9 @@ namespace PatTech.Localization.Authoring {
 
 		//the writer only emits keys the walk reaches, so a stale or wrong tree would
 		//quietly drop the rest: the tree must be the file's and its keyed nodes must
-		//be exactly the file's keys, no more, no fewer.
-		private void EnsureTreeCovers(WordsFile file, IKeyTreeNode tree) {
+		//be exactly the file's keys, no more, no fewer. An exporter walks the same
+		//tree, so an ExportSource checks the same way
+		internal void EnsureTreeCovers(WordsFile file, IKeyTreeNode tree) {
 			if (tree.FullLabel != file.Label) {
 				throw new InvalidOperationException($"tree root '{tree.FullLabel}' does not own file '{file.Label}'");
 			}
