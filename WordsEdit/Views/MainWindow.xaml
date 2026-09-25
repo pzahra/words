@@ -629,11 +629,23 @@
                         ToolTip="{l:Words tool.load}">
                     <md:PackIcon Kind="FolderUpload"/>
                 </Button>
+                <!-- the other formats, beside Load and Save: in, and out -->
+                <Button Command="{Binding ImportCommand}"
+                        Margin="2.5px"
+                        ToolTip="{l:Words tool.import}">
+                    <md:PackIcon Kind="FileImport"/>
+                </Button>
                 <Button Command="{Binding SaveCommand}"
                         Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
                         Margin="2.5px"
                         ToolTip="{l:Words tool.save}">
                     <md:PackIcon Kind="ContentSave"/>
+                </Button>
+                <Button Command="{Binding ExportCommand}"
+                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                        Margin="2.5px"
+                        ToolTip="{l:Words tool.export}">
+                    <md:PackIcon Kind="FileExport"/>
                 </Button>
                 <Button Command="{Binding ResetCommand}"
                         Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"

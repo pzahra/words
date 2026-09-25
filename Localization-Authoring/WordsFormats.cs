@@ -44,11 +44,19 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>The first exporter claiming <paramref name="path"/>'s extension, if any.</summary>
 		public IWordsExporter? ExporterFor(string path) => Exporters.FirstOrDefault(format => format.Info.Claims(path));
 
+		/// <summary>The manifest name of the seam's own words: the names <see cref="WordsFeatures"/> carries by key.</summary>
+		public const string WordsResource = "PatTech.Localization.Authoring.authoring-words.ini";
+
 		/// <summary>
-		///     Loads every format's words into <paramref name="builder"/> — call it
-		///     before loading the host's own, which then win.
+		///     Loads the seam's own words — the feature names — then every format's
+		///     into <paramref name="builder"/>. Call it before loading the host's own,
+		///     which then win, or add: a host's <c>feature.x.sub</c> stacks on the
+		///     seam's <c>feature.x</c>.
 		/// </summary>
 		public WordsBuilder LoadWords(WordsBuilder builder) {
+			using (var seam = new StreamReader(typeof(WordsFormats).Assembly.GetManifestResourceStream(WordsResource) ?? throw new FileNotFoundException(WordsResource))) {
+				builder.Load(seam);
+			}
 			foreach (IWordsFormat format in formats) {
 				using TextReader? words = format.Init();
 				if (words is not null) {

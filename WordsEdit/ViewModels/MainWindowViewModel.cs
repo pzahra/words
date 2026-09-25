@@ -20,6 +20,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public WordsSession Session { get; } = new();
 	public TreeViewModel Tree { get; }
 	public KeyDrag KeyDrag { get; }
+	/// <summary>The formats the editor imports from and exports to (SPEC: Import and export).</summary>
+	public WordsFormats Formats { get; }
 
 	//Wordsmith's own language (SPEC: Wordsmith's own words): the file's menu, and
 	//the entry the current language reads in. Picking another is a request the
@@ -55,6 +57,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	//Commands
 	public ICommand LoadFileCommand { get; }
+	public ICommand ImportCommand { get; }
+	public ICommand ExportCommand { get; }
 	public ICommand ResetCommand { get; }
 	public ICommand SaveCommand { get; }
 	public ICommand MergeFilesCommand { get; }
@@ -78,8 +82,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	//how the editor asks and tells: modal windows in the app, a fake in tests
 	public IDialogs Dialogs { get; }
 
-	public MainWindowViewModel(IDialogs? dialogs = null) {
+	public MainWindowViewModel(IDialogs? dialogs = null, WordsFormats? formats = null) {
 		Dialogs = dialogs ?? new WpfDialogs();
+		Formats = formats ?? WordsFormats.BuiltIn();
 		Tree = new TreeViewModel(Session);
 		Tree.Edited += () => {
 			MarkDirty();
@@ -92,6 +97,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		};
 		Tree.KeyNodes.CollectionChanged += (_, _) => UpdateTitle();
 		LoadFileCommand = new DelegateCommand(DoLoadFiles);
+		ImportCommand = new DelegateCommand(DoImport);
+		ExportCommand = new DelegateCommand(DoExport, () => Tree.KeyNodes.Count > 0);
 		ResetCommand = new DelegateCommand(DoReset);
 		SaveCommand = new DelegateCommand(DoSave);
 		MergeFilesCommand = new DelegateCommand(DoMergeFiles);
@@ -151,6 +158,76 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	public void LoadFile(TextReader reader, string fileName) => Tree.Present(Session.Load(reader, fileName));
+
+	//Import (SPEC: Import and export): the extension picks the format, Discover
+	//gathers the set the pick implies, and the set loads as a native ini
+	private void DoImport() {
+		if (!Dialogs.TryOpenFiles(Words.Known["file.import-title"], ImportFilter(), out string[]? fileNames)) {
+			return;
+		}
+		//a set picked twice over (Strings.resx and Strings.fr.resx) imports once
+		var imported = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		foreach (string fileName in fileNames) {
+			ImportFile(fileName, imported);
+		}
+	}
+
+	/// <summary>
+	///     Imports the set <paramref name="fileName"/> implies, in the format its
+	///     extension names, and presents it. The words.ini it becomes is where Save
+	///     will write: one already on disk is asked about first. A set that is
+	///     its own ini — importing ini is loading it — leaves the document clean;
+	///     any other is unsaved work.
+	/// </summary>
+	/// <param name="fileName">The pick.</param>
+	/// <param name="imported">The native paths imported so far, to skip a set already taken.</param>
+	public void ImportFile(string fileName, HashSet<string>? imported = null) {
+		if (Formats.ImporterFor(fileName) is not { } importer) {
+			Dialogs.Tell(Words.Known.Format("tell.no-import-format", fileName));
+			return;
+		}
+		try {
+			IReadOnlyList<string> set = importer.Discover(fileName);
+			if (set.Count == 0) {
+				throw new FileNotFoundException(null, fileName);
+			}
+			string native = importer.NativePath(set);
+			if (imported?.Add(Path.GetFullPath(native)) == false) {
+				return;
+			}
+			bool isLoad = set.Any(path => SamePath(path, native));
+			if (!isLoad && File.Exists(native) && !Dialogs.Confirm(Words.Known.Format("ask.import-over", native))) {
+				return;
+			}
+			Tree.Present(Session.Import(importer, set));
+			if (!isLoad) {
+				MarkDirty();
+			}
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+			Dialogs.Tell(Words.Known.Format("file.load-failed", fileName, ex.Message));
+		}
+	}
+
+	private static bool SamePath(string a, string b)
+		=> string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase);
+
+	//one filter entry per importer, then everything
+	[return: Localized]
+	private string ImportFilter()
+		=> Words.Known.Format("file.import-filter", string.Join("|", Formats.Importers.Select(FormatFilter)));
+
+	/// <summary>A file-dialog filter entry for <paramref name="format"/>: its name, in its own words, and its patterns.</summary>
+	[return: Localized]
+	public static string FormatFilter(IWordsFormat format) {
+		string patterns = string.Join(";", format.Info.Extensions.Select(extension => "*" + extension));
+		return Words.Known.Format("file.format-filter", Words.Known[format.Info.NameKey], patterns);
+	}
+
+	//Export: a dialog, since there is a plan and a loss to confirm first
+	private void DoExport() {
+		Dialogs.Show(new ExportViewModel(this));
+	}
 
 	//Reset
 	private void DoReset() {

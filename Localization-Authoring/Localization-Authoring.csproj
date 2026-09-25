@@ -13,7 +13,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- each built-in format's own words, handed back by its Init() -->
+    <!-- the seam's own words (the feature names), then each built-in format's, handed back by its Init() -->
+    <EmbeddedResource Include="authoring-words.ini" />
     <EmbeddedResource Include="Codecs\*.words.ini" />
   </ItemGroup>
 

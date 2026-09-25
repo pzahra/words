@@ -309,6 +309,139 @@ language, translate, relaunch in it. What stays hard-coded is file syntax and
 key caps, not words: `[images]`, `shellexec`, `F2`.
 [The Core skill](../Localization-Core/SKILL.md) is the how-to.
 
+## Import and export
+
+The editor speaks `words.ini`; the world speaks resx, XLIFF, and whatever a
+translator's last tool exported. This is the seam that lets the two trade,
+without the native format giving up an inch of what it holds.
+
+**The shape is two seams that already existed.** Import is what `WordsParser` →
+`WordsParserToLocalizationProvider` does: turn foreign text into the neutral
+document surface — keys, known languages, declared languages, preamble, block
+comments, gripes — that `WordsSession.Load` absorbs. Export is what
+`IniWriter.WriteFile` does: take the document and emit one format. A format is
+not new machinery, then, but those two jobs generalized, and the native ini is
+the first one written to the interface — its own reference implementation.
+Had ini not made a plugin, the interface would have been wrong.
+
+**Where it lives.** In `PatTech.Localization.Authoring`, tested headless against
+the document model like everything else there (Architecture rules: the
+processing lives in Authoring, the ViewModels only gather intent). A format is
+three interfaces. `IWordsFormat` carries a descriptor — id, extensions, and a
+`WordsFeatures` flag of what it preserves; its direction is which of the other
+two it implements — and an `Init()` that hands back a `words.ini` fragment
+(below). `IWordsImporter` adds `Discover`, `NativePath` and `Read`;
+`IWordsExporter` adds `Plan` and `Write`; a format that goes both ways — a
+*codec* — implements both, and the built-ins live under
+`PatTech.Localization.Authoring.Codecs`. A `FormatOptions` bag rides along for
+the formats that cannot be read until they are configured. The registry
+(`WordsFormats`) holds the formats, finds one by id or by a file's extension,
+and stacks their words; the app builds it at startup and hands it to the words
+loader and the main view model.
+
+**One load path.** `WordsSession.Load` has a sibling taking an `ILoadedWords`
+— the surface `WordsParserToLocalizationProvider` already satisfied, and
+`LoadedWords` is for filling by hand — so an importer produces that surface and
+flows through the exact pipeline the ini loader does: label disambiguation
+(`strings`, `strings-2`), empty-key dropping, language backfill,
+reload-in-place. `WordsSession.Import` is `Read` then `Load` at the native path
+the importer names: the pick with the ini extension for a one-file format, the
+stem's — `Strings.ini` beside `Strings.*.resx` — for one file per culture.
+Importers inherit the whole of loading for free, and are tested the same way.
+On the way out, an `ExportSource` — the file, its tree and the session, refused
+on the same terms as Save — is what `Plan` and `Write` take: its keys in tree
+order, its language table, and what it uses of the model.
+
+**Fan-in, fan-out.** A format is a *set* of streams, not one. `words.ini` is one
+file carrying every language; resx is one file per culture (`Strings.resx`,
+`Strings.fr.resx`); a spreadsheet is one file with a column per language. So
+import has `Discover` — pick `Strings.fr.resx` and it gathers the default and
+every `Strings.*.resx` beside it — and export has `Plan`, which turns one
+document into the set of files to write, one `ExportUnit` each, so the editor
+confirms the file list and its overwrites before a byte lands. This is Merge
+and Split in another costume: a language maps to a file, which
+`WordsOperations` already models.
+
+**Each format brings its own words.** `Init()` returns a `words.ini` fragment,
+its languages declared with `!` labels so they stay off the editor's menu; the
+editor loads the seam's own (below), every registered format's, then its own
+`Resources/words.ini`, then digests (`WordsBuilder` stacks sources
+last-in-wins, so the editor's file loads last and a plugin never clobbers it). A format namespaces its keys
+`format.<id>.*` and its descriptor names its display string by *key*
+(`format.<id>.name`), not literal, so the Import filter and the Export dropdown
+are built from the registry and a new format's chrome arrives with it —
+localizable, analyzer-guarded, no hardcoded English (a lookup key is key-caps,
+not words). A format's *gripes* stay plain diagnostic strings, the
+`WordsFile.Errors` convention, not chrome.
+
+**Loss is declared, not suffered.** The Words model is a superset of what most
+formats hold, so export drops things — and says so, first. A format declares
+(`WordsFeatures`) what it preserves — the context and comment channels, key
+and per-language; parameters; stale marks and the review flag; constants;
+freeform comments; settings references. Values every format keeps, so they
+are not a feature. The loss preview (`format.Loses(source)`) is what *this*
+document actually uses minus what the format keeps, so it warns about
+parameters only when a key has them. Each feature names its words by key —
+`[Words("feature.x")]` on `WordsFeatures`, read by `Describe` — and the seam's
+own fragment, loaded ahead of the formats', carries the name; the editor's
+file adds the `.sub` variant, the phrasing its loss line lists. The enum lives
+in Authoring and the phrasing belongs to the editor, and the stacking lets
+each keep its own. `Read` reports what it dropped or guessed in the surface's
+`Errors`; `Write` takes a gripe list; both land behind the same gripes dialog
+the previews and load errors use.
+
+**Save never routes through it.** Import is one-way: the foreign file becomes an
+in-session `WordsFile` whose path is a native `.ini`, so Ctrl+S writes ini and
+the byte-stable fixed point (Round-trip guarantees) is untouched. Export is a
+separate, deliberate gesture — pick a format, a target; read the loss; write.
+Loss is always an act, never a side effect of saving. The weaker guarantee the
+foreign formats keep: import then export to the same format is stable for the
+fields that format carries; a foreign file taken through ini and back is
+normalized, the way a first load normalizes ini itself.
+
+**The built-ins.** `ini`, the native format written to the interface. `resx`: a
+file's `<comment>` is its language's context as provided — the neutral file to
+the key's context, each `Strings.xx.resx` to that language's entry context — and
+the translator-facing comment channels, which resx has no slot for, drop with a
+gripe. A constant keeps its `$` in the resource name and comes back a constant;
+a culture file carries only what is translated, since an empty satellite entry
+would shadow the default rather than fall back to it; typed and binary
+resources are skipped on the way in, with a gripe. `xliff` (1.2, the version the
+tools speak; 2.0 is refused with a gripe), the one that barely loses: one file
+per target language, `<source>`/`<target>` the default and the entry value, the
+four note channels `<note>`s told apart by `from` (developer, translator) and
+`annotates` (source, target), and the target state carrying what every other
+format throws away — an untranslated entry is `needs-translation`, a stale one
+`needs-review-translation` with its stale text in a Words-namespace attribute,
+the review flag `approved="no"`; a constant keeps its `$` and is
+`translate="no"`; parameters ride as Words extension elements. The default
+text being languageless while XLIFF insists on a `source-language`, the
+`source-language` option names it, `en` unless told otherwise.
+
+**Surface.** Import sits beside Load, Export beside Save. Import opens a picker
+filtered by every importer's name and extensions; each pick's extension names
+its format (an unclaimed one is told), `Discover` gathers the set, and the set
+loads at its native path — asked about first when that `words.ini` is already
+on disk, since Save will overwrite it — and presents in the tree as unsaved
+work, unless the pick was an ini, which is a load. A set picked twice over
+imports once. Export is a dialog: one loaded file (the selection's, to begin
+with), one format, one target — the one file, or the neutral one of a set —
+and as any of them changes, the plan (each file `Plan` will write, flagged when
+it already exists) and the loss (`Loses`, in words, or that nothing is lost).
+Export confirms the overwrites, writes each unit atomically through
+`IniWriter.WriteAtomic` — a failure partway is told and the files before it
+stand — shows what the format griped about, and closes. The captions and the
+loss words live in `words.ini`; the format list, names included, comes from
+the registry.
+
+**Tests.** Every importer is tested through `ILoadedWords` the way the ini loader
+is tested through the parser: a fixture in, the document surface out, gripes
+pinned. Every exporter round-trips against itself — import, export, import, and
+the fields the format holds are unchanged — and the native fixed point is
+re-checked to prove Save still never touches a foreign writer. The editor's
+tests drive Import and Export through `FakeDialogs`: the native path, the ask,
+dirtiness, the plan, the loss and the overwrite confirmation.
+
 ---
 
 # Planned upgrades
@@ -359,126 +492,60 @@ saved text after undo equals the text before the edit, and redo brings the
 edit back. The drag tests and the merge and split flows check the stack is
 cleared or kept as this section says.
 
-## Import and export
+## Import and export, next
 
-The editor speaks `words.ini`; the world speaks resx, XLIFF, and whatever a
-translator's last tool exported. This is the seam that lets the two trade,
-without the native format giving up an inch of what it holds.
+**Options.** `FormatOptions` has a seam and no door yet: xliff's
+`source-language` is `en` until a dialog asks. The spreadsheet importer is what
+earns that door, and it is the format that will prove the seam.
 
-**The shape is two seams that already exist.** Import is what `WordsParser` →
-`WordsParserToLocalizationProvider` does: turn foreign text into the neutral
-document surface — keys, known languages, declared languages, preamble, block
-comments, gripes — that `WordsSession.Load` absorbs. Export is what
-`IniWriter.WriteFile` does: take the document and emit one format. A format is
-not new machinery, then, but those two jobs generalized, and the native ini is
-the first one rewritten to the new interface — its own reference implementation.
-If ini cannot be a plugin, the interface is wrong.
+**Spreadsheets.** A CSV has no real consistency, so the one assumption made is
+that Excel wrote it: cells quoted with doubled quotes, newlines kept inside the
+quotes, and the delimiter and encoding the machine's locale's — a comma, or a
+semicolon where the decimal is a comma; UTF-8 with a BOM from "CSV UTF-8", the
+ANSI code page otherwise. Everything else is asked. Import opens a dialog
+before `Read`: the first rows as a grid, so the user sees what the file is;
+whether the first row is a header; the delimiter and the encoding, sniffed and
+overridable (mojibake in the preview is the tell); and a role for every column
+— the key, the default value, its context, its comment, a language's value,
+context or comment, or ignore. A language column carries its code: read from
+the header by pattern (`fr`, `fr-CA`, `French (fr)`, `value-fr` — a regex with
+a `code` group, the built-in patterns tried in turn, a custom one typed), or
+typed when the header is no help. The sniff makes the first guess — a header
+when the first row's cells look like names, the key column when its cells are
+unique and dotted, a language column when its header yields a code
+`CultureInfo` knows — and the dialog is where the user corrects it. `Read`
+refuses, with a gripe, a schema with no key or no default column; a row whose
+key is empty or repeated is skipped with a gripe, and a row with more cells
+than columns is one too.
 
-**Where it lives.** In `PatTech.Localization.Authoring`, tested headless against
-the document model like everything else there (Architecture rules: the
-processing lives in Authoring, the ViewModels only gather intent). A format is
-three interfaces. `IWordsFormat` carries a descriptor — id, extensions, and a
-`WordsFeatures` flag of what it preserves; its direction is which of the other
-two it implements — and an `Init()` that hands back a `words.ini` fragment
-(below). `IWordsImporter` adds `Discover` and `Read`; `IWordsExporter` adds
-`Plan` and `Write`; a format that goes both ways — a *codec* — implements both,
-and the built-ins live under `PatTech.Localization.Authoring.Codecs`. A
-`FormatOptions` bag rides along for the formats that cannot be read until they
-are configured. The registry (`WordsFormats`) holds the formats, finds one by
-id or by a file's extension, and stacks their words.
+**The schema is the options, and it saves.** Everything the dialog settles is
+the `FormatOptions` bag — `header`, `delimiter`, `encoding`, `column.N=key`,
+`column.N=value-fr`, `code-pattern` — and a bag of key=value pairs is a
+words-syntax file, so a schema saves as `Strings.csv-schema.ini` beside the
+sheet and loads back into the dialog whole. A translator's tool that exports
+the same layout every time becomes a one-click import, and the same schema
+drives export, so a sheet sent out and the sheet coming back share it: the
+weaker round trip (Save never routes through it) made reliable for this
+format.
 
-**One load path.** `WordsSession.Load` gains a sibling taking an `ILoadedWords`
-— the surface `WordsParserToLocalizationProvider` already satisfies, and
-`LoadedWords` is for filling by hand — so an importer produces that surface and
-flows through the exact pipeline the ini loader does: label disambiguation
-(`strings`, `strings-2`), empty-key dropping, language backfill,
-reload-in-place. `WordsSession.Import` is `Read` then `Load` at the native path
-the importer names (below): the pick with the ini extension for a one-file
-format, the stem's — `Strings.ini` beside `Strings.*.resx` — for one file per
-culture. Importers inherit the whole of loading for free, and are tested the
-same way. On the way out, an `ExportSource` — the file, its tree and the
-session, refused on the same terms as Save — is what `Plan` and `Write` take:
-its keys in tree order, its language table, and what it uses of the model.
+**Export.** One sheet, the wide layout translators work in: a column for the
+key, the default, and one per language, with context and comment columns when
+the schema asks. Cells that need it are quoted. A leading `=`, `+`, `-` or
+`@` is Excel's formula, not text; whether to guard it (a `'` prefix, stripped
+on the way back in) is decided when a real value starts with one. No long
+layout — one row per key and language — until a tool asks for it.
 
-**Fan-in, fan-out.** A format is a *set* of streams, not one. `words.ini` is one
-file carrying every language; resx is one file per culture (`Strings.resx`,
-`Strings.fr.resx`); a spreadsheet is one file with a column per language. So
-import has `Discover` — pick `Strings.fr.resx` and it gathers the default and
-every `Strings.*.resx` beside it — and export has `Plan`, which turns one
-document into the set of files to write, one `ExportUnit` each, so the editor can
-confirm the file list and its overwrites before a byte lands. This is Merge and
-Split in another costume: a language maps to a file, which `WordsOperations`
-already models.
-
-**Each format brings its own words.** `Init()` returns a `words.ini` fragment,
-its languages declared with `!` labels so they stay off the editor's menu; the
-editor loads every registered format's, then its own `Resources/words.ini`,
-then digests (`WordsBuilder` stacks sources last-in-wins, so the editor's file
-loads last and a plugin never clobbers it). A format namespaces its keys
-`format.<id>.*` and its descriptor names its display string by *key*
-(`format.<id>.name`), not literal, so the Import and Export dropdowns are built
-from the registry and a new format's chrome arrives with it — localizable,
-analyzer-guarded, no hardcoded English (a lookup key is key-caps, not words).
-A format's *gripes* stay plain diagnostic strings, the `WordsFile.Errors`
-convention, not chrome.
-
-**Loss is declared, not suffered.** The Words model is a superset of what most
-formats hold, so export drops things — and says so, first. A format declares
-(`WordsFeatures`) what it preserves — the context and comment channels, key
-and per-language; parameters; stale marks and the review flag; constants;
-freeform comments; settings references. Values every format keeps, so they
-are not a feature. The loss preview (`format.Loses(source)`) is what *this*
-document actually uses minus what the format keeps, so it warns about
-parameters only when a key has them. `Read` reports what it dropped or guessed
-in the surface's `Errors`; `Write` takes a gripe list; both land behind the
-same gripes button the previews and load errors use.
-
-**Save never routes through it.** Import is one-way: the foreign file becomes an
-in-session `WordsFile` whose path is a native `.ini`, so Ctrl+S writes ini and
-the byte-stable fixed point (Round-trip guarantees) is untouched. Export is a
-separate, deliberate gesture — pick a format, a target, options; read the loss;
-write. Loss is always an act, never a side effect of saving. The weaker
-guarantee the foreign formats keep: import then export to the same format is
-stable for the fields that format carries; a foreign file taken through ini and
-back is normalized, the way a first load normalizes ini itself.
-
-**The built-ins.** `ini`, the native format written to the interface. `resx`: a
-file's `<comment>` is its language's context as provided — the neutral file to
-the key's context, each `Strings.xx.resx` to that language's entry context — and
-the translator-facing comment channels, which resx has no slot for, drop with a
-gripe. A constant keeps its `$` in the resource name and comes back a constant;
-a culture file carries only what is translated, since an empty satellite entry
-would shadow the default rather than fall back to it; typed and binary
-resources are skipped on the way in, with a gripe. `xliff` (1.2, the version the
-tools speak; 2.0 is refused with a gripe), the one that barely loses: one file
-per target language, `<source>`/`<target>` the default and the entry value, the
-four note channels `<note>`s told apart by `from` (developer, translator) and
-`annotates` (source, target), and the target state carrying what every other
-format throws away — an untranslated entry is `needs-translation`, a stale one
-`needs-review-translation` with its stale text in a Words-namespace attribute,
-the review flag `approved="no"`; a constant keeps its `$` and is
-`translate="no"`; parameters ride as Words extension elements. The default
-text being languageless while XLIFF insists on a `source-language`, the
-`source-language` option names it, `en` unless told otherwise. A spreadsheet
-importer waits until it earns its options dialog: an Excel export cannot be
-trusted to say which columns are even languages, and guessing wrong is worse
-than not reading it — it is the format that will prove the `FormatOptions` seam.
+**Where it lives.** The codec in Authoring, tested headless: `Sniff(path)`
+gives the first-guess options and `Preview(path, options, rows)` the grid,
+both public, so the editor's dialog view model stays thin and the tests drive
+the same calls. The dialog is the CSV codec's own for now; a generic options
+surface — a format declaring its option keys and their kinds — waits until a
+second format needs one.
 
 **Third-party formats.** A second repository, pinned as a submodule and
 PR-reviewed, compiled from source: no runtime loading, no signing, none of the
 trust surface a drop-in DLL would open. Each format assembly self-registers
-through one entry point the app calls at startup; changing the set is a rebuild,
-not a hot-swap. Runtime plugins stay a later question, and the interface is
-shaped so it could answer it without changing.
-
-**Surface.** Two commands beside Load and Save on `MainWindowViewModel` — Import
-(format from the extension or a picker, `Discover` then `Read` then
-`Session.Load`, presented in the tree) and Export (format, target, options;
-`Plan`, confirm, then `Write` each unit atomically). The captions and the loss
-preview live in `words.ini`; the format list comes from the registry.
-
-**Tests.** Every importer is tested through `ILoadedWords` the way the ini loader
-is tested through the parser: a fixture in, the document surface out, gripes
-pinned. Every exporter round-trips against itself — import, export, import, and
-the fields the format holds are unchanged — and the native fixed point is
-re-checked to prove Save still never touches a foreign writer.
+through one entry point the app calls at startup, into the registry
+`App.OnStartup` already builds; changing the set is a rebuild, not a hot-swap.
+Runtime plugins stay a later question, and the interface is shaped so it could
+answer it without changing.

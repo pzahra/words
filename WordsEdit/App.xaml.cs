@@ -13,13 +13,16 @@ public partial class App : Application {
 		//a greyed button still says what it would do: tooltips show on disabled
 		//controls everywhere, set before the first element exists
 		ToolTipService.ShowOnDisabledProperty.OverrideMetadata(typeof(FrameworkElement), new FrameworkPropertyMetadata(true));
+		//the formats the editor trades with: the built-ins, and whatever a
+		//third-party assembly's entry point registers here, at startup
+		WordsFormats formats = WordsFormats.BuiltIn();
 		//Wordsmith's own words, before the first {l:Words} resolves: --lang=xx on
 		//the command line, else the saved setting, else the OS language; what the
 		//parser gripes about goes where every runtime gripe goes
-		EditorWords.Load(EditorWords.StartupLanguage(e.Args), MainWindowViewModel.Gripes);
+		EditorWords.Load(EditorWords.StartupLanguage(e.Args), MainWindowViewModel.Gripes, formats);
 		base.OnStartup(e);
 
-		var viewModel = new MainWindowViewModel(new WpfDialogs());
+		var viewModel = new MainWindowViewModel(new WpfDialogs(), formats);
 		//every hyperlink the previews render lands here, whichever pane it is in
 		Hyperlink.RegisterGlobalNavigateHandler(viewModel.FollowLink);
 		foreach (string file in e.Args.Where(File.Exists)) {

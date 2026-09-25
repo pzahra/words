@@ -4,30 +4,44 @@ namespace PatTech.Localization.Authoring {
 	///     ones it keeps (<see cref="WordsFormatInfo.Features"/>), a document reports
 	///     the ones it uses (<see cref="ExportSource.Used"/>), and the difference is
 	///     the loss an export announces before a byte lands. Values — the default
-	///     and each language's — every format keeps, so they are not listed.
+	///     and each language's — every format keeps, so they are not listed. Each
+	///     feature names its words by key (<c>[Words]</c>, read by <c>Describe</c>):
+	///     the seam's own fragment carries the name, and a host's file, stacked
+	///     over it, may add the variants — the editor's <c>.sub</c> is how its
+	///     loss line phrases the feature.
 	/// </summary>
 	[Flags]
 	public enum WordsFeatures {
 		None = 0,
 		/// <summary>A key's <c>context=</c>: the programmer's note to the translator.</summary>
+		[Words("feature.context")]
 		Context = 1 << 0,
 		/// <summary>A key's <c>comment=</c>: the translator-facing channel.</summary>
+		[Words("feature.comment")]
 		Comment = 1 << 1,
 		/// <summary>A language entry's <c>context-xx=</c>.</summary>
+		[Words("feature.entry-context")]
 		EntryContext = 1 << 2,
 		/// <summary>A language entry's <c>comment-xx=</c>.</summary>
+		[Words("feature.entry-comment")]
 		EntryComment = 1 << 3,
 		/// <summary>Format parameters, <c>param-x=Type:sample</c>.</summary>
+		[Words("feature.parameters")]
 		Parameters = 1 << 4,
 		/// <summary>Per-language stale marks, <c>stale-xx=</c>.</summary>
+		[Words("feature.stale")]
 		Stale = 1 << 5,
 		/// <summary>The languageless review flag, <c>stale=</c>.</summary>
+		[Words("feature.needs-review")]
 		NeedsReview = 1 << 6,
 		/// <summary><c>[$constants]</c>: keys that read the same in every language.</summary>
+		[Words("feature.constants")]
 		Constants = 1 << 7,
 		/// <summary>Freeform <c>;</c> runs: the preamble, the trailer and the comments between blocks.</summary>
+		[Words("feature.free-comments")]
 		FreeComments = 1 << 8,
 		/// <summary>The settings-file references, <c>param=</c> and <c>param-xx=</c>.</summary>
+		[Words("feature.settings")]
 		Settings = 1 << 9,
 		/// <summary>Everything: what the native format keeps.</summary>
 		All = Context | Comment | EntryContext | EntryComment | Parameters | Stale | NeedsReview | Constants | FreeComments | Settings,

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using PatTech.Localization;
 using PatTech.Localization.Authoring;
+using PatTech.Utils;
 using WordsEdit.Utils;
 using WordsEdit.ViewModels;
 using Xunit;
@@ -27,6 +28,31 @@ public class EditorWordsTests {
 		Assert.Contains(EditorWords.Languages, language => language.Key == EditorWords.Fallback);
 		Assert.Equal(EditorWords.Fallback, EditorWords.Current); //as the module initializer left it
 		Assert.Equal("Wordsmith", Words.Known["app.name"]);
+	}
+
+	//the formats' words load under the editor's (SPEC: Import and export): a
+	//format's name resolves, and its !-labelled languages stay off the menu
+	[Fact]
+	public void TheFormatsWordsStackUnderTheEditors() {
+		Assert.Equal(".NET resources", Words.Known["format.resx.name"]);
+		Assert.Equal("Wordsmith", Words.Known["app.name"]);
+		Assert.All(EditorWords.Languages, language => Assert.False(language.Value.StartsWith('!')));
+	}
+
+	//a feature's name is the seam's, its loss phrasing (.sub) the editor's, and
+	//the two files stack: every flag has both (SPEC: Import and export — loss is
+	//declared, not suffered)
+	[Fact]
+	public void EveryFeatureHasANameAndALossPhrase() {
+		foreach (WordsFeatures flag in Enum.GetValues<WordsFeatures>()) {
+			if (flag is WordsFeatures.None or WordsFeatures.All) {
+				continue;
+			}
+			Assert.NotEmpty(FakeDialogs.Rendered(flag.Describe("G")));
+			Assert.NotEmpty(FakeDialogs.Rendered(flag.Describe("S")));
+		}
+		Assert.Equal("Context", WordsFeatures.Context.Describe());
+		Assert.Equal("key context", WordsFeatures.Context.Describe("S"));
 	}
 
 	[Fact]
@@ -122,20 +148,28 @@ public class EditorWordsTests {
 		@"\{l:Words\s+(?<key>[\w.$-]+)\s*\}|WordsInline\s+Key=""(?<key>[\w.$-]+)""|WordsConverter\},\s*ConverterParameter=(?<key>[\w.$-]+)|Words\.Known\[""(?<key>[\w.$-]+)""\]|Words\.Known\.Format(?:ByName)?\(""(?<key>[\w.$-]+)""",
 		RegexOptions.Compiled);
 
+	//[Words("key")] on an enum in the authoring layer: Describe reads the key and
+	//its variants (key.sub, key.tooltip, key.desc, key.unit), so the editor's file
+	//may add a variant the editor's source never names literally
+	private static readonly Regex rxAttributeKeys = new(@"\[Words\(""(?<key>[\w.$-]+)""\)\]", RegexOptions.Compiled);
+
 	[Fact]
 	public void TheSourceAndTheFileNameTheSameKeys() {
 		string source = SourceRoot();
 		var named = new Dictionary<string, string>(); //key → where it was seen first
-		foreach (string file in Directory.EnumerateFiles(source, "*.*", SearchOption.AllDirectories)) {
-			if (file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") || file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
-					|| Path.GetExtension(file) is not (".cs" or ".xaml")) {
-				continue;
-			}
+		foreach (string file in SourceFiles(source, ".cs", ".xaml")) {
 			foreach (Match match in rxSourceKeys.Matches(File.ReadAllText(file))) {
 				named.TryAdd(match.Groups["key"].Value, Path.GetRelativePath(source, file));
 			}
 		}
 		Assert.NotEmpty(named);
+		var attributed = new HashSet<string>();
+		foreach (string file in SourceFiles(Path.Combine(Path.GetDirectoryName(source)!, "Localization-Authoring"), ".cs")) {
+			foreach (Match match in rxAttributeKeys.Matches(File.ReadAllText(file))) {
+				attributed.Add(match.Groups["key"].Value);
+			}
+		}
+		Assert.NotEmpty(attributed);
 
 		//the keys as the editor reads them, the file label stripped
 		var vm = new MainWindowViewModel(new FakeDialogs());
@@ -143,9 +177,15 @@ public class EditorWordsTests {
 		var declared = vm.Session.Keys.Keys.Select(key => key["words.".Length..]).ToHashSet();
 		var missing = named.Where(pair => !declared.Contains(pair.Key)).Select(pair => $"{pair.Key} ({pair.Value})").Order().ToList();
 		Assert.True(missing.Count == 0, "named in the source, not in words.ini: " + string.Join(", ", missing));
-		var unused = declared.Where(key => !named.ContainsKey(key)).Order().ToList();
+		var unused = declared.Where(key => !named.ContainsKey(key) && !attributed.Any(basis => key.StartsWith(basis + '.'))).Order().ToList();
 		Assert.True(unused.Count == 0, "in words.ini, named nowhere: " + string.Join(", ", unused));
 	}
+
+	private static IEnumerable<string> SourceFiles(string root, params string[] extensions)
+		=> Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories).Where(file
+			=> !file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+			&& !file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
+			&& extensions.Contains(Path.GetExtension(file)));
 
 	//the tests run from their bin folder; the editor's source is a sibling of theirs
 	private static string SourceRoot() {

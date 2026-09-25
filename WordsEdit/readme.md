@@ -22,6 +22,10 @@ INI escape rules.
   reference.
 - **Merge** — combine per-language files into one multilingual file, as long
   as their key sets line up.
+- **Import and export** — read `.resx` sets and XLIFF 1.2 files into the tree
+  as the `words.ini` they become, and write a loaded file back out in either.
+  Export shows the files it will write and what the format has no slot for
+  before it writes a byte; Save keeps writing `words.ini`.
 - **Parameters** — try out `param-` values against the format string before a
   user finds out it throws.
 - **Round-trip saving** — files are written back in a stable, canonical format;

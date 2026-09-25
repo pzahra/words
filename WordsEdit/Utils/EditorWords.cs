@@ -24,9 +24,16 @@ public static class EditorWords {
 	/// <summary>The language <see cref="Words.Known"/> was last loaded in.</summary>
 	public static string Current { get; private set; } = "";
 
-	/// <summary>The file, parsed; <paramref name="logger"/> hears what the parser griped about.</summary>
-	public static WordsBuilder Builder(ITakeException? logger = null)
-		=> WordsBuilder.Create(logger).LoadResource(ResourceName, typeof(EditorWords).Assembly);
+	/// <summary>
+	///     The file, parsed, over every format's own words (SPEC: Import and
+	///     export — each format brings its own words): the formats load first and
+	///     the editor's file last, so the editor's words win. <paramref name="logger"/>
+	///     hears what the parser griped about.
+	/// </summary>
+	/// <param name="logger">Where the parser's gripes go.</param>
+	/// <param name="formats">The formats whose words come along; the built-ins when unsaid.</param>
+	public static WordsBuilder Builder(ITakeException? logger = null, WordsFormats? formats = null)
+		=> (formats ?? WordsFormats.BuiltIn()).LoadWords(WordsBuilder.Create(logger)).LoadResource(ResourceName, typeof(EditorWords).Assembly);
 
 	/// <summary>The file's text as embedded, for the round trip through the editor.</summary>
 	public static string Text() {
@@ -41,8 +48,8 @@ public static class EditorWords {
 	///     resolves in it and the thread cultures follow. A code no culture answers
 	///     to loads <see cref="Fallback"/> instead.
 	/// </summary>
-	public static void Load(string languageCode, ITakeException? logger = null) {
-		WordsBuilder builder = Builder(logger);
+	public static void Load(string languageCode, ITakeException? logger = null, WordsFormats? formats = null) {
+		WordsBuilder builder = Builder(logger, formats);
 		Languages = [.. builder.GetLanguages()];
 		try {
 			builder.Digest(languageCode);

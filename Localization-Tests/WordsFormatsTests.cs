@@ -1,5 +1,6 @@
 using PatTech.Localization.Authoring;
 using PatTech.Localization.Authoring.Codecs;
+using PatTech.Utils;
 using Xunit;
 
 namespace PatTech.Localization.Tests;
@@ -255,5 +256,17 @@ value-fr=Ouvrir
 		Assert.Equal(".NET resources", stacked["format.resx.name"]);
 		Assert.Equal("XLIFF 1.2", stacked["format.xliff.name"]);
 		Assert.Empty(WordsFormats.BuiltIn().LoadWords(WordsBuilder.Create()).GetLanguages());
+
+		//the seam's own words come first: every feature names itself by key, and the name is there
+		Assert.Equal("Context", stacked["feature.context"]);
+		Assert.Equal("Translator comment", WordsFeatures.Comment.Describe("G", stacked));
+		foreach (WordsFeatures flag in Enum.GetValues<WordsFeatures>()) {
+			if (flag is WordsFeatures.None or WordsFeatures.All) {
+				continue;
+			}
+			WordsAttribute? attribute = flag.GetEnumMemberAttribute<WordsAttribute>();
+			Assert.NotNull(attribute);
+			Assert.True(stacked.TryGetValue(attribute.Key, out _), $"{flag}: no words at {attribute.Key}");
+		}
 	}
 }
