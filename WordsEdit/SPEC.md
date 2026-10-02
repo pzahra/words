@@ -151,9 +151,10 @@ flags — constant (only a leaf directly under a file), and needs-review
   values through `Format` to prove the placeholders work before shipping.
   `{>reference}` and `{$constant}` tokens work across files for this purpose,
   simulating a host app loading multiple dictionaries. The Test Parameters
-  dialog shows the formatted result as the samples are edited — or why they
-  will not format; its edits land in the key as they are made, and Close
-  only closes.
+  window is a table of name, type and sample with a trash on each row and a +
+  under them, and shows the formatted result as the samples are edited — or
+  why they will not format; its edits land in the key as they are made, and
+  Close only closes.
 - **Stale-all-languages**: one action for "I changed the default, every
   translation needs another look".
 
