@@ -173,6 +173,13 @@ with a toggle that sets and clears it), and the markdown preview.
 - Changing the dropdown re-contextualizes the whole window: tree badges and
   empty-value emphasis refresh to the new language (file by file — see
   Badges), and the stale filter re-evaluates against it.
+- **Spelling**, in both panes: a box checks its text once it has the focus
+  and stops when a new node's text arrives, so moving through the tree never
+  waits on the speller (seconds per kilobyte of markdown). The translation
+  boxes check in the selected language's dictionary, the baseline's in the
+  system's. A light beside the language comes on when this system has no
+  spell checker for it, since the speller would otherwise check against
+  nothing and say so to nobody.
 
 ## Markdown previews
 

@@ -233,7 +233,7 @@
                         <TextBox Text="{Binding Tree.SelectedKey.Context, UpdateSourceTrigger=PropertyChanged}" 
                                  TextWrapping="Wrap"
                                  AcceptsReturn="True"
-                                 SpellCheck.IsEnabled="True"
+                                 uc:Spelling.WhenEditing="True"
                                  TextAlignment="Left"
                                  Margin="2.5px"/>
                     </Border>
@@ -250,7 +250,7 @@
                         <TextBox Text="{Binding Tree.SelectedKey.Comment, UpdateSourceTrigger=PropertyChanged}"
                                  TextWrapping="Wrap"
                                  AcceptsReturn="True"
-                                 SpellCheck.IsEnabled="True"
+                                 uc:Spelling.WhenEditing="True"
                                  TextAlignment="Left"
                                  Margin="2.5px"/>
                     </Border>
@@ -268,7 +268,7 @@
                         <TextBox Text="{Binding Tree.SelectedOrganizer.Text, UpdateSourceTrigger=PropertyChanged}"
                                  TextWrapping="Wrap"
                                  AcceptsReturn="True"
-                                 SpellCheck.IsEnabled="True"
+                                 uc:Spelling.WhenEditing="True"
                                  TextAlignment="Left"
                                  MinHeight="80"
                                  Margin="2.5px"/>
@@ -334,7 +334,7 @@
                                  AcceptsReturn="True"
                                  TextWrapping="Wrap"
                                  TextAlignment="Left"
-                                 SpellCheck.IsEnabled="True"
+                                 uc:Spelling.WhenEditing="True"
                                  Visibility="{Binding ShowDefaultPreview, Converter={StaticResource IsFalse}}"
                                  Margin="2.5px"/>
                         <ScrollViewer VerticalScrollBarVisibility="Auto"
@@ -349,14 +349,25 @@
                     </Grid>
                 </Border>
             </Grid>
-            <!-- the languages (SPEC: the translation pane): the manager, and the one selected as a combo box, from the table -->
-            <ToolBar Grid.Column="2"
-                     Grid.Row="0"
-                     ItemsSource="{Binding Commands.LanguageTools}"
-                     ToolBarTray.IsLocked="True"
-                     Background="Transparent"
-                     Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
-                     Margin="3 0"/>
+            <!-- the languages (SPEC: the translation pane): the manager, and the one selected as a combo box, from the
+                 table; beside them the light that comes on when this system has no spell checker for the language -->
+            <StackPanel Grid.Column="2"
+                        Grid.Row="0"
+                        Orientation="Horizontal"
+                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}">
+                <ToolBar ItemsSource="{Binding Commands.LanguageTools}"
+                         ToolBarTray.IsLocked="True"
+                         Background="Transparent"
+                         Margin="3 0"/>
+                <md:PackIcon Kind="Spellcheck"
+                             Foreground="{StaticResource WordsmithOrangeBrush}"
+                             ToolTip="{Binding SpellCheckerNote}"
+                             Visibility="{Binding SpellCheckerMissing, Converter={StaticResource BooleanToVisibilityConverter}}"
+                             VerticalAlignment="Center"
+                             Width="20"
+                             Height="20"
+                             Margin="2 0"/>
+            </StackPanel>
             <ScrollViewer Grid.Column="2"
                           Grid.Row="1"
                           VerticalScrollBarVisibility="Auto"
@@ -375,7 +386,8 @@
                                  TextWrapping="Wrap"
                                  TextAlignment="Left"
                                  AcceptsReturn="True"
-                                 SpellCheck.IsEnabled="True"
+                                 uc:Spelling.WhenEditing="True"
+                                 uc:Spelling.Language="{Binding Tree.SelectedLanguage.Code}"
                                  Margin="2.5px"/>
                     </Border>
                     <TextBlock Text="{l:Words main.translation-comment}"
@@ -391,7 +403,8 @@
                                  TextWrapping="Wrap"
                                  TextAlignment="Left"
                                  AcceptsReturn="True"
-                                 SpellCheck.IsEnabled="True"
+                                 uc:Spelling.WhenEditing="True"
+                                 uc:Spelling.Language="{Binding Tree.SelectedLanguage.Code}"
                                  Margin="2.5px"/>
                     </Border>
                 </StackPanel>
@@ -463,7 +476,8 @@
                                  VerticalScrollBarVisibility="Auto"
                                  AcceptsReturn="True"
                                  TextAlignment="Left"
-                                 SpellCheck.IsEnabled="True"
+                                 uc:Spelling.WhenEditing="True"
+                                 uc:Spelling.Language="{Binding Tree.SelectedLanguage.Code}"
                                  Visibility="{Binding ShowLocalizationPreview, Converter={StaticResource IsFalse}}"
                                  Margin="2.5px"/>
                         <ScrollViewer VerticalScrollBarVisibility="Auto"

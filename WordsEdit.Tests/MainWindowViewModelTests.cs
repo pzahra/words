@@ -180,6 +180,22 @@ value-de=n={0:N1}
 	}
 
 	[Fact]
+	public void TheSpellCheckerLightFollowsTheLanguage() {
+		//the light is on while this system cannot spell-check the selected language
+		var vm = new MainWindowViewModel(new FakeDialogs(), spellCheckers: code => code.StartsWith("en"));
+		vm.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
+		List<string?> raised = [];
+		vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+		Assert.Equal("en", vm.Tree.SelectedLanguage.Code);
+		Assert.False(vm.SpellCheckerMissing);
+
+		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.First(l => l.Code == "zh");
+		Assert.True(vm.SpellCheckerMissing);
+		Assert.Contains(nameof(MainWindowViewModel.SpellCheckerMissing), raised);
+		Assert.Contains(vm.Tree.SelectedLanguage.NativeName, FakeDialogs.Rendered(vm.SpellCheckerNote));
+	}
+
+	[Fact]
 	public void MainWindowViewModel_PreviewResolvesReferencesAcrossFiles() {
 		// SPEC (baseline pane): {>reference} works across files, simulating a host
 		// app loading several dictionaries

@@ -47,6 +47,12 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public bool ShowLocalizationPreview { get; set => _ = ChangeProperty(ref field, value) && RenderPreviews() && Commands.Refresh(); }
 	public PreviewPane DefaultPreview { get; } = new();
 	public PreviewPane TranslationPreview { get; } = new();
+
+	//the light beside the language (SPEC: the translation pane): Windows has no
+	//dictionary for it, so the speller checks its boxes against nothing, silently
+	public bool SpellCheckerMissing => !spellCheckers(Tree.SelectedLanguage.Code);
+	[Localized]
+	public string SpellCheckerNote => Words.Known.Format("main.no-spell-checker", Tree.SelectedLanguage.NativeName);
 	/// <summary>Where the runtime's gripes go: heard by whichever render is under way, dropped otherwise.</summary>
 	public static GripeCollector Gripes { get; } = new();
 
@@ -86,10 +92,13 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	//how the editor asks and tells: modal windows in the app, a fake in tests
 	public IDialogs Dialogs { get; }
+	//whether this system can spell-check a language: Windows's answer, or a test's
+	private readonly Func<string, bool> spellCheckers;
 
-	public MainWindowViewModel(IDialogs? dialogs = null, WordsFormats? formats = null) {
+	public MainWindowViewModel(IDialogs? dialogs = null, WordsFormats? formats = null, Func<string, bool>? spellCheckers = null) {
 		Dialogs = dialogs ?? new WpfDialogs();
 		Formats = formats ?? WordsFormats.BuiltIn();
+		this.spellCheckers = spellCheckers ?? SpellCheckers.IsInstalled;
 		Tree = new TreeViewModel(Session);
 		Tree.Edited += () => {
 			MarkDirty();
@@ -135,6 +144,10 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Tree.PropertyChanged += (_, e) => {
 			if (e.PropertyName is nameof(TreeViewModel.SelectedKey) or nameof(TreeViewModel.SelectedEntry) or nameof(TreeViewModel.SelectedLanguage)) {
 				RenderPreviews();
+			}
+			if (e.PropertyName is nameof(TreeViewModel.SelectedLanguage)) {
+				AffectProperty(nameof(SpellCheckerMissing));
+				AffectProperty(nameof(SpellCheckerNote));
 			}
 			Commands.Refresh(); //a filter or a selection changed under a toggle's row
 		};
