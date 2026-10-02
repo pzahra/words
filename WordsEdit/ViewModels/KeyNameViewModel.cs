@@ -59,6 +59,8 @@ public class KeyNameViewModel : DataViewModelBase, IDialogViewModel {
 
 	public event Action? CloseRequested;
 	private void Close() => CloseRequested?.Invoke();
+	public void Closed() {
+	}
 
 	private static readonly Regex rxValidName = new(@"^\w[\w-]*$");
 	protected override bool Validate([CallerMemberName] string? propertyName = null) {

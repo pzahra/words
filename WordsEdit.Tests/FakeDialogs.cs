@@ -38,6 +38,7 @@ public sealed class FakeDialogs : IDialogs {
 		Rendered(dialog.Title);
 		Shown.Add(dialog);
 		OnShow?.Invoke(dialog);
+		dialog.Closed(); //the window has gone, as it does after any modal
 	}
 
 	public bool Confirm(string message) {

@@ -20,6 +20,7 @@ public partial class DialogWindow : Window {
 
 	protected override void OnClosed(EventArgs e) {
 		dialog.CloseRequested -= Close;
+		dialog.Closed(); //Escape and the title bar's X close without the view model's say
 		base.OnClosed(e);
 	}
 

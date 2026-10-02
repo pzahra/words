@@ -2,7 +2,8 @@ namespace WordsEdit.ViewModels;
 
 /// <summary>
 ///     A view model that lives in its own modal window. The window shows it,
-///     picks a view for it by type, and closes when it calls <see cref="Close"/>.
+///     picks a view for it by type, closes when it calls <see cref="Close"/>,
+///     and tells it through <see cref="Closed"/> when it has closed either way.
 /// </summary>
 public abstract class DialogViewModel : ViewModelBase, IDialogViewModel {
 	/// <summary>The window title.</summary>
@@ -14,4 +15,8 @@ public abstract class DialogViewModel : ViewModelBase, IDialogViewModel {
 
 	/// <summary>Done: ask the hosting window to close.</summary>
 	protected void Close() => CloseRequested?.Invoke();
+
+	/// <summary>The window has closed; a dialog watching the document lets go here.</summary>
+	public virtual void Closed() {
+	}
 }

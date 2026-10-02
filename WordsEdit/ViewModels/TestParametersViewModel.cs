@@ -10,7 +10,8 @@ namespace WordsEdit.ViewModels;
 /// <summary>
 ///     The key's parameters — name, sample value, type — and the default they
 ///     format into, live: what the previews will show, or why they will not.
-///     Every edit lands in the document as it is made; Close just closes.
+///     Every edit lands in the document as it is made; Close just closes, and
+///     the window closing, however it closes, lets go of the key.
 /// </summary>
 public class TestParametersViewModel : DialogViewModel {
 	private readonly WordsKey key;
@@ -35,7 +36,7 @@ public class TestParametersViewModel : DialogViewModel {
 		ArgumentNullException.ThrowIfNull(key);
 		this.key = key;
 		Parent = parent;
-		CloseCommand = new DelegateCommand(DoClose);
+		CloseCommand = new DelegateCommand(Close);
 		AddParameterCommand = new DelegateCommand(DoAddParameter);
 		RemoveParameterCommand = new DelegateCommand<WordsParameter>(DoRemoveParameter, CanRemoveParameter);
 		//the collection is the key's own: any edit to a row, or the row set, is a
@@ -92,11 +93,10 @@ public class TestParametersViewModel : DialogViewModel {
 	private bool CanRemoveParameter(WordsParameter p) => p is not null;
 	private void DoRemoveParameter(WordsParameter p) => Parameters.Remove(p);
 
-	private void DoClose() {
+	public override void Closed() {
 		Parameters.CollectionChanged -= OnParametersChanged;
 		foreach (var parameter in Parameters) {
 			parameter.PropertyChanged -= OnParameterEdited;
 		}
-		Close();
 	}
 }

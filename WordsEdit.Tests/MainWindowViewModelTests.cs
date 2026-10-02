@@ -1036,6 +1036,24 @@ value=x
 	}
 
 	[Fact]
+	public void TestParameters_LetsGoOfTheKeyWhenItsWindowCloses() {
+		//the window closed without Close being pressed (Escape, the X): the dialog
+		//stops following the key's parameters all the same
+		var dialogs = new FakeDialogs();
+		var vm = new MainWindowViewModel(dialogs);
+		vm.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
+		vm.Tree.SelectedKey!.DefaultValue = "Base {0:N1}";
+		TestParametersViewModel? dialog = null;
+		dialogs.OnShow = shown => dialog = (TestParametersViewModel)shown;
+		vm.TestParametersCommand.Execute(vm.Tree.SelectedKey);
+		Assert.Equal("Base 22.0", dialog!.Result);
+
+		vm.Tree.SelectedKey.Parameters[0].Value = "7";
+		Assert.Equal("Base 22.0", dialog.Result); //not heard
+	}
+
+	[Fact]
 	public void MainWindowViewModel_CommentsAreTheirOwnIdentity() {
 		// a comment's label is a synthetic marker the writer ignores; after the
 		// parent is renamed every comment under it carries the same one, and
