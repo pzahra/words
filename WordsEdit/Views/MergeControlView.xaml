@@ -9,75 +9,57 @@
              d:DesignHeight="450" d:DesignWidth="800"
              d:DataContext="{d:DesignInstance vm:MergeControlViewModel}"
              MinWidth="700"
-             Padding="2.5px">
+             Padding="10">
+    <!-- the Merge window (SPEC: Merge): the files taking part at the left, each with the languages it
+         supplies; every loaded file at the right, ticked to take part; the split the other way below -->
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="IsTrue"/>
     </UserControl.Resources>
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <StackPanel>
+        <TextBlock Text="{Binding Title, Mode=OneWay}"
+                   FontWeight="Bold"
+                   FontSize="16"
+                   Margin="2.5px"/>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-        <!-- Left Side: the files taking part, each with the languages it supplies -->
-        <Grid Grid.Column="0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*"    />
-            </Grid.RowDefinitions>
+            <StackPanel Grid.Column="0" Margin="0 0 10 0">
+                <TextBlock Text="{l:Words merge.files}" FontWeight="SemiBold" Margin="2.5px"/>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MinHeight="150" MaxHeight="350">
+                    <ItemsControl ItemsSource="{Binding Selected}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="2.5px 2.5px 2.5px 8px">
+                                    <DockPanel>
+                                        <RadioButton Content="{l:Words merge.base}"
+                                                     GroupName="BaseFileGroup"
+                                                     IsChecked="{Binding IsBase}"
+                                                     DockPanel.Dock="Right"/>
+                                        <TextBlock Text="{Binding Label}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    </DockPanel>
+                                    <Expander Header="{l:Words merge.languages}" IsExpanded="False">
+                                        <ItemsControl ItemsSource="{Binding Languages}" Margin="30 0 0 0">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <CheckBox IsChecked="{Binding IsSelected}" Content="{Binding Name}" Margin="0 2"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Expander>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </StackPanel>
 
-            <TextBlock Text="{l:Words merge.files}" FontSize="16" FontWeight="Bold" Margin="10" />
-            <ScrollViewer VerticalScrollBarVisibility="Auto" Grid.Row="1" MinHeight="150" MaxHeight="350">
-                <ItemsControl ItemsSource="{Binding Selected}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Margin="10">
-                                <DockPanel>
-                                    <RadioButton Content="{l:Words merge.base}"
-                                                 GroupName="BaseFileGroup"
-                                                 IsChecked="{Binding IsBase}"
-                                                 DockPanel.Dock="Right"
-                                                 HorizontalAlignment="Right"/>
-                                    <TextBlock Text="{Binding Label}" FontSize="14" FontWeight="Bold" />
-                                </DockPanel>
-                                <Expander Header="{l:Words merge.languages}" IsExpanded="False">
-                                    <ItemsControl ItemsSource="{Binding Languages}" Margin="30 0 0 0">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <CheckBox IsChecked="{Binding IsSelected}" Content="{Binding Name}" Margin="0 2"/>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </Expander>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
-        </Grid>
-
-        <!-- Right Side: every loaded file, ticked to take part -->
-        <Grid Grid.Column="1">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto"    />
-            </Grid.RowDefinitions>
-
-            <TextBlock Text="{l:Words merge.available}" FontSize="16" FontWeight="Bold" Margin="10"  Grid.Row="0"/>
-
-            <Grid Grid.Row="1">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Grid.Row="0" MaxHeight="250">
-                    <ItemsControl ItemsSource="{Binding Files}" Margin="10 0">
+            <StackPanel Grid.Column="1" Margin="10 0 0 0">
+                <TextBlock Text="{l:Words merge.available}" FontWeight="SemiBold" Margin="2.5px"/>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="250">
+                    <ItemsControl ItemsSource="{Binding Files}" Margin="2.5px">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <CheckBox IsChecked="{Binding IsSelected}" Content="{Binding Label}" Margin="0 2"/>
@@ -85,29 +67,44 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
-
-                <!-- Warning Message -->
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Grid.Row="1" MaxHeight="200" Visibility="{Binding HasConflict,Converter={StaticResource IsTrue}}">
-                    <TextBlock Text="{Binding ConflictMessage}" Foreground="Red" Margin="5" TextWrapping="Wrap"/>
+                <!-- the ticked files do not share their keys -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              MaxHeight="200"
+                              Visibility="{Binding HasConflict, Converter={StaticResource IsTrue}}">
+                    <TextBlock Text="{Binding ConflictMessage}"
+                               Foreground="{DynamicResource MaterialDesignValidationErrorBrush}"
+                               TextWrapping="Wrap"
+                               Margin="2.5px"/>
                 </ScrollViewer>
-            </Grid>
-            <!-- Bottom: Buttons -->
-            <StackPanel Orientation="Horizontal" Grid.Row="2" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,20,0,0">
-                <Button Content="{l:Words merge.merge}" Command="{Binding MergeCommand}" IsEnabled="{Binding CanMerge}" Width="100" Height="40" Margin="5"/>
-                <Button Content="{l:Words dialog.cancel}" Command="{Binding CancelCommand}" Width="100" Height="40" Margin="5" />
             </StackPanel>
         </Grid>
 
-        <!-- Split: the other direction — one language of one file, written on its own for a translator -->
-        <GroupBox Header="{l:Words merge.split}" Grid.Row="1" Grid.ColumnSpan="2" Margin="10 10 10 0" Padding="5">
-            <DockPanel>
-                <Button DockPanel.Dock="Right" Content="{l:Words merge.split-button}" Command="{Binding SplitCommand}" Width="100" Height="40" Margin="5"
-                        ToolTip="{l:Words merge.split-tip}"/>
-                <TextBlock Text="{l:Words merge.file}" VerticalAlignment="Center" Margin="5 0"/>
-                <ComboBox ItemsSource="{Binding Files}" SelectedItem="{Binding SplitFile}" DisplayMemberPath="Label" MinWidth="160" Margin="5"/>
-                <TextBlock Text="{l:Words merge.language}" VerticalAlignment="Center" Margin="10 0 5 0"/>
-                <ComboBox ItemsSource="{Binding SplitLanguages}" SelectedItem="{Binding SplitLanguage}" DisplayMemberPath="EnglishName" MinWidth="160" Margin="5"/>
-            </DockPanel>
-        </GroupBox>
-    </Grid>
+        <!-- the other direction: one language of one file, written on its own for a translator -->
+        <TextBlock Text="{l:Words merge.split}" FontWeight="SemiBold" Margin="2.5px 10px 2.5px 2.5px"/>
+        <DockPanel Margin="2.5px" LastChildFill="False">
+            <Button DockPanel.Dock="Right"
+                    Content="{l:Words merge.split-button}"
+                    Command="{Binding SplitCommand}"
+                    ToolTip="{l:Words merge.split-tip}"
+                    MinWidth="80"
+                    Margin="10 0 0 0"/>
+            <TextBlock Text="{l:Words merge.file}" VerticalAlignment="Center" Margin="0 0 5 0"/>
+            <ComboBox ItemsSource="{Binding Files}" SelectedItem="{Binding SplitFile}" DisplayMemberPath="Label" MinWidth="160" Margin="0 0 10 0"/>
+            <TextBlock Text="{l:Words merge.language}" VerticalAlignment="Center" Margin="0 0 5 0"/>
+            <ComboBox ItemsSource="{Binding SplitLanguages}" SelectedItem="{Binding SplitLanguage}" DisplayMemberPath="EnglishName" MinWidth="160"/>
+        </DockPanel>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 10 0 0">
+            <Button Content="{l:Words merge.merge}"
+                    Command="{Binding MergeCommand}"
+                    IsEnabled="{Binding CanMerge}"
+                    IsDefault="True"
+                    MinWidth="80"
+                    Margin="2.5px"/>
+            <Button Content="{l:Words dialog.cancel}"
+                    Command="{Binding CancelCommand}"
+                    MinWidth="80"
+                    Margin="2.5px"/>
+        </StackPanel>
+    </StackPanel>
 </UserControl>

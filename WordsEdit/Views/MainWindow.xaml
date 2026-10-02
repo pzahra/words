@@ -157,7 +157,7 @@
                                             CommandParameter="{Binding}"
                                             Visibility="{Binding GripeCount, Converter={StaticResource NotZeroToVisibilityConverter}}"
                                             Style="{StaticResource MaterialDesignFlatButton}"
-                                            Foreground="DarkOrange"
+                                            Foreground="{StaticResource WordsmithOrangeBrush}"
                                             Padding="2 0"
                                             Height="20"
                                             MinWidth="0"
@@ -171,10 +171,10 @@
                                     <md:PackIcon Kind="TranslateOff" 
                                                  Visibility="{Binding IsConstant, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                     <md:PackIcon Kind="HandFrontLeft" 
-                                                 Foreground="Blue"
+                                                 Foreground="{StaticResource WordsmithBlueBrush}"
                                                  Visibility="{Binding NeedsReview, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                     <md:PackIcon Kind="ClockAlert" 
-                                                 Foreground="Blue"
+                                                 Foreground="{StaticResource WordsmithBlueBrush}"
                                                  Visibility="{Binding IsStale, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                     <md:PackIcon Kind="Eraser" 
                                                  Visibility="{Binding IsOverwritten, Converter={StaticResource BooleanToVisibilityConverter}}"/>
@@ -229,7 +229,7 @@
                     <Border CornerRadius="3" 
                             BorderThickness="1" 
                             Margin="0 0 30px 2.5px" 
-                            BorderBrush="Green">
+                            BorderBrush="{DynamicResource PrimaryHueLightBrush}">
                         <TextBox Text="{Binding Tree.SelectedKey.Context, UpdateSourceTrigger=PropertyChanged}" 
                                  TextWrapping="Wrap"
                                  AcceptsReturn="True"
@@ -246,7 +246,7 @@
                     <Border CornerRadius="3" 
                             BorderThickness="1" 
                             Margin="30px 0 0 2.5px" 
-                            BorderBrush="Black">
+                            BorderBrush="{DynamicResource MaterialDesignBody}">
                         <TextBox Text="{Binding Tree.SelectedKey.Comment, UpdateSourceTrigger=PropertyChanged}"
                                  TextWrapping="Wrap"
                                  AcceptsReturn="True"
@@ -264,7 +264,7 @@
                     <Border CornerRadius="3"
                             BorderThickness="1"
                             Margin="0 0 30px 2.5px"
-                            BorderBrush="Gray">
+                            BorderBrush="{DynamicResource MaterialDesignDivider}">
                         <TextBox Text="{Binding Tree.SelectedOrganizer.Text, UpdateSourceTrigger=PropertyChanged}"
                                  TextWrapping="Wrap"
                                  AcceptsReturn="True"
@@ -312,7 +312,7 @@
                                 CommandParameter="{Binding DefaultPreview}"
                                 Style="{StaticResource MaterialDesignFlatButton}"
                                 ToolTip="{l:Words main.preview-gripes}"
-                                Foreground="DarkOrange"
+                                Foreground="{StaticResource WordsmithOrangeBrush}"
                                 Content="{md:PackIcon Kind=AlertCircleOutline, Size=24}"
                                 Padding="4 0"
                                 Margin="2.5px" />
@@ -381,7 +381,7 @@
                     <Border CornerRadius="3" 
                             BorderThickness="1" 
                             Margin="0 0 30px 2.5px" 
-                            BorderBrush="Green">
+                            BorderBrush="{DynamicResource PrimaryHueLightBrush}">
                         <TextBox Text="{Binding Tree.SelectedEntry.Context, UpdateSourceTrigger=PropertyChanged}"
                                  TextWrapping="Wrap"
                                  TextAlignment="Left"
@@ -398,7 +398,7 @@
                     <Border CornerRadius="3" 
                             BorderThickness="1" 
                             Margin="30px 0 0 2.5px" 
-                            BorderBrush="Black">
+                            BorderBrush="{DynamicResource MaterialDesignBody}">
                         <TextBox Text="{Binding Tree.SelectedEntry.Comment, UpdateSourceTrigger=PropertyChanged}"
                                  TextWrapping="Wrap"
                                  TextAlignment="Left"
@@ -454,7 +454,7 @@
                             CommandParameter="{Binding TranslationPreview}"
                             Style="{StaticResource MaterialDesignFlatButton}"
                             ToolTip="{l:Words main.preview-gripes}"
-                            Foreground="DarkOrange"
+                            Foreground="{StaticResource WordsmithOrangeBrush}"
                             Content="{md:PackIcon Kind=AlertCircleOutline, Size=24}"
                             Padding="4 0"
                             Margin="2.5px" />

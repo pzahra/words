@@ -26,9 +26,13 @@ today; that last part describes what it does not do yet.
 - The main window is three panes: **tree** (left), **baseline** (middle),
   **translation** (right).
 - Dialogs are tool windows: one shell (`DialogWindow`), resizable, close
-  only, centred on the owner. A dialog does not open another dialog; a nested
-  step is a pane of the window that needs it (the language editor). A report
-  after the fact (the export's gripes) is the one exception.
+  only, centred on the owner, and one look — a heading, fields under their
+  labels, lists with a trash on each row and a + beneath, the buttons at the
+  right with the default first. The shell tells the view model when the
+  window has closed, however it closed, so a dialog watching the document
+  lets go. A dialog does not open another dialog; a nested step is a pane of
+  the window that needs it (the language editor). A report after the fact
+  (the export's gripes) is the one exception.
 
 ## The document
 

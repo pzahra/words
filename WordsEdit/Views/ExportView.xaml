@@ -8,7 +8,7 @@
              xmlns:vm="clr-namespace:WordsEdit.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:ExportViewModel}"
-             Padding="10px">
+             Padding="10">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="IsTrue" />
     </UserControl.Resources>
@@ -51,7 +51,7 @@
                         <StackPanel Orientation="Horizontal" Margin="0 2">
                             <md:PackIcon Kind="FileOutline" VerticalAlignment="Center" Margin="0 0 4 0"/>
                             <TextBlock Text="{Binding Path}" VerticalAlignment="Center"/>
-                            <TextBlock Text="{l:Words export.exists}" Foreground="DarkOrange" Margin="6 0 0 0" VerticalAlignment="Center"
+                            <TextBlock Text="{l:Words export.exists}" Foreground="{StaticResource WordsmithOrangeBrush}" Margin="6 0 0 0" VerticalAlignment="Center"
                                        Visibility="{Binding Exists, Converter={StaticResource IsTrue}}"/>
                         </StackPanel>
                     </DataTemplate>
@@ -59,9 +59,9 @@
             </ItemsControl>
         </StackPanel>
 
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 20 0 0">
-            <Button Content="{l:Words export.export}" Command="{Binding ExportCommand}" IsEnabled="{Binding CanExport}" Width="100" Height="40" Margin="5"/>
-            <Button Content="{l:Words dialog.cancel}" Command="{Binding CancelCommand}" Width="100" Height="40" Margin="5"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 10 0 0">
+            <Button Content="{l:Words export.export}" Command="{Binding ExportCommand}" IsEnabled="{Binding CanExport}" IsDefault="True" MinWidth="80" Margin="2.5px"/>
+            <Button Content="{l:Words dialog.cancel}" Command="{Binding CancelCommand}" MinWidth="80" Margin="2.5px"/>
         </StackPanel>
     </StackPanel>
 </UserControl>

@@ -9,7 +9,9 @@
              xmlns:vm="clr-namespace:WordsEdit.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:SettingsViewModel}"
-             Padding="10px">
+             Padding="10">
+    <!-- the Settings window (SPEC: Markdown previews): the settings file per language, then the
+         rules of one of them — a trash on each row, a + under the list -->
     <UserControl.Resources>
         <md:NullableToVisibilityConverter x:Key="IsNotNull" />
         <BooleanToVisibilityConverter x:Key="IsTrue" />
@@ -63,9 +65,13 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <DockPanel Margin="0 2.5">
-                            <Button DockPanel.Dock="Right" Width="36" Margin="5 0 0 0" ToolTip="{l:Words settings.remove-rule}"
+                            <Button DockPanel.Dock="Right"
                                     Command="{Binding DataContext.RemoveImageCommand, RelativeSource={uc:FindAncestor ItemsControl}}"
-                                    CommandParameter="{Binding}">
+                                    CommandParameter="{Binding}"
+                                    ToolTip="{l:Words settings.remove-rule}"
+                                    Style="{StaticResource ToolButton}"
+                                    VerticalAlignment="Top"
+                                    Margin="5 0 0 0">
                                 <md:PackIcon Kind="Delete"/>
                             </Button>
                             <TextBox Text="{Binding Scheme, UpdateSourceTrigger=PropertyChanged}" Width="90" md:HintAssist.Hint="{l:Words settings.scheme}" VerticalAlignment="Top"/>
@@ -75,7 +81,13 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <Button Content="{l:Words settings.add-image}" Command="{Binding AddImageCommand}" HorizontalAlignment="Left" Margin="2.5px"/>
+            <Button Command="{Binding AddImageCommand}"
+                    ToolTip="{l:Words settings.add-image}"
+                    Style="{StaticResource ToolButton}"
+                    HorizontalAlignment="Left"
+                    Margin="2.5px">
+                <md:PackIcon Kind="Plus"/>
+            </Button>
 
             <TextBlock Text="[hyperlinks]" FontWeight="SemiBold" Margin="2.5px 8px 2.5px 0"/>
             <TextBlock TextWrapping="Wrap" Margin="2.5px" Opacity="0.7"
@@ -84,9 +96,13 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <DockPanel Margin="0 2.5">
-                            <Button DockPanel.Dock="Right" Width="36" Margin="5 0 0 0" ToolTip="{l:Words settings.remove-rule}"
+                            <Button DockPanel.Dock="Right"
                                     Command="{Binding DataContext.RemoveLinkCommand, RelativeSource={uc:FindAncestor ItemsControl}}"
-                                    CommandParameter="{Binding}">
+                                    CommandParameter="{Binding}"
+                                    ToolTip="{l:Words settings.remove-rule}"
+                                    Style="{StaticResource ToolButton}"
+                                    VerticalAlignment="Top"
+                                    Margin="5 0 0 0">
                                 <md:PackIcon Kind="Delete"/>
                             </Button>
                             <TextBox Text="{Binding Scheme, UpdateSourceTrigger=PropertyChanged}" Width="90" md:HintAssist.Hint="{l:Words settings.scheme}" VerticalAlignment="Top"/>
@@ -96,21 +112,27 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <Button Content="{l:Words settings.add-link}" Command="{Binding AddLinkCommand}" HorizontalAlignment="Left" Margin="2.5px"/>
+            <Button Command="{Binding AddLinkCommand}"
+                    ToolTip="{l:Words settings.add-link}"
+                    Style="{StaticResource ToolButton}"
+                    HorizontalAlignment="Left"
+                    Margin="2.5px">
+                <md:PackIcon Kind="Plus"/>
+            </Button>
 
             <ItemsControl ItemsSource="{Binding Errors}" Margin="2.5px 8px 2.5px 0"
                           Visibility="{Binding HasErrors, Converter={StaticResource IsTrue}}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding}" Foreground="Red" TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding}" Foreground="{DynamicResource MaterialDesignValidationErrorBrush}" TextWrapping="Wrap"/>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </StackPanel>
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 10 0 0">
-            <Button Content="{l:Words dialog.ok}" Command="{Binding OkayCommand}" Width="100" Margin="2.5px"/>
-            <Button Content="{l:Words dialog.cancel}" Command="{Binding CancelCommand}" Width="100" Margin="2.5px"/>
+            <Button Content="{l:Words dialog.ok}" Command="{Binding OkayCommand}" IsDefault="True" MinWidth="80" Margin="2.5px"/>
+            <Button Content="{l:Words dialog.cancel}" Command="{Binding CancelCommand}" MinWidth="80" Margin="2.5px"/>
         </StackPanel>
     </StackPanel>
 </UserControl>
