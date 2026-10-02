@@ -94,47 +94,94 @@ value-de=y
 	}
 
 	[Fact]
-	public void AddLanguage_ThroughManagerAndEditor_BackfillsEveryKey() {
-		// the path the inert bindings had made unreachable: the editor opens from
-		// the manager, the "user" fills it in and presses Add
+	public void AddLanguage_OnOk_BackfillsEveryKey() {
+		// + adds a blank row the pane fills in; nothing reaches the session until OK
 		var (vm, dialogs) = Load();
-		dialogs.OnShow = shown => {
-			if (shown is EditLanguageViewModel editor) {
-				editor.LanguageCode = "fr";
-				editor.NativeName = "Français";
-				editor.EnglishName = "French";
-				Assert.True(editor.AddLanguageCommand.CanExecute(null));
-				editor.AddLanguageCommand.Execute(null);
-			}
-		};
 		var manager = new LanguageManagerViewModel(vm);
+		Assert.Equal("en", manager.Selected!.Code); //the pane starts on the tree's language
 
-		manager.AddLanguageCommand.Execute(null);
+		manager.AddCommand.Execute(null);
+		LanguageRow row = manager.Selected;
+		Assert.Null(row.Origin);
+		Assert.True(row.HasErrors); //blank: OK waits
+		Assert.False(manager.OkCommand.CanExecute(null));
+		Assert.Empty(row.GetErrors(null)); //but nothing is flagged until a field is typed in
+		row.Code = "f";
+		Assert.NotEmpty(row.GetErrors(nameof(LanguageRow.Code)));
+		Assert.Empty(row.GetErrors(nameof(LanguageRow.NativeName)));
+		row.Code = "fr";
+		row.NativeName = "Français";
+		row.EnglishName = "French";
+		Assert.False(row.HasErrors);
+		Assert.True(manager.OkCommand.CanExecute(null));
+		Assert.DoesNotContain(vm.Tree.KnownLanguages, l => l.Code == "fr"); //not yet
 
-		Assert.IsType<EditLanguageViewModel>(Assert.Single(dialogs.Shown));
+		bool closed = false;
+		manager.CloseRequested += () => closed = true;
+		manager.OkCommand.Execute(null);
+
+		Assert.True(closed);
+		Assert.Empty(dialogs.Shown); //nothing opened over the manager
 		Assert.Contains(vm.Tree.KnownLanguages, l => l.Code == "fr");
 		Assert.All(vm.Session.Keys.Values, key => Assert.True(key.Entries.ContainsKey("fr")));
 		Assert.Equal(["en", "de", "fr"], vm.Session.Files[0].Languages);
 		Assert.True(vm.IsDirty);
+		Assert.Equal("fr", vm.Tree.SelectedLanguage.Code); //the highlighted row became the tree's language
 	}
 
 	[Fact]
-	public void RemoveLanguage_AsksFirst() {
+	public void LanguageManager_EditsACopyUntilOk() {
 		var (vm, dialogs) = Load();
-		var manager = new LanguageManagerViewModel(vm) {
-			SelectedLanguage = vm.Tree.KnownLanguages.First(l => l.Code == "de"),
-		};
+		var manager = new LanguageManagerViewModel(vm);
+		LanguageRow german = manager.Rows.Single(row => row.Code == "de");
+		german.NativeName = "Deutsch (DE)";
+		german.Code = "en"; //taken: the row and OK say so
+		Assert.True(german.HasErrors);
+		Assert.False(manager.OkCommand.CanExecute(null));
+		german.Code = "de-DE";
+		Assert.False(german.HasErrors);
+		Assert.True(manager.OkCommand.CanExecute(null));
+		Assert.Equal("Deutsch", vm.Tree.KnownLanguages.Single(l => l.Code == "de").NativeName); //the session has not heard
+
+		manager.CancelCommand.Execute(null); //forgotten
+		Assert.Contains(vm.Tree.KnownLanguages, l => l.Code == "de" && l.NativeName == "Deutsch");
+		Assert.False(vm.IsDirty);
+
+		manager = new LanguageManagerViewModel(vm);
+		german = manager.Rows.Single(row => row.Code == "de");
+		german.Code = "de-DE";
+		german.NativeName = "Deutsch (DE)";
+		manager.OkCommand.Execute(null); //applied: the re-code shifts the entries
+		Assert.Contains(vm.Tree.KnownLanguages, l => l.Code == "de-DE" && l.NativeName == "Deutsch (DE)");
+		Assert.DoesNotContain(vm.Tree.KnownLanguages, l => l.Code == "de");
+		Assert.Equal("y", vm.Session.Keys["Example.k"].Entries["de-DE"].Value);
+		Assert.True(vm.IsDirty);
+		Assert.Empty(dialogs.Shown);
+	}
+
+	[Fact]
+	public void RemoveLanguage_AsksAtTheTrashAndDeletesOnOk() {
+		var (vm, dialogs) = Load();
+		var manager = new LanguageManagerViewModel(vm);
+		LanguageRow german = manager.Rows.Single(row => row.Code == "de");
 
 		dialogs.ConfirmAnswer = false;
-		manager.RemoveLanguageCommand.Execute(null);
-		Assert.Contains(vm.Tree.KnownLanguages, l => l.Code == "de");
+		german.RemoveCommand.Execute(null);
+		Assert.Contains(german, manager.Rows);
+		Assert.Single(dialogs.Confirmations);
 
 		dialogs.ConfirmAnswer = true;
-		manager.RemoveLanguageCommand.Execute(null);
+		german.RemoveCommand.Execute(null);
+		Assert.DoesNotContain(german, manager.Rows);
+		Assert.False(manager.Rows.Single().RemoveCommand.CanExecute(null)); //the last row stays
+		Assert.Contains(vm.Tree.KnownLanguages, l => l.Code == "de"); //until OK
+
+		manager.OkCommand.Execute(null);
 		Assert.DoesNotContain(vm.Tree.KnownLanguages, l => l.Code == "de");
 		Assert.All(vm.Session.Keys.Values, key => Assert.False(key.Entries.ContainsKey("de")));
 		Assert.Equal(["en"], vm.Session.Files[0].Languages);
 		Assert.Equal("en", vm.Tree.SelectedLanguage.Code);
+		Assert.True(vm.IsDirty);
 	}
 
 	[Fact]
@@ -437,16 +484,17 @@ value-de=y
 		var (vm, _) = Load();
 		Assert.Equal("en", vm.Tree.SelectedLanguage.Code);
 		var manager = new LanguageManagerViewModel(vm);
-		Assert.Same(vm.Tree.SelectedLanguage, manager.SelectedLanguage); //starts where the tree is
+		Assert.Same(vm.Tree.SelectedLanguage, manager.Selected!.Origin); //starts where the tree is
 
-		manager.SelectedLanguage = vm.Tree.KnownLanguages.First(l => l.Code == "de");
+		manager.Selected = manager.Rows.Single(row => row.Code == "de");
 		Assert.Equal("en", vm.Tree.SelectedLanguage.Code); //browsing the list moves the tree nothing
 
 		bool closed = false;
 		manager.CloseRequested += () => closed = true;
-		manager.OkayCommand.Execute(null);
+		manager.OkCommand.Execute(null);
 		Assert.True(closed);
 		Assert.Equal("de", vm.Tree.SelectedLanguage.Code);
+		Assert.False(vm.IsDirty); //the table itself did not change
 	}
 
 	[Fact]

@@ -5,13 +5,13 @@ using WordsEdit.ViewModels;
 namespace WordsEdit.Views;
 
 /// <summary>
-///     Hosts one <see cref="DialogViewModel"/> modally. Escape closes it, and so
-///     does the view model calling its <c>Close()</c>.
+///     Hosts one <see cref="IDialogViewModel"/> modally. Escape closes it, and
+///     so does the view model raising its <c>CloseRequested</c>.
 /// </summary>
 public partial class DialogWindow : Window {
-	private readonly DialogViewModel dialog;
+	private readonly IDialogViewModel dialog;
 
-	public DialogWindow(DialogViewModel dialog) {
+	public DialogWindow(IDialogViewModel dialog) {
 		InitializeComponent();
 		this.dialog = dialog;
 		DataContext = dialog;

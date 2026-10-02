@@ -267,23 +267,25 @@ public class DragTests {
 	}
 
 	[Fact]
-	public void LanguageDrop_ReordersTheTableForEveryFile() {
+	public void LanguageDrop_ReordersTheCopyAndTheTableOnOk() {
 		var (vm, _, _) = Load();
 		var manager = new LanguageManagerViewModel(vm);
 		LanguageDrag drag = manager.LanguageDrag;
-		LanguageEntry en = vm.Tree.KnownLanguages[0];
-		LanguageEntry zh = vm.Tree.KnownLanguages.First(l => l.Code == "zh");
+		LanguageRow en = manager.Rows[0];
+		LanguageRow zh = manager.Rows.First(row => row.Code == "zh");
 		Assert.True(drag.CanStartDrag(new FakeDragInfo(zh)));
 
+		drag.Drop(new FakeDropInfo(zh, zh, RelativeInsertPosition.AfterTargetItem)); //onto itself: nothing
+		Assert.Same(en, manager.Rows[0]);
 		drag.Drop(new FakeDropInfo(zh, en, RelativeInsertPosition.BeforeTargetItem));
+		Assert.Same(zh, manager.Rows[0]); //the copy's order
+		Assert.Equal("en", vm.Tree.KnownLanguages[0].Code); //the session's, until OK
+		Assert.False(vm.IsDirty);
 
+		manager.OkCommand.Execute(null);
 		Assert.Equal("zh", vm.Tree.KnownLanguages[0].Code);
 		Assert.Equal("zh", vm.Session.Files[0].Languages[0]);
 		Assert.True(vm.IsDirty);
-
-		vm.IsDirty = false;
-		drag.Drop(new FakeDropInfo(zh, zh, RelativeInsertPosition.AfterTargetItem)); //onto itself: nothing
-		Assert.False(vm.IsDirty);
 		Assert.Throws<InvalidOperationException>(() => { new LanguageDrag().Drop(new FakeDropInfo(zh, en, RelativeInsertPosition.BeforeTargetItem)); });
 	}
 }

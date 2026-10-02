@@ -14,7 +14,7 @@ public enum CloseAnswer { Save, Discard, Cancel }
 /// </summary>
 public interface IDialogs {
 	/// <summary>Shows <paramref name="dialog"/> modally; returns when it closes.</summary>
-	void Show(DialogViewModel dialog);
+	void Show(IDialogViewModel dialog);
 	/// <summary>A yes/no question. True on yes.</summary>
 	bool Confirm([Localized] string message);
 	/// <summary>Save, discard or cancel — for closing with unsaved changes.</summary>

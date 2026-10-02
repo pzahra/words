@@ -4,8 +4,8 @@ using System.Windows;
 namespace WordsEdit.ViewModels;
 
 /// <summary>
-///     Reordering the language table by drag in the Language Manager. The new
-///     order goes to the session, which passes it to every file's table.
+///     Reordering the Language Manager's working copy by drag (SPEC: Languages).
+///     The order reaches the session, and every file's table, on OK.
 /// </summary>
 public class LanguageDrag : IDragSource, IDropTarget {
 	public LanguageManagerViewModel? Vm { get; set; }
@@ -25,7 +25,7 @@ public class LanguageDrag : IDragSource, IDropTarget {
 			throw new InvalidOperationException("No view model");
 		}
 		dropInfo.Effects = DragDropEffects.Move;
-		if (dropInfo.Data is LanguageEntry && dropInfo.TargetItem is LanguageEntry) {
+		if (dropInfo.Data is LanguageRow && dropInfo.TargetItem is LanguageRow) {
 			dropInfo.DropTargetAdorner = typeof(DropTargetInsertionAdorner);
 		}
 	}
@@ -34,24 +34,22 @@ public class LanguageDrag : IDragSource, IDropTarget {
 		if (Vm is null) {
 			throw new InvalidOperationException("No view model");
 		}
-		if (dropInfo.Data is not LanguageEntry dragged || dropInfo.TargetItem is not LanguageEntry target || dragged.Code == target.Code) {
+		if (dropInfo.Data is not LanguageRow dragged || dropInfo.TargetItem is not LanguageRow target || dragged == target) {
 			return;
 		}
-		int draggedIndex = Vm.KnownLanguages.IndexOf(dragged);
-		int targetIndex = Vm.KnownLanguages.IndexOf(target);
-		if (targetIndex == draggedIndex) {
+		int from = Vm.Rows.IndexOf(dragged);
+		int to = Vm.Rows.IndexOf(target);
+		if (from < 0 || to < 0 || from == to) {
 			return;
 		}
-		//the new order reaches every file's table, so the writer sees it
-		Vm.Parent.Session.Languages.Reorder(draggedIndex, targetIndex);
-		Vm.Parent.MarkDirty();
+		Vm.Reorder(from, to);
 	}
 
 	public void Dropped(IDropInfo dropInfo) { }
 
 	public void StartDrag(IDragInfo dragInfo) {
-		if (dragInfo?.SourceItem is LanguageEntry sourceItem) {
-			dragInfo.Data = sourceItem;
+		if (dragInfo?.SourceItem is LanguageRow row) {
+			dragInfo.Data = row;
 			dragInfo.Effects = DragDropEffects.Move;
 		}
 	}

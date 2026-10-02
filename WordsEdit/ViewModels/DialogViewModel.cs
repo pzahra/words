@@ -4,7 +4,7 @@ namespace WordsEdit.ViewModels;
 ///     A view model that lives in its own modal window. The window shows it,
 ///     picks a view for it by type, and closes when it calls <see cref="Close"/>.
 /// </summary>
-public abstract class DialogViewModel : ViewModelBase {
+public abstract class DialogViewModel : ViewModelBase, IDialogViewModel {
 	/// <summary>The window title.</summary>
 	[Localized]
 	public virtual string Title => Words.Known["app.name"];

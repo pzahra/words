@@ -129,7 +129,11 @@ public class EditorWordsTests {
 		var vm = new MainWindowViewModel(new FakeDialogs());
 		vm.LoadFile(new StringReader(EditorWords.Text()), "words");
 		var languages = new LanguageManagerViewModel(vm);
-		languages.AddLanguage(new LanguageEntry("de", "Deutsch") { EnglishName = "German" });
+		languages.AddCommand.Execute(null);
+		languages.Selected!.Code = "de";
+		languages.Selected.NativeName = "Deutsch";
+		languages.Selected.EnglishName = "German";
+		languages.OkCommand.Execute(null);
 		vm.Session.Keys["words.languages.title"].Entries["de"].Value = "Sprachen";
 		Assert.True(vm.IsDirty);
 

@@ -5,18 +5,17 @@
         xmlns:v="clr-namespace:WordsEdit.Views"
         Title="{Binding Title}"
         SizeToContent="WidthAndHeight"
+        WindowStyle="ToolWindow"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
         Background="{DynamicResource MaterialDesignPaper}"
         TextElement.Foreground="{DynamicResource MaterialDesignBody}">
-    <!-- the one dialog shell: the view model's type picks its view -->
+    <!-- the one dialog shell, a tool window: resizable, close only, no minimise or
+         maximise; the view model's type picks its view -->
     <Window.Resources>
         <DataTemplate DataType="{x:Type vm:LanguageManagerViewModel}">
             <v:LanguageManagerView/>
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type vm:EditLanguageViewModel}">
-            <v:EditLanguageView/>
         </DataTemplate>
         <DataTemplate DataType="{x:Type vm:KeyNameViewModel}">
             <v:KeyNameView/>

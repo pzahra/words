@@ -8,8 +8,8 @@ namespace WordsEdit.Views;
 
 /// <summary>
 ///     <see cref="IDialogs"/> for the running app: each dialog is a
-///     <see cref="DialogWindow"/> owned by the main window and shown modally, so
-///     dialogs nest freely (the language manager can open the language editor);
+///     <see cref="DialogWindow"/> owned by the main window and shown modally (a
+///     dialog can raise one after the fact: the export's gripe report);
 ///     questions and notices are message boxes; files go through the shell's.
 /// </summary>
 public sealed class WpfDialogs : IDialogs {
@@ -19,7 +19,7 @@ public sealed class WpfDialogs : IDialogs {
 	private static Window? MainWindow
 		=> Application.Current?.MainWindow is { IsLoaded: true } main ? main : null;
 
-	public void Show(DialogViewModel dialog)
+	public void Show(IDialogViewModel dialog)
 		=> new DialogWindow(dialog) { Owner = MainWindow }.ShowDialog();
 
 	public bool Confirm(string message)

@@ -16,7 +16,7 @@ namespace WordsEdit.Tests;
 public sealed class FakeDialogs : IDialogs {
 	private static readonly Regex rxLeak = new(@"#[\w.$-]+#", RegexOptions.Compiled);
 
-	public List<DialogViewModel> Shown { get; } = [];
+	public List<IDialogViewModel> Shown { get; } = [];
 	public List<string> Confirmations { get; } = [];
 	public List<string> Notices { get; } = [];
 
@@ -26,7 +26,7 @@ public sealed class FakeDialogs : IDialogs {
 	public string[]? FilesToOpen { get; set; }
 	/// <summary>The file the save dialog "picks"; null cancels it.</summary>
 	public string? FileToSave { get; set; }
-	public Action<DialogViewModel>? OnShow { get; set; }
+	public Action<IDialogViewModel>? OnShow { get; set; }
 
 	/// <summary>The text as the user would read it: resolved, no key showing through.</summary>
 	public static string Rendered(string text) {
@@ -34,7 +34,7 @@ public sealed class FakeDialogs : IDialogs {
 		return text;
 	}
 
-	public void Show(DialogViewModel dialog) {
+	public void Show(IDialogViewModel dialog) {
 		Rendered(dialog.Title);
 		Shown.Add(dialog);
 		OnShow?.Invoke(dialog);

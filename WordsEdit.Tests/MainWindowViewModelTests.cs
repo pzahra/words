@@ -590,15 +590,15 @@ value-en-GB=regional
 value=y
 value-en-GB=only regional
 "), "Main");
-		LanguageManagerViewModel manager = new(vm) {
-			SelectedLanguage = vm.Tree.KnownLanguages.First(l => l.Code == "en-GB"),
-		};
+		//the table's own operation: the manager's pane never lets two rows share a code
+		vm.Session.Languages.Rename("en-GB", new LanguageEntry("en", "English"));
+		vm.Tree.FollowLanguage();
+		vm.Tree.RefreshBadges();
+		vm.MarkDirty();
 
-		manager.EditLanguage(new LanguageEntry("en", "English"));
-
-		Assert.DoesNotContain(manager.KnownLanguages, l => l.Code == "en-GB");
-		Assert.Equal(1, manager.KnownLanguages.Count(l => l.Code == "en"));
-		Assert.Equal("en", manager.SelectedLanguage.Code);
+		Assert.DoesNotContain(vm.Tree.KnownLanguages, l => l.Code == "en-GB");
+		Assert.Equal(1, vm.Tree.KnownLanguages.Count(l => l.Code == "en"));
+		Assert.Equal("en", vm.Tree.SelectedLanguage.Code);
 		Assert.Equal(["en"], vm.Session.FileOf("Main")!.Languages);
 
 		WordsKey collided = vm.Session.Keys["Main.k"];

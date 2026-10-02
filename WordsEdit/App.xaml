@@ -14,6 +14,12 @@
 
             <sys:Boolean x:Key="True">True</sys:Boolean>
 			<sys:Boolean x:Key="False">False</sys:Boolean>
+
+            <!-- a field's header is a label: Tab and the mouse go to the field, not to it -->
+            <Style TargetType="HeaderedContentControl" BasedOn="{StaticResource {x:Type HeaderedContentControl}}">
+                <Setter Property="IsTabStop" Value="False"/>
+                <Setter Property="Focusable" Value="False"/>
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -25,6 +25,10 @@ today; that last part describes what it does not do yet.
   Save and Reset clear it. Nowhere else assigns the flag.
 - The main window is three panes: **tree** (left), **baseline** (middle),
   **translation** (right).
+- Dialogs are tool windows: one shell (`DialogWindow`), resizable, close
+  only, centred on the owner. A dialog does not open another dialog; a nested
+  step is a pane of the window that needs it (the language editor). A report
+  after the fact (the export's gripes) is the one exception.
 
 ## The document
 
@@ -255,16 +259,25 @@ from a **project settings file** instead of the pre-loaded set:
 
 ## Languages
 
-A language manager adds, removes, and relabels languages. Adding one backfills
-an empty entry on every key; removing one deletes its entries after
-confirmation. Relabelling may re-code a language (`en-GB` absorbing into `en`,
-say), which shifts its entries; where both codes hold a value the target's is
-kept, the source value is parked in the entry's `context-xx` field where the
-translator can copy/paste from it, and the entry is stale-marked so the review
-filter surfaces the collision. Every file's table follows the change. The
-manager's highlighted row is its own while it is open and
-becomes the tree's language on OK, so browsing the list does not
-re-contextualize the window behind it.
+A language manager adds, removes, relabels and reorders languages, on a
+working copy: the list shows each language's code with a trash beside it and
+a + under it, the pane edits the highlighted row's code and names live —
+checked against the rules and the other rows, a field flagged once it has
+been typed in (a session's row from the start), OK greyed while any row is
+wrong — and drag reorders. Nothing reaches the session until OK; Cancel or
+Escape forgets it all. On OK the copy is applied: a removal (confirmed at the
+trash) deletes the language's entries from every key; an addition backfills
+an empty entry on every key; a relabelling may re-code a language, which
+shifts its entries; the order follows the rows; every file's table follows.
+The table's `Rename` can also absorb a language into one that already holds
+the code (where both hold a value the target's is kept, the source value is
+parked in the entry's `context-xx` field where the translator can copy/paste
+from it, and the entry is stale-marked so the review filter surfaces the
+collision); the manager never asks for that, since no two rows may share a
+code — two rows swapping codes go through a throwaway code instead. The
+manager's highlighted row is its own while it is open and becomes the tree's
+language on OK, so browsing the list does not re-contextualize the window
+behind it.
 
 ## Merge
 

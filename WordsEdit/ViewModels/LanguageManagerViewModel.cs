@@ -1,84 +1,140 @@
 using System.Collections.ObjectModel;
+using System.Windows.Input;
 using WordsEdit.Utils;
 
 namespace WordsEdit.ViewModels;
 
 /// <summary>
-///     The language table (SPEC: Languages): add, edit, remove, reorder. Edits
-///     land in the session as they are made; the highlighted row is the
-///     dialog's own and becomes the tree's language on OK, so browsing the list
-///     does not re-badge the tree behind the dialog.
+///     The language table (SPEC: Languages), edited on a working copy: the rows
+///     are the session's languages as <see cref="LanguageRow"/>s, the pane edits
+///     the highlighted one live, + adds a row, the trash drops one and drag
+///     reorders. Nothing reaches the session until OK, which applies the lot —
+///     removals, re-codes and renames, additions, the order — and makes the
+///     highlighted row the tree's language; Cancel or Escape forgets it all.
 /// </summary>
 public class LanguageManagerViewModel : DialogViewModel {
 	public override string Title => Words.Known["languages.title"];
 	public LanguageDrag LanguageDrag { get; }
 	public MainWindowViewModel Parent { get; }
-	public ObservableCollection<LanguageEntry> KnownLanguages => Parent.Tree.KnownLanguages;
-	public LanguageEntry SelectedLanguage { get; set => ChangeProperty(ref field, value); }
+	public ObservableCollection<LanguageRow> Rows { get; } = [];
+	/// <summary>The highlighted row: the pane's, and the tree's language on OK. The list pushes null while its items turn over.</summary>
+	public LanguageRow? Selected {
+		get;
+		set {
+			if (value is not null) {
+				ChangeProperty(ref field, value);
+			}
+		}
+	}
 
-	public DelegateCommand RemoveLanguageCommand { get; }
-	public DelegateCommand AddLanguageCommand { get; }
-	public DelegateCommand EditLanguageCommand { get; }
-	public DelegateCommand OkayCommand { get; }
+	public ICommand AddCommand { get; }
+	public ICommand OkCommand { get; }
+	public ICommand CancelCommand { get; }
+
 	public LanguageManagerViewModel(MainWindowViewModel parent) {
-		LanguageDrag = new LanguageDrag { Vm = this };
 		Parent = parent;
-		SelectedLanguage = parent.Tree.SelectedLanguage;
-		OkayCommand = new DelegateCommand(DoOkay);
-		RemoveLanguageCommand = new DelegateCommand(DoRemoveLanguage, CanRemoveLanguage);
-		AddLanguageCommand = new DelegateCommand(DoAddLanguage);
-		EditLanguageCommand = new DelegateCommand(DoEditLanguage);
+		LanguageDrag = new LanguageDrag { Vm = this };
+		foreach (LanguageEntry known in parent.Tree.KnownLanguages) {
+			Rows.Add(new LanguageRow(this, known));
+		}
+		Revalidate();
+		Selected = Rows.FirstOrDefault(row => row.Origin == parent.Tree.SelectedLanguage) ?? Rows[0];
+		AddCommand = new DelegateCommand(DoAdd);
+		OkCommand = new DelegateCommand(DoOk, () => Rows.All(row => !row.HasErrors));
+		CancelCommand = new DelegateCommand(Close);
 	}
 
-	private bool CanRemoveLanguage() => KnownLanguages.Count > 1;
-	private void DoRemoveLanguage() {
-		if (KnownLanguages.Count <= 1) {
+	/// <summary>Every row checks itself against the others. Always true, to chain.</summary>
+	internal bool Revalidate() {
+		foreach (LanguageRow row in Rows) {
+			row.Check([.. Rows.Where(other => other != row)]);
+		}
+		return true;
+	}
+
+	//+: a blank row, highlighted, for the pane to fill in
+	private void DoAdd() {
+		var row = new LanguageRow(this, null);
+		Rows.Add(row);
+		Revalidate();
+		Selected = row;
+	}
+
+	//the trash: the row leaves the copy after confirmation (SPEC: Languages); the
+	//session loses the language and its entries on OK. The last row stays
+	internal void Remove(LanguageRow row) {
+		if (Rows.Count <= 1 || !Rows.Contains(row)) {
 			return;
 		}
-		//SPEC (Languages): a removal deletes the entries only after confirmation
-		if (!Parent.Dialogs.Confirm(Words.Known.Format("ask.remove-language", SelectedLanguage.Code))) {
+		if (!Parent.Dialogs.Confirm(Words.Known.Format("ask.remove-language", row.Code))) {
 			return;
 		}
-		var remove = SelectedLanguage;
-		int i = KnownLanguages.IndexOf(remove);
-		SelectedLanguage = KnownLanguages[i == 0 ? 1 : i - 1];
-		Parent.Session.Languages.Remove(remove.Code);
-		TreeFollows();
+		int i = Rows.IndexOf(row);
+		Rows.Remove(row);
+		if (Selected == row) {
+			Selected = Rows[Math.Min(i, Rows.Count - 1)];
+		}
+		Revalidate();
 	}
 
-	private void DoAddLanguage() {
-		Parent.Dialogs.Show(new EditLanguageViewModel(this));
-	}
+	/// <summary>A drag dropped a row elsewhere: the copy's order, the session's on OK.</summary>
+	public void Reorder(int from, int to) => Rows.Move(from, to);
 
-	public void AddLanguage(LanguageEntry lang) {
-		//the table backfills every key and every file's declared languages
-		Parent.Session.Languages.Add(lang);
-		SelectedLanguage = lang;
-		TreeFollows();
-	}
-
-	private void DoEditLanguage() {
-		Parent.Dialogs.Show(new EditLanguageViewModel(this, SelectedLanguage));
-	}
-
-	public void EditLanguage(LanguageEntry lang) {
-		//re-coding shifts the entries; collisions keep the target's value and
-		//park the displaced one in context, in copy/paste reach of the translator.
-		//Shifted onto a language that already exists, the two entries become one
-		SelectedLanguage = Parent.Session.Languages.Rename(SelectedLanguage.Code, lang);
-		TreeFollows();
-	}
-
-	//the table changed under the tree: its language may be gone or replaced, and
-	//its badges and dropdown read the table
-	private void TreeFollows() {
-		Parent.Tree.FollowLanguage();
-		Parent.Tree.RefreshBadges();
-		Parent.MarkDirty();
-	}
-
-	private void DoOkay() {
-		Parent.Tree.SelectedLanguage = SelectedLanguage;
+	private void DoOk() {
+		Apply();
 		Close();
+	}
+
+	//the copy reaches the session. Additions whose code is free go first, so the
+	//last-language rule never refuses a removal; removals next, freeing codes; then
+	//the renames, one whose new code is still taken waiting for the rename that
+	//frees it, a cycle of swaps parking one language on a throwaway code; then the
+	//additions that waited for a code; then the order
+	private void Apply() {
+		LanguageTable table = Parent.Session.Languages;
+		List<LanguageEntry> gone = [.. table.Known.Where(known => Rows.All(row => row.Origin != known))];
+		List<LanguageRow> additions = [.. Rows.Where(row => row.Origin is null)];
+		bool changed = AddFree(table, additions);
+		foreach (LanguageEntry entry in gone) {
+			changed |= table.Remove(entry.Code);
+		}
+		List<LanguageRow> renames = [.. Rows.Where(row => row.Origin is not null && row.IsChanged)];
+		Dictionary<LanguageRow, string> current = renames.ToDictionary(row => row, row => row.Origin!.Code);
+		while (renames.Count > 0) {
+			LanguageRow next = renames.FirstOrDefault(row => row.Code == current[row] || table.Find(row.Code) is null) ?? renames[0];
+			if (next.Code != current[next] && table.Find(next.Code) is { } blocking) {
+				LanguageRow blocked = renames.First(row => current[row] == blocking.Code);
+				current[blocked] = $"zz-{Guid.NewGuid():N}";
+				table.Rename(blocking.Code, new LanguageEntry(current[blocked], blocking.NativeName) { EnglishName = blocking.EnglishName });
+			}
+			table.Rename(current[next], next.ToEntry());
+			renames.Remove(next);
+			changed = true;
+		}
+		changed |= AddFree(table, additions);
+		for (int i = 0; i < Rows.Count; i++) {
+			int at = table.Known.ToList().FindIndex(known => known.Code == Rows[i].Code);
+			if (at >= 0 && at != i) {
+				table.Reorder(at, i);
+				changed = true;
+			}
+		}
+		if (changed) {
+			//the table changed under the tree: its badges and dropdown read it
+			Parent.Tree.FollowLanguage();
+			Parent.Tree.RefreshBadges();
+			Parent.MarkDirty();
+		}
+		Parent.Tree.SelectedLanguage = (Selected is { } selected ? table.Find(selected.Code) : null) ?? table.Known[0];
+	}
+
+	//adds the rows whose code the table does not hold yet, and drops them from the list; whether any went in
+	private static bool AddFree(LanguageTable table, List<LanguageRow> additions) {
+		bool added = false;
+		foreach (LanguageRow row in additions.Where(row => table.Find(row.Code) is null).ToList()) {
+			added |= table.Add(row.ToEntry());
+			additions.Remove(row);
+		}
+		return added;
 	}
 }

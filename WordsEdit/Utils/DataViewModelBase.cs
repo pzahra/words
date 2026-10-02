@@ -1,12 +1,17 @@
 using System.Collections;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using WordsEdit.ViewModels;
 
 namespace WordsEdit.Utils;
 
-/// <summary>A dialog with per-property validation errors, for the views' red text. UI thread only.</summary>
-public abstract class DataViewModelBase : DialogViewModel, INotifyDataErrorInfo {
+/// <summary>
+///     A view model with per-property validation errors, for the views' red
+///     text: <see cref="INotifyDataErrorInfo"/> over the errors the derived
+///     class sets in <see cref="Validate"/>. One that reports less than it
+///     holds (<see cref="ViewModels.LanguageRow"/>) overrides what it reports.
+///     UI thread only.
+/// </summary>
+public abstract class DataViewModelBase : ViewModelBase, INotifyDataErrorInfo {
 	private readonly Dictionary<string, List<string>> errors = [];
 
 	public bool HasErrors => errors.Any(pair => pair.Value.Count > 0);
@@ -26,7 +31,7 @@ public abstract class DataViewModelBase : DialogViewModel, INotifyDataErrorInfo 
 	}
 
 	/// <summary>The property's errors; every error when <paramref name="propertyName"/> is empty.</summary>
-	public IEnumerable GetErrors(string? propertyName)
+	public virtual IEnumerable GetErrors(string? propertyName)
 		=> string.IsNullOrEmpty(propertyName)
 			? errors.Values.SelectMany(list => list)
 			: errors.GetValueOrDefault(propertyName, []);
@@ -45,7 +50,7 @@ public abstract class DataViewModelBase : DialogViewModel, INotifyDataErrorInfo 
 		had.ForEach(RaiseErrorsChanged);
 	}
 
-	protected void RaiseErrorsChanged(string propertyName)
+	protected virtual void RaiseErrorsChanged(string propertyName)
 		=> ErrorsChanged?.Invoke(this, new DataErrorsChangedEventArgs(propertyName));
 
 	protected bool IsValid(string propertyName) => !errors.TryGetValue(propertyName, out var items) || items.Count == 0;
