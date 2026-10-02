@@ -463,13 +463,15 @@ undo stack. Nothing else needs to know undo exists.
 — and the writer round-trips byte for byte (Saving), so the state of a file
 *is* its written text. An undo entry is the session written to strings
 (every file, in its tree node's walk order, with its language table and
-settings references) plus the selection's full label, taken before the edit
-lands. Undo reloads those strings in place through `WordsSession.Load` (the
-same path as loading from disk, which replaces a file by path and drops what
-is gone), re-presents the tree, and reselects the label; redo mirrors it with
-the snapshot taken before the undo. Not command objects per mutation — one
-for each edit site, tree reorders and drags among them: the snapshot is
-correct by construction and costs one write of an ini-sized document per edit.
+settings references) plus the full label of the node the edit is on — the
+selection for a pane or menu edit, the moved node for a drag, none for an
+edit of the language table — taken before the edit lands. Undo reloads those
+strings in place through `WordsSession.Load` (the same path as loading from
+disk, which replaces a file by path and drops what is gone), re-presents the
+tree, and reselects the label; redo mirrors it with the snapshot taken before
+the undo. Not command objects per mutation — one for each edit site, tree
+reorders and drags among them: the snapshot is correct by construction and
+costs one write of an ini-sized document per edit.
 
 **Coalescing.** Typing into a value, context or comment box raises
 `Tree.Edited` per keystroke; consecutive edits to the same field of the same
@@ -477,20 +479,84 @@ key and language fold into one entry, so undo takes back the typing, not a
 character. Every other edit is its own entry.
 
 **Boundaries.** Save does not clear the stack (a saved state can still be
-undone; the title stars again). Reset, Load, Unload, Merge and Split do clear
-it: they change which files the document is, and a snapshot of other files is
-no help. Undo restores `IsDirty` to what the snapshot had.
+undone; the title stars again). Reset, Load, Import, Unload, Merge and Split
+do clear it: they change which files the document is, and a snapshot of
+other files is no help. Undo restores `IsDirty` to what the snapshot had.
+
+**Navigate first.** An undo whose entry is on a node other than the selected
+one does not undo yet: it goes there. The node is selected and shown — it and
+its ancestors exempt from the filters for as long as it is the selection,
+where the filters otherwise evict a hidden selection to a shown ancestor (The
+tree) — so what is about to change is in view, and the next Ctrl+Z undoes it.
+Redo mirrors it. An entry with no node (a language-table edit) undoes at
+once, and so does one whose node is already selected. The step is a
+navigation like any other (Navigation), so Back returns from it.
 
 **Surface.** Ctrl+Z / Ctrl+Y bound on the main window, `UndoCommand` and
 `RedoCommand` on `MainWindowViewModel` with `CanExecute` from the stack depth,
-a pair of buttons in the tool strip and entries in the tree's context menu,
-their captions in `words.ini`. Language edits made in the Language Manager
-are entries like any other, taken when the manager marks the parent dirty.
+entries in the Edit menu and the tree's context menu, and a pair of toolbar
+buttons beside Back and Forward (Navigation), their captions in `words.ini`.
+Language edits made in the Language Manager are entries like any other, taken
+when the manager marks the parent dirty.
 
 **Tests.** Every mutation the dirtiness test drives gets an undo twin: the
 saved text after undo equals the text before the edit, and redo brings the
-edit back. The drag tests and the merge and split flows check the stack is
-cleared or kept as this section says.
+edit back. An undo on an unselected node selects it, shown through a filter
+that hides it, and changes nothing until the second call. The drag tests and
+the merge and split flows check the stack is cleared or kept as this section
+says.
+
+## Navigation
+
+The tree is the map, and the editor does not remember where the user has
+been: a search, a filter, a context-menu jump or an undo's navigate-first
+step (Undo) moves the selection, and there is no way back but to find the
+place again.
+
+**A history of selections.** Every change of the selected node, edited or
+merely visited, is a move in a history; the same node twice in a row is one
+entry. Back and Forward step along it without pushing, like a browser's. A
+selection made by hand is matched against its neighbours first: selecting the
+node Back points to *is* Back — the current entry crosses to the forward side
+— and selecting the node Forward points to is Forward. Walking A, B, A, B by
+hand therefore does not pile up entries, and stepping onto the next node by
+click rather than by the Forward button does not erase what lay ahead. Only a
+selection matching neither neighbour pushes, and a push while behind the end
+drops the forward run. An entry whose label no longer resolves — the node
+removed or renamed, its file unloaded — is dropped when it is reached. The
+history is bounded (a few dozen) and Reset clears it. Arriving by Back or
+Forward shows the node the way navigate-first does: exempt from the filters
+while it is the selection.
+
+**Surface.** `BackCommand` and `ForwardCommand` on the tree view model,
+Alt+Left / Alt+Right and the mouse's back and forward buttons, entries in the
+View menu, and a toolbar group by the search with Undo and Redo alongside:
+the four move through the document in its two senses.
+
+**Tests.** The history is driven headless: select, select, Back lands on the
+first and Forward on the second; selecting the node Back points to is a Back,
+the forward run kept, and selecting the node Forward points to is a Forward;
+a selection matching neither neighbour truncates the forward run; a removed
+node's entry is skipped; Reset empties it; a Back onto a filtered-out node
+shows it, and moving on hides it again.
+
+## Menu and toolbars
+
+The strips grew by squeezing each new command in where it fit, and four
+more would not. Instead, a menu bar carries every command the editor has,
+grouped the usual way — File (Load, Import, Merge, Save, Export, Reset),
+Edit (Undo, Redo, the node and key operations and the toggles), View (the
+filters, Back and Forward, the previews, Wordsmith's language), Tools
+(Languages, Project Settings, Test Parameters) — with access keys and gesture
+text, so everything is reachable by name and by keyboard, not only by icon.
+The toolbars are proper toolbar controls populated from the same commands,
+and carry only what is convenient: the per-selection operations beside the
+tree, file in and out in the strip, undo and navigation by the search. A
+command is defined once — its `ICommand`, its words, its icon and its
+gesture, one row in a table on the view model — and the menu, the toolbars
+and the tree's context menu render from that table, so a new command is a
+row and its gesture binds once. The menu is the inventory, the toolbars the
+shortcuts; the empty window's arrow still points at Load.
 
 ## Import and export, next
 
