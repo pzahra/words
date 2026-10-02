@@ -297,7 +297,7 @@ markdown. English is the default value; other languages are labelled at the
 top of the file and fall back to it. Wordsmith speaks the language saved in
 its own config file (`%LocalAppData%\Wordsmith\config.ini`), the OS language
 when nothing is saved, or whatever `--lang=xx` on the command line says for
-that one run. A menu in the button strip lists the languages the file labels;
+that one run. A submenu under View lists the languages the file labels;
 since `{l:Words}` resolves when a window loads, picking one asks about unsaved
 changes, saves the choice and restarts the editor with the same files open.
 `IDialogs` and every other text-taking seam mark their parameters
@@ -442,6 +442,52 @@ re-checked to prove Save still never touches a foreign writer. The editor's
 tests drive Import and Export through `FakeDialogs`: the native path, the ask,
 dirtiness, the plan, the loss and the overwrite confirmation.
 
+## Menu and toolbars
+
+A menu bar carries every command the editor has, grouped the usual way —
+File (Load, Import, Merge, Save, Export, Reset, Exit), Edit (the node and key
+operations, then the flags), View (the filters, the previews, Find, then the
+translation language and Wordsmith's own as submenus), Tools (Languages,
+Project Settings, Test Parameters) — with an access key on each menu and
+gesture text on each entry, so everything is reachable by name and by
+keyboard, not only by icon. The toolbars are toolbar controls populated from
+the same commands and carry only what is convenient: the node operations
+under the tree, the key operations under the baseline pane, each pane's
+header (Test Parameters, the key's flags, its preview) and, above the
+translation pane, Languages beside the translation language as a combo box.
+Files in and out, Merge, Reset and Project Settings live in the menu alone,
+the files with their keys (Ctrl+O, Ctrl+I, Ctrl+S, Ctrl+E).
+
+**One row per command.** A command is defined once — its `ICommand`, its
+caption, its icon and its gesture — as a `CommandItem` in the command table
+(`CommandTable`, on `MainWindowViewModel`), and the menu, the toolbars and the
+tree's context menu (the Edit menu again) render from the table through item
+templates, so a new command is a row and nothing else. A row with a state
+behind it (`ToggleItem`: a filter, a preview, a flag on the selected key) is
+checkable in the menu and a toggle on a toolbar; its command flips the state
+and the row reads it back, and the owner tells the row when the state, or
+whether it applies, changed elsewhere, so the tick, the popup's button and
+the pane's toggle agree. A pick among options (`ChoiceItem`: the two
+languages) is a submenu of ticked rows in the menu and a combo box on a
+toolbar, its options mirrored from the owner's. The window binds the table's
+gestures once, from the rows that carry one; Find is a routed command and
+carries Ctrl+F of its own. The captions are looked up by literal key in the
+table, so the editor's own words name every one of them.
+
+**Disabled, not hidden.** A toolbar button whose command does not apply is
+greyed, not removed, and a greyed button still says what it would do; the
+pane headers keep their gripe badges, which act on what they sit beside.
+Back, Forward, Undo and Redo join the table when they exist (Navigation,
+Undo).
+
+**Tests.** Every command the view model exposes is in the menu once (the two
+badge commands excepted); the toolbars and the context menu draw from the
+menu's rows; every caption, tooltip and option renders without a key leaking;
+a key is bound once; a toggle mirrors its state whichever way it changes and
+a flag toggle reads the selected key; a choice mirrors its owner's options
+and pick, and a pick of Wordsmith's language is a request; Exit asks the
+window.
+
 ---
 
 # Planned upgrades
@@ -539,24 +585,6 @@ the forward run kept, and selecting the node Forward points to is a Forward;
 a selection matching neither neighbour truncates the forward run; a removed
 node's entry is skipped; Reset empties it; a Back onto a filtered-out node
 shows it, and moving on hides it again.
-
-## Menu and toolbars
-
-The strips grew by squeezing each new command in where it fit, and four
-more would not. Instead, a menu bar carries every command the editor has,
-grouped the usual way — File (Load, Import, Merge, Save, Export, Reset),
-Edit (Undo, Redo, the node and key operations and the toggles), View (the
-filters, Back and Forward, the previews, Wordsmith's language), Tools
-(Languages, Project Settings, Test Parameters) — with access keys and gesture
-text, so everything is reachable by name and by keyboard, not only by icon.
-The toolbars are proper toolbar controls populated from the same commands,
-and carry only what is convenient: the per-selection operations beside the
-tree, file in and out in the strip, undo and navigation by the search. A
-command is defined once — its `ICommand`, its words, its icon and its
-gesture, one row in a table on the view model — and the menu, the toolbars
-and the tree's context menu render from that table, so a new command is a
-row and its gesture binds once. The menu is the inventory, the toolbars the
-shortcuts; the empty window's arrow still points at Load.
 
 ## Import and export, next
 

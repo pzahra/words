@@ -1,0 +1,77 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
+                    xmlns:vm="clr-namespace:WordsEdit.ViewModels"
+                    xmlns:v="clr-namespace:WordsEdit.Views"
+                    xmlns:uc="clr-namespace:WordsEdit.Utils">
+    <!-- How the command table renders (SPEC: Menu and toolbars). A Menu or ContextMenu
+         with UsesItemContainerTemplate and the selector builds its items from the keyed
+         container templates; a ToolBar bound to rows draws them through the implicit
+         data templates. The rows carry no view: these do. -->
+    <uc:PackIconConverter x:Key="PackIconConverter"/>
+    <v:MenuRowTemplateSelector x:Key="MenuRowSelector"/>
+
+    <ItemContainerTemplate x:Key="MenuGroupTemplate">
+        <MenuItem Header="{Binding Caption}"
+                  ItemsSource="{Binding Items}"
+                  UsesItemContainerTemplate="True"
+                  ItemContainerTemplateSelector="{StaticResource MenuRowSelector}"/>
+    </ItemContainerTemplate>
+    <ItemContainerTemplate x:Key="CommandMenuTemplate">
+        <MenuItem Header="{Binding Caption}"
+                  Command="{Binding Command}"
+                  InputGestureText="{Binding GestureText}"
+                  Icon="{Binding Icon, Converter={StaticResource PackIconConverter}}"/>
+    </ItemContainerTemplate>
+    <!-- checkable: the tick is the state, so no Command, or a click would flip it twice;
+         without a command the row says itself whether it applies -->
+    <ItemContainerTemplate x:Key="ToggleMenuTemplate">
+        <MenuItem Header="{Binding Caption}"
+                  IsCheckable="True"
+                  IsChecked="{Binding IsChecked}"
+                  IsEnabled="{Binding IsEnabled}"
+                  InputGestureText="{Binding GestureText}"
+                  Icon="{Binding Icon, Converter={StaticResource PackIconConverter}}"/>
+    </ItemContainerTemplate>
+    <!-- a choice: a submenu of its options, the one in use ticked -->
+    <ItemContainerTemplate x:Key="ChoiceMenuTemplate">
+        <MenuItem Header="{Binding Caption}"
+                  Icon="{Binding Icon, Converter={StaticResource PackIconConverter}}"
+                  ItemsSource="{Binding Options}"
+                  UsesItemContainerTemplate="True"
+                  ItemContainerTemplateSelector="{StaticResource MenuRowSelector}"/>
+    </ItemContainerTemplate>
+    <ItemContainerTemplate x:Key="ChoiceOptionTemplate">
+        <MenuItem Header="{Binding Label}"
+                  IsCheckable="True"
+                  IsChecked="{Binding IsChecked}"/>
+    </ItemContainerTemplate>
+    <ItemContainerTemplate x:Key="MenuBreakTemplate">
+        <Separator/>
+    </ItemContainerTemplate>
+
+    <DataTemplate DataType="{x:Type vm:CommandItem}">
+        <Button Command="{Binding Command}"
+                ToolTip="{Binding Tip}"
+                Style="{DynamicResource {x:Static ToolBar.ButtonStyleKey}}">
+            <md:PackIcon Kind="{Binding Icon}"/>
+        </Button>
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:ToggleItem}">
+        <ToggleButton IsChecked="{Binding IsChecked}"
+                      IsEnabled="{Binding IsEnabled}"
+                      ToolTip="{Binding Tip}"
+                      Style="{DynamicResource {x:Static ToolBar.ToggleButtonStyleKey}}">
+            <md:PackIcon Kind="{Binding Icon}"/>
+        </ToggleButton>
+    </DataTemplate>
+    <!-- a choice on a toolbar: a combo box, wide enough for a language's name -->
+    <DataTemplate DataType="{x:Type vm:ChoiceItem}">
+        <ComboBox ItemsSource="{Binding Options}"
+                  DisplayMemberPath="Label"
+                  SelectedItem="{Binding Selected}"
+                  ToolTip="{Binding Caption}"
+                  MinWidth="180"
+                  Style="{DynamicResource {x:Static ToolBar.ComboBoxStyleKey}}"/>
+    </DataTemplate>
+</ResourceDictionary>

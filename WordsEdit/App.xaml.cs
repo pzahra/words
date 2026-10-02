@@ -29,7 +29,10 @@ public partial class App : Application {
 			viewModel.LoadFile(file);
 		}
 		viewModel.UiLanguageRequested += code => Restart(viewModel, code);
-		new MainWindow { DataContext = viewModel }.Show();
+		var window = new MainWindow { DataContext = viewModel };
+		//Exit is the menu's: the window closes as by its own button, asking first
+		viewModel.ExitRequested += window.Close;
+		window.Show();
 	}
 
 	//{l:Words} resolves when a window loads, so a change of language is a new

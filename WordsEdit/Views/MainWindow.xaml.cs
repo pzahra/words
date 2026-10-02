@@ -10,6 +10,23 @@ public partial class MainWindow : Window {
 	//the view model is the app's to make and hand over
 	public MainWindow() {
 		InitializeComponent();
+		DataContextChanged += (_, e) => BindShortcuts(e.NewValue as MainWindowViewModel);
+	}
+
+	//the command table's keys, bound once (SPEC: Menu and toolbars): a gesture is
+	//the one thing a row cannot carry into the window by binding
+	private readonly List<KeyBinding> shortcuts = [];
+
+	private void BindShortcuts(MainWindowViewModel? vm) {
+		foreach (KeyBinding binding in shortcuts) {
+			InputBindings.Remove(binding);
+		}
+		shortcuts.Clear();
+		foreach (CommandItem item in vm?.Commands.Shortcuts ?? []) {
+			var binding = new KeyBinding(item.Command, item.Gesture!);
+			shortcuts.Add(binding);
+			InputBindings.Add(binding);
+		}
 	}
 
 	private bool retiring;

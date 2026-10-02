@@ -43,8 +43,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	//current while shown, each with what went wrong along the way. The default
 	//pane goes by the file's own settings, the translation pane by the selected
 	//language's layered over them
-	public bool ShowDefaultPreview { get; set => _ = ChangeProperty(ref field, value) && RenderPreviews(); }
-	public bool ShowLocalizationPreview { get; set => _ = ChangeProperty(ref field, value) && RenderPreviews(); }
+	public bool ShowDefaultPreview { get; set => _ = ChangeProperty(ref field, value) && RenderPreviews() && Commands.Refresh(); }
+	public bool ShowLocalizationPreview { get; set => _ = ChangeProperty(ref field, value) && RenderPreviews() && Commands.Refresh(); }
 	public PreviewPane DefaultPreview { get; } = new();
 	public PreviewPane TranslationPreview { get; } = new();
 	/// <summary>Where the runtime's gripes go: heard by whichever render is under way, dropped otherwise.</summary>
@@ -78,6 +78,11 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public ICommand ToggleStaleLanguageCommand { get; }
 	public ICommand ToggleNeedsReviewCommand { get; }
 	public ICommand ToggleConstantCommand { get; }
+	public ICommand ExitCommand { get; }
+	/// <summary>The command table (SPEC: Menu and toolbars): the menu, the toolbars and the context menu draw from it.</summary>
+	public CommandTable Commands { get; }
+	/// <summary>The user asked to leave: the window closes, asking about unsaved changes on the way.</summary>
+	public event Action? ExitRequested;
 
 	//how the editor asks and tells: modal windows in the app, a fake in tests
 	public IDialogs Dialogs { get; }
@@ -89,11 +94,6 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Tree.Edited += () => {
 			MarkDirty();
 			RenderPreviews();
-		};
-		Tree.PropertyChanged += (_, e) => {
-			if (e.PropertyName is nameof(TreeViewModel.SelectedKey) or nameof(TreeViewModel.SelectedEntry) or nameof(TreeViewModel.SelectedLanguage)) {
-				RenderPreviews();
-			}
 		};
 		Tree.KeyNodes.CollectionChanged += (_, _) => UpdateTitle();
 		LoadFileCommand = new DelegateCommand(DoLoadFiles);
@@ -124,10 +124,20 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		AddOrganizerCommand = new DelegateCommand(DoAddOrganizer, () => Tree.SelectedKeyNode is { IsFile: false } and not OrganizerNode);
 		RemoveKeyCommand = new DelegateCommand(DoRemoveKey, () => Tree.SelectedKey is not null);
 		StaleAllLanguagesCommand = new DelegateCommand(DoStaleAllLanguages, () => Tree.SelectedKey is { IsConstant: false });
-		ToggleStaleLanguageCommand = new DelegateCommand<string>(DoToggleStaleLanguage);
+		ToggleStaleLanguageCommand = new DelegateCommand(() => DoToggleStaleLanguage(Tree.SelectedLanguage.Code), () => Tree.SelectedEntry is not null);
 		ToggleNeedsReviewCommand = new DelegateCommand(DoToggleNeedsReview, () => Tree.SelectedKey is not null);
 		ToggleConstantCommand = new DelegateCommand(DoToggleConstant, () => Tree.SelectedKey is not null && Tree.SelectedKeyNode is { CanBeConstant: true });
-		TestParametersCommand = new DelegateCommand<WordsKey>(DoTestParameters, static key => key is not null);
+		TestParametersCommand = new DelegateCommand(() => DoTestParameters(Tree.SelectedKey!), () => Tree.SelectedKey is not null);
+		ExitCommand = new DelegateCommand(() => ExitRequested?.Invoke());
+		//the table last: it holds the commands above
+		Commands = new CommandTable(this);
+		//and only now the tree reaches the table: its toggles re-read on every change
+		Tree.PropertyChanged += (_, e) => {
+			if (e.PropertyName is nameof(TreeViewModel.SelectedKey) or nameof(TreeViewModel.SelectedEntry) or nameof(TreeViewModel.SelectedLanguage)) {
+				RenderPreviews();
+			}
+			Commands.Refresh(); //a filter or a selection changed under a toggle's row
+		};
 
 		UpdateTitle();
 		KeyDrag = new KeyDrag { Vm = this };
@@ -289,6 +299,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	//Languages
 	private void DoManageLanguages() {
 		Dialogs.Show(new LanguageManagerViewModel(this));
+		Commands.Refresh(); //a language renamed in place: the choice rows re-read their labels
 	}
 
 	//the settings are a dictionary's own; the dialog edits the file the selection

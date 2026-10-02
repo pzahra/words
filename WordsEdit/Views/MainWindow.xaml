@@ -16,13 +16,6 @@
         MinHeight="450" MinWidth="800"
         Closing="MainWindow_Closing">
 
-    <Window.InputBindings>
-        <KeyBinding Modifiers="Control" Key="O" Command="{Binding LoadFileCommand}"/>
-        <KeyBinding Modifiers="Control" Key="S" Command="{Binding SaveCommand}"/>
-        <KeyBinding Modifiers="Control+Shift" Key="S" Command="{Binding StaleAllLanguagesCommand}"/>
-        <KeyBinding Key="F2" Command="{Binding RenameNodeCommand}"/>
-        <KeyBinding Key="Delete" Command="{Binding RemoveNodeCommand}"/>
-    </Window.InputBindings>
     <Window.CommandBindings>
         <!-- Find carries Ctrl+F of its own; focusing a box is the view's business -->
         <CommandBinding Command="ApplicationCommands.Find" Executed="FocusSearch"/>
@@ -41,6 +34,9 @@
         <l:WordsConverter x:Key="WordsConverter" />
     </Window.Resources>
 
+    <DockPanel>
+        <!-- the menu is the inventory (SPEC: Menu and toolbars): every command, from the table -->
+        <Menu DockPanel.Dock="Top" ItemsSource="{Binding Commands.Menu}" UsesItemContainerTemplate="True" ItemContainerTemplateSelector="{StaticResource MenuRowSelector}"/>
     <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width=".8*"/>
@@ -125,19 +121,8 @@
                               dd:DragDrop.IsDragSource="True"
                               dd:DragDrop.IsDropTarget="True">
                         <TreeView.ContextMenu>
-                            <!-- the structure edits, on the row that was right-clicked; each command says whether it applies -->
-                            <ContextMenu>
-                                <MenuItem Header="{l:Words menu.add-node}" Command="{Binding AddNodeCommand}" Icon="{md:PackIcon Kind=PlusThick}"/>
-                                <MenuItem Header="{l:Words menu.add-key}" Command="{Binding AddKeyCommand}" Icon="{md:PackIcon Kind=KeyPlus}"/>
-                                <MenuItem Header="{l:Words menu.add-comment}" Command="{Binding AddOrganizerCommand}" Icon="{md:PackIcon Kind=CommentPlus}"/>
-                                <MenuItem Header="{l:Words menu.rename}" InputGestureText="F2" Command="{Binding RenameNodeCommand}" Icon="{md:PackIcon Kind=RenameBox}"/>
-                                <MenuItem Header="{l:Words menu.remove}" InputGestureText="Del" Command="{Binding RemoveNodeCommand}" Icon="{md:PackIcon Kind=Delete}"/>
-                                <Separator/>
-                                <MenuItem Header="{l:Words menu.toggle-review}" Command="{Binding ToggleNeedsReviewCommand}" Icon="{md:PackIcon Kind=HandFrontLeft}"/>
-                                <MenuItem Header="{l:Words menu.toggle-constant}" Command="{Binding ToggleConstantCommand}" Icon="{md:PackIcon Kind=TranslateOff}"/>
-                                <MenuItem Header="{l:Words menu.stale-all}" InputGestureText="Ctrl+Shift+S" Command="{Binding StaleAllLanguagesCommand}" Icon="{md:PackIcon Kind=ClockAlert}"/>
-                                <MenuItem Header="{l:Words menu.remove-key}" Command="{Binding RemoveKeyCommand}" Icon="{md:PackIcon Kind=KeyRemove}"/>
-                            </ContextMenu>
+                            <!-- the Edit menu again, on the row that was right-clicked; each command says whether it applies -->
+                            <ContextMenu ItemsSource="{Binding Commands.EditRows}" UsesItemContainerTemplate="True" ItemContainerTemplateSelector="{StaticResource MenuRowSelector}"/>
                         </TreeView.ContextMenu>
                         <TreeView.ItemContainerStyle>
                             <Style TargetType="TreeViewItem" 
@@ -325,30 +310,10 @@
                                 Padding="4 0"
                                 Margin="2.5px" />
                     </md:Badged>
-                <Button Command="{Binding TestParametersCommand}"
-                        CommandParameter="{Binding Tree.SelectedKey}"
-                        Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
-                        ToolTip="{l:Words main.test-parameters}"
-                        Content="{md:PackIcon Kind=CodeBraces}"
-                        Margin="2.5px" />
-                <ToggleButton Command="{Binding ToggleConstantCommand}"
-                                  Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
-                                  Content="{md:PackIcon Kind=TranslateOff, Size=25}"
-                                  IsChecked="{Binding Tree.SelectedKeyNode.IsConstant, Mode=OneWay}"
-                                  Visibility="{Binding Tree.SelectedKeyNode.CanBeConstant, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                  ToolTip="{l:Words main.toggle-constant}"
-                                  Margin="2.5px"/>
-                    <ToggleButton Command="{Binding ToggleNeedsReviewCommand}"
-                                  Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
-                                  Content="{md:PackIcon Kind=HandFrontLeft, Size=25}"
-                                  IsChecked="{Binding Tree.SelectedKeyNode.NeedsReview, Mode=OneWay}"
-                                  ToolTip="{l:Words main.toggle-review}"
-                                  Margin="2.5px"/>
-                    <ToggleButton IsChecked="{Binding ShowDefaultPreview}"
-                                  Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
-                                  Content="{md:PackIcon Kind=Eye, Size=35}"
-                                  ToolTip="{l:Words main.display-preview}"
-                                  Margin="2.5px"/>
+                    <!-- the header's commands, from the table (SPEC: Menu and toolbars): the test, the key's flags, the eye -->
+                    <ToolBar ItemsSource="{Binding Commands.DefaultTools}"
+                             ToolBarTray.IsLocked="True"
+                             Background="Transparent"/>
                 </StackPanel>
                 <Border CornerRadius="3" 
                         BorderThickness="1" 
@@ -377,38 +342,14 @@
                     </Grid>
                 </Border>
             </Grid>
-            <Grid Grid.Column="2" Grid.Row="0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-
-                <Button Command="{Binding ManageLanguagesCommand}"
-                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
-                        ToolTip="{l:Words tool.languages}">
-                    <md:PackIcon Kind="Translate"/>
-                </Button>
-                <ComboBox ItemsSource="{Binding Tree.FileLanguages}"
-                          SelectedItem="{Binding Tree.SelectedLanguage}"
-                          DisplayMemberPath="NativeName"
-                          Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
-                          Grid.Column="1"
-                          FontWeight="SemiBold"
-                          FontSize="14"
-                          Margin="10px 2.5px 10px 2.5px">
-                    <ComboBox.ItemContainerStyle>
-                        <Style TargetType="ComboBoxItem">
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="ComboBoxItem">
-                                        <ContentPresenter Content="{Binding NativeName}" Margin="2.5px"/>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </ComboBox.ItemContainerStyle>
-                </ComboBox>
-            </Grid>
+            <!-- the languages (SPEC: the translation pane): the manager, and the one selected as a combo box, from the table -->
+            <ToolBar Grid.Column="2"
+                     Grid.Row="0"
+                     ItemsSource="{Binding Commands.LanguageTools}"
+                     ToolBarTray.IsLocked="True"
+                     Background="Transparent"
+                     Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                     Margin="3 0"/>
             <ScrollViewer Grid.Column="2"
                           Grid.Row="1"
                           VerticalScrollBarVisibility="Auto"
@@ -498,24 +439,10 @@
                             Padding="4 0"
                             Margin="2.5px" />
                 </md:Badged>
-                <Button Command="{Binding TestParametersCommand}"
-                        CommandParameter="{Binding Tree.SelectedKey}"
-                        Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
-                        ToolTip="{l:Words main.test-parameters}"
-                        Content="{md:PackIcon Kind=CodeBraces}"
-                        Margin="2.5px" />
-                <ToggleButton Command="{Binding ToggleStaleLanguageCommand}"
-                                  CommandParameter="{Binding Tree.SelectedLanguage.Code}"
-                                  IsChecked="{Binding Tree.SelectedKeyNode.IsStale, Mode=OneWay}"
-                                  Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
-                                  Content="{md:PackIcon Kind=ClockAlert,Size=30}"
-                                  ToolTip="{l:Words main.toggle-stale}"
-                                  Margin="2.5px"/>
-                    <ToggleButton IsChecked="{Binding ShowLocalizationPreview}"
-                                  Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
-                                  Content="{md:PackIcon Kind=Eye,Size=35}"
-                                  ToolTip="{l:Words main.display-preview}"
-                                  Margin="2.5px"/>
+                    <!-- the test, the stale flag in the selected language, the eye -->
+                    <ToolBar ItemsSource="{Binding Commands.TranslationTools}"
+                             ToolBarTray.IsLocked="True"
+                             Background="Transparent"/>
                 </StackPanel>
                 <Border CornerRadius="3" 
                         BorderThickness="1" 
@@ -547,133 +474,20 @@
 
 			<md:ColorZone Mode="PrimaryLight" Grid.Row="3" Grid.ColumnSpan="3" VerticalAlignment="Stretch" />
 			
-			<StackPanel Grid.Column="0" 
-                        Grid.Row="3"
-                        VerticalAlignment="Bottom"
-                        Visibility="{Binding Tree.SelectedKeyNode, Converter={StaticResource IsNotNull}}"
-                        Orientation="Horizontal">
-                <Button Command="{Binding AddNodeCommand}"
-                        Visibility="{Binding Tree.SelectedKeyNode.IsConstant, Converter={StaticResource IsFalseAndNotNull}, FallbackValue=Visible}"
-                        ToolTip="{l:Words tool.add-node}"
-                        Margin="2.5px">
-                    <md:PackIcon Kind="PlusThick"/>
-                </Button>
-                <Button Command="{Binding RemoveNodeCommand}"
-                        Visibility="{Binding Tree.SelectedKeyNode, Converter={StaticResource IsNotNull}}"
-                        ToolTip="{l:Words tool.remove-node}"
-                        Margin="2.5px">
-                    <md:PackIcon Kind="Delete"/>
-                </Button>
-                <Button Command="{Binding AddOrganizerCommand}"
-                        Visibility="{Binding Tree.SelectedKeyNode.IsFile, Converter={StaticResource IsFalseAndNotNull}, FallbackValue=Collapsed}"
-                        ToolTip="{l:Words tool.add-comment}"
-                        Margin="2.5px">
-                    <md:PackIcon Kind="CommentPlus"/>
-                </Button>
-                <Button Command="{Binding SettingsCommand}"
-                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
-                        Margin="2.5px"
-                        ToolTip="{l:Words tool.settings}">
-                    <md:PackIcon Kind="Cog"/>
-                </Button>
-            </StackPanel>
-            <StackPanel Grid.Column="1" 
-                        Grid.Row="3"
-                        VerticalAlignment="Bottom"
-                        HorizontalAlignment="Center"
-                        Orientation="Horizontal"
-                        Visibility="{Binding Tree.SelectedKeyNode, Converter={StaticResource IsNotNull}}">
-                <Button Command="{Binding StaleAllLanguagesCommand}" 
-                        Visibility="{Binding Tree.SelectedEntry, Converter={StaticResource IsNotNull}}"
-                        ToolTip="{l:Words tool.stale-all}"
-                        Margin="2.5px">
-                    <md:PackIcon Kind="ClockAlert"/>
-                </Button>
-                <Button Command="{Binding RemoveKeyCommand}"
-                        Visibility="{Binding Tree.SelectedKey, Converter={StaticResource IsNotNull}}"
-                        ToolTip="{l:Words tool.remove-key}"
-                        Margin="2.5px">
-                    <md:PackIcon Kind="Delete"/>
-                </Button>
-                <StackPanel Visibility="{Binding Tree.SelectedKeyNode.IsFile, Converter={StaticResource IsFalseAndNotNull}, FallbackValue=Visible}">
-                    <Button Command="{Binding AddKeyCommand}"
-                            Visibility="{Binding Tree.SelectedKey, Converter={StaticResource Equals}, ConverterParameter={x:Null}}"
-                            ToolTip="{l:Words tool.add-key}"
-                            Margin="2.5px">
-                        <md:PackIcon Kind="PlusThick"/>
-                    </Button>
-                </StackPanel>
-            </StackPanel>
-            <StackPanel Grid.Column="2" 
-                        Grid.Row="3"
-                        Orientation="Horizontal"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Bottom">
-                <!-- the language Wordsmith itself speaks; a change restarts the editor in it -->
-                <ComboBox ItemsSource="{Binding UiLanguages}"
-                          SelectedValue="{Binding UiLanguage}"
-                          SelectedValuePath="Key"
-                          DisplayMemberPath="Value"
-                          ToolTip="{l:Words app.language}"
-                          VerticalAlignment="Center"
-                          MinWidth="110"
-                          Margin="2.5px 2.5px 10px 2.5px"/>
-                <Button Command="{Binding MergeFilesCommand}"
-                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
-                        Margin="2.5px"
-                        ToolTip="{l:Words tool.merge}">
-                    <md:PackIcon Kind="Merge"/>
-                </Button>
-                <Button Command="{Binding LoadFileCommand}"
-                        Margin="2.5px"
-                        ToolTip="{l:Words tool.load}">
-                    <md:PackIcon Kind="FolderUpload"/>
-                </Button>
-                <!-- the other formats, beside Load and Save: in, and out -->
-                <Button Command="{Binding ImportCommand}"
-                        Margin="2.5px"
-                        ToolTip="{l:Words tool.import}">
-                    <md:PackIcon Kind="FileImport"/>
-                </Button>
-                <Button Command="{Binding SaveCommand}"
-                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
-                        Margin="2.5px"
-                        ToolTip="{l:Words tool.save}">
-                    <md:PackIcon Kind="ContentSave"/>
-                </Button>
-                <Button Command="{Binding ExportCommand}"
-                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
-                        Margin="2.5px"
-                        ToolTip="{l:Words tool.export}">
-                    <md:PackIcon Kind="FileExport"/>
-                </Button>
-                <Button Command="{Binding ResetCommand}"
-                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
-                        ToolTip="{l:Words tool.reset}"
-                        Margin="2.5px">
-                    <md:PackIcon Kind="Reload"/>
-                </Button>
-            </StackPanel>
-
-			<TextBlock Grid.Row="2"
-					   Grid.Column="2"
-					   VerticalAlignment="Bottom"
-					   HorizontalAlignment="Right"
-					   Foreground="{DynamicResource MaterialDesignLightForeground}">
-				<!-- a DataTrigger compares the count as a number; the Equals converter saw an int and the string "0" -->
-				<TextBlock.Style>
-					<Style TargetType="TextBlock">
-						<Setter Property="Visibility" Value="Collapsed"/>
-						<Style.Triggers>
-							<DataTrigger Binding="{Binding Tree.KeyNodes.Count}" Value="0">
-								<Setter Property="Visibility" Value="Visible"/>
-							</DataTrigger>
-						</Style.Triggers>
-					</Style>
-				</TextBlock.Style>
-				<Run FontSize="24" FontWeight="DemiBold" BaselineAlignment="Top" Text="{l:Words main.start-here}"/>
-				<md:PackIcon Kind="ArrowBottomRightBoldOutline" Width="96" Height="96"/>
-				<Run Text="         "/>
-			</TextBlock>
+            <!-- the toolbars (SPEC: Menu and toolbars): what is convenient, drawn from the command table; the menu has the rest -->
+            <ToolBar Grid.Column="0"
+                     Grid.Row="3"
+                     ItemsSource="{Binding Commands.NodeTools}"
+                     ToolBarTray.IsLocked="True"
+                     Background="Transparent"
+                     VerticalAlignment="Bottom"/>
+            <ToolBar Grid.Column="1"
+                     Grid.Row="3"
+                     ItemsSource="{Binding Commands.KeyTools}"
+                     ToolBarTray.IsLocked="True"
+                     Background="Transparent"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Bottom"/>
         </Grid>
+    </DockPanel>
 </Window>
