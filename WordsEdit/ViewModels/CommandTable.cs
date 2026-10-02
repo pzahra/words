@@ -90,14 +90,21 @@ public sealed class ChoiceItem : MenuRow {
 	public PackIconKind Icon { get; }
 	/// <summary>The options as rows, in the owner's order; turned over when the owner's change.</summary>
 	public ObservableCollection<Choice> Options { get; } = [];
-	/// <summary>The option in use. A combo box pushes null while its items turn over: that picks nothing.</summary>
+	/// <summary>
+	///     The option in use. A combo box pushes null while its items turn over —
+	///     from inside <see cref="Refresh"/>, which hands the selection back when
+	///     it is done — so null picks nothing and refreshes nothing.
+	/// </summary>
 	public Choice? Selected {
 		get {
 			object? value = current();
 			return Options.FirstOrDefault(option => Equals(option.Value, value));
 		}
 		set {
-			if (value is not null && !Equals(value.Value, current())) {
+			if (value is null) {
+				return;
+			}
+			if (!Equals(value.Value, current())) {
 				pick(value.Value);
 			}
 			Refresh(); //a pick the owner declined (Wordsmith's language asks first) stays put

@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.Windows.Input;
 using PatTech.Localization;
 using PatTech.Localization.Authoring;
@@ -201,6 +202,26 @@ public class CommandTableTests {
 		own.Selected = other;
 		Assert.Equal(((KeyValuePair<string, string>)other.Value).Key, requested);
 		Assert.False(other.IsChecked);
+	}
+
+	[Fact]
+	public void AChoiceSurvivesItsOptionsTurningOver() {
+		//a combo box answers a cleared list by pushing null into the selection, from
+		//inside the refresh that cleared it; the refresh must not start over
+		var vm = LoadedVm();
+		ChoiceItem language = ChoiceOf(vm, "menu.translation-language");
+		int pushes = 0;
+		language.Options.CollectionChanged += (_, e) => {
+			if (e.Action == NotifyCollectionChangedAction.Reset) {
+				Assert.True(++pushes < 10, "the refresh and the combo box are feeding each other");
+				language.Selected = null;
+			}
+		};
+		vm.Session.Languages.Add(new LanguageEntry("fr", "Français"));
+		vm.Tree.RefreshBadges(); //every path that changes the table passes here: the rows turn over once
+		Assert.Equal(1, pushes);
+		Assert.Equal(["English", "Deutsch", "Français"], language.Options.Select(option => option.Label));
+		Assert.Same(vm.Tree.SelectedLanguage, language.Selected!.Value);
 	}
 
 	[Fact]
