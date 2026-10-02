@@ -74,34 +74,44 @@
                          Grid.Column="1"
                          VerticalAlignment="Center"
                          Margin="2.5px"/>
-            <md:PopupBox Grid.Column="2"
-                         StaysOpen="True"
-                         PlacementMode="BottomAndAlignRightEdges"
-                         ToolTip="{l:Words main.filters}"
-                         ToggleContent="{md:PackIcon Kind=FilterVariant, Size=24}">
-                    <StackPanel Margin="4">
-                        <ToggleButton Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
-                                      Content="{md:PackIcon Kind=ClockAlert,Size=25}"
-                                      ToolTip="{l:Words main.stale-view}"
-                                      IsChecked="{Binding Tree.IsStaleFilter}"
-                                      Margin="2.5px"/>
-                        <ToggleButton Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
-                                      Content="{md:PackIcon Kind=HandFrontLeft,Size=25}"
-                                      ToolTip="{l:Words main.review-view}"
-                                      IsChecked="{Binding Tree.NeedsReviewFilter}"
-                                      Margin="2.5px"/>
-                        <ToggleButton Style="{StaticResource MaterialDesignFlatPrimaryToggleButton}"
-                                      Content="{md:PackIcon Kind=TextBoxRemoveOutline,Size=25}"
-                                      ToolTip="{l:Words main.missing-view}"
-                                      IsChecked="{Binding Tree.MissingFilter}"
-                                      Margin="2.5px"/>
-                        <Button Command="{Binding ClearFiltersCommand}"
-                                Style="{StaticResource MaterialDesignIconButton}"
-                                Content="{md:PackIcon Kind=FilterRemoveOutline,Size=25}"
-                                ToolTip="{Binding Tree.HiddenCount, Converter={StaticResource WordsConverter}, ConverterParameter=main.clear-filters}"
-                                Margin="2.5px" />
-                    </StackPanel>
-                </md:PopupBox>
+                <!-- the filters (SPEC: Filters): a vertical toolbar from the table, in a popup whose button wears the hidden count -->
+                <md:Badged Grid.Column="2" BadgeColorZoneMode="SecondaryMid" VerticalAlignment="Center">
+                    <md:Badged.Style>
+                        <Style TargetType="md:Badged" BasedOn="{StaticResource {x:Type md:Badged}}">
+                            <Setter Property="Badge" Value="{Binding Tree.HiddenCount}"/>
+                            <Style.Triggers>
+                                <!-- nothing hidden, no badge; a DataTrigger compares the count as a number -->
+                                <DataTrigger Binding="{Binding Tree.HiddenCount}" Value="0">
+                                    <Setter Property="Badge" Value="{x:Null}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </md:Badged.Style>
+                    <Grid>
+                        <!-- a toolbar toggle opens a plain popup; it closes on a click anywhere else, the code-behind
+                             keeps the click that closed it from reopening it -->
+                        <ToggleButton x:Name="FilterToggle"
+                                      Style="{StaticResource ToolToggle}"
+                                      IsChecked="{Binding IsOpen, ElementName=FilterPopup, Mode=TwoWay}"
+                                      ToolTip="{l:Words main.filters}"
+                                      PreviewMouseLeftButtonDown="FilterToggle_PreviewMouseLeftButtonDown">
+                            <md:PackIcon Kind="FilterVariant"/>
+                        </ToggleButton>
+                        <Popup x:Name="FilterPopup"
+                               PlacementTarget="{Binding ElementName=FilterToggle}"
+                               Placement="Bottom"
+                               StaysOpen="False"
+                               AllowsTransparency="True"
+                               PopupAnimation="Fade"
+                               Closed="FilterPopup_Closed">
+                            <md:Card Padding="2" Margin="6" UniformCornerRadius="3" md:ElevationAssist.Elevation="Dp4">
+                                <ToolBarTray Orientation="Vertical" IsLocked="True" Background="Transparent">
+                                    <ToolBar ItemsSource="{Binding Commands.FilterTools}" Background="Transparent"/>
+                                </ToolBarTray>
+                            </md:Card>
+                        </Popup>
+                    </Grid>
+                </md:Badged>
             </Grid>
             <Grid Grid.Column="0" 
                   Grid.Row="1" 
@@ -189,25 +199,22 @@
                     </TreeView>
                 </Border>
             </Grid>
-            <StackPanel Orientation="Horizontal" 
-                        Grid.Column="1"
-                        Grid.Row="0"
-                        VerticalAlignment="Top"
-                        HorizontalAlignment="Center">
-				<TextBlock Margin="2.5px"
+            <!-- the selected node's name, Rename at its right (SPEC: Menu and toolbars) -->
+            <DockPanel Grid.Column="1" Grid.Row="0" Margin="3 0">
+                <ToolBar DockPanel.Dock="Right"
+                         ItemsSource="{Binding Commands.NameTools}"
+                         ToolBarTray.IsLocked="True"
+                         Background="Transparent"
+                         Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"/>
+                <TextBlock Margin="2.5px"
                            FontWeight="SemiBold"
                            FontSize="18"
-						   Text="{Binding Tree.SelectedKeyNode.Path, Mode=OneWay}"
-						   ToolTip="{Binding Tree.SelectedKeyNode.Path}"/>
-				<Button Padding="0 0 1 0" 
-                        Margin="2 0 0 0" 
-                        Height="16" 
-                        Command="{Binding RenameNodeCommand}" 
-                        Visibility="{Binding Tree.SelectedKeyNode.IsFile, Converter={StaticResource IsFalseAndNotNull},FallbackValue=Collapsed}"
-                        ToolTip="{l:Words main.edit-name}">
-                    <md:PackIcon Kind="RenameBox"/>
-                </Button>
-            </StackPanel>
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           Text="{Binding Tree.SelectedKeyNode.Path, Mode=OneWay}"
+                           ToolTip="{Binding Tree.SelectedKeyNode.Path}"/>
+            </DockPanel>
             <ScrollViewer VerticalScrollBarVisibility="Auto"
                           Grid.Row="1"
                           Grid.Column="1"

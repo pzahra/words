@@ -112,10 +112,11 @@ One tree presents every loaded file:
   composable; ancestors of a match stay visible so the path is readable. The
   search reads what a translator searches for: a key's name, its default and
   selected-language words, the context and comments around them, and a
-  comment node's text. The three toggles live in a filter menu beside the
-  search box; while a filter narrows the tree the menu's clear button is
-  enabled, says how many rows are hidden and clears the lot in one click; a
-  selection the filter hides moves up to the nearest row still showing. The
+  comment node's text. The three toggles and the clear button are a vertical
+  toolbar from the command table, in a popup beside the search box; while a
+  filter narrows the tree the popup's button wears the number of hidden rows
+  as a badge and the clear button clears the lot in one click; a selection
+  the filter hides moves up to the nearest row still showing. The
   stale filter is per selected language
   and means stale, nothing more: this is the translator's work queue. The
   missing filter takes the empty values (file by file — see Badges). The
@@ -452,9 +453,11 @@ Project Settings, Test Parameters) — with an access key on each menu and
 gesture text on each entry, so everything is reachable by name and by
 keyboard, not only by icon. The toolbars are toolbar controls populated from
 the same commands and carry only what is convenient: the node operations
-under the tree, the key operations under the baseline pane, each pane's
-header (Test Parameters, the key's flags, its preview) and, above the
-translation pane, Languages beside the translation language as a combo box.
+under the tree, the key operations under the baseline pane, the filters as
+a vertical toolbar in the popup beside the search box, Rename at the right
+of the selected node's name, each pane's header (Test Parameters, the key's
+flags, its preview) and, above the translation pane, Languages beside the
+translation language as a combo box.
 Files in and out, Merge, Reset and Project Settings live in the menu alone,
 the files with their keys (Ctrl+O, Ctrl+I, Ctrl+S, Ctrl+E).
 
@@ -477,6 +480,10 @@ table, so the editor's own words name every one of them.
 **Disabled, not hidden.** A toolbar button whose command does not apply is
 greyed, not removed, and a greyed button still says what it would do; the
 pane headers keep their gripe badges, which act on what they sit beside.
+Buttons and toggles share one template in the icon's colours — orange under
+the mouse, a blue frame around a toggle that is on — rather than the theme's
+tool button and switch, so the two kinds match in size and weight; the
+filter popup's button is the same toggle.
 Back, Forward, Undo and Redo join the table when they exist (Navigation,
 Undo).
 

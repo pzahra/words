@@ -182,6 +182,10 @@ public sealed class CommandTable {
 	public IReadOnlyList<CommandItem> NodeTools { get; }
 	/// <summary>The key operations, under the baseline pane.</summary>
 	public IReadOnlyList<CommandItem> KeyTools { get; }
+	/// <summary>The filters: a vertical toolbar in the popup beside the search box.</summary>
+	public IReadOnlyList<CommandItem> FilterTools { get; }
+	/// <summary>Beside the selected node's name: Rename.</summary>
+	public IReadOnlyList<CommandItem> NameTools { get; }
 	/// <summary>The baseline pane's header: the test, the key's flags, its preview.</summary>
 	public IReadOnlyList<CommandItem> DefaultTools { get; }
 	/// <summary>The translation pane's header: the test, the stale flag, its preview.</summary>
@@ -244,6 +248,8 @@ public sealed class CommandTable {
 		EditRows = edit.Items;
 		NodeTools = [addNode, remove, addComment];
 		KeyTools = [addKey, removeKey, staleAll];
+		FilterTools = [staleView, reviewView, missingView, clearFilters];
+		NameTools = [rename];
 		DefaultTools = [parameters, toggleConstant, toggleReview, defaultPreview];
 		TranslationTools = [parameters, toggleStale, translationPreview];
 		LanguageTools = [languages, translationLanguage];

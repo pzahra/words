@@ -50,10 +50,62 @@
         <Separator/>
     </ItemContainerTemplate>
 
+    <!-- the toolbars' look, in the icon's own colours: a button and a toggle share one
+         template, so they match in size, weight and hover; orange under the mouse, and
+         a blue frame around a toggle that is on -->
+    <SolidColorBrush x:Key="WordsmithOrangeBrush" Color="#FE8122"/>
+    <SolidColorBrush x:Key="WordsmithBlueBrush" Color="#02466E"/>
+    <Style x:Key="ToolButton" TargetType="ButtonBase">
+        <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="2"/>
+        <Setter Property="Padding" Value="2"/>
+        <Setter Property="Margin" Value="1"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ButtonBase">
+                    <Border x:Name="Pane"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}"
+                            CornerRadius="3"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                                <Condition Property="IsEnabled" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Pane" Property="Background" Value="{StaticResource WordsmithOrangeBrush}"/>
+                        </MultiTrigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Pane" Property="Opacity" Value="0.7"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.38"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="ToolToggle" TargetType="ToggleButton" BasedOn="{StaticResource ToolButton}">
+        <Style.Triggers>
+            <Trigger Property="IsChecked" Value="True">
+                <Setter Property="BorderBrush" Value="{StaticResource WordsmithBlueBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <DataTemplate DataType="{x:Type vm:CommandItem}">
         <Button Command="{Binding Command}"
                 ToolTip="{Binding Tip}"
-                Style="{DynamicResource {x:Static ToolBar.ButtonStyleKey}}">
+                Style="{StaticResource ToolButton}">
             <md:PackIcon Kind="{Binding Icon}"/>
         </Button>
     </DataTemplate>
@@ -61,7 +113,7 @@
         <ToggleButton IsChecked="{Binding IsChecked}"
                       IsEnabled="{Binding IsEnabled}"
                       ToolTip="{Binding Tip}"
-                      Style="{DynamicResource {x:Static ToolBar.ToggleButtonStyleKey}}">
+                      Style="{StaticResource ToolToggle}">
             <md:PackIcon Kind="{Binding Icon}"/>
         </ToggleButton>
     </DataTemplate>

@@ -62,6 +62,21 @@ public partial class MainWindow : Window {
 		SearchBox.SelectAll();
 	}
 
+	//the filter popup closes on a mouse-down anywhere outside it, before that mouse-down
+	//reaches what is under it; when that is the popup's own button, the click would
+	//reopen it, so the button swallows the one click that closed the popup
+	private bool filterClosedUnderItsButton;
+
+	private void FilterPopup_Closed(object sender, EventArgs e)
+		=> filterClosedUnderItsButton = new Rect(FilterToggle.RenderSize).Contains(Mouse.GetPosition(FilterToggle));
+
+	private void FilterToggle_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) {
+		if (filterClosedUnderItsButton) {
+			filterClosedUnderItsButton = false;
+			e.Handled = true;
+		}
+	}
+
 	//answered synchronously: the close then proceeds or is cancelled, so there
 	//is no Shutdown() to re-raise Closing and prompt again
 	private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e) {

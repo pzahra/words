@@ -28,7 +28,8 @@ public class CommandTableTests {
 	private static ChoiceItem ChoiceOf(MainWindowViewModel vm, string key) => vm.Commands.Choices.Single(choice => choice.Caption == Words.Known[key]);
 
 	private static IEnumerable<MenuRow> Tools(CommandTable table)
-		=> table.NodeTools.Concat(table.KeyTools).Concat(table.DefaultTools).Concat(table.TranslationTools).Concat<MenuRow>(table.LanguageTools);
+		=> table.NodeTools.Concat(table.KeyTools).Concat(table.FilterTools).Concat(table.NameTools)
+			.Concat(table.DefaultTools).Concat(table.TranslationTools).Concat<MenuRow>(table.LanguageTools);
 
 	[Fact]
 	public void TheMenuIsTheInventory() {
@@ -90,6 +91,10 @@ public class CommandTableTests {
 		Assert.Same(vm.Commands.DefaultTools.Single(tool => tool.Command == vm.TestParametersCommand), vm.Commands.TranslationTools.Single(tool => tool.Command == vm.TestParametersCommand));
 		Assert.Contains(vm.Commands.DefaultTools, tool => tool.Caption == Words.Known["menu.default-preview"]);
 		Assert.Contains(vm.Commands.TranslationTools, tool => tool.Caption == Words.Known["menu.translation-preview"]);
+		//the filter popup: the three views and the clear; Rename alone beside the name
+		Assert.Equal(3, vm.Commands.FilterTools.OfType<ToggleItem>().Count());
+		Assert.Contains(vm.Commands.FilterTools, tool => tool.Command == vm.ClearFiltersCommand);
+		Assert.Equal(vm.RenameNodeCommand, Assert.Single(vm.Commands.NameTools).Command);
 		//the language strip: the manager, and the translation language as a combo box
 		Assert.Contains(vm.Commands.LanguageTools, tool => tool is CommandItem { Command: var command } && command == vm.ManageLanguagesCommand);
 		Assert.Contains(vm.Commands.LanguageTools, tool => tool is ChoiceItem choice && choice.Caption == Words.Known["menu.translation-language"]);
