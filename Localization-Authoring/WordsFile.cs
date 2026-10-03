@@ -53,10 +53,17 @@ namespace PatTech.Localization.Authoring {
 		///     that the tree is the truth; this is not updated.
 		/// </summary>
 		public IReadOnlyDictionary<string, string> BlockComments { get; }
+		/// <summary>
+		///     The line break the file was written with, <c>\n</c> or <c>\r\n</c>, which
+		///     saving keeps so the file round-trips byte for byte; the system's for a
+		///     file read without one, or imported.
+		/// </summary>
+		public string NewLine { get; }
 
-		internal WordsFile(string path, string label, ILoadedWords loaded) {
+		internal WordsFile(string path, string label, ILoadedWords loaded, string newLine) {
 			Path = path;
 			Label = label;
+			NewLine = newLine;
 			Preamble = loaded.Preamble;
 			Trailer = loaded.Trailer;
 			Languages = [.. loaded.DeclaredLanguages];

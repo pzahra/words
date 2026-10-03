@@ -52,16 +52,24 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		/// <summary>
-		///     Loads one ini file: the parser reads it and <see cref="Load(ILoadedWords, string)"/>
+		///     Loads one ini file: the parser reads it and <see cref="Load(ILoadedWords, string, string?)"/>
 		///     takes it from there. Bad content never throws; the parser's gripes land
 		///     in <see cref="WordsFile.Errors"/>.
 		/// </summary>
 		/// <param name="reader">The file's text.</param>
 		/// <param name="path">Where it came from — the file's identity and its save target.</param>
 		public WordsFile Load(TextReader reader, string path) {
+			//read whole first: the parser's lines lose their breaks, and saving keeps the file's
+			string text = reader.ReadToEnd();
 			var loaded = new WordsParserToLocalizationProvider();
-			new WordsParser(loaded).Load(reader);
-			return Load(loaded, path);
+			new WordsParser(loaded).Load(new StringReader(text));
+			return Load(loaded, path, NewLineOf(text));
+		}
+
+		//the first line break decides; a file with none takes the system's
+		private static string? NewLineOf(string text) {
+			int lf = text.IndexOf('\n');
+			return lf < 0 ? null : lf > 0 && text[lf - 1] == '\r' ? "\r\n" : "\n";
 		}
 
 		/// <summary>
@@ -92,14 +100,15 @@ namespace PatTech.Localization.Authoring {
 		/// </summary>
 		/// <param name="loaded">The file, read into the document surface.</param>
 		/// <param name="path">Where it came from — the file's identity and its save target.</param>
-		public WordsFile Load(ILoadedWords loaded, string path) {
+		/// <param name="newLine">The line break the file was written with, which saving keeps; <see langword="null"/> for the system's.</param>
+		public WordsFile Load(ILoadedWords loaded, string path, string? newLine = null) {
 			WordsFile? previous = FileAt(path);
 			int position = previous is null ? files.Count : files.IndexOf(previous);
 			string label = previous?.Label ?? UniqueLabel(System.IO.Path.GetFileNameWithoutExtension(path));
 			if (previous is not null) {
 				Unload(previous, prune: false);
 			}
-			var file = new WordsFile(path, label, loaded);
+			var file = new WordsFile(path, label, loaded, newLine ?? Environment.NewLine);
 			files.Insert(position, file);
 			foreach (WordsKey key in loaded.WordKeys.Values) {
 				key.BlockKey = $"{label}.{key.BlockKey}";
@@ -172,10 +181,11 @@ namespace PatTech.Localization.Authoring {
 		/// </summary>
 		/// <param name="file">The file to write.</param>
 		/// <param name="tree">The file's node: the walk decides block order, comments write themselves in place.</param>
-		/// <param name="writer">Where the text goes.</param>
+		/// <param name="writer">Where the text goes; it takes the file's <see cref="WordsFile.NewLine"/>.</param>
 		/// <exception cref="InvalidOperationException">The tree is not <paramref name="file"/>'s, or does not cover exactly its keys — writing it would drop or misplace data.</exception>
 		public void Save(WordsFile file, IKeyTreeNode tree, TextWriter writer) {
 			EnsureTreeCovers(file, tree);
+			writer.NewLine = file.NewLine;
 			IniWriter.WriteFile(tree, writer, keys, Languages.For(file), preamble: file.Preamble, settings: file.Settings, languageSettings: file.LanguageSettings);
 		}
 
@@ -295,7 +305,7 @@ namespace PatTech.Localization.Authoring {
 				.Select(Languages.Find)
 				.OfType<LanguageEntry>()];
 			IniWriter.WriteFile(KeyTree.Relabel(baseTree, outLabel), outPath, merged, languages,
-				preamble: baseFile.Preamble, settings: baseFile.Settings, languageSettings: baseFile.LanguageSettings);
+				preamble: baseFile.Preamble, settings: baseFile.Settings, languageSettings: baseFile.LanguageSettings, newLine: baseFile.NewLine);
 			return Load(outPath);
 		}
 
@@ -311,7 +321,7 @@ namespace PatTech.Localization.Authoring {
 			var split = WordsOperations.Split(keys, source.Label, languageCode, outLabel);
 			List<LanguageEntry> languages = Languages.Find(languageCode) is { } language ? [language] : [];
 			IniWriter.WriteFile(KeyTree.Relabel(sourceTree, outLabel), outPath, split, languages,
-				preamble: source.Preamble, settings: source.Settings, languageSettings: source.LanguageSettings);
+				preamble: source.Preamble, settings: source.Settings, languageSettings: source.LanguageSettings, newLine: source.NewLine);
 			return Load(outPath);
 		}
 

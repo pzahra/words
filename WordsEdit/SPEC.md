@@ -306,7 +306,10 @@ for reference — and loaded, ready to be worked on separately and merged back.
 
 Save rewrites every loaded file through `WordsSession.Save` — `IniWriter.WriteFile`
 with the file's own language table, preamble and settings references, in the
-order its tree node walks. A file that cannot be written is reported and the
+order its tree node walks — and with its own line break, `\n` or `\r\n`, the
+first one it was read with (the system's for an imported file), so a file
+round-trips byte for byte whichever its checkout gave it; merge and split write
+with their source's. A file that cannot be written is reported and the
 others still save. The editor tracks dirtiness; the window title names the
 loaded files and stars while dirty, and closing with unsaved changes prompts.
 Reset returns to the empty session (one default `en` language).

@@ -1,0 +1,7 @@
+# Every checkout gets the index's LF, whatever the machine's core.autocrlf, so a
+# test that passes locally sees the same bytes on CI's Windows runner.
+* text=auto eol=lf
+
+# cmd can misread a batch file with LF line breaks
+*.bat text eol=crlf
+*.cmd text eol=crlf

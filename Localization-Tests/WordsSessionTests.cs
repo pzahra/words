@@ -66,6 +66,18 @@ value-fr=Ouvrir
 		Assert.Equal(Main, Save(session, session.Files[0]));
 	}
 
+	[Theory]
+	[InlineData("\n")]
+	[InlineData("\r\n")]
+	public void Save_KeepsTheFilesLineBreak(string newLine) {
+		//whichever the checkout gave Main, a file comes back with the breaks it went in with
+		string ini = Main.ReplaceLineEndings(newLine);
+		var session = Load(ini);
+
+		Assert.Equal(newLine, session.Files[0].NewLine);
+		Assert.Equal(ini, Save(session, session.Files[0]));
+	}
+
 	[Fact]
 	public void Save_RefusesATreeThatIsNotTheFiles() {
 		// a tree rooted on another label would write the wrong keys
@@ -381,7 +393,7 @@ value-fr=Ouvrir
 		Directory.CreateDirectory(folder);
 		try {
 			var session = new WordsSession();
-			WordsFile source = session.Load(new StringReader(Main), Path.Combine(folder, "Main.ini"));
+			WordsFile source = session.Load(new StringReader(Main.ReplaceLineEndings("\n")), Path.Combine(folder, "Main.ini"));
 			string outPath = Path.Combine(folder, "Main.fr.ini");
 
 			WordsFile split = session.Split(source, "fr", KeyTree.Build(session, source), outPath);
@@ -393,6 +405,7 @@ value-fr=Ouvrir
 			Assert.Contains("value-fr=Français", text);
 			Assert.DoesNotContain("value-en=", text);
 			Assert.Contains("; the file menu", text); //comments ride along
+			Assert.DoesNotContain('\r', text); //and the source's line break
 			Assert.Equal("Bonjour", session.Keys["Main-fr.greeting"].Entries["fr"].Value);
 			Assert.Equal("Hello", session.Keys["Main-fr.greeting"].DefaultValue); //reference kept
 
@@ -400,6 +413,7 @@ value-fr=Ouvrir
 			WordsFile? merged = session.Merge(source, new Dictionary<string, WordsFile> { ["fr"] = split }, KeyTree.Build(session, source), Path.Combine(folder, "Back.ini"), out _);
 			Assert.NotNull(merged);
 			Assert.Equal("Ouvrir", session.Keys["Back.menu.file.open"].Entries["fr"].Value);
+			Assert.DoesNotContain('\r', File.ReadAllText(Path.Combine(folder, "Back.ini")));
 		}
 		finally {
 			Directory.Delete(folder, recursive: true);

@@ -9,10 +9,10 @@ namespace Sample_Shared;
 ///     the lines cut from it, as written.
 /// </summary>
 public sealed record CardSource(string File, string Text) {
-	/// <summary>Reads a whole file, its line breaks made <c>\n</c>.</summary>
+	/// <summary>Reads a whole file, its line breaks as the checkout left them; the cut takes any.</summary>
 	public static CardSource Read(string file, Stream stream) {
 		using var reader = new StreamReader(stream);
-		return new(file, reader.ReadToEnd().Replace("\r\n", "\n"));
+		return new(file, reader.ReadToEnd());
 	}
 
 	/// <summary>Reads every resource of <paramref name="assembly"/> whose name starts with <paramref name="prefix"/>, named for what follows it.</summary>
@@ -61,12 +61,16 @@ public sealed partial class CardSources(IReadOnlyList<CardSource> pages, IReadOn
 		return how;
 	}
 
+	//split on any line break: a Windows checkout gives CRLF, and a \r left on a line hides a
+	//continuation's trailing backslash and rides into the cut
+	private static string[] SplitLines(string text) => text.ReplaceLineEndings("\n").Split('\n');
+
 	private static bool IsUnder(string key, string[] prefixes)
 		=> prefixes.Any(prefix => key == prefix || key.StartsWith(prefix + ".", StringComparison.Ordinal));
 
 	/// <summary>The lines between <c>&lt;!-- card: key --&gt;</c> and the next <c>&lt;!-- /card --&gt;</c>, their common indent taken off.</summary>
 	public static string? Markup(string page, string key) {
-		var lines = page.Split('\n');
+		var lines = SplitLines(page);
 		int start = Array.FindIndex(lines, line => line.Trim() == $"<!-- card: {key} -->");
 		int end = start < 0 ? -1 : Array.FindIndex(lines, start + 1, line => line.Trim() == "<!-- /card -->");
 		if (end < 0) {
@@ -103,7 +107,7 @@ public sealed partial class CardSources(IReadOnlyList<CardSource> pages, IReadOn
 	/// <summary>A words file, split into its lines and the blocks they make.</summary>
 	private sealed partial record IniFile(string Name, string[] Lines, IReadOnlyList<IniBlock> Blocks) {
 		public static IniFile Parse(CardSource file) {
-			var lines = file.Text.Split('\n');
+			var lines = SplitLines(file.Text);
 			List<(int Line, string Key, string Base, bool Relative)> headers = [];
 			string baseKey = "";
 			bool continued = false;
