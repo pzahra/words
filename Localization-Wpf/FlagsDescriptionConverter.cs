@@ -49,7 +49,8 @@ public class FlagsDescriptionConverter : IValueConverter {
 	/// formatting options.
 	/// </summary>
 	/// <remarks>If the enumeration is a Flags enum, the method returns descriptions for each flag set in the value.
-	/// The output format depends on configuration options such as delimiter and array output. Non-enum values are not
+	/// The output format depends on configuration options such as delimiter and array output. A flag with nothing for
+	/// the format is left out, and a joined string with nothing in it is <see langword="null"/>. Non-enum values are not
 	/// converted.</remarks>
 	/// <param name="value">The enumeration value to convert. Can be null.</param>
 	/// <param name="targetType">The type to convert the value to. Typically a string or an enumerable type.</param>
@@ -72,11 +73,14 @@ public class FlagsDescriptionConverter : IValueConverter {
 					=> isf.isFlag
 					? (isf.flag as Enum)?.Describe((parameter?.ToString()) ?? Format)
 					: isf.flag?.ToString()
-				);
+				)
+				// a flag with nothing for the format is left out, not shown as a gap
+				.Where(name => !string.IsNullOrEmpty(name));
 			if (AsArray) {
 				return names;
 			}
-			return string.Join(Delimiter, names);
+			// nothing left is null, as for EnumDescriptionConverter, so a tooltip stays hidden
+			return string.Join(Delimiter, names) is { Length: > 0 } text ? text : null;
 		}
 		return Binding.DoNothing;
 	}

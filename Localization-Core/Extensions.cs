@@ -72,7 +72,7 @@ namespace PatTech.Utils {
 		///         </item>
 		///         <item>
 		///             <term>i: General</term>
-		///             <description>Symbol numeric value from <c>(int)cast</c>.</description>
+		///             <description>Symbol numeric value, in whatever integer type the enum has.</description>
 		///         </item>
 		///     </list>
 		/// </summary>
@@ -151,8 +151,8 @@ namespace PatTech.Utils {
 					case 's': return sb.Append(sn);
 					case 'T': return sb.Append(lt ?? tt);
 					case 'U': return sb.Append(lu);
-					// TODO: if anyone uses this, we may want to have it check Enum.GetUnderlyingType first.
-					case 'i': return sb.Append((int)(object)value);
+					// "D" formats any underlying type; an (int) unbox throws on a long or byte enum
+					case 'i': return sb.Append(value.ToString("D"));
 					default: return char.IsLetterOrDigit(c) ? sb : sb.Append(c);
 				}
 			}

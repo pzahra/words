@@ -16,7 +16,9 @@ namespace PatTech.Localization.Wpf;
 ///     Describe format — e.g. <c>G</c> for the display text, <c>T</c> for the
 ///     tooltip, <c>d</c> for the long description, <c>U</c> for the unit. For
 ///     [Flags] combinations rendered flag by flag, use
-///     <see cref="FlagsDescriptionConverter"/> instead.
+///     <see cref="FlagsDescriptionConverter"/> instead. A member with nothing for the
+///     format — no tooltip, say — converts to <see langword="null"/>, so a tooltip
+///     bound to it stays hidden rather than showing an empty box.
 /// </remarks>
 [ValueConversion(typeof(Enum), typeof(string), ParameterType = typeof(string))]
 public class EnumDescriptionConverter : IValueConverter {
@@ -34,10 +36,10 @@ public class EnumDescriptionConverter : IValueConverter {
 	/// <param name="targetType">Ignored; the result is always a string.</param>
 	/// <param name="parameter">An optional Describe format overriding <see cref="Format"/>.</param>
 	/// <param name="culture">Ignored; the Words language decides.</param>
-	/// <returns>The localized description, or <see cref="Binding.DoNothing"/> if the input is not an enumeration.</returns>
+	/// <returns>The localized description; <see langword="null"/> if it is empty; or <see cref="Binding.DoNothing"/> if the input is not an enumeration.</returns>
 	public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) {
 		if (value is Enum @enum) {
-			return @enum.Describe(parameter?.ToString() ?? Format);
+			return @enum.Describe(parameter?.ToString() ?? Format) is { Length: > 0 } text ? text : null;
 		}
 		return Binding.DoNothing;
 	}

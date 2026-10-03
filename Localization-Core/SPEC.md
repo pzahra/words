@@ -119,6 +119,12 @@ extension builds what it hands out once, on first use: the binding it was given
 can change only before its first use, and an extension in a template may be
 asked again for each instance.
 
+**Known gap: the XAML analyser.** The IDE's XAML analyser has not caught up with
+the `object` constructor. It does not understand it, and balks at a key passed
+as a string, `{l:Words some.key}`, though that builds and runs as it always
+did. Not yet looked into; one lead is that `Key`, the property
+`[ConstructorArgument("key")]` names, is still a `string`.
+
 **The converter hoist.** Wrapping a converted binding in a `MultiBinding` with
 the tickle is *not* enough, and the reason is easy to miss: a `MultiBinding` does
 not re-run a child's converter when a sibling leg changes — each child caches its

@@ -66,4 +66,21 @@ public class ConverterResourceTests {
 		Assert.Throws<NotSupportedException>(() => new FlagsDescriptionConverter().ConvertBack(null, typeof(object), null, culture));
 		Assert.Throws<NotSupportedException>(() => new ArrayMultiConverter().ConvertBack(null, [typeof(object)], null, culture));
 	}
+
+	[Fact]
+	public void DescriptionConverters_NothingToShow_IsNull() {
+		// an empty string would still show a tooltip, as an empty box
+		var culture = System.Globalization.CultureInfo.InvariantCulture;
+		var single = new EnumDescriptionConverter();
+		Assert.Equal("Two sugars", single.Convert(DescribedFlags.Sugar, typeof(object), "d", culture));
+		Assert.Null(single.Convert(DescribedFlags.Cream, typeof(object), "d", culture));
+
+		// a flag with nothing is left out, and nothing at all is null
+		var both = DescribedFlags.Sugar | DescribedFlags.Cream;
+		var joined = new FlagsDescriptionConverter { AsArray = false, Format = "d" };
+		Assert.Equal("Two sugars", joined.Convert(both, typeof(object), null, culture));
+		Assert.Null(joined.Convert(DescribedFlags.Cream, typeof(object), null, culture));
+		var list = new FlagsDescriptionConverter { Format = "d" };
+		Assert.Equal(["Two sugars"], Assert.IsAssignableFrom<IEnumerable<string?>>(list.Convert(both, typeof(object), null, culture)));
+	}
 }
