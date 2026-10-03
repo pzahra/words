@@ -129,7 +129,8 @@ Words.SwitchLanguage("de");        // re-flattens, installs, and the screen foll
 ```
 
 Live, a `LazyWords` re-resolves and raises `PropertyChanged`, `{l:Words}` in the
-XAML packages binds instead of copying, and `WordsInline` renders again — all
+XAML packages binds instead of copying — and, wrapped around a binding, looks
+its key up or runs its converter again — and `WordsInline` renders again — all
 held weakly, so nothing leaks, and marshalled back to the thread each one lives
 on. What a view model composed and kept stays as it was; a view model that
 wants to re-raise its own notifications implements `IKnowWords` and calls

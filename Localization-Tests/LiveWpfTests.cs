@@ -1,4 +1,5 @@
 using System.Runtime.ExceptionServices;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Markup;
@@ -26,7 +27,27 @@ public class LiveWpfTests {
 		"\n" +
 		"[fmt]\n" +
 		"value-en=N {0}\n" +
-		"value-de=Nr. {0}\n";
+		"value-de=Nr. {0}\n" +
+		"\n" +
+		"[k2]\n" +
+		"value-en=Second\n" +
+		"value-de=Zweiter\n";
+
+	//a converter for the converted shape, where a nested StaticResource can find it
+	private const string Resources = "<StackPanel.Resources><l:WordsConverter x:Key=\"Format\"/></StackPanel.Resources>";
+	private const string Converted = "Text=\"{l:Words {Binding Count, Converter={StaticResource Format}, ConverterParameter=fmt}}\"";
+
+	private static TextBlock InPanel(string attributes, object source) {
+		var panel = (StackPanel)XamlReader.Parse($"<StackPanel {Xmlns}>{Resources}<TextBlock {attributes}/></StackPanel>");
+		panel.DataContext = source;
+		Pump();
+		return (TextBlock)panel.Children[0];
+	}
+
+	//a binding finds its DataContext on a dispatcher pass, and a test thread runs no loop:
+	//an empty operation below DataBind priority lets the pending lookups through
+	private static void Pump()
+		=> System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background);
 
 	private const string Xmlns =
 		"xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" " +
@@ -116,6 +137,97 @@ public class LiveWpfTests {
 		Words.SwitchLanguage("de");
 
 		Assert.Equal("Deutscher Wert", block.Text);
+	});
+
+	[Fact]
+	public void Live_ABoundKeyFollowsItsSourceAndTheSwitch() => RunSta(() => {
+		using var globals = new WordsGlobals();
+		WordsBuilder.Create().LoadString(Ini).Live().Digest("en");
+		var source = new LiveSource();
+		TextBlock block = InPanel("Text=\"{l:Words {Binding Key}}\"", source);
+		Assert.Equal("English value", block.Text);
+
+		Words.SwitchLanguage("de");
+		Assert.Equal("Deutscher Wert", block.Text);
+
+		source.Key = "k2";
+		Assert.Equal("Zweiter", block.Text);
+	});
+
+	[Fact]
+	public void Live_AConvertedBindingConvertsAgainOnTheSwitch() => RunSta(() => {
+		using var globals = new WordsGlobals();
+		WordsBuilder.Create().LoadString(Ini).Live().Digest("en");
+		var source = new LiveSource();
+		TextBlock block = InPanel(Converted, source);
+		Assert.Equal("N 5", block.Text);
+
+		Words.SwitchLanguage("de");
+		Assert.Equal("Nr. 5", block.Text);
+
+		source.Count = 6;
+		Assert.Equal("Nr. 6", block.Text);
+	});
+
+	[Fact]
+	public void Live_ASetterTakesABoundKey() => RunSta(() => {
+		using var globals = new WordsGlobals();
+		WordsBuilder.Create().LoadString(Ini).Live().Digest("en");
+		var block = (TextBlock)XamlReader.Parse(
+			$"<TextBlock {Xmlns}><TextBlock.Style><Style TargetType=\"TextBlock\">" +
+			"<Setter Property=\"Text\" Value=\"{l:Words {Binding Key}}\"/>" +
+			"</Style></TextBlock.Style></TextBlock>");
+		block.DataContext = new LiveSource();
+		Pump();
+		Assert.Equal("English value", block.Text);
+
+		Words.SwitchLanguage("de");
+
+		Assert.Equal("Deutscher Wert", block.Text);
+	});
+
+	[Fact]
+	public void Live_ATemplateLoadedTwiceConvertsInBoth() => RunSta(() => {
+		using var globals = new WordsGlobals();
+		WordsBuilder.Create().LoadString(Ini).Live().Digest("en");
+		//the wrapped binding loses its converter to the multi-binding on first use: a second
+		//instance must get the same multi-binding, not a bare binding read as a key
+		var template = (DataTemplate)XamlReader.Parse(
+			$"<DataTemplate {Xmlns}><StackPanel>{Resources}<TextBlock {Converted}/></StackPanel></DataTemplate>");
+		var source = new LiveSource();
+		var first = (StackPanel)template.LoadContent();
+		var second = (StackPanel)template.LoadContent();
+		first.DataContext = source;
+		second.DataContext = source;
+		Pump();
+		Assert.Equal("N 5", ((TextBlock)first.Children[0]).Text);
+		Assert.Equal("N 5", ((TextBlock)second.Children[0]).Text);
+
+		Words.SwitchLanguage("de");
+
+		Assert.Equal("Nr. 5", ((TextBlock)first.Children[0]).Text);
+		Assert.Equal("Nr. 5", ((TextBlock)second.Children[0]).Text);
+	});
+
+	[Fact]
+	public void Off_TheBoundShapesFollowTheirSourceOnly() => RunSta(() => {
+		using var globals = new WordsGlobals();
+		WordsBuilder builder = WordsBuilder.Create().LoadString(Ini);
+		builder.Digest("en");
+		var source = new LiveSource();
+		TextBlock key = InPanel("Text=\"{l:Words {Binding Key}}\"", source);
+		TextBlock converted = InPanel(Converted, source);
+		Assert.Equal("English value", key.Text);
+		Assert.Equal("N 5", converted.Text);
+
+		Words.Known = builder.ToWords("de");
+		Assert.Equal("English value", key.Text); //a snapshot until the source moves
+		Assert.Equal("N 5", converted.Text);
+
+		source.Key = "k2";
+		source.Count = 6;
+		Assert.Equal("Zweiter", key.Text);       //looked up in whatever Known is now
+		Assert.Equal("Nr. 6", converted.Text);
 	});
 
 	[Fact]

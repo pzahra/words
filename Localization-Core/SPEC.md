@@ -91,6 +91,52 @@ the target, which keeps it for as long as it lives; WPF's binding holds its
 source itself. Off, each shape is its snapshot self, so live mode costs nothing
 when it is not asked for.
 
+**Bound keys and converters.** `{l:Words}` takes a whole binding as well as a
+key, through one `object` constructor that branches on what it got:
+
+- `{l:Words {Binding KeyName}}` — a binding with no converter. The bound value
+  *is* the key, looked up whenever it changes and, live, on every swap.
+- `{l:Words {Binding Status, Converter={StaticResource WordsFormat}, ConverterParameter=op.status}}`
+  — a binding carrying its own converter (a template fill here, an
+  [`EnumDescriptionConverter`](../Localization-Wpf/EnumDescriptionConverter.cs)
+  or `FlagsDescriptionConverter` elsewhere). `{l:Words}` never has to know which:
+  the inner binding's converter says how to localize, so the enum-vs-template
+  choice is the author's, not the extension's.
+
+Off, each shape is its snapshot self: the bound key gains the lookup as its
+converter (and a one-way mode, if it named none), and the converted binding is
+handed on untouched. The result is a binding either way, so its target must be
+able to hold one. A `MultiBinding`, or WPF's `PriorityBinding`, is handed on
+untouched in both modes. On Avalonia a compiled binding is wrapped like a
+reflection one, and an object-typed target is bound directly, as for a key. The
+extension builds what it hands out once, on first use: the binding it was given
+can change only before its first use, and an extension in a template may be
+asked again for each instance.
+
+**The converter hoist.** Wrapping a converted binding in a `MultiBinding` with
+the tickle is *not* enough, and the reason is easy to miss: a `MultiBinding` does
+not re-run a child's converter when a sibling leg changes — each child caches its
+converted value and recomputes only when its own source moves, so pulsing the
+tickle hands back the source leg's stale string. Live, `{l:Words}` therefore
+**hoists** the inner binding's converter: it reads `.Converter`,
+`.ConverterParameter`, `.ConverterCulture` and `.StringFormat` off the binding
+(which arrives before it is instanced, so they move cheaply, no clone), clears
+them, uses the bare source as leg 0, adds the tickle as leg 1, and its
+multi-converter re-applies the hoisted converter to the current source value —
+or, for a bound key, looks the key up — with the string format on the
+`MultiBinding`, applied after it as it was. A swap pulses the tickle, the
+multi-converter runs again, and the value re-localizes; a source change drives it
+the same way. Avalonia takes the same hoist, so the twins match; its
+`ConverterCulture` arrived after 11.0, which the package still takes, so it moves
+only where it exists. This is display-only: the hoisted converters are one-way
+(`ConvertBack` throws), which localization is.
+
+**The tickle.** `WordsTickle.Instance`, in Core: one keyless `IKnowWords` for the
+whole process, carrying no text, only the pulse — a `Pulse` count that raises
+`PropertyChanged` on every swap. The extension registers it
+(`WordsTickle.Watch()`) when it builds a live multi-binding; off, it never
+pulses. An app can give its own multi-bindings the same leg.
+
 **Rendering controls.** A control that renders Words itself rather than handing a
 string to a property — `WordsInline`, on both frameworks — implements
 `IKnowWords` directly and rebuilds its content on `Refresh`, no binding in the
@@ -125,14 +171,14 @@ weakly held, thread-marshalled — so the app gets the shortcut instead of the
 plumbing. That is also why it stays opt-in: it earns its keep only for the app
 that wants it, and costs the others nothing.
 
-**What does not follow.** A string a view model composed and kept, and a binding
-never wrapped in `{l:Words}` — a `WordsConverter` with its key as
-`ConverterParameter`, a `StringFormat` — stay snapshots; the next section is the
-plan for the converters. WPF's default binding culture
-(`Digest(…, includeFrameworkElements: true)`) is a one-shot metadata override and
-does not move with a switch; a live app sets `Language` on its windows itself,
-or formats through `WordsInline` and `Words.Format`, which use the thread culture
-the switch sets.
+**What does not follow.** A string a view model composed and kept stays a
+snapshot, and so does a binding never wrapped in `{l:Words}` — a plain
+`{Binding X, Converter={StaticResource WordsFormat}, …}`, a `StringFormat` —
+because Core cannot reach a `Converter=` it was never handed. WPF's default
+binding culture (`Digest(…, includeFrameworkElements: true)`) is a one-shot
+metadata override and does not move with a switch; a live app sets `Language` on
+its windows itself, or formats through `WordsInline` and `Words.Format`, which
+use the thread culture the switch sets.
 
 **Tests.** Headless, all of it: opt in, digest, take a `LazyWords`, read it,
 `SwitchLanguage`, and its `Value` is the new language and its `PropertyChanged`
@@ -144,58 +190,18 @@ it; a watcher that throws is logged and the next one still refreshed; a switch
 from another thread posts once to the watcher's context. On each framework, a
 property bound through `{l:Words}` follows a switch — a WPF setter and an
 Avalonia `Content` too — a `StringFormat` keeps the string, `WordsInline` renders
-again, and off, the markup is the snapshot.
+again, and off, the markup is the snapshot. Over a binding, on each framework: a
+bound key follows its source and a switch, a converted binding converts again on
+a switch and on a source change, and off, both follow their source only; an
+Avalonia compiled binding and object-typed target are wrapped too; a WPF setter
+takes a bound key, and a WPF template loaded twice converts in both. The tickle
+pulses on every swap and is still when off.
 
 ---
 
 # Planned upgrades
 
 Not built. Each section here is the shape the feature takes when it is.
-
-## Live switching, next: bound keys and converters
-
-`{l:Words}` takes a key today. The next shapes take a whole binding, through a
-single `object` constructor that branches on what it got, so one door serves
-every case:
-
-- `{l:Words {Binding KeyName}}` — a binding with no converter. The bound value
-  *is* the key; a dynamic lookup, re-run on every swap.
-- `{l:Words {Binding Status, Converter={StaticResource WordsConverter}, ConverterParameter=op.status}}`
-  — a binding carrying its own converter (a template fill here, an
-  [`EnumDescriptionConverter`](../Localization-Wpf/EnumDescriptionConverter.cs)
-  or `FlagsDescriptionConverter` elsewhere). `{l:Words}` never has to know which:
-  the inner binding's converter says how to localize, so the enum-vs-template
-  choice is the author's, not the extension's.
-
-Off, each shape is its snapshot self — the wrapped binding is returned untouched
-with its converter intact — so live mode costs nothing when it is not asked for.
-
-**The converter hoist.** Wrapping a converted binding in a `MultiBinding` with
-the tickle is *not* enough, and the reason is easy to miss: a `MultiBinding` does
-not re-run a child's converter when a sibling leg changes — each child caches its
-converted value and recomputes only when its own source moves, so pulsing the
-tickle hands back the source leg's stale string. `{l:Words}` therefore **hoists**
-the inner binding's converter: it reads `.Converter`, `.ConverterParameter` and
-`.ConverterCulture` off the binding (which arrives before it is instanced, so the
-three move cheaply, no clone), clears them, uses the bare source as leg 0, adds
-the process-wide *tickle* as leg 1, and its `IMultiValueConverter` re-applies the
-hoisted converter to the current source value. A swap pulses the tickle, the
-multi-converter re-runs the real converter, and the value re-localizes; a source
-change drives it the same way. The tickle is a single keyless `IKnowWords`
-registered once for the whole process — it carries no value, only the pulse. It
-lives in Core; the `Binding`, `MultiBinding` and the markup extension are the
-framework packages', and Avalonia may skip the hoist entirely — its reactive
-bindings re-project through a converter when a merged dictionary-change
-observable ticks.
-
-This is display-only: the hoisted converters are one-way (`ConvertBack` throws),
-which localization is. And the limit narrows to the irreducible one — a binding
-never wrapped in `{l:Words}` stays a snapshot, because Core cannot reach a
-`Converter=` it was never handed.
-
-**Tests.** A bound key re-looks up on a swap; a converted binding re-converts on
-a swap and on a source change; off, the wrapped binding comes back untouched,
-converter and all.
 
 ## Plural forms
 

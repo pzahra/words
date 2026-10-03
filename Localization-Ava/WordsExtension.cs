@@ -4,25 +4,42 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Reflection;
 
 namespace PatTech.Localization.Avalonia;
 
 /// <summary>
-///     The <c>{l:Words key}</c> markup extension. Resolves a key against <see cref="Words.Known"/>
-///     and hands the localized string to the target property — or, in live mode, a
-///     binding that follows the language.
+///     The <c>{l:Words}</c> markup extension. Given a key, resolves it against
+///     <see cref="Words.Known"/> and hands the localized string to the target property — or,
+///     in live mode, a binding that follows the language. Given a binding, localizes what
+///     the binding produces.
 /// </summary>
 /// <remarks>
-///     Off (<see cref="Words.Live"/> is <see langword="null"/>, the default) the value is
-///     resolved once, when <see cref="Key"/> is assigned — it does not re-resolve if
-///     <see cref="Words.Known"/> is replaced later. Live, a styled or direct property gets a
-///     one-way binding to the key's shared <see cref="LazyWords"/> (<see cref="LazyWords.Of"/>),
-///     so <see cref="Words.SwitchLanguage"/> relocalizes it in place; a plain property that
-///     can hold no binding still gets the string, resolved once. A key with no Words
-///     renders as <c>#key#</c>, so missing entries announce themselves instead of hiding.
+///     <para>
+///     <c>{l:Words some.key}</c>: off (<see cref="Words.Live"/> is <see langword="null"/>, the
+///     default) the value is resolved once, when the key is assigned — it does not
+///     re-resolve if <see cref="Words.Known"/> is replaced later. Live, a styled or direct
+///     property gets a one-way binding to the key's shared <see cref="LazyWords"/>
+///     (<see cref="LazyWords.Of"/>), so <see cref="Words.SwitchLanguage"/> relocalizes it in
+///     place; a plain property that can hold no binding still gets the string, resolved
+///     once. A key with no Words renders as <c>#key#</c>, so missing entries announce
+///     themselves instead of hiding.
+///     </para>
+///     <para>
+///     <c>{l:Words {Binding KeyName}}</c>: a binding with no converter. The bound value is the
+///     key, looked up whenever it changes and, live, on every switch.
+///     <c>{l:Words {Binding Status, Converter={StaticResource WordsFormat}, ConverterParameter=op.status}}</c>:
+///     a binding with a converter of its own, which says how to localize — a template fill,
+///     an enum's description. Off, it is handed on untouched; live, its converter runs again
+///     on every switch. Compiled bindings and reflection bindings alike; a
+///     <c>MultiBinding</c> is handed on untouched.
+///     </para>
 /// </remarks>
 public class WordsExtension : MarkupExtension {
 	private string value;
+	private readonly IBinding? wrapped;
+	private IBinding? provided;
 
 	private string _Key;
 	/// <summary>
@@ -44,33 +61,83 @@ public class WordsExtension : MarkupExtension {
 		value = "#?#";
 	}
 	/// <summary>
-	///     Creates the extension and immediately resolves <paramref name="key"/> against
-	///     <see cref="Words.Known"/>.
+	///     Creates the extension over a key, resolved against <see cref="Words.Known"/>
+	///     immediately, or over a binding, localized when the binding is applied.
 	/// </summary>
-	/// <param name="key">The key of the Words to provide.</param>
-	public WordsExtension(string key) => value = Words.Known[_Key = key];
+	/// <param name="key">The key of the Words to provide, or an <see cref="IBinding"/> whose value to localize.</param>
+	/// <exception cref="ArgumentNullException"><paramref name="key"/> is <see langword="null"/>.</exception>
+	public WordsExtension(object key) {
+		ArgumentNullException.ThrowIfNull(key);
+		if (key is IBinding binding) {
+			wrapped = binding;
+			_Key = "?";
+			value = "#?#";
+		}
+		else {
+			value = Words.Known[_Key = key.ToString() ?? ""];
+		}
+	}
 
 	/// <summary>
 	///     Returns the localized string resolved from <see cref="Key"/> — or, in live mode
-	///     and where the target can hold one, a binding to the key's shared proxy.
+	///     and where the target can hold one, a binding to the key's shared proxy — or, over a
+	///     binding, the binding that localizes it.
 	/// </summary>
-	/// <param name="serviceProvider">Service provider supplied by the XAML processor; consulted for the target in live mode.</param>
-	/// <returns>The localized string, a <c>#key#</c> placeholder if the key was unknown, or the live binding.</returns>
+	/// <param name="serviceProvider">Service provider supplied by the XAML processor; consulted for the target.</param>
+	/// <returns>The localized string, a <c>#key#</c> placeholder if the key was unknown, or a binding.</returns>
 	public override object ProvideValue(IServiceProvider serviceProvider) {
-		if (Words.Live is null
-				|| serviceProvider?.GetService(typeof(IProvideValueTarget)) is not IProvideValueTarget { TargetObject: AvaloniaObject target, TargetProperty: AvaloniaProperty property }) {
+		var target = serviceProvider?.GetService(typeof(IProvideValueTarget)) as IProvideValueTarget;
+		if (wrapped is not null) {
+			//built once, since the binding it was given can change only before its first use
+			provided ??= Wrap(wrapped, live: Words.Live is not null);
+			return Hand(target, provided);
+		}
+		if (Words.Live is null || target is not { TargetObject: AvaloniaObject owner, TargetProperty: AvaloniaProperty }) {
 			return value;
 		}
 		LazyWords holder = LazyWords.Of(_Key);
-		Hold(target, holder);
-		var binding = new Binding(nameof(LazyWords.Value)) { Source = holder, Mode = BindingMode.OneWay };
-		if (property.PropertyType == typeof(object)) {
-			//an object-typed property would take the binding itself for its value: bind
-			//it here, and hand back the current text for the loader to set meanwhile
-			target.Bind(property, binding);
-			return value;
+		Hold(owner, holder);
+		return Hand(target, new Binding(nameof(LazyWords.Value)) { Source = holder, Mode = BindingMode.OneWay });
+	}
+
+	//an object-typed property would take a binding itself for its value: bind it here,
+	//and hand back what it shows now for the loader to set meanwhile
+	private static object Hand(IProvideValueTarget? target, IBinding binding) {
+		if (target is { TargetObject: AvaloniaObject owner, TargetProperty: AvaloniaProperty property } && property.PropertyType == typeof(object)) {
+			owner.Bind(property, binding);
+			return owner.GetValue(property) ?? AvaloniaProperty.UnsetValue;
 		}
 		return binding;
+	}
+
+	//BindingBase.ConverterCulture arrived after Avalonia 11.0, which the package still takes
+	private static readonly PropertyInfo? ConverterCulture = typeof(BindingBase).GetProperty("ConverterCulture");
+
+	//the binding as it localizes: off, a bound key gains a lookup and a converted binding
+	//is itself; live, the converter (or the lookup) moves up to a multi-binding with the
+	//tickle beside the binding, since a multi-binding re-runs only its own converter
+	private static IBinding Wrap(IBinding wrapped, bool live) {
+		if (wrapped is not BindingBase binding) {
+			return wrapped;
+		}
+		if (!live) {
+			if (binding.Converter is null) {
+				binding.Converter = new BoundWordsConverter();
+				if (binding.Mode == BindingMode.Default) {
+					binding.Mode = BindingMode.OneWay;
+				}
+			}
+			return binding;
+		}
+		var converter = new BoundWordsConverter(binding.Converter, binding.ConverterParameter, ConverterCulture?.GetValue(binding) as CultureInfo);
+		var multi = new MultiBinding { Converter = converter, Mode = BindingMode.OneWay, StringFormat = binding.StringFormat };
+		binding.Converter = null;
+		binding.ConverterParameter = null;
+		ConverterCulture?.SetValue(binding, null);
+		binding.StringFormat = null;
+		multi.Bindings.Add(binding);
+		multi.Bindings.Add(new Binding(nameof(WordsTickle.Pulse)) { Source = WordsTickle.Watch(), Mode = BindingMode.OneWay });
+		return multi;
 	}
 
 	//Avalonia holds a binding's source weakly, and the shared holder's other owners

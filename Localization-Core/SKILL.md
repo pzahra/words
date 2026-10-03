@@ -203,8 +203,11 @@ redirected.
   XAML loads, `LazyWords` caches, and loaded XAML goes stale on a swap (Wordsmith
   saves a config file and restarts). To switch in place, chain `.Live()` before
   `Digest` and call `Words.SwitchLanguage("xx")`: `{l:Words}` then binds,
-  `LazyWords` re-resolves and notifies, `WordsInline` re-renders. Strings a view
-  model kept do not follow unless it implements `IKnowWords` and `Words.Watch`es.
+  `LazyWords` re-resolves and notifies, `WordsInline` re-renders. A localized
+  binding follows only when wrapped: `{l:Words {Binding KeyName}}` for a bound
+  key, `{l:Words {Binding X, Converter=…, ConverterParameter=…}}` for a converted
+  one. Strings a view model kept do not follow unless it implements `IKnowWords`
+  and `Words.Watch`es.
 - Keys missing from the dictionary render as `#key#` on screen by design;
   grep for `#` leakage rather than letting it ship.
 - `Words.Known` is process-wide; assign it once at startup before any UI.

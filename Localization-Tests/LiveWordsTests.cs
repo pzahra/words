@@ -101,6 +101,41 @@ public class LiveWordsTests {
 	}
 
 	[Fact]
+	public void TheTickle_PulsesOnEverySwap() {
+		using var globals = new WordsGlobals();
+		WordsBuilder builder = WordsBuilder.Create().LoadString(Ini).Live();
+		builder.Digest("en");
+		WordsTickle tickle = WordsTickle.Watch();
+		var pulse = tickle.Pulse;
+		var raised = new List<string?>();
+		void Heard(object? sender, PropertyChangedEventArgs e) => raised.Add(e.PropertyName);
+		tickle.PropertyChanged += Heard; //the tickle is the process's: let go of it after
+		try {
+			Words.SwitchLanguage("de");
+			Words.Known = builder.ToWords("en");
+
+			Assert.Equal(pulse + 2, tickle.Pulse);
+			Assert.Equal(new[] { nameof(WordsTickle.Pulse), nameof(WordsTickle.Pulse) }, raised);
+		}
+		finally {
+			tickle.PropertyChanged -= Heard;
+		}
+	}
+
+	[Fact]
+	public void TheTickle_IsStillWhenOff() {
+		using var globals = new WordsGlobals();
+		WordsBuilder builder = WordsBuilder.Create().LoadString(Ini);
+		builder.Digest("en");
+		WordsTickle tickle = WordsTickle.Watch(); //off: a no-op
+		var pulse = tickle.Pulse;
+
+		Words.Known = builder.ToWords("de");
+
+		Assert.Equal(pulse, tickle.Pulse);
+	}
+
+	[Fact]
 	public void Of_SharesOneHolderPerKey() {
 		LazyWords a = LazyWords.Of("k");
 		Assert.Same(a, LazyWords.Of("k"));

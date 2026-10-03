@@ -34,6 +34,11 @@ One namespace gives you everything (`pattech.words`, the older name, still works
 ```
 
 - `{l:Words key}` — a markup extension that resolves to the localized string.
+- `{l:Words {Binding KeyName}}` — the same over a binding: the bound value is
+  the key, looked up again whenever it changes.
+- `{l:Words {Binding Status, Converter={StaticResource WordsFormat}, ConverterParameter=op.status}}`
+  — a binding with a converter of its own, which says how to localize. It is
+  handed on as it is; live (below), it converts again on a language switch.
 - `<l:WordsInline Key="key"/>` — an inline that renders the value, markdown
   and all, inside a `TextBlock`.
 
@@ -72,12 +77,16 @@ Or opt in: `.Live()` on the builder before `Digest` keeps the sources, and
 Live, `{l:Words}` hands a dependency property (or a style setter) a binding to
 a shared `LazyWords` instead of a string, so the text follows the switch; a
 property that can hold no binding — a `ConverterParameter`, a `StringFormat` —
-still gets the string, resolved once. `WordsInline` renders again. Everything
-is held weakly and refreshed on the dispatcher it lives on. What does not
-follow: strings a view model composed and kept (implement `IKnowWords` and call
-`Words.Watch(this)` to re-raise them), a `WordsConverter` bound by key, and the
-`includeFrameworkElements` binding culture below, which is one-shot — a live app
-sets `Language` on its windows itself if its bindings format numbers.
+still gets the string, resolved once. A bound key is looked up again, and a
+converted binding wrapped in `{l:Words}` converts again: its converter moves up
+to a `MultiBinding` beside `WordsTickle`, the process's pulse, since a
+`MultiBinding` never re-runs a child's own converter. `WordsInline` renders
+again. Everything is held weakly and refreshed on the dispatcher it lives on.
+What does not follow: strings a view model composed and kept (implement
+`IKnowWords` and call `Words.Watch(this)` to re-raise them), a converted binding
+not wrapped in `{l:Words}`, and the `includeFrameworkElements` binding culture
+below, which is one-shot — a live app sets `Language` on its windows itself if
+its bindings format numbers.
 
 ### Match the binding culture to the language
 
