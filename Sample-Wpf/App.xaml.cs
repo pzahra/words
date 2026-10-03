@@ -11,8 +11,7 @@ public partial class App : Application {
 	protected override void OnStartup(StartupEventArgs e) {
 		base.OnStartup(e);
 
-		// honor `--lang=xx` and `--theme=dark|light` from a changeLang relaunch
-		// (see MainWindowViewModel.TakeAppCommand)
+		// honor `--lang=xx` and `--theme=dark|light` on the command line
 		string lang = "it";
 		bool dark = false;
 		foreach (var arg in e.Args) {
@@ -21,12 +20,16 @@ public partial class App : Application {
 		}
 		ApplyTheme(dark);
 		// one call loads, installs Words.Known (which syncs the thread cultures) and
-		// hands back the language menu; the flag also points FrameworkElement.Language
-		// at it, so ordinary WPF bindings (StringFormat and the like) stop defaulting to
-		// en-US. (.UseSystemNumbers() before Digest would keep the Italian words but
-		// format their numbers and dates the way this system does)
+		// hands back the language menu. Live() keeps the sources, so the language can
+		// be switched in place later (see MainWindowViewModel.TakeAppCommand). The flag
+		// also points FrameworkElement.Language at it, so ordinary WPF bindings
+		// (StringFormat and the like) stop defaulting to en-US — once, at startup: a
+		// live switch moves the thread cultures, not that default. (.UseSystemNumbers()
+		// before Digest would keep the Italian words but format their numbers and dates
+		// the way this system does)
 		Words.Builder()
 			.LoadResource("pack://application:,,,/Sample-Wpf;Component/Assets/sample.ini")
+			.Live()
 			.Digest(lang, out var languages, includeFrameworkElements: true);
 		KeyValuePair<string, string>[] langs = [.. languages];
 

@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using PatTech.Localization;
 using System.Windows;
 
 namespace Sample_Wpf.ViewModels {
@@ -44,11 +44,11 @@ namespace Sample_Wpf.ViewModels {
 			lastCommand = uri;
 			++commandCount;
 			AffectProperty(nameof(AppCommandParams));
-			if (uri.AbsolutePath == "changeLang" && Environment.ProcessPath is { } exe) {
-				// relaunch with the selected language, and the current theme, on the
-				// command line (App.OnStartup reads them back before loading the Words)
-				Process.Start(new ProcessStartInfo(exe, $"--lang={SelectedLanguage} --theme={(IsDarkTheme ? "dark" : "light")}"));
-				Application.Current.Shutdown();
+			if (uri.AbsolutePath == "changeLang") {
+				// switch in place: the builder was kept live at startup (App.OnStartup),
+				// so this re-flattens for the selected language, and everything bound
+				// through {l:Words} and every WordsInline follow without a relaunch
+				Words.SwitchLanguage(SelectedLanguage);
 			}
 		}
 	}

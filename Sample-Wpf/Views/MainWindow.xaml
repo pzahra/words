@@ -30,7 +30,7 @@
       <TextBlock FontStyle="Italic" Text="{l:Words main.greeting}"/>
 
       <!-- the languages come from the top-of-file `value-xx=` labels in sample.ini;
-           the appcmd: link relaunches the app with the selection on the command line -->
+           the appcmd: link switches the app to the selection in place (Live mode) -->
       <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
         <ComboBox MinWidth="140"
                   ItemsSource="{Binding Languages}"

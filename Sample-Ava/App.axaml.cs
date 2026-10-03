@@ -15,20 +15,22 @@ namespace Sample_Ava {
 		IEnumerable<KeyValuePair<string, string>> langs = [];
 		string lang = "it";
 		public override void Initialize() {
-			// honor `--lang=xx` and `--theme=dark|light` from a changeLang relaunch
-			// (see MainWindowViewModel.TakeAppCommand); without --theme, "Default"
-			// in App.axaml follows the system
+			// honor `--lang=xx` and `--theme=dark|light` on the command line; without
+			// --theme, "Default" in App.axaml follows the system
 			string? theme = null;
 			foreach (var arg in Environment.GetCommandLineArgs()) {
 				if (arg.StartsWith("--lang=")) lang = arg["--lang=".Length..];
 				else if (arg.StartsWith("--theme=")) theme = arg["--theme=".Length..];
 			}
 			// one call loads, installs Words.Known (which syncs the thread cultures)
-			// and hands back the language menu. (.UseSystemNumbers() before Digest would
-			// keep the Italian words but format their numbers and dates the way this
-			// system does)
+			// and hands back the language menu. Live() keeps the sources, so the
+			// language can be switched in place later (see
+			// MainWindowViewModel.TakeAppCommand). (.UseSystemNumbers() before Digest
+			// would keep the Italian words but format their numbers and dates the way
+			// this system does)
 			Words.Builder()
 				.LoadResource("avares://Sample-Ava/Assets/sample.ini")
+				.Live()
 				.Digest(lang, out var languages);
 			langs = [.. languages];
 			AvaloniaXamlLoader.Load(this);
