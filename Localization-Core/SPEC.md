@@ -163,3 +163,82 @@ language and its `PropertyChanged` fired. Off by default, a proxy never register
 and a `Words.Known` swap notifies nothing — the snapshot behavior above, pinned.
 The weak contract gets its own test: a proxy with no other referent is
 collectable, and the registry neither resurrects nor refreshes it.
+
+## Plural forms
+
+Pick the word for a count in the dictionary, not in code. The app that writes
+`count == 1 ? "file" : "files"` has encoded English's rule: Russian puts 1, 21
+and 31 in one form, 2 to 4 in another and 5 to 20 in a third; Arabic has six
+forms; French counts zero as singular. The translator who knows the rule cannot
+reach the code that applies it, so the choice moves into the value, where the
+translator is.
+
+**The forms.** A key's plural forms are variants of its value, marked with the
+category after the language: `value-en#other=Words`, or `value#other` for the
+default. The plain value is the `one` form, implied — every key already has it,
+and it is what `{>word}` and the indexer render — so a category with no form of
+its own falls to the plain value, and a language with one form writes only that.
+Comment, context and stale stay one per key.
+
+```ini
+[word]
+value=Word
+value#other=Words
+value-it=Parola
+value-it#other=Parole
+value-ru=слово
+value-ru#few=слова
+value-ru#many=слов
+```
+
+The categories are Unicode CLDR's six — zero, one, two, few, many, other — and
+which numbers fall in which is CLDR's rule for the language, carried as a table
+in Core since .NET exposes none; the integer rules cover nearly every real call,
+so fractions may wait. An English file writes `other` and nothing more, and a
+Russian translator adds `few` and `many` without a line of code changing.
+
+**The selector.** A third reference beside `{$constant}` and `{>key}`, with the
+same mark as the forms: `{0#word}` names a parameter and a key. The parameter is
+not printed; its value selects, under the dictionary's language, which of
+`word`'s forms is spliced in. The count prints wherever the author puts `{0}`,
+so `value={0} {0#word}` reads "1 Word" and "2 Words"; one parameter may select
+several words; a named parameter selects the same way, `{Count#word}`; `{0#.n}`
+is relative to the block as `{>.sub}` is; and a missing key renders `#word#` as
+ever. A selector is a reference, and the circular cut applies: a key does not
+select among its own forms. A sentence that changes shape as a whole keeps its
+forms in a sub-key and selects there, or is read whole through the count indexer
+below.
+
+**Where it resolves.** The forms are entries of the dictionary like values:
+digested per language with the same exact → family → default resolution, and
+rendered through the same reference expansion, so a form may itself carry a
+`{>key}` or a `{0}`. The selector resolves in the `Format` family, which holds
+the arguments, before `string.Format` sees the template: each `{n#key}` is
+replaced by the form its argument selects, then formatting proceeds. The indexer
+leaves a selector in place — it has no argument to select with — so a plural
+template reached through `Words.Known[key]` and the caller's own `string.Format`
+throws, which is the right signal: that template wanted `Words.Format`. A
+non-numeric argument selects `other` and warns.
+
+**The count indexer.** A caller holding a key and a number needs neither
+`Format` nor a selector: `Words.Known[key, n]` is the lookup with a count, and
+returns the key's own form for `n`, rendered as any value is —
+`Words.Known["word", 1]` is "Word", `Words.Known["word", 2]` is "Words". It is a
+member of `IWords` with a default implementation, so a dictionary of one's own
+needs nothing.
+
+**What changes.** The pair grammar admits `#form` after the language, and the
+form travels with the field type, so a consumer that knows `value` learns
+`value#other` the same way: Core to digest it, the authoring side to round-trip
+it. Wordsmith shows the forms as extra value boxes at first, and later shows
+each language the categories CLDR says it uses, so a Russian translator sees
+`few` and `many` beside the value and an English one sees `other`. Nothing else
+moves: a file with no `#` forms parses, digests and renders byte for byte as
+today.
+
+**Tests.** A headless test digests a file with English and a four-form language,
+formats a counted key at 1, 2, 5, 11, 21, 22, 25 and 101 under each, and reads
+the expected forms; a category without a form falls to the plain value; a named
+selector picks the same form as a numbered one; a key selecting its own forms
+renders the circular mark; the indexer returns the template with the selector
+intact, and the count indexer returns the key's own form for the count.
