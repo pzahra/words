@@ -63,6 +63,13 @@
       <Slider Minimum="0" Maximum="42" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Unread}"/>
       <TextBlock Style="{StaticResource demo}"><l:WordsInline Key="demo.params-named" Params="{Binding Profile}"/></TextBlock>
 
+      <TextBlock Style="{StaticResource h}" Text="{l:Words section.live}"/>
+      <!-- {l:Words} over a binding: the view model picks a key, which is looked up (toggle
+           the theme); a binding's own converter formats (move the slider); and both run
+           again when the language changes -->
+      <TextBlock Style="{StaticResource demo}" Text="{l:Words {Binding ThemeKey}}"/>
+      <TextBlock Style="{StaticResource demo}" Text="{l:Words {Binding Unread, Converter={StaticResource WordsFormat}, ConverterParameter=demo.converted}}"/>
+
       <TextBlock Style="{StaticResource h}" Text="{l:Words section.kitchen}"/>
       <TextBlock Style="{StaticResource demo}"><l:WordsInline Key="main.markdown"/></TextBlock>
 

@@ -16,11 +16,16 @@ namespace Sample_Ava.ViewModels {
 		public bool IsDarkTheme {
 			get => isDarkTheme;
 			set {
-				if (ChangeProperty(ref isDarkTheme, value) && Application.Current is { } app) {
-					app.RequestedThemeVariant = value ? ThemeVariant.Dark : ThemeVariant.Light;
+				if (ChangeProperty(ref isDarkTheme, value)) {
+					if (Application.Current is { } app) {
+						app.RequestedThemeVariant = value ? ThemeVariant.Dark : ThemeVariant.Light;
+					}
+					AffectProperty(nameof(ThemeKey));
 				}
 			}
 		}
+		/// <summary>The key the live-bindings demo shows, picked by the theme: `{l:Words {Binding ThemeKey}}` looks it up.</summary>
+		public string ThemeKey => IsDarkTheme ? "demo.theme-dark" : "demo.theme-light";
 
 		private double unread = 3;
 		/// <summary>The `demo.params-positional` argument, bound as the inline's child.</summary>

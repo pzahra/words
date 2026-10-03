@@ -12,9 +12,14 @@ namespace Sample_Wpf.ViewModels {
 		public bool IsDarkTheme {
 			get => isDarkTheme;
 			set {
-				if (ChangeProperty(ref isDarkTheme, value)) ((App)Application.Current).ApplyTheme(value);
+				if (ChangeProperty(ref isDarkTheme, value)) {
+					((App)Application.Current).ApplyTheme(value);
+					AffectProperty(nameof(ThemeKey));
+				}
 			}
 		}
+		/// <summary>The key the live-bindings demo shows, picked by the theme: `{l:Words {Binding ThemeKey}}` looks it up.</summary>
+		public string ThemeKey => IsDarkTheme ? "demo.theme-dark" : "demo.theme-light";
 
 		private double unread = 3;
 		/// <summary>The `demo.params-positional` argument, bound as the inline's child.</summary>
