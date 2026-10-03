@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Platform;
 using Avalonia.Styling;
 using PatTech.Localization;
 using PatTech.Localization.Avalonia;
@@ -13,6 +14,7 @@ using System.Diagnostics;
 
 namespace Sample_Ava {
 	public partial class App : Application {
+		private const string FrameworkWords = "avares://Sample-Ava/Assets/framework.ini";
 		private readonly SampleConfig config = SampleConfig.For("Sample-Ava");
 		private IReadOnlyList<KeyValuePair<string, string>> langs = [];
 		private string lang = "it";
@@ -34,7 +36,7 @@ namespace Sample_Ava {
 			// system does)
 			Words.Builder()
 				.LoadShared()
-				.LoadResource("avares://Sample-Ava/Assets/framework.ini")
+				.LoadResource(FrameworkWords)
 				.Live()
 				.Digest(lang, out var languages);
 			langs = [.. languages];
@@ -48,7 +50,7 @@ namespace Sample_Ava {
 			// is kept for the Diagnostics page to list
 			var gripes = new GripeLog();
 			Words.Logger = gripes;
-			var viewModel = new MainWindowViewModel(langs, lang, ActualThemeVariant == ThemeVariant.Dark, config, gripes);
+			var viewModel = new MainWindowViewModel(langs, lang, ActualThemeVariant == ThemeVariant.Dark, config, gripes, CardSources());
 
 			Hyperlink.RegisterGlobalNavigateHandler(uri => {
 				if (uri.Scheme is "appcmd") {
@@ -69,5 +71,13 @@ namespace Sample_Ava {
 
 			base.OnFrameworkInitializationCompleted();
 		}
+
+		/// <summary>
+		///     The real files the cards' How cuts from (SPEC: How each card is made): the pages'
+		///     markup, embedded under pages/ by the project file, and the words this sample loads.
+		/// </summary>
+		public static CardSources CardSources() => new(
+			CardSource.ReadAll(typeof(App).Assembly, "pages/"),
+			[SampleWords.ReadShared(), CardSource.Read("framework.ini", AssetLoader.Open(new Uri(FrameworkWords)))]);
 	}
 }

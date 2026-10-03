@@ -231,6 +231,17 @@ application or the theme dictionary you swap in, and links and code spans
 follow, a theme swap included. Merge nothing and define nothing, and links still
 come out blue and code spans monospace on a faint grey.
 
+## See it all at once
+
+The [Sample-Wpf](https://github.com/pzahra/words/tree/main/Sample-Wpf) project is the full tour, a page per topic:
+markdown and code spans, references and constants, tooltipped and in-app
+hyperlinks, every image scheme, format parameters, `[Words]` enums, live
+switching and diagnostics. Each demonstration says what it uses, and its *How
+it's made* shows the exact XAML and `words.ini` behind it, cut from the real
+files. A language dropdown switches the app in place, and a dark/light switch
+repaints the links and shows a `dynres:` image following the theme while its
+`staticres:` twin stays put. Sample-Ava is its Avalonia twin.
+
 ## The rest of the suite
 
 - **[PatTech.Localization.Core](https://www.nuget.org/packages/PatTech.Localization.Core)** — the engine: `words.ini` files, lookups by key, languages and fallbacks, `{0}`/`{Name}` parameters, `{>key}` references, a markdown dialect.

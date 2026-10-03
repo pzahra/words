@@ -11,11 +11,15 @@ namespace Sample_Ava.Controls {
 	///     One demonstration (SPEC: Cards): a heading, a sentence or two of guidance, the
 	///     live result as its content, and chips naming what it uses. <see cref="Key"/>
 	///     names the card's words: its value is the heading and <c>.guide</c> beneath it
-	///     the guidance, both rendered with markdown. The look is App.axaml's.
+	///     the guidance, both rendered with markdown. Beneath, a How shows the markup and
+	///     the words the card is made of (<see cref="CardHowConverter"/>). The look is App.axaml's.
 	/// </summary>
 	public class DemoCard : ContentControl {
 		public static readonly StyledProperty<string?> KeyProperty =
 			AvaloniaProperty.Register<DemoCard, string?>(nameof(Key));
+
+		public static readonly StyledProperty<string?> MoreKeysProperty =
+			AvaloniaProperty.Register<DemoCard, string?>(nameof(MoreKeys));
 
 		public static readonly StyledProperty<string?> UsesProperty =
 			AvaloniaProperty.Register<DemoCard, string?>(nameof(Uses));
@@ -31,6 +35,15 @@ namespace Sample_Ava.Controls {
 		public string? Key {
 			get => GetValue(KeyProperty);
 			set => SetValue(KeyProperty, value);
+		}
+
+		/// <summary>
+		///     Keys the card looks up in code, comma-separated, whose words join its How beside
+		///     its own: a <c>[Words]</c> enum's, say. What the words reference joins by itself.
+		/// </summary>
+		public string? MoreKeys {
+			get => GetValue(MoreKeysProperty);
+			set => SetValue(MoreKeysProperty, value);
 		}
 
 		/// <summary>What the card uses, comma-separated: an extension, an inline, a converter, a scheme.</summary>

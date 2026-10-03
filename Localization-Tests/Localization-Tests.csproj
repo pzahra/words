@@ -39,6 +39,8 @@
     <ProjectReference Include="..\Localization-Authoring\Localization-Authoring.csproj" />
     <ProjectReference Include="..\Localization-Wpf\Localization-Wpf.csproj" />
     <ProjectReference Include="..\Localization-Ava\Localization-Ava.csproj" />
+    <!-- the samples' framework-free half: the cards' How cuts real files, and runs here with the rest -->
+    <ProjectReference Include="..\Sample-Shared\Sample-Shared.csproj" />
   </ItemGroup>
 
 </Project>

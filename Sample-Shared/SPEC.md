@@ -7,7 +7,6 @@ every page — so the twins cannot drift apart where they need not.
 Sample-Console (the console renderer) and LocalizedSample (the analyzer's test
 subject) are out of scope here. The library's own specs are
 [the runtime's](../Localization-Core/SPEC.md) and [the editor's](../WordsEdit/SPEC.md).
-Everything up to *Planned upgrades* is what the samples do today.
 
 ## The shell
 
@@ -37,14 +36,15 @@ tooltip says what it means. A topic's caption is the key `topic.<id>`, bound as
 
 Each demonstration on a page is a card (`DemoCard`, one per sample): a heading,
 a sentence or two of guidance on when to use the feature and what to watch for,
-the live result, and a row of chips naming what it uses — the extension, the
-inline, the converter, the scheme. The card takes one key, `<topic>.<card>`: its
+the live result, a row of chips naming what it uses — the extension, the
+inline, the converter, the scheme — and how it is made (*How each card is made*,
+below). The card takes one key, `<topic>.<card>`: its
 value is the heading, `.guide` beneath it is the guidance, and `.demo` is the
 demonstration text where the card shows one. Heading and guidance render as
 Words with markdown, so the explanation is itself a demonstration and follows a
 language switch. Guidance written before the dialect had code spans names an
-API in bold and leaves the exact spelling to the chips; the Markdown page's code
-card spells its resources in code spans, as later guidance may. References
+API in bold and leaves the exact spelling to the chips; the code card and the
+links card spell their resources in code spans, as later guidance may. References
 resolve in guidance as anywhere, a code span included, so a brace meant
 literally is written twice: `{{>key}` shows as `{>key}`.
 
@@ -102,16 +102,42 @@ the last hundred gripes for the Diagnostics page. Getting started, References
 and Images each cause one on purpose: the missing key, the loop and a picture
 that does not exist.
 
----
-
-# Planned upgrades
-
-Not built. Each section is the shape the work takes when it is.
-
 ## How each card is made
 
-A card's "How" expander shows the exact markup and the exact `sample.ini`
-entries behind it, read from the real files so they cannot drift from what runs:
-the page's markup, embedded as a resource, cut between marker comments named for
-the card, and the ini blocks looked up by the card's keys. Then the readmes and
-the repository README describe the tour as it is.
+Under its chips, each card has a *How it's made* expander: the exact markup and
+the exact words behind the card, read from the real files so they cannot drift
+from what runs (`CardSources`, in Sample-Shared).
+
+**The markup.** Each sample embeds its page views a second time, as written,
+under `pages/`. A card's markup is the lines between the marker comments named
+for it — `<!-- card: markdown.code -->` and the next `<!-- /card -->` — with
+their common indent taken off. Every card on every page has its markers.
+
+**The words.** From `sample.ini`, then the sample's `framework.ini`, each block
+whose key is the card's key or beneath it, then each block those reference with
+`{>key}`, `{>.sub}` or `{$constant}`, followed until nothing new turns up; an
+escaped `{{>key}` is not followed. A card that looks keys up in code names them
+in `MoreKeys` — the Enums cards name their `[Words]` enums' — and those join the
+card's own. A block brings the comments right above its header; a comment set
+apart by a blank line is a section's, and stays out. Blocks come in file order,
+the card's own first, a blank line between blocks the file keeps apart, and a
+`[.name]` header shown without its base is written out in full, so the cut
+means what the file does. A file with nothing for the card is left out.
+
+**The view.** The card's template asks the page view model for the How, by the
+card's key and `MoreKeys`, and shows each file under a label naming it —
+`card.how.from`, `From `{File}`:`, the file name a code span — in a read-only
+text box, so the reader can select and copy it, with long lines wrapped. The box
+takes the code spans' look from the same resources, `WordsCodeFont` and
+`WordsCodeBackground`, and keeps it while hovered or focused.
+
+**Why not markdown.** A code block rendered through `WordsMarkdown` read well,
+but a text block cannot be selected, and a How is exactly what a reader wants to
+copy. The label keeps the How's markdown.
+
+**Tests.** The library suite cuts a page between its markers and dedents it;
+takes a card's own blocks first, then what they reference, a relative header
+written out in full and an escaped reference not followed; keeps a header-like
+line inside a continued value and a block's own comment, and drops a section's;
+adds `MoreKeys`; leaves out a file with nothing to show; and cuts the real
+`sample.ini`'s code card whole.

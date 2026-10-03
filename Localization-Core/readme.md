@@ -109,8 +109,8 @@ The top-of-file `value-xx=` labels double as your language menu:
 `WordsBuilder.GetLanguages()` returns the code/label pairs in file order,
 skipping labels that are empty or start with `!`. There is also a
 `Digest(lang, out languages)` overload that installs the words and hands you
-the menu in one call — see Sample-Ava's language dropdown for the pattern,
-relaunch and all. (`ToWords` is the same build without the install, for a
+the menu in one call — the samples' language dropdown is the pattern, switching
+live as below. (`ToWords` is the same build without the install, for a
 dictionary that is not the process-wide one; `.Debug()` before either brands
 values that fell back to another language, to spot missing translations.)
 

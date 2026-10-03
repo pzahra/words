@@ -5,6 +5,7 @@
              xmlns:c="using:Sample_Ava.Controls"
              xmlns:l="https://github.com/pzahra/words"
              xmlns:sys="using:System"
+             xmlns:shared="using:Sample_Shared"
              RequestedThemeVariant="Default">
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
@@ -60,8 +61,41 @@
             <!-- the dot beside a topic not yet seen at its latest revision: one colour, both themes -->
             <SolidColorBrush x:Key="UnseenBrush" Color="#E8590C"/>
 
+            <!-- a card's How: the files it is made of, cut from the real ones -->
+            <c:CardHowConverter x:Key="CardHow"/>
+            <!-- the Fluent expander is a full-width bar; a card's How wants a plain line
+                 instead: a triangle that turns as it opens, and the header beside it -->
+            <ControlTheme x:Key="{x:Type Expander}" TargetType="Expander">
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <StackPanel>
+                            <ToggleButton IsChecked="{TemplateBinding IsExpanded, Mode=TwoWay}" HorizontalAlignment="Left" Cursor="Hand">
+                                <ToggleButton.Theme>
+                                    <ControlTheme TargetType="ToggleButton">
+                                        <Setter Property="Template">
+                                            <ControlTemplate>
+                                                <ContentPresenter Content="{TemplateBinding Content}" Background="Transparent"/>
+                                            </ControlTemplate>
+                                        </Setter>
+                                    </ControlTheme>
+                                </ToggleButton.Theme>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Name="Arrow" Text="&#x25B8;" Margin="0,0,5,0"/>
+                                    <ContentPresenter Content="{TemplateBinding Header}"/>
+                                </StackPanel>
+                            </ToggleButton>
+                            <ContentPresenter Content="{TemplateBinding Content}" IsVisible="{TemplateBinding IsExpanded}"/>
+                        </StackPanel>
+                    </ControlTemplate>
+                </Setter>
+                <Style Selector="^:expanded /template/ TextBlock#Arrow">
+                    <Setter Property="Text" Value="&#x25BE;"/>
+                </Style>
+            </ControlTheme>
+
             <!-- a demonstration: heading and guidance (filled by DemoCard from its Key),
-                 the live result, and chips naming what it uses -->
+                 the live result, chips naming what it uses, and how it is made: each file's
+                 part under a label naming it, as text to select and copy -->
             <ControlTheme x:Key="{x:Type c:DemoCard}" TargetType="c:DemoCard">
                 <Setter Property="Margin" Value="0,0,0,12"/>
                 <Setter Property="Template">
@@ -90,6 +124,38 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </DockPanel>
+                                <Expander Header="{l:Words card.how}" FontSize="11" Margin="0,6,0,0">
+                                    <ItemsControl>
+                                        <ItemsControl.ItemsSource>
+                                            <MultiBinding Converter="{StaticResource CardHow}">
+                                                <Binding Path="DataContext" RelativeSource="{RelativeSource TemplatedParent}"/>
+                                                <Binding Path="Key" RelativeSource="{RelativeSource TemplatedParent}"/>
+                                                <Binding Path="MoreKeys" RelativeSource="{RelativeSource TemplatedParent}"/>
+                                            </MultiBinding>
+                                        </ItemsControl.ItemsSource>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="shared:CardSource">
+                                                <StackPanel Margin="0,6,0,0">
+                                                    <TextBlock Opacity="0.6"><l:WordsInline Key="card.how.from" Params="{Binding}"/></TextBlock>
+                                                    <!-- read-only text, so it can be selected and copied; in the
+                                                         code spans' font and tint, long lines wrapped -->
+                                                    <TextBox Text="{Binding Text, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                                                             FontFamily="{DynamicResource WordsCodeFont}" FontSize="12"
+                                                             Background="{DynamicResource WordsCodeBackground}"
+                                                             BorderThickness="0" Padding="4,2" MinHeight="0" Margin="0,2,0,0">
+                                                        <TextBox.Styles>
+                                                            <!-- the Fluent box repaints itself on hover and focus; this one keeps its tint -->
+                                                            <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement, TextBox:focus /template/ Border#PART_BorderElement">
+                                                                <Setter Property="Background" Value="{DynamicResource WordsCodeBackground}"/>
+                                                                <Setter Property="BorderThickness" Value="0"/>
+                                                            </Style>
+                                                        </TextBox.Styles>
+                                                    </TextBox>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Expander>
                             </StackPanel>
                         </Border>
                     </ControlTemplate>

@@ -13,24 +13,24 @@ public abstract class ShellViewModel : ViewModelBase {
 	private readonly LinksPageViewModel links;
 	private readonly LivePageViewModel live;
 
-	protected ShellViewModel(IReadOnlyList<KeyValuePair<string, string>> languages, string language, bool isDark, SampleConfig config, GripeLog gripes) {
+	protected ShellViewModel(IReadOnlyList<KeyValuePair<string, string>> languages, string language, bool isDark, SampleConfig config, GripeLog gripes, CardSources sources) {
 		this.config = config;
 		Languages = languages;
 		selectedLanguage = language;
 		isDarkTheme = isDark;
-		links = new LinksPageViewModel(config);
-		live = new LivePageViewModel(config) { IsDarkTheme = isDark };
+		links = new LinksPageViewModel(config) { Sources = sources };
+		live = new LivePageViewModel(config) { IsDarkTheme = isDark, Sources = sources };
 		//in the order of SampleTopics.All
 		Pages = [
-			new StartPageViewModel(config),
-			new MarkdownPageViewModel(config),
-			new ReferencesPageViewModel(config),
+			new StartPageViewModel(config) { Sources = sources },
+			new MarkdownPageViewModel(config) { Sources = sources },
+			new ReferencesPageViewModel(config) { Sources = sources },
 			links,
-			new ImagesPageViewModel(config),
-			new ParametersPageViewModel(config, Relocalize),
-			new EnumsPageViewModel(config),
+			new ImagesPageViewModel(config) { Sources = sources },
+			new ParametersPageViewModel(config, Relocalize) { Sources = sources },
+			new EnumsPageViewModel(config) { Sources = sources },
 			live,
-			new DiagnosticsPageViewModel(config, gripes, Relocalize),
+			new DiagnosticsPageViewModel(config, gripes, Relocalize) { Sources = sources },
 		];
 		SelectedPage = Pages.FirstOrDefault(page => page.Topic.Id == config.Topic) ?? Pages[0];
 	}

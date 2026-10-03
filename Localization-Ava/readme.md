@@ -205,11 +205,14 @@ monospace on a faint grey.
 
 ## See it all at once
 
-The [Sample-Ava](https://github.com/pzahra/words/tree/main/Sample-Ava) project is the full tour: formatting, entities
-and emoji, tooltipped and in-app hyperlinks, every image scheme, live format
-parameters, a markdown playground, a dark/light switch that shows a `dynres:`
-image following the theme while its `staticres:` twin stays put, and a
-language dropdown that switches the app's language in place.
+The [Sample-Ava](https://github.com/pzahra/words/tree/main/Sample-Ava) project is the full tour, a page per topic:
+markdown and code spans, references and constants, tooltipped and in-app
+hyperlinks, every image scheme, format parameters, `[Words]` enums, live
+switching and diagnostics. Each demonstration says what it uses, and its *How
+it's made* shows the exact AXAML and `words.ini` behind it, cut from the real
+files. A language dropdown switches the app in place, and a dark/light switch
+repaints the links and shows a `dynres:` image following the theme while its
+`staticres:` twin stays put. Sample-Wpf is its WPF twin.
 
 ## The rest of the suite
 

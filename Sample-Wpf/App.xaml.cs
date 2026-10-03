@@ -9,6 +9,8 @@ using System.Windows;
 namespace Sample_Wpf;
 
 public partial class App : Application {
+	private const string FrameworkWords = "pack://application:,,,/Sample-Wpf;Component/Assets/framework.ini";
+
 	protected override void OnStartup(StartupEventArgs e) {
 		base.OnStartup(e);
 
@@ -36,11 +38,11 @@ public partial class App : Application {
 		// keep the words but format numbers and dates the way this system does)
 		Words.Builder()
 			.LoadShared()
-			.LoadResource("pack://application:,,,/Sample-Wpf;Component/Assets/framework.ini")
+			.LoadResource(FrameworkWords)
 			.Live()
 			.Digest(lang, out var languages, includeFrameworkElements: true);
 
-		var viewModel = new MainWindowViewModel([.. languages], lang, dark, config, gripes);
+		var viewModel = new MainWindowViewModel([.. languages], lang, dark, config, gripes, CardSources());
 
 		Hyperlink.RegisterGlobalNavigateHandler(uri => {
 			if (uri.Scheme is "appcmd") {
@@ -71,4 +73,12 @@ public partial class App : Application {
 		}
 		dictionaries.Add(new ResourceDictionary { Source = uri });
 	}
+
+	/// <summary>
+	///     The real files the cards' How cuts from (SPEC: How each card is made): the pages'
+	///     markup, embedded under pages/ by the project file, and the words this sample loads.
+	/// </summary>
+	public static CardSources CardSources() => new(
+		CardSource.ReadAll(typeof(App).Assembly, "pages/"),
+		[SampleWords.ReadShared(), CardSource.Read("framework.ini", GetResourceStream(new Uri(FrameworkWords)).Stream)]);
 }

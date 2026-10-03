@@ -20,6 +20,8 @@
     <Content Include="Assets\globe.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- the pages' markup as written, beside the compiled pages, for each card's How -->
+    <EmbeddedResource Include="Views\Pages\*.axaml" LogicalName="pages/%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
