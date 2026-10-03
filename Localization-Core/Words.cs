@@ -1,6 +1,7 @@
 ﻿using PatTech.Utils;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -64,7 +65,7 @@ namespace PatTech.Localization {
 	/// engine (<see cref="RenderKey(IWordsProvider, string, object[])"/>), and the
 	/// <c>String.Format</c>-style helpers, including named-parameter formatting.
 	/// </summary>
-	public static class Words {
+	public static partial class Words {
 		private static IWords _Known = new CulturedWords(WordsProvider.Empty(), CultureInfo.InvariantCulture);
 		private static readonly Regex rxFormatTag = new(
 				@"\{[\s-[\r\n]]*(?<1>(?=[_a-zA-Z])\w+)[\s-[\r\n]]*(:[\s-[\r\n]]*(?<2>[^\r\n}]*(?<!\s))[\s-[\r\n]]*)?\}",
@@ -77,8 +78,9 @@ namespace PatTech.Localization {
 		/// The process-wide dictionary, installed once at startup — usually by
 		/// <see cref="WordsBuilder.Digest(string)"/>, which builds and assigns it in one
 		/// call. Reads and writes are volatile, so the swap is safe from any thread.
-		/// Assigning also calls <see cref="IWords.SetCulture"/> on the new value. Starts
-		/// as an empty, invariant-culture dictionary, so every lookup renders as
+		/// Assigning also calls <see cref="IWords.SetCulture"/> on the new value and, in
+		/// live mode (<see cref="Live"/>), refreshes everything that <see cref="Watch"/>ed.
+		/// Starts as an empty, invariant-culture dictionary, so every lookup renders as
 		/// <c>#key#</c> until real words are loaded.
 		/// </summary>
 		/// <exception cref="ArgumentNullException">The value assigned is <see langword="null"/>.</exception>
@@ -89,6 +91,9 @@ namespace PatTech.Localization {
 				ArgumentNullException.ThrowIfNull(value);
 				Volatile.Write(ref _Known, value);
 				value.SetCulture();
+				if (Live is not null) {
+					RefreshWatchers();
+				}
 			}
 		}
 		/// <summary>
@@ -564,14 +569,41 @@ namespace PatTech.Localization {
 	/// <summary>
 	/// Holds a key and defers the <see cref="Words.Known"/> lookup until
 	/// <see cref="Value"/> is first read. Intended for services that initialise
-	/// statically, before the dictionary has been loaded at startup.
+	/// statically, before the dictionary has been loaded at startup — and, in live
+	/// mode (<see cref="Words.Live"/>), the proxy a binding follows: it registers when
+	/// it first resolves, and a swap of the dictionary drops its cache and raises
+	/// <see cref="PropertyChanged"/>, so the next read is the new language.
 	/// </summary>
 	[DebuggerDisplay("LazyWords({Key} -> {Value})")]
-	public class LazyWords {
+	public class LazyWords : INotifyPropertyChanged, IKnowWords {
 		/// <summary>
 		/// A <see cref="LazyWords"/> whose value is the empty string; no lookup ever occurs.
 		/// </summary>
 		public static readonly LazyWords Empty = string.Empty;
+
+		//one proxy per key for the bindings that share it; weak, so a key nobody binds
+		//any more goes, and its husk is overwritten the next time the key is asked for
+		private static readonly Dictionary<string, WeakReference<LazyWords>> shared = new();
+
+		/// <summary>
+		/// The one <see cref="LazyWords"/> for <paramref name="key"/> that every caller
+		/// shares while anything holds it — what a live <c>{l:Words}</c> binds to, so a
+		/// window with forty labels over forty keys carries forty proxies, not one per
+		/// visual.
+		/// </summary>
+		/// <param name="key">The key to share a holder for.</param>
+		/// <exception cref="ArgumentNullException"><paramref name="key"/> is <see langword="null"/>.</exception>
+		public static LazyWords Of(string key) {
+			ArgumentNullException.ThrowIfNull(key);
+			lock (shared) {
+				if (shared.TryGetValue(key, out var weak) && weak.TryGetTarget(out var proxy)) {
+					return proxy;
+				}
+				proxy = new LazyWords(key);
+				shared[key] = new WeakReference<LazyWords>(proxy);
+				return proxy;
+			}
+		}
 
 		private string _Key;
 		/// <summary>
@@ -594,19 +626,46 @@ namespace PatTech.Localization {
 
 		[AllowNull, MaybeNull]
 		private string _Value;
+		private bool literal;
 		/// <summary>
 		/// The resolved text. First read looks up <see cref="Key"/> in
-		/// <see cref="Words.Known"/> and caches the result; assigning a value beforehand
-		/// (or <see langword="null"/> to clear the cache) overrides the lookup.
-		/// Writeable in the event that we don't care for a registered string, use this one.
+		/// <see cref="Words.Known"/> and caches the result; in live mode, a read also
+		/// registers this holder to be refreshed on a swap. Assigning a value beforehand
+		/// makes it a literal — text, not a key — that never looks up and never refreshes;
+		/// <see langword="null"/> clears the cache and the literal both.
 		/// </summary>
 		[AllowNull, Localized]
 		public string Value {
 			get {
+				if (literal) {
+					return _Value!;
+				}
 				_Value ??= Words.Known[Key];
+				//registration is at resolution, not construction: a literal never gets
+				//here, and an unread holder stays out of the registry until it is read
+				Words.Watch(this);
 				return _Value;
 			}
-			set => _Value = value;
+			set {
+				_Value = value;
+				literal = value is not null;
+			}
+		}
+
+		/// <inheritdoc/>
+		public event PropertyChangedEventHandler? PropertyChanged;
+
+		/// <summary>
+		/// The dictionary was swapped: drop the cached text so the next read resolves
+		/// again, and raise <see cref="PropertyChanged"/> for <see cref="Value"/> so a
+		/// binding over it re-pulls. A literal is left as it is.
+		/// </summary>
+		public void Refresh() {
+			if (literal) {
+				return;
+			}
+			_Value = null;
+			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Value)));
 		}
 
 		/// <summary>

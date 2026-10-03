@@ -31,7 +31,7 @@ namespace PatTech.Localization.Wpf {
 	///     </para>
 	/// </remarks>
 	[ContentProperty(nameof(Args))]
-	public class WordsInline : Span {
+	public class WordsInline : Span, IKnowWords {
 		/// <summary>Identifies the <see cref="Key"/> dependency property.</summary>
 		public static readonly DependencyProperty KeyProperty = DependencyProperty.Register(
 			nameof(Key),
@@ -83,7 +83,15 @@ namespace PatTech.Localization.Wpf {
 					Dispatcher.BeginInvoke(DispatcherPriority.Send, new Action(() => { resolvePending = false; ResolveArgs(); }));
 				}
 			};
+			// live mode: a swap of the dictionary renders the key again; off, a no-op
+			Words.Watch(this);
 		}
+
+		/// <summary>
+		///     The dictionary was swapped (<see cref="Words.Live"/>): renders <see cref="Key"/>
+		///     again with the same <see cref="Params"/>, so the inline follows the language.
+		/// </summary>
+		public void Refresh() => UpdateChild(Key, Params);
 
 		/// <summary>
 		///     The key of the Words to render. A null or empty key renders nothing;

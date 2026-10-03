@@ -77,7 +77,8 @@ Numbers and dates in parameters format with the thread's `CurrentCulture`,
 which `Digest` sets to the language; `.UseSystemNumbers()` before `Digest`
 keeps the system's regional format (`Words.SystemCulture`) with the words
 unchanged. `WordsConverter` formats with the culture the binding hands it.
-`LazyWords` defers a lookup for statics that initialize before loading.
+`LazyWords` defers a lookup for statics that initialize before loading, and
+live (`.Live()` before `Digest`) is the proxy that follows `Words.SwitchLanguage`.
 `[Words("key")]` on enum members plus `Enum.Describe` provides `key`,
 `key.tooltip`, `key.sub`, `key.desc`, `key.unit` variants.
 
@@ -198,10 +199,12 @@ redirected.
 
 ## Gotchas
 
-- `{l:Words}` resolves when the XAML loads and `WordsInline` does not watch
-  `Words.Known`: a language change is a restart, never a hot swap — `LazyWords`,
-  cached strings and loaded XAML all go stale otherwise
-  (the samples relaunch with `--lang=xx`; Wordsmith saves a config file and restarts).
+- Out of the box a language change is a restart: `{l:Words}` resolves when the
+  XAML loads, `LazyWords` caches, and loaded XAML goes stale on a swap (Wordsmith
+  saves a config file and restarts). To switch in place, chain `.Live()` before
+  `Digest` and call `Words.SwitchLanguage("xx")`: `{l:Words}` then binds,
+  `LazyWords` re-resolves and notifies, `WordsInline` re-renders. Strings a view
+  model kept do not follow unless it implements `IKnowWords` and `Words.Watch`es.
 - Keys missing from the dictionary render as `#key#` on screen by design;
   grep for `#` leakage rather than letting it ship.
 - `Words.Known` is process-wide; assign it once at startup before any UI.

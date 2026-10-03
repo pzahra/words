@@ -30,7 +30,7 @@ namespace PatTech.Localization.Avalonia;
 ///     <c>Binding</c> with a <c>Source</c> and no path.
 ///     </para>
 /// </remarks>
-public class WordsInline : Span {
+public class WordsInline : Span, IKnowWords {
 	/// <summary>Identifies the <see cref="Key"/> styled property.</summary>
 	public static readonly StyledProperty<string?> KeyProperty =
 		AvaloniaProperty.Register<WordsInline, string?>(nameof(Key));
@@ -52,7 +52,15 @@ public class WordsInline : Span {
 				Dispatcher.UIThread.Post(() => { resolvePending = false; ResolveArgs(); }, DispatcherPriority.Send);
 			}
 		};
+		// live mode: a swap of the dictionary renders the key again; off, a no-op
+		Words.Watch(this);
 	}
+
+	/// <summary>
+	///     The dictionary was swapped (<see cref="Words.Live"/>): renders <see cref="Key"/>
+	///     again with the same <see cref="Params"/>, so the inline follows the language.
+	/// </summary>
+	public void Refresh() => UpdateChild(Key, Params);
 
 	/// <summary>
 	///     The key of the Words to render. A null or empty key renders nothing;

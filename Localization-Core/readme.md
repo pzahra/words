@@ -114,11 +114,27 @@ relaunch and all. (`ToWords` is the same build without the install, for a
 dictionary that is not the process-wide one; `.Debug()` before either brands
 values that fell back to another language, to spot missing translations.)
 
-Relaunch is the operative word. `Words.Known` is process-wide and nothing that
-already read it — `LazyWords`, strings a view model composed and kept, XAML
-that has loaded — is told when it changes. Pick the language at startup and
-restart the process to change it; do not hot-swap the dictionary in a running
-app and expect the screen to follow.
+Relaunch is the default. `Words.Known` is process-wide and, out of the box,
+nothing that already read it — `LazyWords`, strings a view model composed and
+kept, XAML that has loaded — is told when it changes. Pick the language at
+startup and restart the process to change it, or opt in to switching it live:
+
+``` csharp
+WordsBuilder.Create()
+	.Load("path/to/words.ini")
+	.Live()                        // keep the sources, arm the watchers
+	.Digest("en");
+// later, from any thread
+Words.SwitchLanguage("de");        // re-flattens, installs, and the screen follows
+```
+
+Live, a `LazyWords` re-resolves and raises `PropertyChanged`, `{l:Words}` in the
+XAML packages binds instead of copying, and `WordsInline` renders again — all
+held weakly, so nothing leaks, and marshalled back to the thread each one lives
+on. What a view model composed and kept stays as it was; a view model that
+wants to re-raise its own notifications implements `IKnowWords` and calls
+`Words.Watch(this)`. Off, the library behaves exactly as before.
+[SPEC.md](SPEC.md), *Live language switching*, has the whole design.
 
 That is the contract the whole library assumes: the process-wide statics —
 `Words.Known`, `Words.Logger`, `MarkdownParser.Default` and its scheme registry,

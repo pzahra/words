@@ -144,6 +144,26 @@ namespace PatTech.Localization {
 		}
 
 		/// <summary>
+		/// Opts in to live language switching (SPEC: Live language switching): keeps this
+		/// builder — its loaded sources, its <see cref="Debug"/> and
+		/// <see cref="UseSystemNumbers"/> settings — alive as <see cref="Words.Live"/>, so
+		/// <see cref="Words.SwitchLanguage"/> can re-flatten for another language without
+		/// touching disk, and arms the registry that refreshes what is on screen. Off by
+		/// default, where a change of language is a restart. Chain it before
+		/// <see cref="Digest(string)"/>.
+		/// </summary>
+		/// <param name="live"><see langword="true"/> to keep this builder live; <see langword="false"/> to let it go again.</param>
+		public WordsBuilder Live(bool live = true) {
+			if (live) {
+				Words.Live = this;
+			}
+			else if (ReferenceEquals(Words.Live, this)) {
+				Words.Live = null;
+			}
+			return this;
+		}
+
+		/// <summary>
 		/// Merges the loaded languages into a single read-only provider for
 		/// <paramref name="languageCode"/>. Per key, the value comes from the exact
 		/// language (e.g. <c>en-GB</c>) first, then its language family (<c>en</c>),

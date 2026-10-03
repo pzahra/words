@@ -19,21 +19,16 @@ changes what *later* lookups return — it does not reach back into anything
 already rendered.
 
 Changing the display language therefore means building a new dictionary and
-restarting, the model Wordsmith itself follows (its own spec, *Wordsmith's own
-words*: picking a language "restarts the editor with the same files open"). The
-builder's un-flattened sources are released once `Digest` has run; nothing keeps
-them.
+restarting — the model Wordsmith itself follows (its own spec, *Wordsmith's own
+words*: picking a language "restarts the editor with the same files open") —
+unless the app opts in to *Live language switching* below. The builder's
+un-flattened sources are released once `Digest` has run; nothing keeps them,
+unless `Live()` asked.
 
 **Why.** The common app ships one language per process, or relaunches to switch.
 Holding every language's source in memory and wiring every rendered string for
 live replacement is a cost that app should not pay by default. Live switching is
 the opt-in below.
-
----
-
-# Planned upgrades
-
-Not built. Each section here is the shape the feature takes when it is.
 
 ## Live language switching
 
@@ -42,48 +37,124 @@ follow — for the app that wants it, and only for that app. The whole feature i
 opt-in, chosen before `Digest`, and invisible when it is not: off, the runtime
 behaves exactly as *The dictionary is a snapshot* describes, byte for byte.
 
-**Turning it on.** `WordsBuilder` gains a `Live()` (name provisional) called
-before `Digest`. It does two things: it keeps the builder's un-flattened
-per-language sources — and its `Debug`/`UseSystemNumbers` settings — alive past
-`Digest` instead of releasing them, and it arms the watch registry below. Off
-(the default), `Digest` behaves as today and every hook in this section is a
-no-op.
+**Turning it on.** `WordsBuilder.Live()`, chained before `Digest`, keeps the
+builder — its un-flattened per-language sources and its `Debug`/`UseSystemNumbers`
+settings — alive as `Words.Live` instead of letting it go, and arms the watch
+registry below. Off (the default: `Words.Live` is null), `Digest` behaves as
+today and every hook in this section is a no-op; `Live(false)` lets the builder
+go again.
 
 **Re-flattening.** With the sources retained, `Words.SwitchLanguage(code)`
-(provisional) re-flattens for the new language and assigns `Words.Known` — the
-same flatten the builder runs at startup, without touching disk. The assignment
-is the trigger: everything downstream hangs off the `Words.Known` swap, so a
-plain `Words.Known = dictionary` relocalizes just as well.
+re-flattens for the new language and assigns `Words.Known` — the same flatten the
+builder runs at startup, without touching disk. The assignment is the trigger:
+everything downstream hangs off the `Words.Known` swap, so a plain
+`Words.Known = dictionary` relocalizes just as well.
 
-**LazyWords is the proxy.** [`LazyWords`](Words.cs) already holds a key, resolves
-it against `Words.Known` on first read, and caches — most of a live proxy
-already. It gains `INotifyPropertyChanged` and implements `IKnowWords`, a
-one-method seam (`Refresh()`) the registry calls; its `Refresh()` drops the
-cache and raises `PropertyChanged(Value)`, so the next read re-resolves and any
-binding over it re-pulls. That is the whole proxy — no new type. A *literal*
-`LazyWords` — the implicit `operator LazyWords(string)`, or one whose `Value`
-was assigned — holds text, not a key, and never resolves, so it never watches
-and `Refresh` leaves it be.
+**LazyWords is the proxy.** [`LazyWords`](Words.cs) already held a key, resolved
+it against `Words.Known` on first read, and cached — most of a live proxy. It
+implements `INotifyPropertyChanged` and `IKnowWords`, the one-method seam
+(`Refresh()`) the registry calls; its `Refresh()` drops the cache and raises
+`PropertyChanged(Value)`, so the next read re-resolves and any binding over it
+re-pulls. That is the whole proxy — no new type. A *literal* `LazyWords` — the
+implicit `operator LazyWords(string)`, or one whose `Value` was assigned — holds
+text, not a key, and never resolves, so it never watches and `Refresh` leaves it
+be.
 
 **Registration is at resolution, not construction.** Anything implementing
-`IKnowWords` joins the registry through `Words.Watch(this)`; a ViewModel that
-wants to re-raise its own notifications on a swap can implement it and register
-from its constructor. `LazyWords` is the built-in implementer, and it registers
-not from its constructor but at first *resolution* — the moment `Value` actually
-reads `Words.Known`. That suits its laziness and, more usefully, keeps out the
-literals that never resolve. An unread holder stays out of the registry until
-something reads it.
+`IKnowWords` joins the registry through `Words.Watch(this)`; a view model that
+wants to re-raise its own notifications on a swap implements it and registers
+from its constructor. `LazyWords` registers not from its constructor but when
+`Value` is read — the moment it actually touches `Words.Known`. That suits its
+laziness and, more usefully, keeps out the literals that never resolve: an
+unread holder stays out of the registry until something reads it. Registering
+again is cheap and re-homes the watcher to the calling thread, so a holder read
+from a new thread is refreshed there.
+
+**One proxy per key.** `LazyWords.Of(key)` hands out the one holder for a key
+that every caller shares while anything holds it — held weakly, so a key nobody
+binds any more goes, and its husk is overwritten the next time the key is asked
+for. A window with forty labels over forty keys carries forty proxies and a swap
+raises forty `PropertyChanged`, not one per visual.
 
 **Living bindings.** A rendered string follows a swap only if the markup hands
-XAML something that stays connected, so in live mode `{l:Words …}` returns a
-binding, not a string — and it is the one door for every case, taking either a
-key or a whole binding through a single `object` constructor that branches on
-what it got:
+XAML something that stays connected, so in live mode `{l:Words key}` returns a
+binding, not a string: a one-way `Binding` to the shared proxy, path `Value`. It
+does so where a binding can land — a dependency property on WPF, a styled
+property on Avalonia, or a WPF style setter, which applies the binding per
+element — and hands the string, resolved once, anywhere else: a
+`ConverterParameter`, a `StringFormat`, a plain CLR property. Avalonia's loader
+would take a binding handed to an object-typed property (`Content`) as the
+content itself, so there the extension binds the property directly and hands
+back the current text. Off, each shape is its snapshot self, so live mode costs
+nothing when it is not asked for.
 
-- `{l:Words some.key}` — a string. Returns a `Binding` to the interned
-  `LazyWords` proxy for that key: one shared proxy per distinct key, not one per
-  usage, so a window with forty labels over forty keys carries forty proxies and
-  a swap raises forty `PropertyChanged`, not one per visual.
+**Rendering controls.** A control that renders Words itself rather than handing a
+string to a property — `WordsInline`, on both frameworks — implements
+`IKnowWords` directly and rebuilds its content on `Refresh`, no binding in the
+middle. Same registry, same weak hold, same threading rules.
+
+**The registry.** A `ConditionalWeakTable` in Core, keyed by the watcher: an
+entry lives exactly as long as whatever else holds its watcher and no longer,
+with nothing to sweep, and registering twice is one entry. This is deliberately
+*not* a `static event Words.KnownChanged` — a static event roots every
+subscriber and is the textbook managed leak. `Words.Watch` is the entry point;
+off, it returns immediately, so the call site needs no condition of its own.
+
+**Threads.** `Words.Known`'s setter is volatile and callable from any thread, and
+a refresh touches UI objects. The registry notes the thread and the
+`SynchronizationContext` a watcher registered on: a swap on that thread refreshes
+it inline, a swap from another posts the refresh to that context — one post per
+context, however many watchers — and sets the new cultures on the thread it
+lands on, so a switch raised on a background thread reaches each binding on the
+dispatcher it belongs to, cultures and all.
+
+**Robustness.** The refresh walks a snapshot of the registry (a refresh may
+register new watchers), and a watcher whose `Refresh` throws is reported to
+`Words.Logger` (`WORDS:REFRESH`) and skipped, so one bad listener never aborts
+the relocalization.
+
+**Nothing here is new capability.** Every piece of this is reachable by hand with
+the library as it stood: `Words.Known` is swappable from any thread, a builder
+kept alive re-flattens for another language, and any object can read
+`Words.Known` on demand and raise its own change notification. An app determined
+to switch live could wire all of it itself. Live mode is that wiring done once —
+weakly held, thread-marshalled — so the app gets the shortcut instead of the
+plumbing. That is also why it stays opt-in: it earns its keep only for the app
+that wants it, and costs the others nothing.
+
+**What does not follow.** A string a view model composed and kept, and a binding
+never wrapped in `{l:Words}` — a `WordsConverter` with its key as
+`ConverterParameter`, a `StringFormat` — stay snapshots; the next section is the
+plan for the converters. WPF's default binding culture
+(`Digest(…, includeFrameworkElements: true)`) is a one-shot metadata override and
+does not move with a switch; a live app sets `Language` on its windows itself,
+or formats through `WordsInline` and `Words.Format`, which use the thread culture
+the switch sets.
+
+**Tests.** Headless, all of it: opt in, digest, take a `LazyWords`, read it,
+`SwitchLanguage`, and its `Value` is the new language and its `PropertyChanged`
+fired; a plain `Words.Known` assignment does the same; off by default, a holder
+never registers and a swap notifies nothing — the snapshot behavior above,
+pinned; a literal never watches; `Of` shares one holder per key; a holder with no
+other referent is collectable and the registry neither resurrects nor refreshes
+it; a watcher that throws is logged and the next one still refreshed; a switch
+from another thread posts once to the watcher's context. On each framework, a
+property bound through `{l:Words}` follows a switch — a WPF setter and an
+Avalonia `Content` too — a `StringFormat` keeps the string, `WordsInline` renders
+again, and off, the markup is the snapshot.
+
+---
+
+# Planned upgrades
+
+Not built. Each section here is the shape the feature takes when it is.
+
+## Live switching, next: bound keys and converters
+
+`{l:Words}` takes a key today. The next shapes take a whole binding, through a
+single `object` constructor that branches on what it got, so one door serves
+every case:
+
 - `{l:Words {Binding KeyName}}` — a binding with no converter. The bound value
   *is* the key; a dynamic lookup, re-run on every swap.
 - `{l:Words {Binding Status, Converter={StaticResource WordsConverter}, ConverterParameter=op.status}}`
@@ -93,9 +164,8 @@ what it got:
   the inner binding's converter says how to localize, so the enum-vs-template
   choice is the author's, not the extension's.
 
-Off, each shape is its snapshot self — the string resolves once, the wrapped
-binding is returned untouched with its converter intact — so live mode costs
-nothing when it is not asked for.
+Off, each shape is its snapshot self — the wrapped binding is returned untouched
+with its converter intact — so live mode costs nothing when it is not asked for.
 
 **The converter hoist.** Wrapping a converted binding in a `MultiBinding` with
 the tickle is *not* enough, and the reason is easy to miss: a `MultiBinding` does
@@ -109,60 +179,20 @@ the process-wide *tickle* as leg 1, and its `IMultiValueConverter` re-applies th
 hoisted converter to the current source value. A swap pulses the tickle, the
 multi-converter re-runs the real converter, and the value re-localizes; a source
 change drives it the same way. The tickle is a single keyless `IKnowWords`
-registered once for the whole process — it carries no value, only the pulse.
-`LazyWords`, the tickle and the registry live in Core; the `Binding`,
-`MultiBinding` and the markup extension are the framework packages', and Avalonia
-may skip the hoist entirely — its reactive bindings re-project through a converter
-when a merged dictionary-change observable ticks.
+registered once for the whole process — it carries no value, only the pulse. It
+lives in Core; the `Binding`, `MultiBinding` and the markup extension are the
+framework packages', and Avalonia may skip the hoist entirely — its reactive
+bindings re-project through a converter when a merged dictionary-change
+observable ticks.
 
 This is display-only: the hoisted converters are one-way (`ConvertBack` throws),
 which localization is. And the limit narrows to the irreducible one — a binding
 never wrapped in `{l:Words}` stays a snapshot, because Core cannot reach a
 `Converter=` it was never handed.
 
-**Rendering controls.** A control that renders Words itself rather than handing a
-string to a property — the inline/markdown renderers, `WordsInline` — is the last
-shape: it implements `IKnowWords` directly and rebuilds its content on `Refresh`,
-no binding in the middle. Same registry, same weak hold, same threading rules.
-
-**The registry.** A static weak list in Core: a proxy joins by weak reference, so
-it lives exactly as long as the binding (or service) that holds it and no longer.
-This is deliberately *not* a `static event Words.KnownChanged` — a static event
-roots every subscriber and is the textbook managed leak. Dead references are
-swept two ways: a `Words.Known` swap refreshes the live proxies and drops the
-husks it passes, and `Words.Watch` compacts amortized — every so many calls it
-checks for entries whose target has gone (a disposed ViewModel, an unloaded
-view) and clears them, so husks stay bounded between swaps even under heavy
-churn. No GC hook is needed, and none exists worth using; the interned per-key
-table needs no sweep of its own, since a dead key's husk is overwritten the next
-time that key resolves. `Words.Watch` is the entry point; off, it returns
-immediately, so the call site needs no condition of its own.
-
-**Threads.** `Words.Known`'s setter is volatile and callable from any thread, and
-a refresh touches UI objects. The registry captures `SynchronizationContext.Current`
-when a proxy registers and posts that proxy's `Refresh` back to it, so a switch
-raised on a background thread reaches each binding on the dispatcher it belongs
-to.
-
-**Robustness.** The refresh walks a snapshot of the registry (a refresh may
-construct new proxies), and a proxy whose `Refresh` throws is reported to
-`Words.Logger` and skipped, so one bad listener never aborts the relocalization.
-
-**Nothing here is new capability.** Every piece of this is reachable by hand with
-the library as it already stands: `Words.Known` is swappable from any thread, a
-builder kept alive already re-flattens for another language, and any object can
-already read `Words.Known` on demand and raise its own change notification. An
-app determined to switch live could wire all of it itself. Live mode is that
-wiring done once — weakly held, swept, thread-marshalled — so the app gets the
-shortcut instead of the plumbing. That is also why it stays opt-in: it earns its
-keep only for the app that wants it, and costs the others nothing.
-
-**Tests.** A headless test drives the whole loop without a UI: opt in, digest,
-take a `LazyWords`, read it, `SwitchLanguage`, and its `Value` is the new
-language and its `PropertyChanged` fired. Off by default, a proxy never registers
-and a `Words.Known` swap notifies nothing — the snapshot behavior above, pinned.
-The weak contract gets its own test: a proxy with no other referent is
-collectable, and the registry neither resurrects nor refreshes it.
+**Tests.** A bound key re-looks up on a swap; a converted binding re-converts on
+a swap and on a source change; off, the wrapped binding comes back untouched,
+converter and all.
 
 ## Plural forms
 

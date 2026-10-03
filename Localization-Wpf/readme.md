@@ -59,17 +59,25 @@ The children are bindings and nothing else because WPF admits a `Binding` as a
 child only of a `Collection<BindingBase>`, and a `MultiBinding` child stands
 alone, WPF being unable to nest one in another.
 
-### Changing language means restarting
+### Changing language: relaunch, or go live
 
-`{l:Words}` resolves once, when the XAML loads, and `WordsInline` re-renders
-only when its `Key` or `Params` change. Neither watches `Words.Known`, and
-that is deliberate, not a gap to fill: a live swap would also have to catch
-every `LazyWords`, every string a view model composed and kept, every title
-already set, and it would only hold up in an app that is strict MVVM all the
-way down. Do not hot-swap the dictionary in a running UI. Save the choice and
-relaunch the process, with `--lang=xx` on the command line as the samples do
+Out of the box `{l:Words}` resolves once, when the XAML loads, and `WordsInline`
+re-renders only when its `Key` or `Params` change; neither watches `Words.Known`.
+Save the choice and relaunch the process, with `--lang=xx` on the command line
 or from a settings file as Wordsmith does, and let the new process load in the
 new language.
+
+Or opt in: `.Live()` on the builder before `Digest` keeps the sources, and
+`Words.SwitchLanguage("de")` re-flattens and installs the new language in place.
+Live, `{l:Words}` hands a dependency property (or a style setter) a binding to
+a shared `LazyWords` instead of a string, so the text follows the switch; a
+property that can hold no binding — a `ConverterParameter`, a `StringFormat` —
+still gets the string, resolved once. `WordsInline` renders again. Everything
+is held weakly and refreshed on the dispatcher it lives on. What does not
+follow: strings a view model composed and kept (implement `IKnowWords` and call
+`Words.Watch(this)` to re-raise them), a `WordsConverter` bound by key, and the
+`includeFrameworkElements` binding culture below, which is one-shot — a live app
+sets `Language` on its windows itself if its bindings format numbers.
 
 ### Match the binding culture to the language
 

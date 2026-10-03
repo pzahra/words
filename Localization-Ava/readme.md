@@ -79,17 +79,22 @@ re-render whenever `Key` or the arguments change.
     </TextBlock>
 ```
 
-### Changing language means restarting
+### Changing language: relaunch, or go live
 
-`{l:Words}` resolves once, when the AXAML loads, and `WordsInline` re-renders
-only when its `Key` or `Params` change. Neither watches `Words.Known`, and
-that is deliberate, not a gap to fill: a live swap would also have to catch
-every `LazyWords`, every string a view model composed and kept, every title
-already set, and it would only hold up in an app that is strict MVVM all the
-way down. Do not hot-swap the dictionary in a running UI. Save the choice and
-relaunch the process, with `--lang=xx` on the command line as the sample does
+Out of the box `{l:Words}` resolves once, when the AXAML loads, and `WordsInline`
+re-renders only when its `Key` or `Params` change; neither watches `Words.Known`.
+Save the choice and relaunch the process, with `--lang=xx` on the command line
 or from a settings file as Wordsmith does, and let the new process load in the
 new language.
+
+Or opt in: `.Live()` on the builder before `Digest` keeps the sources, and
+`Words.SwitchLanguage("de")` re-flattens and installs the new language in place.
+Live, `{l:Words}` hands a styled property a binding to a shared `LazyWords`
+instead of a string — an object-typed one such as `Content` too — so the text
+follows the switch; `WordsInline` renders again. Everything is held weakly and
+refreshed on the UI thread it lives on. What does not follow: strings a view
+model composed and kept (implement `IKnowWords` and call `Words.Watch(this)` to
+re-raise them) and a `WordsConverter` bound by key.
 
 ## Put pictures in your Words
 
@@ -186,7 +191,7 @@ The [Sample-Ava](https://github.com/pzahra/words/tree/main/Sample-Ava) project i
 and emoji, tooltipped and in-app hyperlinks, every image scheme, live format
 parameters, a markdown playground, a dark/light switch that shows a `dynres:`
 image following the theme while its `staticres:` twin stays put, and a
-language dropdown that relaunches the app in the selected language.
+language dropdown that switches the app's language in place.
 
 ## The rest of the suite
 

@@ -1,17 +1,24 @@
 ﻿using Avalonia;
+using Avalonia.Data;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
+using System;
 
 namespace PatTech.Localization.Avalonia;
 
 /// <summary>
 ///     The <c>{l:Words key}</c> markup extension. Resolves a key against <see cref="Words.Known"/>
-///     and hands the localized string to the target property.
+///     and hands the localized string to the target property — or, in live mode, a
+///     binding that follows the language.
 /// </summary>
 /// <remarks>
-///     The value is resolved once, when <see cref="Key"/> is assigned — it does not re-resolve
-///     if <see cref="Words.Known"/> is replaced later. A key with no Words renders as
-///     <c>#key#</c>, so missing entries announce themselves instead of hiding.
+///     Off (<see cref="Words.Live"/> is <see langword="null"/>, the default) the value is
+///     resolved once, when <see cref="Key"/> is assigned — it does not re-resolve if
+///     <see cref="Words.Known"/> is replaced later. Live, a styled or direct property gets a
+///     one-way binding to the key's shared <see cref="LazyWords"/> (<see cref="LazyWords.Of"/>),
+///     so <see cref="Words.SwitchLanguage"/> relocalizes it in place; a plain property that
+///     can hold no binding still gets the string, resolved once. A key with no Words
+///     renders as <c>#key#</c>, so missing entries announce themselves instead of hiding.
 /// </remarks>
 public class WordsExtension : MarkupExtension {
 	private string value;
@@ -43,11 +50,25 @@ public class WordsExtension : MarkupExtension {
 	public WordsExtension(string key) => value = Words.Known[_Key = key];
 
 	/// <summary>
-	///     Returns the localized string resolved from <see cref="Key"/>.
+	///     Returns the localized string resolved from <see cref="Key"/> — or, in live mode
+	///     and where the target can hold one, a binding to the key's shared proxy.
 	/// </summary>
-	/// <param name="serviceProvider">Service provider supplied by the XAML processor; unused.</param>
-	/// <returns>The localized string, or a <c>#key#</c> placeholder if the key was unknown.</returns>
-	public override object ProvideValue(IServiceProvider serviceProvider) => value;
+	/// <param name="serviceProvider">Service provider supplied by the XAML processor; consulted for the target in live mode.</param>
+	/// <returns>The localized string, a <c>#key#</c> placeholder if the key was unknown, or the live binding.</returns>
+	public override object ProvideValue(IServiceProvider serviceProvider) {
+		if (Words.Live is null
+				|| serviceProvider?.GetService(typeof(IProvideValueTarget)) is not IProvideValueTarget { TargetObject: AvaloniaObject target, TargetProperty: AvaloniaProperty property }) {
+			return value;
+		}
+		var binding = new Binding(nameof(LazyWords.Value)) { Source = LazyWords.Of(_Key), Mode = BindingMode.OneWay };
+		if (property.PropertyType == typeof(object)) {
+			//an object-typed property would take the binding itself for its value: bind
+			//it here, and hand back the current text for the loader to set meanwhile
+			target.Bind(property, binding);
+			return value;
+		}
+		return binding;
+	}
 }
 
 
