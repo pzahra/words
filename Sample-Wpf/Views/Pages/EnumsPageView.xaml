@@ -1,0 +1,71 @@
+<UserControl x:Class="Sample_Wpf.Views.EnumsPageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="https://github.com/pzahra/words"
+             xmlns:c="clr-namespace:Sample_Wpf.Controls">
+  <!-- Enums. The converters come from the package's Converters.xaml, merged in App.xaml.
+       Each is wrapped in {l:Words}, so it runs again on a language switch too -->
+  <StackPanel>
+    <!-- card: enums.names -->
+    <c:DemoCard Key="enums.names" Uses="[Words], WordsEnumDescription, {l:Words {Binding}}">
+      <ComboBox HorizontalAlignment="Left" MinWidth="200"
+                ItemsSource="{Binding Brews}"
+                SelectedItem="{Binding SelectedBrew}">
+        <ComboBox.ItemTemplate>
+          <DataTemplate>
+            <TextBlock Text="{l:Words {Binding Converter={StaticResource WordsEnumDescription}}}"/>
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+    </c:DemoCard>
+    <!-- /card -->
+
+    <!-- card: enums.variants -->
+    <c:DemoCard Key="enums.variants" Uses="WordsEnumDescription, ConverterParameter">
+      <!-- the parameter is the Describe format: G (the default) names it, T, S and d
+           read .tooltip, .sub and .desc -->
+      <StackPanel>
+        <TextBlock FontWeight="SemiBold"
+                   Text="{l:Words {Binding SelectedBrew, Converter={StaticResource WordsEnumDescription}}}"
+                   ToolTip="{l:Words {Binding SelectedBrew, Converter={StaticResource WordsEnumDescription}, ConverterParameter=T}}"/>
+        <TextBlock FontStyle="Italic" Opacity="0.8"
+                   Text="{l:Words {Binding SelectedBrew, Converter={StaticResource WordsEnumDescription}, ConverterParameter=S}}"/>
+        <TextBlock TextWrapping="Wrap" Margin="0,4,0,0"
+                   Text="{l:Words {Binding SelectedBrew, Converter={StaticResource WordsEnumDescription}, ConverterParameter=d}}"/>
+      </StackPanel>
+    </c:DemoCard>
+    <!-- /card -->
+
+    <!-- card: enums.flags -->
+    <c:DemoCard Key="enums.flags" Uses="[Flags], WordsFlagsDescription, WordsFlagsDescriptionList">
+      <StackPanel>
+        <!-- each box sets or clears one flag of the view model's Extras value -->
+        <WrapPanel>
+          <CheckBox Margin="0,0,16,4" Content="{l:Words enums.extras.sugar}" IsChecked="{Binding Sugar}"/>
+          <CheckBox Margin="0,0,16,4" Content="{l:Words enums.extras.cocoa}" IsChecked="{Binding Cocoa}"/>
+          <CheckBox Margin="0,0,16,4" Content="{l:Words enums.extras.cinnamon}" IsChecked="{Binding Cinnamon}"/>
+          <CheckBox Margin="0,0,16,4" Content="{l:Words enums.extras.cream}" IsChecked="{Binding Cream}"/>
+        </WrapPanel>
+        <!-- joined into one string -->
+        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+          <TextBlock Margin="0,0,6,0" Text="{l:Words enums.flags.with}"/>
+          <TextBlock FontWeight="SemiBold" Text="{l:Words {Binding ChosenExtras, Converter={StaticResource WordsFlagsDescription}}}"/>
+        </StackPanel>
+        <!-- or one item each -->
+        <ItemsControl Margin="0,6,0,0" ItemsSource="{l:Words {Binding ChosenExtras, Converter={StaticResource WordsFlagsDescriptionList}}}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border Background="{DynamicResource ChipBackground}" CornerRadius="10" Padding="9,2" Margin="0,0,4,0">
+                <TextBlock Text="{Binding}"/>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </c:DemoCard>
+    <!-- /card -->
+  </StackPanel>
+</UserControl>

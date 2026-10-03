@@ -17,10 +17,13 @@
     <BooleanToVisibilityConverter x:Key="Visible"/>
     <DataTemplate DataType="{x:Type vm:StartPageViewModel}"><v:StartPageView/></DataTemplate>
     <DataTemplate DataType="{x:Type vm:MarkdownPageViewModel}"><v:MarkdownPageView/></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:ReferencesPageViewModel}"><v:ReferencesPageView/></DataTemplate>
     <DataTemplate DataType="{x:Type vm:LinksPageViewModel}"><v:LinksPageView/></DataTemplate>
     <DataTemplate DataType="{x:Type vm:ImagesPageViewModel}"><v:ImagesPageView/></DataTemplate>
     <DataTemplate DataType="{x:Type vm:ParametersPageViewModel}"><v:ParametersPageView/></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:EnumsPageViewModel}"><v:EnumsPageView/></DataTemplate>
     <DataTemplate DataType="{x:Type vm:LivePageViewModel}"><v:LivePageView/></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:DiagnosticsPageViewModel}"><v:DiagnosticsPageView/></DataTemplate>
   </Window.Resources>
 
   <DockPanel>

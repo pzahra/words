@@ -13,11 +13,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <AvaloniaResource Remove="Assets\slice.png" />
+    <AvaloniaResource Remove="Assets\globe.png" />
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Assets\slice.png">
+    <Content Include="Assets\globe.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

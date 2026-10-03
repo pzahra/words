@@ -22,5 +22,17 @@
       <TextBlock TextWrapping="Wrap"><l:WordsInline Key="parameters.named.demo" Params="{Binding Profile}"/></TextBlock>
     </c:DemoCard>
     <!-- /card -->
+
+    <!-- card: parameters.culture -->
+    <c:DemoCard Key="parameters.culture" Uses="WordsInline, Params, UseSystemNumbers">
+      <StackPanel>
+        <TextBlock TextWrapping="Wrap"><l:WordsInline Key="parameters.culture.demo" Params="{Binding Sample}"/></TextBlock>
+        <!-- flips the live builder's UseSystemNumbers and digests the language again -->
+        <CheckBox Margin="0,6,0,0" IsChecked="{Binding UseSystemNumbers}">
+          <TextBlock TextWrapping="Wrap"><l:WordsInline Key="parameters.culture.system"><Binding Path="SystemCulture"/></l:WordsInline></TextBlock>
+        </CheckBox>
+      </StackPanel>
+    </c:DemoCard>
+    <!-- /card -->
   </StackPanel>
 </UserControl>

@@ -12,12 +12,15 @@ public sealed record SampleTopic(string Id, int Revision) {
 
 /// <summary>The topics, in the order the list shows them.</summary>
 public static class SampleTopics {
-	public static SampleTopic Start { get; } = new("start", 1);
-	public static SampleTopic Markdown { get; } = new("markdown", 1);
+	public static SampleTopic Start { get; } = new("start", 2);
+	public static SampleTopic Markdown { get; } = new("markdown", 2);
+	public static SampleTopic References { get; } = new("references", 1);
 	public static SampleTopic Links { get; } = new("links", 1);
-	public static SampleTopic Images { get; } = new("images", 1);
-	public static SampleTopic Parameters { get; } = new("parameters", 1);
-	public static SampleTopic Live { get; } = new("live", 1);
+	public static SampleTopic Images { get; } = new("images", 2);
+	public static SampleTopic Parameters { get; } = new("parameters", 2);
+	public static SampleTopic Enums { get; } = new("enums", 1);
+	public static SampleTopic Live { get; } = new("live", 2);
+	public static SampleTopic Diagnostics { get; } = new("diagnostics", 1);
 
-	public static IReadOnlyList<SampleTopic> All { get; } = [Start, Markdown, Links, Images, Parameters, Live];
+	public static IReadOnlyList<SampleTopic> All { get; } = [Start, Markdown, References, Links, Images, Parameters, Enums, Live, Diagnostics];
 }

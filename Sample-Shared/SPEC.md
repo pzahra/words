@@ -2,9 +2,10 @@
 
 Sample-Wpf and Sample-Ava are twins: the same tour of the library, from the same
 words, one in WPF and one in Avalonia. Sample-Shared holds what is framework-free
-— the words, the topic catalogue, the config, the page view models — so the
-twins cannot drift apart where they need not. Sample-Console (the console renderer) and LocalizedSample
-(the analyzer's test subject) are out of scope here. The library's own specs are
+— the words, the topic catalogue, the config, the view models of the shell and
+every page — so the twins cannot drift apart where they need not.
+Sample-Console (the console renderer) and LocalizedSample (the analyzer's test
+subject) are out of scope here. The library's own specs are
 [the runtime's](../Localization-Core/SPEC.md) and [the editor's](../WordsEdit/SPEC.md).
 Everything up to *Planned upgrades* is what the samples do today.
 
@@ -41,8 +42,10 @@ inline, the converter, the scheme. The card takes one key, `<topic>.<card>`: its
 value is the heading, `.guide` beneath it is the guidance, and `.demo` is the
 demonstration text where the card shows one. Heading and guidance render as
 Words with markdown, so the explanation is itself a demonstration and follows a
-language switch. The dialect has no code spans, so guidance names an API in
-bold and leaves the exact spelling to the chips.
+language switch. The dialect has no code spans yet (the runtime spec plans
+them), so guidance names an API in bold and leaves the exact spelling to the
+chips. References resolve in guidance as anywhere, so a brace meant literally is
+written twice: `{{>key}` shows as `{>key}`.
 
 ## The words
 
@@ -51,7 +54,7 @@ show. Each sample loads it, then its own `framework.ini` of two constants:
 `$framework`, the name in the title, and `$embedded`, the base URI of an
 embedded asset — `avares://Sample-Ava/Assets/` or
 `pack://application:,,,/Sample-Wpf;component/Assets/`. Values reference them —
-`Words for {$framework}`, `![EVO 360]({$embedded}3d.png)` — so the image schemes
+`Words for {$framework}`, `![Speech bubbles]({$embedded}bubbles.png)` — so the image schemes
 are the only words that differ, and they differ in one place. A new topic's
 words go in once.
 
@@ -69,40 +72,40 @@ and in the light theme (Avalonia: the system's).
 
 ## Pages
 
-Each topic is a page view model and a page view. The page view models are
-Sample-Shared's, and need no framework: the live page learns the theme as a
-plain flag, pushed down by each sample's shell, which is where the framework
-code lives. The views are each sample's own, card for card, so the twins read
-side by side: WPF finds a page's view through an implicit data template,
-Avalonia through its view locator.
+Each topic is a page view model and a page view. The view models are
+Sample-Shared's and need no framework: `ShellViewModel` makes the pages, and
+each sample's window view model derives from it to supply the one part that is
+framework code, switching the theme; the live page learns the theme as a plain
+flag the shell pushes down. The views are each sample's own, card for card, so
+the twins read side by side: WPF finds a page's view through an implicit data
+template, Avalonia through its view locator.
 
 | Topic | Cards |
 |---|---|
-| Getting started | words in markup (`{l:Words}`) |
+| Getting started | words in markup (`{l:Words}`); a missing key, shown as `#key#` |
 | Markdown | inline styles; entities and emoji; the kitchen sink; the playground (`WordsMarkdown`) |
+| References | one key inside another (`{>key}`); constants (`{$constant}`, from `framework.ini`); dot-relative blocks and references; a loop, cut at `# ∞ #` |
 | Hyperlinks | tooltips, autolinks and app commands (`RegisterGlobalNavigateHandler`); the app's report of them (`Params`) |
 | Images | every scheme, `staticres:` beside `dynres:` under the theme toggle |
-| Format parameters | positional, as a child binding; named, read off an object |
-| Live switching | a bound key the view model picks; a converted binding |
+| Format parameters | positional, as a child binding; named, read off an object; numbers and dates in the language's culture, with `UseSystemNumbers` |
+| Enums | a `[Words]` enum in a picker (`WordsEnumDescription`); its tooltip, subtitle and description; a `[Flags]` value joined and listed |
+| Live switching | a bound key the view model picks; a converted binding; a kept string beside one recomposed through `IKnowWords` |
+| Diagnostics | the fallback brands (`Debug`); the log of what `Words.Logger` heard |
+
+Every converter on the Enums page is wrapped in `{l:Words}`, so it runs again on
+a switch. Two cards change a setting of the live builder — `UseSystemNumbers` on
+Format parameters, `Debug` on Diagnostics — and the shell digests the language
+showing again, so the whole window follows as it does a switch; neither is
+saved. At startup each sample assigns `Words.Logger` a `GripeLog`, which keeps
+the last hundred gripes for the Diagnostics page. Getting started, References
+and Images each cause one on purpose: the missing key, the loop and a picture
+that does not exist.
 
 ---
 
 # Planned upgrades
 
 Not built. Each section is the shape the work takes when it is.
-
-## New topics and cards
-
-**References**: `{>key}`, `{$constant}` and dot-relative keys, today shown only
-by the console sample. **Enums**: `[Words]` keys on enum members, the enum and
-flags description converters, and the tooltip and description variants.
-**Diagnostics**: the fallback brands switched on live (the builder's `Debug`,
-re-digested in place), and an on-screen log of what Words gripes about — a
-missing key, a missing image. New cards on existing pages: a missing key as
-`#key#` (Getting started); numbers and dates in the language's culture, and
-`UseSystemNumbers` (Format parameters); a string a view model composed and kept,
-going stale on a switch beside one that re-raises through `IKnowWords` (Live
-switching). Each touched page's revision goes up.
 
 ## How each card is made
 

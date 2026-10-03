@@ -23,6 +23,10 @@
             </DataTemplate>
             <!-- the dot beside a topic not yet seen at its latest revision: one colour, both themes -->
             <SolidColorBrush x:Key="UnseenBrush" Color="#E8590C"/>
+            <!-- WPF's check boxes default to the system's text colour; follow the theme instead -->
+            <Style TargetType="CheckBox">
+                <Setter Property="Foreground" Value="{DynamicResource WindowForeground}"/>
+            </Style>
 
             <!-- a demonstration: heading and guidance (filled by DemoCard from its Key),
                  the live result, and chips naming what it uses -->

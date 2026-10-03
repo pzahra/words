@@ -1,0 +1,35 @@
+<UserControl x:Class="Sample_Wpf.Views.DiagnosticsPageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="https://github.com/pzahra/words"
+             xmlns:c="clr-namespace:Sample_Wpf.Controls">
+  <!-- Diagnostics. The box flips the live builder's Debug and digests the language
+       again; the log is the GripeLog App.OnStartup assigned to Words.Logger -->
+  <StackPanel>
+    <!-- card: diagnostics.fallbacks -->
+    <c:DemoCard Key="diagnostics.fallbacks" Uses="WordsBuilder.Debug, Words.SwitchLanguage">
+      <StackPanel>
+        <CheckBox Content="{l:Words diagnostics.fallbacks.toggle}" IsChecked="{Binding ShowFallbacks}"/>
+        <TextBlock TextWrapping="Wrap" Margin="0,6,0,0" Text="{l:Words diagnostics.fallbacks.translated}"/>
+        <TextBlock TextWrapping="Wrap" Text="{l:Words diagnostics.fallbacks.untranslated}"/>
+      </StackPanel>
+    </c:DemoCard>
+    <!-- /card -->
+
+    <!-- card: diagnostics.log -->
+    <c:DemoCard Key="diagnostics.log" Uses="Words.Logger, ITakeException">
+      <Border BorderBrush="{DynamicResource CardBorder}" BorderThickness="1" CornerRadius="4" Padding="8,6">
+        <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
+          <ItemsControl ItemsSource="{Binding Gripes}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" Margin="0,1"/>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Border>
+    </c:DemoCard>
+    <!-- /card -->
+  </StackPanel>
+</UserControl>

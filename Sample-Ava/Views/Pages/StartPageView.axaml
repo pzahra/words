@@ -18,5 +18,12 @@
       </StackPanel>
     </c:DemoCard>
     <!-- /card -->
+
+    <!-- card: start.missing -->
+    <c:DemoCard Key="start.missing" Uses="{}{l:Words key}, Words.Logger">
+      <!-- a typo on purpose: no such key, so it shows as itself between hashes -->
+      <TextBlock TextWrapping="Wrap" Text="{l:Words start.missing.tpyo}"/>
+    </c:DemoCard>
+    <!-- /card -->
   </StackPanel>
 </UserControl>

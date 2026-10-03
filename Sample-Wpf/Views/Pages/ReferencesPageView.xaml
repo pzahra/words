@@ -1,0 +1,33 @@
+<UserControl x:Class="Sample_Wpf.Views.ReferencesPageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="https://github.com/pzahra/words"
+             xmlns:c="clr-namespace:Sample_Wpf.Controls">
+  <!-- References. They resolve when a key is looked up, inside the words, so the markup
+       is the same as for any key: every surface, {l:Words} included, shows them -->
+  <StackPanel>
+    <!-- card: references.keys -->
+    <c:DemoCard Key="references.keys" Uses="{}{>key}">
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="references.keys.demo"/></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+
+    <!-- card: references.constants -->
+    <c:DemoCard Key="references.constants" Uses="{}{$constant}, framework.ini">
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="references.constants.demo"/></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+
+    <!-- card: references.relative -->
+    <c:DemoCard Key="references.relative" Uses="[.sub], {>.sub}">
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="references.relative.demo"/></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+
+    <!-- card: references.circular -->
+    <c:DemoCard Key="references.circular" Uses="{}{>key}, Words.Logger">
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="references.circular.demo"/></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+  </StackPanel>
+</UserControl>

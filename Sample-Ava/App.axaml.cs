@@ -44,7 +44,11 @@ namespace Sample_Ava {
 		}
 
 		public override void OnFrameworkInitializationCompleted() {
-			var viewModel = new MainWindowViewModel(langs, lang, ActualThemeVariant == ThemeVariant.Dark, config);
+			// what Words gripes about from here on — a missing key, a loop, a lost picture —
+			// is kept for the Diagnostics page to list
+			var gripes = new GripeLog();
+			Words.Logger = gripes;
+			var viewModel = new MainWindowViewModel(langs, lang, ActualThemeVariant == ThemeVariant.Dark, config, gripes);
 
 			Hyperlink.RegisterGlobalNavigateHandler(uri => {
 				if (uri.Scheme is "appcmd") {

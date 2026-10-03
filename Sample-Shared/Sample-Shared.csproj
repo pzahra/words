@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- What the twin samples share and need no framework for: the words, the
-       topic catalogue, the config and the page view models (SPEC.md). -->
+       topic catalogue, the config and the view models (SPEC.md). -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Sample_Shared</RootNamespace>

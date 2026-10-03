@@ -24,6 +24,10 @@ public partial class App : Application {
 		lang ??= config.Language ?? "it";
 		bool dark = (theme ?? config.Theme) == "dark";
 		ApplyTheme(dark);
+		// what Words gripes about from here on — a missing key, a loop, a lost picture —
+		// is kept for the Diagnostics page to list
+		var gripes = new GripeLog();
+		Words.Logger = gripes;
 		// the shared words, then this sample's two constants they reference. Live()
 		// keeps the sources, so the language picker switches in place. The flag also
 		// points FrameworkElement.Language at it, so ordinary WPF bindings (StringFormat
@@ -36,7 +40,7 @@ public partial class App : Application {
 			.Live()
 			.Digest(lang, out var languages, includeFrameworkElements: true);
 
-		var viewModel = new MainWindowViewModel([.. languages], lang, dark, config);
+		var viewModel = new MainWindowViewModel([.. languages], lang, dark, config, gripes);
 
 		Hyperlink.RegisterGlobalNavigateHandler(uri => {
 			if (uri.Scheme is "appcmd") {

@@ -26,5 +26,16 @@
       </StackPanel>
     </c:DemoCard>
     <!-- /card -->
+
+    <!-- card: live.kept -->
+    <c:DemoCard Key="live.kept" Uses="IKnowWords, Words.Watch">
+      <!-- plain bindings to strings the view model composed: only the one it composes
+           again in IKnowWords.Refresh follows a switch -->
+      <StackPanel>
+        <TextBlock TextWrapping="Wrap" Text="{Binding Kept}"/>
+        <TextBlock TextWrapping="Wrap" Text="{Binding Watched}"/>
+      </StackPanel>
+    </c:DemoCard>
+    <!-- /card -->
   </StackPanel>
 </UserControl>
