@@ -1,90 +1,63 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Sample_Ava.ViewModels"
+        xmlns:pages="using:Sample_Shared.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="760"
+        mc:Ignorable="d" d:DesignWidth="980" d:DesignHeight="760"
         x:Class="Sample_Ava.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
         xmlns:l="https://github.com/pzahra/words"
         Title="{l:Words main.title}"
-        Width="700" Height="760">
+        Width="980" Height="760">
+  <!-- The shell (Sample-Shared/SPEC.md): the title, language and theme across the top;
+       the topics down the left, each with a dot until its latest revision is seen; the
+       open topic's page on the right. Each page is its own view in Views/Pages, found
+       by the ViewLocator from its view model's name; the view models are Sample-Shared's. -->
 
-    <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-        <vm:MainWindowViewModel/>
-    </Design.DataContext>
-
-  <Window.Styles>
-    <Style Selector="TextBlock.h">
-      <Setter Property="FontSize" Value="15"/>
-      <Setter Property="FontWeight" Value="SemiBold"/>
-      <Setter Property="Margin" Value="0,18,0,4"/>
-    </Style>
-    <Style Selector="TextBlock.demo">
-      <Setter Property="TextWrapping" Value="Wrap"/>
-    </Style>
-  </Window.Styles>
-
-  <ScrollViewer>
-    <StackPanel Margin="24,16" MaxWidth="640" Spacing="4">
-
-      <!-- {l:Words key} resolves plain localized text; the app asked for Italian
-           at startup, so keys with a value-it render it and the rest fall back -->
-      <TextBlock FontSize="22" FontWeight="Bold" Text="{l:Words main.title}"/>
-      <TextBlock FontStyle="Italic" Text="{l:Words main.greeting}"/>
-
-      <!-- the languages come from the top-of-file `value-xx=` labels in sample.ini;
-           the appcmd: link switches the app to the selection in place (Live mode) -->
-      <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
-        <ComboBox MinWidth="140"
+  <DockPanel>
+    <!-- across the top: what affects every page. Picking a language switches the window
+         in place (live mode); both picks are remembered in the config -->
+    <Border DockPanel.Dock="Top" Padding="18,10" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CardBorder}">
+      <DockPanel>
+        <CheckBox DockPanel.Dock="Right" VerticalAlignment="Center" Margin="18,0,0,0"
+                  Content="{l:Words main.dark-theme}"
+                  IsChecked="{Binding IsDarkTheme}"/>
+        <ComboBox DockPanel.Dock="Right" MinWidth="140" VerticalAlignment="Center"
                   ItemsSource="{Binding Languages}"
                   DisplayMemberBinding="{ReflectionBinding Value}"
                   SelectedValueBinding="{ReflectionBinding Key}"
-                  SelectedValue="{Binding SelectedLanguage, Mode=TwoWay}"/>
-        <TextBlock VerticalAlignment="Center"><l:WordsInline Key="main.change-lang"/></TextBlock>
-        <!-- flips the theme variant; watch the theme icon in the images section -->
-        <CheckBox VerticalAlignment="Center" Margin="12,0,0,0"
-                  Content="{l:Words main.dark-theme}"
-                  IsChecked="{Binding IsDarkTheme, Mode=TwoWay}"/>
+                  SelectedValue="{Binding SelectedLanguage}"
+                  ToolTip.Tip="{l:Words main.language}"/>
+        <TextBlock FontSize="20" FontWeight="Bold" VerticalAlignment="Center" Text="{l:Words main.title}"/>
+      </DockPanel>
+    </Border>
+
+    <!-- down the left: the topics. A caption is a bound key, so the list follows a switch -->
+    <ListBox DockPanel.Dock="Left" Width="220" Padding="6,8"
+             Background="{DynamicResource PaneBackground}"
+             ItemsSource="{Binding Pages}"
+             SelectedItem="{Binding SelectedPage}">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="pages:PageViewModel">
+          <DockPanel>
+            <Ellipse DockPanel.Dock="Right" Width="8" Height="8" Margin="8,0,0,0" VerticalAlignment="Center"
+                     Fill="{StaticResource UnseenBrush}"
+                     ToolTip.Tip="{l:Words topic.unseen}"
+                     IsVisible="{Binding IsUnseen}"/>
+            <TextBlock Text="{l:Words {Binding CaptionKey}}" TextTrimming="CharacterEllipsis"/>
+          </DockPanel>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+
+    <!-- on the right: the open topic's page, under its caption -->
+    <ScrollViewer>
+      <StackPanel Margin="26,18" MaxWidth="700" HorizontalAlignment="Left">
+        <TextBlock FontSize="22" FontWeight="SemiBold" Margin="0,0,0,12" Text="{l:Words {Binding SelectedPage.CaptionKey}}"/>
+        <ContentControl Content="{Binding SelectedPage}"/>
       </StackPanel>
-
-      <TextBlock Classes="h" Text="{l:Words section.formatting}"/>
-      <!-- WordsInline renders a key's Words as rich inline content, markdown and all -->
-      <TextBlock Classes="demo"><l:WordsInline Key="demo.formatting"/></TextBlock>
-      <TextBlock Classes="demo"><l:WordsInline Key="demo.entities"/></TextBlock>
-
-      <TextBlock Classes="h" Text="{l:Words section.links}"/>
-      <TextBlock Classes="demo"><l:WordsInline Key="demo.links"/></TextBlock>
-      <!-- clicking the appcmd: link above updates this line through the view model -->
-      <TextBlock Classes="demo"><l:WordsInline Key="demo.appcmd-report" Params="{Binding AppCommandParams}"/></TextBlock>
-
-      <TextBlock Classes="h" Text="{l:Words section.images}"/>
-      <TextBlock Classes="demo"><l:WordsInline Key="demo.images"/></TextBlock>
-
-      <TextBlock Classes="h" Text="{l:Words section.params}"/>
-      <!-- a child Binding is the argument: no array-building property, no MultiBinding -->
-      <TextBlock Classes="demo"><l:WordsInline Key="demo.params-positional"><Binding Path="Unread"/></l:WordsInline></TextBlock>
-      <Slider Minimum="0" Maximum="42" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Unread}"/>
-      <TextBlock Classes="demo"><l:WordsInline Key="demo.params-named" Params="{Binding Profile}"/></TextBlock>
-
-      <TextBlock Classes="h" Text="{l:Words section.live}"/>
-      <!-- {l:Words} over a binding, compiled like the rest: the view model picks a key,
-           which is looked up (toggle the theme); a binding's own converter formats (move
-           the slider); and both run again when the language changes -->
-      <TextBlock Classes="demo" Text="{l:Words {Binding ThemeKey}}"/>
-      <TextBlock Classes="demo" Text="{l:Words {Binding Unread, Converter={StaticResource WordsFormat}, ConverterParameter=demo.converted}}"/>
-
-      <TextBlock Classes="h" Text="{l:Words section.kitchen}"/>
-      <TextBlock Classes="demo"><l:WordsInline Key="main.markdown"/></TextBlock>
-
-      <TextBlock Classes="h" Text="{l:Words section.playground}"/>
-      <TextBox Text="{Binding Playground}"/>
-      <!-- WordsMarkdown comes from the package's Converters.axaml, merged in App.axaml -->
-      <ContentControl Margin="0,4,0,16" Content="{Binding Playground, Converter={StaticResource WordsMarkdown}}"/>
-
-    </StackPanel>
-  </ScrollViewer>
+    </ScrollViewer>
+  </DockPanel>
 </Window>

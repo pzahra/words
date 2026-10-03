@@ -1,5 +1,6 @@
 using PatTech.Localization;
 using PatTech.Localization.Wpf;
+using Sample_Shared;
 using Sample_Wpf.ViewModels;
 using Sample_Wpf.Views;
 using System.Diagnostics;
@@ -11,29 +12,31 @@ public partial class App : Application {
 	protected override void OnStartup(StartupEventArgs e) {
 		base.OnStartup(e);
 
-		// honor `--lang=xx` and `--theme=dark|light` on the command line
-		string lang = "it";
-		bool dark = false;
+		// the language and theme last picked, unless `--lang=xx` or `--theme=dark|light`
+		// on the command line choose for this run; Italian, to show translated words,
+		// when neither says
+		var config = SampleConfig.For("Sample-Wpf");
+		string? lang = null, theme = null;
 		foreach (var arg in e.Args) {
 			if (arg.StartsWith("--lang=")) lang = arg["--lang=".Length..];
-			else if (arg.StartsWith("--theme=")) dark = arg["--theme=".Length..] == "dark";
+			else if (arg.StartsWith("--theme=")) theme = arg["--theme=".Length..];
 		}
+		lang ??= config.Language ?? "it";
+		bool dark = (theme ?? config.Theme) == "dark";
 		ApplyTheme(dark);
-		// one call loads, installs Words.Known (which syncs the thread cultures) and
-		// hands back the language menu. Live() keeps the sources, so the language can
-		// be switched in place later (see MainWindowViewModel.TakeAppCommand). The flag
-		// also points FrameworkElement.Language at it, so ordinary WPF bindings
-		// (StringFormat and the like) stop defaulting to en-US — once, at startup: a
-		// live switch moves the thread cultures, not that default. (.UseSystemNumbers()
-		// before Digest would keep the Italian words but format their numbers and dates
-		// the way this system does)
+		// the shared words, then this sample's two constants they reference. Live()
+		// keeps the sources, so the language picker switches in place. The flag also
+		// points FrameworkElement.Language at it, so ordinary WPF bindings (StringFormat
+		// and the like) stop defaulting to en-US — once, at startup: a live switch moves
+		// the thread cultures, not that default. (.UseSystemNumbers() before Digest would
+		// keep the words but format numbers and dates the way this system does)
 		Words.Builder()
-			.LoadResource("pack://application:,,,/Sample-Wpf;Component/Assets/sample.ini")
+			.LoadShared()
+			.LoadResource("pack://application:,,,/Sample-Wpf;Component/Assets/framework.ini")
 			.Live()
 			.Digest(lang, out var languages, includeFrameworkElements: true);
-		KeyValuePair<string, string>[] langs = [.. languages];
 
-		var viewModel = new MainWindowViewModel(langs, lang, dark);
+		var viewModel = new MainWindowViewModel([.. languages], lang, dark, config);
 
 		Hyperlink.RegisterGlobalNavigateHandler(uri => {
 			if (uri.Scheme is "appcmd") {

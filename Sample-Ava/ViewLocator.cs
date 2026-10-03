@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
-using Sample_Ava.ViewModels;
+using Sample_Shared.ViewModels;
 using System;
 using System.Diagnostics.CodeAnalysis;
 
@@ -16,7 +16,8 @@ namespace Sample_Ava {
 			if (param is null)
 				return null;
 
-			var name = param.GetType().FullName!.Replace("ViewModel", "View", StringComparison.Ordinal);
+			//the view models are Sample-Shared's, the views this sample's: XPageViewModel shows as Views.XPageView
+			var name = "Sample_Ava.Views." + param.GetType().Name.Replace("ViewModel", "View", StringComparison.Ordinal);
 			var type = Type.GetType(name);
 
 			if (type != null) {

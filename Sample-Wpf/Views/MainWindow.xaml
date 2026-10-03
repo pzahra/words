@@ -2,82 +2,72 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:l="https://github.com/pzahra/words"
+        xmlns:vm="clr-namespace:Sample_Shared.ViewModels;assembly=Sample-Shared"
+        xmlns:v="clr-namespace:Sample_Wpf.Views"
         Title="{l:Words main.title}"
-        Width="700" Height="760"
+        Width="980" Height="760"
         Background="{DynamicResource WindowBackground}"
         Foreground="{DynamicResource WindowForeground}">
-  <!-- the window brushes come from the theme dictionary (Themes/Light.xaml or
-       Dark.xaml); DynamicResource follows the swap, the way a dynres: image does -->
+  <!-- The shell (Sample-Shared/SPEC.md): the title, language and theme across the top;
+       the topics down the left, each with a dot until its latest revision is seen; the
+       open topic's page on the right. Each page is its own view in Views/Pages, found
+       here by its view model's type; the view models are Sample-Shared's. -->
 
   <Window.Resources>
-    <Style x:Key="h" TargetType="TextBlock">
-      <Setter Property="FontSize" Value="15"/>
-      <Setter Property="FontWeight" Value="SemiBold"/>
-      <Setter Property="Margin" Value="0,18,0,4"/>
-    </Style>
-    <Style x:Key="demo" TargetType="TextBlock">
-      <Setter Property="TextWrapping" Value="Wrap"/>
-      <Setter Property="Margin" Value="0,2"/>
-    </Style>
+    <BooleanToVisibilityConverter x:Key="Visible"/>
+    <DataTemplate DataType="{x:Type vm:StartPageViewModel}"><v:StartPageView/></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:MarkdownPageViewModel}"><v:MarkdownPageView/></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:LinksPageViewModel}"><v:LinksPageView/></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:ImagesPageViewModel}"><v:ImagesPageView/></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:ParametersPageViewModel}"><v:ParametersPageView/></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:LivePageViewModel}"><v:LivePageView/></DataTemplate>
   </Window.Resources>
 
-  <ScrollViewer VerticalScrollBarVisibility="Auto">
-    <StackPanel Margin="24,16" MaxWidth="640">
-
-      <!-- {l:Words key} resolves plain localized text; the app asked for Italian
-           at startup, so keys with a value-it render it and the rest fall back -->
-      <TextBlock FontSize="22" FontWeight="Bold" Text="{l:Words main.title}"/>
-      <TextBlock FontStyle="Italic" Text="{l:Words main.greeting}"/>
-
-      <!-- the languages come from the top-of-file `value-xx=` labels in sample.ini;
-           the appcmd: link switches the app to the selection in place (Live mode) -->
-      <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-        <ComboBox MinWidth="140"
+  <DockPanel>
+    <!-- across the top: what affects every page. Picking a language switches the window
+         in place (live mode); both picks are remembered in the config -->
+    <Border DockPanel.Dock="Top" Padding="18,10" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CardBorder}">
+      <DockPanel>
+        <CheckBox DockPanel.Dock="Right" VerticalAlignment="Center" Margin="18,0,0,0"
+                  Foreground="{DynamicResource WindowForeground}"
+                  Content="{l:Words main.dark-theme}"
+                  IsChecked="{Binding IsDarkTheme}"/>
+        <ComboBox DockPanel.Dock="Right" MinWidth="140" VerticalAlignment="Center"
                   ItemsSource="{Binding Languages}"
                   DisplayMemberPath="Value"
                   SelectedValuePath="Key"
-                  SelectedValue="{Binding SelectedLanguage}"/>
-        <TextBlock VerticalAlignment="Center" Margin="12,0,0,0"><l:WordsInline Key="main.change-lang"/></TextBlock>
-        <!-- swaps the theme dictionary; watch the theme icon in the images section -->
-        <CheckBox VerticalAlignment="Center" Margin="24,0,0,0"
-                  Content="{l:Words main.dark-theme}"
-                  IsChecked="{Binding IsDarkTheme}"/>
+                  SelectedValue="{Binding SelectedLanguage}"
+                  ToolTip="{l:Words main.language}"/>
+        <TextBlock FontSize="20" FontWeight="Bold" VerticalAlignment="Center" Text="{l:Words main.title}"/>
+      </DockPanel>
+    </Border>
+
+    <!-- down the left: the topics. A caption is a bound key, so the list follows a switch -->
+    <ListBox DockPanel.Dock="Left" Width="220" Padding="6,8"
+             Background="{DynamicResource PaneBackground}" BorderThickness="0"
+             Foreground="{DynamicResource WindowForeground}"
+             HorizontalContentAlignment="Stretch"
+             ItemsSource="{Binding Pages}"
+             SelectedItem="{Binding SelectedPage}">
+      <ListBox.ItemTemplate>
+        <DataTemplate>
+          <DockPanel Margin="4,5">
+            <Ellipse DockPanel.Dock="Right" Width="8" Height="8" Margin="8,0,0,0" VerticalAlignment="Center"
+                     Fill="{StaticResource UnseenBrush}"
+                     ToolTip="{l:Words topic.unseen}"
+                     Visibility="{Binding IsUnseen, Converter={StaticResource Visible}}"/>
+            <TextBlock Text="{l:Words {Binding CaptionKey}}" TextTrimming="CharacterEllipsis"/>
+          </DockPanel>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+
+    <!-- on the right: the open topic's page, under its caption -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+      <StackPanel Margin="26,18" MaxWidth="700" HorizontalAlignment="Left">
+        <TextBlock FontSize="22" FontWeight="SemiBold" Margin="0,0,0,12" Text="{l:Words {Binding SelectedPage.CaptionKey}}"/>
+        <ContentControl Content="{Binding SelectedPage}" Focusable="False"/>
       </StackPanel>
-
-      <TextBlock Style="{StaticResource h}" Text="{l:Words section.formatting}"/>
-      <!-- WordsInline renders a key's Words as rich inline content, markdown and all -->
-      <TextBlock Style="{StaticResource demo}"><l:WordsInline Key="demo.formatting"/></TextBlock>
-      <TextBlock Style="{StaticResource demo}"><l:WordsInline Key="demo.entities"/></TextBlock>
-
-      <TextBlock Style="{StaticResource h}" Text="{l:Words section.links}"/>
-      <TextBlock Style="{StaticResource demo}"><l:WordsInline Key="demo.links"/></TextBlock>
-      <!-- clicking the appcmd: link above updates this line through the view model -->
-      <TextBlock Style="{StaticResource demo}"><l:WordsInline Key="demo.appcmd-report" Params="{Binding AppCommandParams}"/></TextBlock>
-
-      <TextBlock Style="{StaticResource h}" Text="{l:Words section.images}"/>
-      <TextBlock Style="{StaticResource demo}"><l:WordsInline Key="demo.images"/></TextBlock>
-
-      <TextBlock Style="{StaticResource h}" Text="{l:Words section.params}"/>
-      <!-- a child Binding is the argument: no array-building property, no MultiBinding -->
-      <TextBlock Style="{StaticResource demo}"><l:WordsInline Key="demo.params-positional"><Binding Path="Unread"/></l:WordsInline></TextBlock>
-      <Slider Minimum="0" Maximum="42" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Unread}"/>
-      <TextBlock Style="{StaticResource demo}"><l:WordsInline Key="demo.params-named" Params="{Binding Profile}"/></TextBlock>
-
-      <TextBlock Style="{StaticResource h}" Text="{l:Words section.live}"/>
-      <!-- {l:Words} over a binding: the view model picks a key, which is looked up (toggle
-           the theme); a binding's own converter formats (move the slider); and both run
-           again when the language changes -->
-      <TextBlock Style="{StaticResource demo}" Text="{l:Words {Binding ThemeKey}}"/>
-      <TextBlock Style="{StaticResource demo}" Text="{l:Words {Binding Unread, Converter={StaticResource WordsFormat}, ConverterParameter=demo.converted}}"/>
-
-      <TextBlock Style="{StaticResource h}" Text="{l:Words section.kitchen}"/>
-      <TextBlock Style="{StaticResource demo}"><l:WordsInline Key="main.markdown"/></TextBlock>
-
-      <TextBlock Style="{StaticResource h}" Text="{l:Words section.playground}"/>
-      <TextBox Text="{Binding Playground, UpdateSourceTrigger=PropertyChanged}"/>
-      <!-- WordsMarkdown comes from the package's Converters.xaml, merged in App.xaml -->
-      <ContentControl Margin="0,4,0,16" Content="{Binding Playground, Converter={StaticResource WordsMarkdown}}"/>
-
-    </StackPanel>
-  </ScrollViewer>
+    </ScrollViewer>
+  </DockPanel>
 </Window>

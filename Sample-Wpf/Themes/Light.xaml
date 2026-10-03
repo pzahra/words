@@ -4,6 +4,11 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <SolidColorBrush x:Key="WindowBackground" Color="White"/>
     <SolidColorBrush x:Key="WindowForeground" Color="#1E1E1E"/>
+    <!-- the shell: the topic pane, and each demonstration's card and chips -->
+    <SolidColorBrush x:Key="PaneBackground" Color="#F3F3F5"/>
+    <SolidColorBrush x:Key="CardBackground" Color="#FAFAFB"/>
+    <SolidColorBrush x:Key="CardBorder" Color="#DDDDE3"/>
+    <SolidColorBrush x:Key="ChipBackground" Color="#E9E9EF"/>
     <!-- a sun, in gold: the theme-scoped icon the sample shows through staticres: and
          dynres:, its brush asked for the same way (?foreground=dynres:ThemeIconBrush) -->
     <SolidColorBrush x:Key="ThemeIconBrush" Color="Goldenrod"/>

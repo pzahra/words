@@ -38,5 +38,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Localization-Ava\Localization-Ava.csproj" />
+    <!-- the shared words, topics and config -->
+    <ProjectReference Include="..\Sample-Shared\Sample-Shared.csproj" />
   </ItemGroup>
 </Project>

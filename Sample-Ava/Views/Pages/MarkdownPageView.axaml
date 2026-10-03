@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="https://github.com/pzahra/words"
+             xmlns:c="using:Sample_Ava.Controls"
+             xmlns:vm="using:Sample_Shared.ViewModels"
+             x:Class="Sample_Ava.Views.MarkdownPageView"
+             x:DataType="vm:MarkdownPageViewModel">
+  <!-- Markdown. WordsInline renders a key's value as rich inline content -->
+  <StackPanel>
+    <!-- card: markdown.styles -->
+    <c:DemoCard Key="markdown.styles" Uses="WordsInline">
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="markdown.styles.demo"/></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+
+    <!-- card: markdown.entities -->
+    <c:DemoCard Key="markdown.entities" Uses="WordsInline">
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="markdown.entities.demo"/></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+
+    <!-- card: markdown.kitchen -->
+    <c:DemoCard Key="markdown.kitchen" Uses="WordsInline">
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="markdown.kitchen.demo"/></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+
+    <!-- card: markdown.playground -->
+    <c:DemoCard Key="markdown.playground" Uses="WordsMarkdown">
+      <StackPanel>
+        <TextBox Text="{Binding Playground}" TextWrapping="Wrap"/>
+        <!-- WordsMarkdown comes from the package's Converters.axaml, merged in App.axaml -->
+        <ContentControl Margin="0,6,0,0" Content="{Binding Playground, Converter={StaticResource WordsMarkdown}}"/>
+      </StackPanel>
+    </c:DemoCard>
+    <!-- /card -->
+  </StackPanel>
+</UserControl>

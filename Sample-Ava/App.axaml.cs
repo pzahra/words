@@ -6,30 +6,35 @@ using PatTech.Localization;
 using PatTech.Localization.Avalonia;
 using Sample_Ava.ViewModels;
 using Sample_Ava.Views;
+using Sample_Shared;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 
 namespace Sample_Ava {
 	public partial class App : Application {
-		IEnumerable<KeyValuePair<string, string>> langs = [];
-		string lang = "it";
+		private readonly SampleConfig config = SampleConfig.For("Sample-Ava");
+		private IReadOnlyList<KeyValuePair<string, string>> langs = [];
+		private string lang = "it";
+
 		public override void Initialize() {
-			// honor `--lang=xx` and `--theme=dark|light` on the command line; without
-			// --theme, "Default" in App.axaml follows the system
-			string? theme = null;
+			// the language and theme last picked, unless `--lang=xx` or `--theme=dark|light`
+			// on the command line choose for this run; Italian, to show translated words,
+			// when neither says, and the system's theme ("Default" in App.axaml)
+			string? argLang = null, theme = null;
 			foreach (var arg in Environment.GetCommandLineArgs()) {
-				if (arg.StartsWith("--lang=")) lang = arg["--lang=".Length..];
+				if (arg.StartsWith("--lang=")) argLang = arg["--lang=".Length..];
 				else if (arg.StartsWith("--theme=")) theme = arg["--theme=".Length..];
 			}
-			// one call loads, installs Words.Known (which syncs the thread cultures)
-			// and hands back the language menu. Live() keeps the sources, so the
-			// language can be switched in place later (see
-			// MainWindowViewModel.TakeAppCommand). (.UseSystemNumbers() before Digest
-			// would keep the Italian words but format their numbers and dates the way
-			// this system does)
+			lang = argLang ?? config.Language ?? "it";
+			theme ??= config.Theme;
+			// the shared words, then this sample's two constants they reference. Live()
+			// keeps the sources, so the language picker switches in place. (.UseSystemNumbers()
+			// before Digest would keep the words but format numbers and dates the way this
+			// system does)
 			Words.Builder()
-				.LoadResource("avares://Sample-Ava/Assets/sample.ini")
+				.LoadShared()
+				.LoadResource("avares://Sample-Ava/Assets/framework.ini")
 				.Live()
 				.Digest(lang, out var languages);
 			langs = [.. languages];
@@ -39,7 +44,7 @@ namespace Sample_Ava {
 		}
 
 		public override void OnFrameworkInitializationCompleted() {
-			var viewModel = new MainWindowViewModel(langs, lang);
+			var viewModel = new MainWindowViewModel(langs, lang, ActualThemeVariant == ThemeVariant.Dark, config);
 
 			Hyperlink.RegisterGlobalNavigateHandler(uri => {
 				if (uri.Scheme is "appcmd") {

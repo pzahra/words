@@ -1,0 +1,23 @@
+namespace Sample_Shared;
+
+/// <summary>
+///     A topic of the tour (SPEC: Topics and their markers): its id, which names its
+///     words, and its revision. Raise the revision in the commit that changes the
+///     topic's page, and the unseen marker comes back for everyone who saw the old one.
+/// </summary>
+public sealed record SampleTopic(string Id, int Revision) {
+	/// <summary>The key of the topic's caption in the list.</summary>
+	public string CaptionKey => $"topic.{Id}";
+}
+
+/// <summary>The topics, in the order the list shows them.</summary>
+public static class SampleTopics {
+	public static SampleTopic Start { get; } = new("start", 1);
+	public static SampleTopic Markdown { get; } = new("markdown", 1);
+	public static SampleTopic Links { get; } = new("links", 1);
+	public static SampleTopic Images { get; } = new("images", 1);
+	public static SampleTopic Parameters { get; } = new("parameters", 1);
+	public static SampleTopic Live { get; } = new("live", 1);
+
+	public static IReadOnlyList<SampleTopic> All { get; } = [Start, Markdown, Links, Images, Parameters, Live];
+}

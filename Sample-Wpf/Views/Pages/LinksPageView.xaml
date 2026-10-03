@@ -1,0 +1,22 @@
+<UserControl x:Class="Sample_Wpf.Views.LinksPageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="https://github.com/pzahra/words"
+             xmlns:c="clr-namespace:Sample_Wpf.Controls">
+  <!-- Hyperlinks. Every link the window renders goes to the one handler App.OnStartup
+       registers: web links open in the browser, appcmd: links come here -->
+  <StackPanel>
+    <!-- card: links.links -->
+    <c:DemoCard Key="links.links" Uses="WordsInline, Hyperlink.RegisterGlobalNavigateHandler">
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="links.links.demo"/></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+
+    <!-- card: links.report -->
+    <c:DemoCard Key="links.report" Uses="WordsInline, Params">
+      <!-- clicking the ping link above updates this line through the view model -->
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="links.report.demo" Params="{Binding AppCommandParams}"/></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+  </StackPanel>
+</UserControl>

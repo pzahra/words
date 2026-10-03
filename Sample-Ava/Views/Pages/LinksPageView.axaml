@@ -1,0 +1,25 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="https://github.com/pzahra/words"
+             xmlns:c="using:Sample_Ava.Controls"
+             xmlns:vm="using:Sample_Shared.ViewModels"
+             x:Class="Sample_Ava.Views.LinksPageView"
+             x:DataType="vm:LinksPageViewModel">
+  <!-- Hyperlinks. Every link the window renders goes to the one handler
+       App.OnFrameworkInitializationCompleted registers: web links open in the browser,
+       appcmd: links come here -->
+  <StackPanel>
+    <!-- card: links.links -->
+    <c:DemoCard Key="links.links" Uses="WordsInline, Hyperlink.RegisterGlobalNavigateHandler">
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="links.links.demo"/></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+
+    <!-- card: links.report -->
+    <c:DemoCard Key="links.report" Uses="WordsInline, Params">
+      <!-- clicking the ping link above updates this line through the view model -->
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="links.report.demo" Params="{Binding AppCommandParams}"/></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+  </StackPanel>
+</UserControl>

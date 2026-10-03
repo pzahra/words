@@ -1,0 +1,15 @@
+<UserControl x:Class="Sample_Wpf.Views.ImagesPageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="https://github.com/pzahra/words"
+             xmlns:c="clr-namespace:Sample_Wpf.Controls">
+  <!-- Images. The resources the staticres: and dynres: images ask for live in App.xaml
+       and the theme dictionaries; {$embedded} in the words is this sample's pack: base -->
+  <StackPanel>
+    <!-- card: images.schemes -->
+    <c:DemoCard Key="images.schemes" Uses="WordsInline, pack:, assets:, staticres:, dynres:">
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="images.schemes.demo"/></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+  </StackPanel>
+</UserControl>

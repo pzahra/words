@@ -1,0 +1,36 @@
+<UserControl x:Class="Sample_Wpf.Views.MarkdownPageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="https://github.com/pzahra/words"
+             xmlns:c="clr-namespace:Sample_Wpf.Controls">
+  <!-- Markdown. WordsInline renders a key's value as rich inline content -->
+  <StackPanel>
+    <!-- card: markdown.styles -->
+    <c:DemoCard Key="markdown.styles" Uses="WordsInline">
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="markdown.styles.demo"/></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+
+    <!-- card: markdown.entities -->
+    <c:DemoCard Key="markdown.entities" Uses="WordsInline">
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="markdown.entities.demo"/></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+
+    <!-- card: markdown.kitchen -->
+    <c:DemoCard Key="markdown.kitchen" Uses="WordsInline">
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="markdown.kitchen.demo"/></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+
+    <!-- card: markdown.playground -->
+    <c:DemoCard Key="markdown.playground" Uses="WordsMarkdown">
+      <StackPanel>
+        <TextBox Text="{Binding Playground, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap"/>
+        <!-- WordsMarkdown comes from the package's Converters.xaml, merged in App.xaml -->
+        <ContentControl Margin="0,6,0,0" Content="{Binding Playground, Converter={StaticResource WordsMarkdown}}"/>
+      </StackPanel>
+    </c:DemoCard>
+    <!-- /card -->
+  </StackPanel>
+</UserControl>

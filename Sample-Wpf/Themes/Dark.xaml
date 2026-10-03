@@ -3,6 +3,10 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <SolidColorBrush x:Key="WindowBackground" Color="#1E1E1E"/>
     <SolidColorBrush x:Key="WindowForeground" Color="#F0F0F0"/>
+    <SolidColorBrush x:Key="PaneBackground" Color="#252527"/>
+    <SolidColorBrush x:Key="CardBackground" Color="#27272A"/>
+    <SolidColorBrush x:Key="CardBorder" Color="#3C3C42"/>
+    <SolidColorBrush x:Key="ChipBackground" Color="#35353C"/>
     <!-- a crescent moon, in silver -->
     <SolidColorBrush x:Key="ThemeIconBrush" Color="Silver"/>
     <Geometry x:Key="ThemeIcon">M8,0 A8,8 0 0 0 8,16 A4,8 0 0 1 8,0 Z</Geometry>

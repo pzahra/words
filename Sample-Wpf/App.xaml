@@ -1,6 +1,8 @@
 <Application x:Class="Sample_Wpf.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="https://github.com/pzahra/words"
+             xmlns:c="clr-namespace:Sample_Wpf.Controls">
     <!-- no StartupUri: OnStartup builds the window so it can hand over the view model -->
     <Application.Resources>
         <ResourceDictionary>
@@ -8,8 +10,9 @@
                 <!-- the package's ready-made converters: WordsMarkdown, WordsFormat,
                      WordsEnumDescription, WordsFlagsDescription(List), WordsParamsArray, WordsResourceVisual -->
                 <ResourceDictionary Source="pack://application:,,,/PatTech.Localization.WPF;component/Converters.xaml"/>
-                <!-- the theme: window brushes and the sun/moon ThemeIcon. App.ApplyTheme
-                     swaps this entry for Dark.xaml, and everything referencing it follows -->
+                <!-- the theme: window, pane and card brushes and the sun/moon ThemeIcon.
+                     App.ApplyTheme swaps this entry for Dark.xaml, and everything
+                     referencing it follows -->
                 <ResourceDictionary Source="pack://application:,,,/Sample-Wpf;component/Themes/Light.xaml"/>
             </ResourceDictionary.MergedDictionaries>
             <!-- resolved by markdown images through the staticres: and dynres: schemes -->
@@ -18,6 +21,44 @@
             <DataTemplate x:Key="HeartTemplate">
                 <Path Data="M 8,14 C 8,14 1,9 1,5 A 3.5,3.5 0 0 1 8,4 A 3.5,3.5 0 0 1 15,5 C 15,9 8,14 8,14 Z" Fill="Crimson" Stretch="Uniform"/>
             </DataTemplate>
+            <!-- the dot beside a topic not yet seen at its latest revision: one colour, both themes -->
+            <SolidColorBrush x:Key="UnseenBrush" Color="#E8590C"/>
+
+            <!-- a demonstration: heading and guidance (filled by DemoCard from its Key),
+                 the live result, and chips naming what it uses -->
+            <Style TargetType="c:DemoCard">
+                <Setter Property="Margin" Value="0,0,0,12"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="c:DemoCard">
+                            <Border Background="{DynamicResource CardBackground}"
+                                    BorderBrush="{DynamicResource CardBorder}"
+                                    BorderThickness="1" CornerRadius="6" Padding="14,10">
+                                <StackPanel>
+                                    <TextBlock x:Name="PART_Heading" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="PART_Guide" Opacity="0.75" TextWrapping="Wrap" Margin="0,2,0,10"/>
+                                    <ContentPresenter/>
+                                    <DockPanel Margin="0,10,0,0">
+                                        <TextBlock Text="{l:Words card.uses}" Opacity="0.6" FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                        <ItemsControl ItemsSource="{TemplateBinding UsesList}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="{DynamicResource ChipBackground}" CornerRadius="3" Padding="6,1" Margin="0,0,4,2">
+                                                        <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="11"/>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </DockPanel>
+                                </StackPanel>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

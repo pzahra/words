@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="https://github.com/pzahra/words"
+             xmlns:c="using:Sample_Ava.Controls"
+             xmlns:vm="using:Sample_Shared.ViewModels"
+             x:Class="Sample_Ava.Views.LivePageView"
+             x:DataType="vm:LivePageViewModel">
+  <!-- Live switching. The builder was kept live at startup (App.Initialize), so the
+       language picker up top relocalizes every {l:Words}, bound or not, and every
+       WordsInline in place. These two are {l:Words} wrapped around a binding, compiled
+       like the rest -->
+  <StackPanel>
+    <!-- card: live.bound-key -->
+    <c:DemoCard Key="live.bound-key" Uses="{}{l:Words {Binding}}">
+      <!-- the view model picks the key by the theme; the binding's value is looked up -->
+      <TextBlock TextWrapping="Wrap" Text="{l:Words {Binding ThemeKey}}"/>
+    </c:DemoCard>
+    <!-- /card -->
+
+    <!-- card: live.converted -->
+    <c:DemoCard Key="live.converted" Uses="{}{l:Words {Binding}}, WordsFormat">
+      <StackPanel>
+        <!-- the binding's own converter formats; live, it runs again on a switch too -->
+        <TextBlock TextWrapping="Wrap" Text="{l:Words {Binding Count, Converter={StaticResource WordsFormat}, ConverterParameter=live.converted.demo}}"/>
+        <Slider Margin="0,6,0,0" Minimum="0" Maximum="42" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Count}"/>
+      </StackPanel>
+    </c:DemoCard>
+    <!-- /card -->
+  </StackPanel>
+</UserControl>

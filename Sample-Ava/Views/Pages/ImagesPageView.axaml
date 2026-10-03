@@ -1,0 +1,17 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="https://github.com/pzahra/words"
+             xmlns:c="using:Sample_Ava.Controls"
+             xmlns:vm="using:Sample_Shared.ViewModels"
+             x:Class="Sample_Ava.Views.ImagesPageView"
+             x:DataType="vm:ImagesPageViewModel">
+  <!-- Images. The resources the staticres: and dynres: images ask for live in App.axaml
+       and its theme dictionaries; {$embedded} in the words is this sample's avares: base -->
+  <StackPanel>
+    <!-- card: images.schemes -->
+    <c:DemoCard Key="images.schemes" Uses="WordsInline, avares:, assets:, staticres:, dynres:">
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="images.schemes.demo"/></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+  </StackPanel>
+</UserControl>

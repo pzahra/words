@@ -1,0 +1,24 @@
+<UserControl x:Class="Sample_Wpf.Views.ParametersPageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="https://github.com/pzahra/words"
+             xmlns:c="clr-namespace:Sample_Wpf.Controls">
+  <!-- Format parameters: what fills a value's {0} and {Name} placeholders -->
+  <StackPanel>
+    <!-- card: parameters.positional -->
+    <c:DemoCard Key="parameters.positional" Uses="WordsInline, Args">
+      <StackPanel>
+        <!-- a child Binding is the argument: no array-building property, no MultiBinding -->
+        <TextBlock TextWrapping="Wrap"><l:WordsInline Key="parameters.positional.demo"><Binding Path="Unread"/></l:WordsInline></TextBlock>
+        <Slider Margin="0,6,0,0" Minimum="0" Maximum="42" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Unread}"/>
+      </StackPanel>
+    </c:DemoCard>
+    <!-- /card -->
+
+    <!-- card: parameters.named -->
+    <c:DemoCard Key="parameters.named" Uses="WordsInline, Params">
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="parameters.named.demo" Params="{Binding Profile}"/></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+  </StackPanel>
+</UserControl>

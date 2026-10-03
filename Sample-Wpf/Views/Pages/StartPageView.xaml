@@ -1,0 +1,20 @@
+<UserControl x:Class="Sample_Wpf.Views.StartPageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="https://github.com/pzahra/words"
+             xmlns:c="clr-namespace:Sample_Wpf.Controls">
+  <!-- Getting started. Each card's words are `<card key>`, `.guide` and `.demo` in
+       Sample-Shared/sample.ini -->
+  <StackPanel>
+    <!-- card: start.markup -->
+    <c:DemoCard Key="start.markup" Uses="{}{l:Words key}">
+      <StackPanel>
+        <!-- translated for every language the sample offers -->
+        <TextBlock TextWrapping="Wrap" Text="{l:Words start.markup.demo}"/>
+        <!-- only a default value: every language falls back to it -->
+        <TextBlock TextWrapping="Wrap" Margin="0,4,0,0" Text="{l:Words start.markup.fallback}"/>
+      </StackPanel>
+    </c:DemoCard>
+    <!-- /card -->
+  </StackPanel>
+</UserControl>

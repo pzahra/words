@@ -28,6 +28,7 @@
     <File Path="WordsXaml/build.gradle.kts" />
   </Folder>
   <Folder Name="/Samples/">
+    <Project Path="Sample-Shared/Sample-Shared.csproj" />
     <Project Path="Sample-Wpf/Sample-Wpf.csproj" />
     <Project Path="Sample-Ava/Sample-Ava.csproj" />
     <Project Path="Sample-Console/Sample-Console.csproj" />

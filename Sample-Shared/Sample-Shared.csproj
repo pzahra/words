@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- What the twin samples share and need no framework for: the words, the
+       topic catalogue, the config and the page view models (SPEC.md). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Sample_Shared</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- every word both samples show; each sample adds its own framework.ini -->
+    <EmbeddedResource Include="sample.ini" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Localization-Core\Localization-Core.csproj" />
+  </ItemGroup>
+
+</Project>

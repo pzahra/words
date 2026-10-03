@@ -10,8 +10,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- embedded: the dictionary and the pack: image -->
-    <Resource Include="Assets\sample.ini" />
+    <!-- embedded: this sample's constants and the pack: image; the shared words
+         come with Sample-Shared -->
+    <Resource Include="Assets\framework.ini" />
     <Resource Include="Assets\3d.png" />
     <!-- loose file: the assets: scheme reads from the Assets folder on disk -->
     <Content Include="Assets\slice.png">
@@ -25,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Localization-Wpf\Localization-Wpf.csproj" />
+    <ProjectReference Include="..\Sample-Shared\Sample-Shared.csproj" />
   </ItemGroup>
 
 </Project>
