@@ -150,6 +150,20 @@ public class WordsBuilderTests {
 	}
 
 	[Fact]
+	public void Debug_LeavesConstantsUnbranded() {
+		// a constant is language-less by design, so it has nothing to fall back from;
+		// branded, an image base or a unit spliced into a value would be corrupted
+		var wb = WordsBuilder.Create().LoadString(
+			"value-de=Deutsch\n" +
+			"[$base]\nvalue=avares://App/Assets/\n" +
+			"[k]\nvalue=![pic]({$base}pic.png)\n").Debug();
+		var words = wb.ToWords("de");
+
+		Assert.Equal("avares://App/Assets/", words["$base"]);
+		Assert.Equal(DefaultBrand + "![pic](avares://App/Assets/pic.png)", words["k"]); // the value is still branded
+	}
+
+	[Fact]
 	public void Debug_IsOffByDefault_AndSwitchesBackOff() {
 		var wb = WordsBuilder.Create().Load(new StringReader(Ini));
 

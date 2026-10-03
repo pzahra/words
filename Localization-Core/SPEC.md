@@ -82,7 +82,13 @@ binding, not a string: a one-way `Binding` to the shared proxy, path `Value`. It
 does so where a binding can land — a dependency property on WPF, a styled
 property on Avalonia, or a WPF style setter, which applies the binding per
 element — and hands the string, resolved once, anywhere else: a
-`ConverterParameter`, a `StringFormat`, a plain CLR property. Avalonia's loader
+`ConverterParameter`, a `StringFormat`, a plain CLR property. A WPF template
+asks with a placeholder for the target and keeps what it gets for every element
+it makes, so a string there would be frozen in the language the template first
+loaded in, or as `#key#` if that was before the words; in a template the
+extension hands the binding live or not, and each element resolves its own.
+Avalonia builds a template's content per element, so its extension sees the real
+target there already. Avalonia's loader
 would take a binding handed to an object-typed property (`Content`) as the
 content itself, so there the extension binds the property directly and hands
 back the current text. Avalonia also holds a binding's source weakly, and the
@@ -188,8 +194,9 @@ pinned; a literal never watches; `Of` shares one holder per key; a holder with n
 other referent is collectable and the registry neither resurrects nor refreshes
 it; a watcher that throws is logged and the next one still refreshed; a switch
 from another thread posts once to the watcher's context. On each framework, a
-property bound through `{l:Words}` follows a switch — a WPF setter and an
-Avalonia `Content` too — a `StringFormat` keeps the string, `WordsInline` renders
+property bound through `{l:Words}` follows a switch — a WPF setter, an
+Avalonia `Content`, and a key in a control template, made before or after the
+words were loaded, too — a `StringFormat` keeps the string, `WordsInline` renders
 again, and off, the markup is the snapshot. Over a binding, on each framework: a
 bound key follows its source and a switch, a converted binding converts again on
 a switch and on a source change, and off, both follow their source only; an
@@ -281,3 +288,57 @@ the expected forms; a category without a form falls to the plain value; a named
 selector picks the same form as a numbered one; a key selecting its own forms
 renders the circular mark; the indexer returns the template with the selector
 intact, and the count indexer returns the key's own form for the count.
+
+## Link colour from the theme
+
+A link is painted `Brushes.Blue`, fixed: WPF sets it on the link's content,
+Avalonia as the `Hyperlink`'s default and current value. Blue reads on white
+and barely on a dark theme, and a theme switch leaves it where it was — the one
+part of rendered Words a `dynres:` image can follow and a link cannot.
+
+**The brush.** A link takes its foreground from the resource `WordsLinkBrush`,
+looked up dynamically from the link itself, so it resolves through the window,
+the application and, on Avalonia, the theme variant — and follows when any of
+them changes. WPF sets a resource reference on the `Hyperlink`; Avalonia binds
+the property to the resource. The packages' `Converters.xaml`/`Converters.axaml`
+define a default — blue on WPF, a light and a dark variant on Avalonia — so an
+app that merges them, as it already does, gets a link that reads in both themes;
+an app that defines its own `WordsLinkBrush` in its theme dictionaries overrides
+it, and the sample's theme switch shows it. The underline stays as it is.
+
+**What changes.** Only where the colour comes from: an app that defines no brush
+and merges nothing still gets blue, as a local fallback when the lookup finds
+nothing. The console renderer keeps its ANSI blue.
+
+**Tests.** A headless test per framework renders a link, swaps the resource
+`WordsLinkBrush` resolves to — a merged dictionary on WPF, the theme variant on
+Avalonia — and reads the new foreground off the link; with no resource defined
+anywhere, the link is blue.
+
+## Code spans
+
+The markdown dialect has no code span, so a value cannot show an API name, a
+file name or a line of `words.ini` as written: the samples' guidance names APIs
+in bold, and an example of the markup itself is lost to the markup.
+
+**The syntax.** CommonMark's: a run of backticks opens a span and the next run
+of the same length closes it, so `` `{l:Words key}` `` shows the extension, and
+double backticks hold a single one. Inside, nothing is markup — no emphasis, no
+entities, no shortcodes, no links, no images — and one leading and trailing
+space are trimmed when both are there. An unclosed run is literal backticks.
+References expand at lookup, before markdown sees the value, so a `{>key}` shown
+in a span still escapes its brace, `{{>key}`.
+
+**The renderers.** `MarkdownParser` gains `protected virtual TInline Code(string
+text)`, defaulting to `Run(text)`, so a parser of one's own keeps compiling and
+shows the text plain. WPF and Avalonia render a monospace run on a subtle
+background, both from resources — `WordsCodeFont` and `WordsCodeBackground`,
+with defaults in the converters dictionaries — so a theme can restyle them as it
+does the link brush. The console renders it dim (ANSI 2), and plain text drops
+the backticks.
+
+**Tests.** Parse spans with emphasis, links, entities and shortcodes inside and
+read them back verbatim; a double-backtick span holds a single backtick; an
+unclosed run stays literal; a framework span carries the monospace family and the
+background resource; the console writes the dim sequence, and nothing with ANSI
+off.

@@ -209,6 +209,45 @@ public class LiveWpfTests {
 		Assert.Equal("Nr. 5", ((TextBlock)second.Children[0]).Text);
 	});
 
+	//a key inside a control template, as a custom control's look carries its labels
+	private static readonly string TemplatedKey =
+		$"<ContentControl {Xmlns}><ContentControl.Template><ControlTemplate TargetType=\"ContentControl\">" +
+		"<TextBlock Text=\"{l:Words k}\"/>" +
+		"</ControlTemplate></ContentControl.Template></ContentControl>";
+
+	private static TextBlock Templated(ContentControl control) {
+		control.ApplyTemplate();
+		return (TextBlock)System.Windows.Media.VisualTreeHelper.GetChild(control, 0);
+	}
+
+	[Fact]
+	public void Live_AKeyInAControlTemplateFollows() => RunSta(() => {
+		using var globals = new WordsGlobals();
+		WordsBuilder.Create().LoadString(Ini).Live().Digest("en");
+		var first = (ContentControl)XamlReader.Parse(TemplatedKey);
+		var second = (ContentControl)XamlReader.Parse(TemplatedKey);
+		Assert.Equal("English value", Templated(first).Text);
+		Assert.Equal("English value", Templated(second).Text);
+
+		Words.SwitchLanguage("de");
+
+		Assert.Equal("Deutscher Wert", Templated(first).Text);
+		Assert.Equal("Deutscher Wert", Templated(second).Text);
+	});
+
+	[Fact]
+	public void Live_AKeyInATemplateParsedBeforeTheWordsFollows() => RunSta(() => {
+		using var globals = new WordsGlobals();
+		//an App.xaml style loads before startup code digests the words and goes live
+		var control = (ContentControl)XamlReader.Parse(TemplatedKey);
+		WordsBuilder.Create().LoadString(Ini).Live().Digest("en");
+		Assert.Equal("English value", Templated(control).Text);
+
+		Words.SwitchLanguage("de");
+
+		Assert.Equal("Deutscher Wert", Templated(control).Text);
+	});
+
 	[Fact]
 	public void Off_TheBoundShapesFollowTheirSourceOnly() => RunSta(() => {
 		using var globals = new WordsGlobals();

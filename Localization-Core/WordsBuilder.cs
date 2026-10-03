@@ -119,9 +119,10 @@ namespace PatTech.Localization {
 
 		/// <summary>
 		/// Brands values that fell back to another language, so missing translations
-		/// stand out: 🕮 for a family fallback, 📚 for a default fallback. A debugging
-		/// aid, off by default; it applies to every dictionary this builder then
-		/// produces, so chain it before <see cref="Digest(string)"/> or leave it out.
+		/// stand out: 🕮 for a family fallback, 📚 for a default fallback. Constants
+		/// (<c>$</c> keys) are language-less and never branded. A debugging aid, off by
+		/// default; it applies to every dictionary this builder then produces, so chain
+		/// it before <see cref="Digest(string)"/> or leave it out.
 		/// </summary>
 		/// <param name="showFallback"><see langword="true"/> to brand fallbacks; <see langword="false"/> to switch it back off.</param>
 		public WordsBuilder Debug(bool showFallback = true) {
@@ -223,7 +224,9 @@ namespace PatTech.Localization {
 					if (target.ContainsKey(key)) {
 						continue;
 					}
-					else if (showFallbackPrefix) {
+					//a constant is language-less, so it never fell back from anything; branded,
+					//it would corrupt whatever it is spliced into (an image base, a unit)
+					else if (showFallbackPrefix && !key.StartsWith('$')) {
 						target.Add(key, fallbackPrefix + value);
 					}
 					else {

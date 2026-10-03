@@ -197,6 +197,45 @@ public class AvaLiveTests {
 		Assert.Equal("Deutscher Wert", control.Content);
 	}
 
+	//a key inside a control template, as a custom control's look carries its labels
+	private const string TemplatedKey =
+		"<ContentControl " + Xmlns + "><ContentControl.Template><ControlTemplate>" +
+		"<TextBlock Text=\"{l:Words k}\"/>" +
+		"</ControlTemplate></ContentControl.Template></ContentControl>";
+
+	private static TextBlock Templated(ContentControl control) {
+		control.ApplyTemplate();
+		return (TextBlock)global::Avalonia.VisualTree.VisualExtensions.GetVisualChildren(control).Single();
+	}
+
+	[AvaloniaFact]
+	public void Live_AKeyInAControlTemplateFollows() {
+		using var globals = new WordsGlobals();
+		WordsBuilder.Create().LoadString(Ini).Live().Digest("en");
+		var first = Parse<ContentControl>(TemplatedKey);
+		var second = Parse<ContentControl>(TemplatedKey);
+		Assert.Equal("English value", Templated(first).Text);
+		Assert.Equal("English value", Templated(second).Text);
+
+		Words.SwitchLanguage("de");
+
+		Assert.Equal("Deutscher Wert", Templated(first).Text);
+		Assert.Equal("Deutscher Wert", Templated(second).Text);
+	}
+
+	[AvaloniaFact]
+	public void Live_AKeyInATemplateParsedBeforeTheWordsFollows() {
+		using var globals = new WordsGlobals();
+		//an App.axaml theme loads before startup code digests the words and goes live
+		var control = Parse<ContentControl>(TemplatedKey);
+		WordsBuilder.Create().LoadString(Ini).Live().Digest("en");
+		Assert.Equal("English value", Templated(control).Text);
+
+		Words.SwitchLanguage("de");
+
+		Assert.Equal("Deutscher Wert", Templated(control).Text);
+	}
+
 	[AvaloniaFact]
 	public void Off_TheMarkupIsTheSnapshot() {
 		using var globals = new WordsGlobals();

@@ -18,7 +18,9 @@ namespace PatTech.Localization.Wpf;
 ///     or a style setter, gets a one-way binding to the key's shared <see cref="LazyWords"/>
 ///     (<see cref="LazyWords.Of"/>), so <see cref="Words.SwitchLanguage"/> relocalizes it in
 ///     place; a plain property that can hold no binding — a <c>ConverterParameter</c>, a
-///     <c>StringFormat</c> — still gets the string, resolved once. A key with no Words
+///     <c>StringFormat</c> — still gets the string, resolved once. Inside a template the
+///     binding is handed live or not, so each element the template makes resolves the key
+///     itself rather than sharing a string frozen when the template loaded. A key with no Words
 ///     renders as <c>#key#</c>, so missing entries announce themselves instead of hiding.
 ///     </para>
 ///     <para>
@@ -87,13 +89,18 @@ public class WordsExtension : MarkupExtension {
 			provided ??= Wrap(wrapped, live: Words.Live is not null);
 			return provided.ProvideValue(serviceProvider);
 		}
-		if (Words.Live is null || serviceProvider?.GetService(typeof(IProvideValueTarget)) is not IProvideValueTarget target) {
+		if (serviceProvider?.GetService(typeof(IProvideValueTarget)) is not IProvideValueTarget target) {
 			return value;
 		}
-		//a binding lands on a dependency property, or in a setter that applies one per
-		//element; anywhere else — a ConverterParameter, a StringFormat — takes the string
-		bool bindable = target.TargetObject is Setter
-			|| (target.TargetProperty is DependencyProperty && target.TargetObject is DependencyObject);
+		//a template asks with a placeholder for the target and keeps what it gets for every
+		//element it makes: a string there is frozen in whatever language the template first
+		//loaded, or as #key# if that was before the words, so live or not it takes the
+		//binding, which resolves for each element as it is made
+		bool template = target.TargetProperty is DependencyProperty && target.TargetObject is not DependencyObject;
+		//live, a binding also lands on a dependency property, or in a setter that applies
+		//one per element; anywhere else — a ConverterParameter, a StringFormat — takes the string
+		bool bindable = template || (Words.Live is not null && (target.TargetObject is Setter
+			|| (target.TargetProperty is DependencyProperty && target.TargetObject is DependencyObject)));
 		if (!bindable) {
 			return value;
 		}
