@@ -59,23 +59,30 @@
                     Margin="3 0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <md:PackIcon Grid.Column="0" 
-                             Kind="Magnify" 
+                <!-- Back and Forward by the search (SPEC: Navigation): both move through the document -->
+                <ToolBar Grid.Column="0"
+                         ItemsSource="{Binding Commands.NavigationTools}"
+                         ToolBarTray.IsLocked="True"
+                         Background="Transparent"
+                         VerticalAlignment="Center"/>
+                <md:PackIcon Grid.Column="1"
+                             Kind="Magnify"
                              Height="20"
                              Width="20"
                              VerticalAlignment="Center"/>
                 <TextBox x:Name="SearchBox"
                          Text="{Binding Tree.SearchFilterText, UpdateSourceTrigger=PropertyChanged}"
                          md:HintAssist.Hint="{l:Words main.search-hint}"
-                         Grid.Column="1"
+                         Grid.Column="2"
                          VerticalAlignment="Center"
                          Margin="2.5px"/>
                 <!-- the filters (SPEC: Filters): a vertical toolbar from the table, in a popup whose button wears the hidden count -->
-                <md:Badged Grid.Column="2" BadgeColorZoneMode="SecondaryMid" VerticalAlignment="Center">
+                <md:Badged Grid.Column="3" BadgeColorZoneMode="SecondaryMid" VerticalAlignment="Center">
                     <md:Badged.Style>
                         <Style TargetType="md:Badged" BasedOn="{StaticResource {x:Type md:Badged}}">
                             <Setter Property="Badge" Value="{Binding Tree.HiddenCount}"/>

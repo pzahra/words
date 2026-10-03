@@ -124,7 +124,8 @@ One tree presents every loaded file:
   toolbar from the command table, in a popup beside the search box; while a
   filter narrows the tree the popup's button wears the number of hidden rows
   as a badge and the clear button clears the lot in one click; a selection
-  the filter hides moves up to the nearest row still showing. The
+  the filter hides moves up to the nearest row still showing, unless Back or
+  Forward brought it there (Navigation). The
   stale filter is per selected language
   and means stale, nothing more: this is the translator's work queue. The
   missing filter takes the empty values (file by file — see Badges). The
@@ -482,8 +483,8 @@ gesture text on each entry, so everything is reachable by name and by
 keyboard, not only by icon. The toolbars are toolbar controls populated from
 the same commands and carry only what is convenient: the node operations
 under the tree, the key operations under the baseline pane, the filters as
-a vertical toolbar in the popup beside the search box, Rename at the right
-of the selected node's name, each pane's header (Test Parameters, the key's
+a vertical toolbar in the popup beside the search box, Back and Forward on
+the box's other side, Rename at the right of the selected node's name, each pane's header (Test Parameters, the key's
 flags, its preview) and, above the translation pane, Languages beside the
 translation language as a combo box.
 Files in and out, Merge, Reset and Project Settings live in the menu alone,
@@ -501,8 +502,8 @@ whether it applies, changed elsewhere, so the tick, the popup's button and
 the pane's toggle agree. A pick among options (`ChoiceItem`: the two
 languages) is a submenu of ticked rows in the menu and a combo box on a
 toolbar, its options mirrored from the owner's. The window binds the table's
-gestures once, from the rows that carry one; Find is a routed command and
-carries Ctrl+F of its own. The captions are looked up by literal key in the
+gestures once, from the rows that carry one, and the mouse buttons a row
+names beside them; Find is a routed command and carries Ctrl+F of its own. The captions are looked up by literal key in the
 table, so the editor's own words name every one of them.
 
 **Disabled, not hidden.** A toolbar button whose command does not apply is
@@ -512,16 +513,64 @@ Buttons and toggles share one template in the icon's colours — orange under
 the mouse, a blue frame around a toggle that is on — rather than the theme's
 tool button and switch, so the two kinds match in size and weight; the
 filter popup's button is the same toggle.
-Back, Forward, Undo and Redo join the table when they exist (Navigation,
-Undo).
+Back and Forward are rows like any other (Navigation); Undo and Redo join
+them when they exist (Undo).
 
-**Tests.** Every command the view model exposes is in the menu once (the two
-badge commands excepted); the toolbars and the context menu draw from the
-menu's rows; every caption, tooltip and option renders without a key leaking;
-a key is bound once; a toggle mirrors its state whichever way it changes and
-a flag toggle reads the selected key; a choice mirrors its owner's options
-and pick, and a pick of Wordsmith's language is a request; Exit asks the
-window.
+**Tests.** Every command the view model and the tree expose is in the menu
+once (the two badge commands excepted); the toolbars and the context menu
+draw from the menu's rows; every caption, tooltip and option renders without
+a key leaking; a key, or a mouse button, is bound once; a toggle mirrors its
+state whichever way it changes and a flag toggle reads the selected key; a
+choice mirrors its owner's options and pick, and a pick of Wordsmith's
+language is a request; Exit asks the window.
+
+## Navigation
+
+The tree is the map, and the editor remembers where the user has been on
+it: a search, a filter, a context-menu jump or a click moves the selection,
+and Back takes it where it was.
+
+**A history of selections.** Every change of the selected node, edited or
+merely visited, is a move in a history (`SelectionHistory`, which the tree
+view model keeps as node labels); the same node twice in a row is one entry.
+Back and Forward step along it without pushing, like a browser's. A
+selection made by hand is matched against its neighbours first: selecting
+the node Back points to *is* Back — the current entry crosses to the forward
+side — and selecting the node Forward points to is Forward. Walking A, B, A,
+B by hand therefore does not pile up entries, and stepping onto the next
+node by click rather than by the Forward button does not erase what lay
+ahead. Only a selection matching neither neighbour pushes, and a push while
+behind the end drops the forward run. An entry whose label no longer
+resolves — the node removed or renamed, its file unloaded — is dropped when
+it is reached, and so is one left beside its own twin once what stood
+between them went. The history keeps fifty entries, the oldest going first,
+and Reset clears it; a moment with nothing selected is not a move.
+
+**Arriving.** Back and Forward open the path to the node they arrive at and
+show it through the filters: it and its ancestors are exempt for as long as
+it is the selection, where the filters otherwise move a hidden selection up
+to a shown ancestor (The tree), and the hidden-row count leaves it out. When
+the selection moves on, the filters have it again. A filter that moves the
+selection up has made a move, so Back returns to the row it hid.
+
+**Surface.** `BackCommand` and `ForwardCommand` on the tree view model, as
+rows of the command table: Alt+Left and Alt+Right, the mouse's back and
+forward buttons (a row may name a mouse button, which the window binds
+beside the keys through a `MouseButtonGesture`), entries in the View menu
+beside Find, and a toolbar group on the search box's left. Undo and Redo
+join the group when they exist (Undo): the four move through the document
+in its two senses.
+
+**Tests.** The history is driven headless: select, select, Back lands on
+the first and Forward on the second; selecting the node Back points to is a
+Back, the forward run kept, and selecting the node Forward points to is a
+Forward; walking two nodes by hand, or selecting one twice, adds nothing; a
+selection matching neither neighbour drops the forward run; a removed
+node's entry is dropped when reached; Reset empties it; a Back onto a
+filtered-out node shows it, and moving on hides it again; arriving opens
+the path; the history is bounded, and a gone entry takes its twin with it;
+and the mouse's back button runs its command through WPF's own input
+bindings, on the press alone.
 
 ---
 
@@ -586,40 +635,6 @@ edit back. An undo on an unselected node selects it, shown through a filter
 that hides it, and changes nothing until the second call. The drag tests and
 the merge and split flows check the stack is cleared or kept as this section
 says.
-
-## Navigation
-
-The tree is the map, and the editor does not remember where the user has
-been: a search, a filter, a context-menu jump or an undo's navigate-first
-step (Undo) moves the selection, and there is no way back but to find the
-place again.
-
-**A history of selections.** Every change of the selected node, edited or
-merely visited, is a move in a history; the same node twice in a row is one
-entry. Back and Forward step along it without pushing, like a browser's. A
-selection made by hand is matched against its neighbours first: selecting the
-node Back points to *is* Back — the current entry crosses to the forward side
-— and selecting the node Forward points to is Forward. Walking A, B, A, B by
-hand therefore does not pile up entries, and stepping onto the next node by
-click rather than by the Forward button does not erase what lay ahead. Only a
-selection matching neither neighbour pushes, and a push while behind the end
-drops the forward run. An entry whose label no longer resolves — the node
-removed or renamed, its file unloaded — is dropped when it is reached. The
-history is bounded (a few dozen) and Reset clears it. Arriving by Back or
-Forward shows the node the way navigate-first does: exempt from the filters
-while it is the selection.
-
-**Surface.** `BackCommand` and `ForwardCommand` on the tree view model,
-Alt+Left / Alt+Right and the mouse's back and forward buttons, entries in the
-View menu, and a toolbar group by the search with Undo and Redo alongside:
-the four move through the document in its two senses.
-
-**Tests.** The history is driven headless: select, select, Back lands on the
-first and Forward on the second; selecting the node Back points to is a Back,
-the forward run kept, and selecting the node Forward points to is a Forward;
-a selection matching neither neighbour truncates the forward run; a removed
-node's entry is skipped; Reset empties it; a Back onto a filtered-out node
-shows it, and moving on hides it again.
 
 ## Import and export, next
 

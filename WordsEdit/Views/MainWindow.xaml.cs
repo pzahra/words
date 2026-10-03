@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
+using WordsEdit.Utils;
 using WordsEdit.ViewModels;
 
 namespace WordsEdit;
@@ -13,18 +14,22 @@ public partial class MainWindow : Window {
 		DataContextChanged += (_, e) => BindShortcuts(e.NewValue as MainWindowViewModel);
 	}
 
-	//the command table's keys, bound once (SPEC: Menu and toolbars): a gesture is
-	//the one thing a row cannot carry into the window by binding
-	private readonly List<KeyBinding> shortcuts = [];
+	//the command table's keys and mouse buttons, bound once (SPEC: Menu and toolbars):
+	//a gesture is the one thing a row cannot carry into the window by binding
+	private readonly List<InputBinding> shortcuts = [];
 
 	private void BindShortcuts(MainWindowViewModel? vm) {
-		foreach (KeyBinding binding in shortcuts) {
+		foreach (InputBinding binding in shortcuts) {
 			InputBindings.Remove(binding);
 		}
 		shortcuts.Clear();
 		foreach (CommandItem item in vm?.Commands.Shortcuts ?? []) {
-			var binding = new KeyBinding(item.Command, item.Gesture!);
-			shortcuts.Add(binding);
+			shortcuts.Add(new KeyBinding(item.Command, item.Gesture!));
+		}
+		foreach (CommandItem item in vm?.Commands.MouseShortcuts ?? []) {
+			shortcuts.Add(new InputBinding(item.Command, new MouseButtonGesture(item.Button!.Value)));
+		}
+		foreach (InputBinding binding in shortcuts) {
 			InputBindings.Add(binding);
 		}
 	}

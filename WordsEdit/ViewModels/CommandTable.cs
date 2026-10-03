@@ -24,16 +24,19 @@ public class CommandItem : MenuRow {
 	public string Caption { get; }
 	public PackIconKind Icon { get; }
 	public KeyGesture? Gesture { get; }
+	/// <summary>A mouse button that runs it too: the back and forward buttons, for Back and Forward.</summary>
+	public MouseButton? Button { get; }
 	/// <summary>The gesture as a menu shows it; empty without one.</summary>
 	public string GestureText => Gesture?.GetDisplayStringForCulture(CultureInfo.CurrentUICulture) ?? "";
 	/// <summary>A toolbar's tooltip: the caption, and the key when there is one.</summary>
 	public string Tip => Gesture is null ? Caption : $"{Caption} ({GestureText})";
 
-	public CommandItem([Localized] string caption, PackIconKind icon, ICommand command, KeyGesture? gesture = null) {
+	public CommandItem([Localized] string caption, PackIconKind icon, ICommand command, KeyGesture? gesture = null, MouseButton? button = null) {
 		Caption = caption;
 		Icon = icon;
 		Command = command;
 		Gesture = gesture;
+		Button = button;
 	}
 }
 
@@ -199,6 +202,8 @@ public sealed class CommandTable {
 	public IReadOnlyList<CommandItem> TranslationTools { get; }
 	/// <summary>Above the translation pane: the languages, and the one selected as a combo box.</summary>
 	public IReadOnlyList<MenuRow> LanguageTools { get; }
+	/// <summary>By the search: Back and Forward, which move through the document as it does.</summary>
+	public IReadOnlyList<CommandItem> NavigationTools { get; }
 
 	/// <summary>Every command row, in menu order.</summary>
 	public IEnumerable<CommandItem> Rows => Menu.SelectMany(group => group.Items).OfType<CommandItem>();
@@ -206,6 +211,8 @@ public sealed class CommandTable {
 	public IEnumerable<ChoiceItem> Choices => Menu.SelectMany(group => group.Items).OfType<ChoiceItem>();
 	/// <summary>The rows whose key the window binds; a routed command (Find) carries its own.</summary>
 	public IEnumerable<CommandItem> Shortcuts => Rows.Where(row => row.Gesture is not null && row.Command is not RoutedCommand);
+	/// <summary>The rows a mouse button runs too, which the window binds with its keys.</summary>
+	public IEnumerable<CommandItem> MouseShortcuts => Rows.Where(row => row.Button is not null);
 
 	public CommandTable(MainWindowViewModel vm) {
 		TreeViewModel tree = vm.Tree;
@@ -228,13 +235,16 @@ public sealed class CommandTable {
 		var toggleStale = new ToggleItem(Words.Known["menu.toggle-stale"], PackIconKind.ClockAlertOutline, () => tree.SelectedKeyNode?.IsStale ?? false, vm.ToggleStaleLanguageCommand);
 		var staleAll = new CommandItem(Words.Known["menu.stale-all"], PackIconKind.ClockAlert, vm.StaleAllLanguagesCommand, new KeyGesture(Key.S, ModifierKeys.Control | ModifierKeys.Shift));
 		var removeKey = new CommandItem(Words.Known["menu.remove-key"], PackIconKind.KeyRemove, vm.RemoveKeyCommand);
-		//View: the filters and the previews flip a property of their own; Find carries Ctrl+F of its own; the languages are choices
+		//View: the filters and the previews flip a property of their own; Back and Forward step the tree's history,
+		//on the mouse's buttons too; Find carries Ctrl+F of its own; the languages are choices
 		var staleView = new ToggleItem(Words.Known["menu.stale-view"], PackIconKind.ClockAlert, () => tree.IsStaleFilter, new DelegateCommand(() => tree.IsStaleFilter = !tree.IsStaleFilter));
 		var reviewView = new ToggleItem(Words.Known["menu.review-view"], PackIconKind.HandFrontLeft, () => tree.NeedsReviewFilter, new DelegateCommand(() => tree.NeedsReviewFilter = !tree.NeedsReviewFilter));
 		var missingView = new ToggleItem(Words.Known["menu.missing-view"], PackIconKind.TextBoxRemoveOutline, () => tree.MissingFilter, new DelegateCommand(() => tree.MissingFilter = !tree.MissingFilter));
 		var clearFilters = new CommandItem(Words.Known["menu.clear-filters"], PackIconKind.FilterRemoveOutline, vm.ClearFiltersCommand);
 		var defaultPreview = new ToggleItem(Words.Known["menu.default-preview"], PackIconKind.Eye, () => vm.ShowDefaultPreview, new DelegateCommand(() => vm.ShowDefaultPreview = !vm.ShowDefaultPreview));
 		var translationPreview = new ToggleItem(Words.Known["menu.translation-preview"], PackIconKind.EyeOutline, () => vm.ShowLocalizationPreview, new DelegateCommand(() => vm.ShowLocalizationPreview = !vm.ShowLocalizationPreview));
+		var back = new CommandItem(Words.Known["menu.back"], PackIconKind.ArrowLeft, tree.BackCommand, new KeyGesture(Key.Left, ModifierKeys.Alt), MouseButton.XButton1);
+		var forward = new CommandItem(Words.Known["menu.forward"], PackIconKind.ArrowRight, tree.ForwardCommand, new KeyGesture(Key.Right, ModifierKeys.Alt), MouseButton.XButton2);
 		var find = new CommandItem(Words.Known["menu.find"], PackIconKind.Magnify, ApplicationCommands.Find, Ctrl(Key.F));
 		ChoiceItem translationLanguage = ChoiceItem.Of(Words.Known["menu.translation-language"], PackIconKind.Earth,
 			() => tree.FileLanguages, language => language.NativeName, () => tree.SelectedLanguage, language => tree.SelectedLanguage = language);
@@ -249,7 +259,7 @@ public sealed class CommandTable {
 		Menu = [
 			new MenuGroup(Words.Known["menu.file"], [load, import, merge, new MenuBreak(), save, export, new MenuBreak(), reset, exit]),
 			edit,
-			new MenuGroup(Words.Known["menu.view"], [staleView, reviewView, missingView, clearFilters, new MenuBreak(), defaultPreview, translationPreview, new MenuBreak(), find, new MenuBreak(), translationLanguage, uiLanguage]),
+			new MenuGroup(Words.Known["menu.view"], [staleView, reviewView, missingView, clearFilters, new MenuBreak(), defaultPreview, translationPreview, new MenuBreak(), back, forward, find, new MenuBreak(), translationLanguage, uiLanguage]),
 			new MenuGroup(Words.Known["menu.tools"], [languages, settings, parameters]),
 		];
 		EditRows = edit.Items;
@@ -260,6 +270,7 @@ public sealed class CommandTable {
 		DefaultTools = [parameters, toggleConstant, toggleReview, defaultPreview];
 		TranslationTools = [parameters, toggleStale, translationPreview];
 		LanguageTools = [languages, translationLanguage];
+		NavigationTools = [back, forward];
 	}
 
 	/// <summary>A state, a selection or a language changed somewhere other than its row: every toggle and choice re-reads. Always true, to chain.</summary>

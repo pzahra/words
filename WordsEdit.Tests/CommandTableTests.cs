@@ -30,7 +30,7 @@ public class CommandTableTests {
 
 	private static IEnumerable<MenuRow> Tools(CommandTable table)
 		=> table.NodeTools.Concat(table.KeyTools).Concat(table.FilterTools).Concat(table.NameTools)
-			.Concat(table.DefaultTools).Concat(table.TranslationTools).Concat<MenuRow>(table.LanguageTools);
+			.Concat(table.DefaultTools).Concat(table.TranslationTools).Concat(table.NavigationTools).Concat<MenuRow>(table.LanguageTools);
 
 	[Fact]
 	public void TheMenuIsTheInventory() {
@@ -40,8 +40,13 @@ public class CommandTableTests {
 		IEnumerable<ICommand> commands = typeof(MainWindowViewModel).GetProperties()
 			.Where(property => typeof(ICommand).IsAssignableFrom(property.PropertyType)
 				&& property.Name is not (nameof(MainWindowViewModel.ShowGripesCommand) or nameof(MainWindowViewModel.ShowFileGripesCommand)))
-			.Select(property => (ICommand)property.GetValue(vm)!);
+			.Select(property => (ICommand)property.GetValue(vm)!)
+			//and the tree's own, Back and Forward
+			.Concat(typeof(TreeViewModel).GetProperties()
+				.Where(property => typeof(ICommand).IsAssignableFrom(property.PropertyType))
+				.Select(property => (ICommand)property.GetValue(vm.Tree)!));
 		List<CommandItem> rows = [.. vm.Commands.Rows];
+		Assert.Contains(rows, row => row.Command == vm.Tree.BackCommand);
 		foreach (ICommand command in commands) {
 			Assert.Single(rows, row => ReferenceEquals(row.Command, command));
 		}
@@ -75,6 +80,9 @@ public class CommandTableTests {
 		Assert.Contains(rows, row => row.Command == ApplicationCommands.Find);
 		Assert.DoesNotContain(vm.Commands.Shortcuts, row => row.Command is RoutedCommand);
 		Assert.Contains(vm.Commands.Shortcuts, row => row.Command == vm.SaveCommand);
+		//the mouse's back and forward buttons run Back and Forward, each bound once
+		Assert.Equal([vm.Tree.BackCommand, vm.Tree.ForwardCommand], vm.Commands.MouseShortcuts.Select(row => row.Command));
+		Assert.Equal([MouseButton.XButton1, MouseButton.XButton2], vm.Commands.MouseShortcuts.Select(row => row.Button!.Value));
 	}
 
 	[Fact]
@@ -96,6 +104,8 @@ public class CommandTableTests {
 		Assert.Equal(3, vm.Commands.FilterTools.OfType<ToggleItem>().Count());
 		Assert.Contains(vm.Commands.FilterTools, tool => tool.Command == vm.ClearFiltersCommand);
 		Assert.Equal(vm.RenameNodeCommand, Assert.Single(vm.Commands.NameTools).Command);
+		//by the search: Back and Forward
+		Assert.Equal([vm.Tree.BackCommand, vm.Tree.ForwardCommand], vm.Commands.NavigationTools.Select(tool => tool.Command));
 		//the language strip: the manager, and the translation language as a combo box
 		Assert.Contains(vm.Commands.LanguageTools, tool => tool is CommandItem { Command: var command } && command == vm.ManageLanguagesCommand);
 		Assert.Contains(vm.Commands.LanguageTools, tool => tool is ChoiceItem choice && choice.Caption == Words.Known["menu.translation-language"]);

@@ -1,14 +1,15 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows.Input;
 using WordsEdit.Utils;
 
 namespace WordsEdit.ViewModels;
 
 /// <summary>
 ///     The tree pane: one row per node of every loaded file, the selection (and
-///     what the panes show for it), the language the badges are computed for,
-///     and the filters. It presents <see cref="WordsSession"/> and never writes
+///     what the panes show for it, and where it has been), the language the
+///     badges are computed for, and the filters. It presents <see cref="WordsSession"/> and never writes
 ///     to it — edits made through the selection are announced by
 ///     <see cref="Edited"/> for the owner to mark the session dirty.
 /// </summary>
@@ -31,6 +32,8 @@ public class TreeViewModel : ViewModelBase {
 	public TreeViewModel(WordsSession session) {
 		this.session = session;
 		SelectedLanguage = KnownLanguages[0];
+		BackCommand = new DelegateCommand(() => Navigate(History.Back(Resolves)), () => History.CanGoBack);
+		ForwardCommand = new DelegateCommand(() => Navigate(History.Forward(Resolves)), () => History.CanGoForward);
 	}
 
 	//Selection
@@ -99,6 +102,49 @@ public class TreeViewModel : ViewModelBase {
 		SelectedOrganizer = SelectedKeyNode as OrganizerNode;
 		FollowSelectedKey();
 		RefreshFileLanguages();
+		//no selection is a passing state (the tree drops one row before it takes the next) or a reset
+		if (SelectedKeyNode is { } node) {
+			if (!navigating) {
+				History.Visit(node.FullLabel);
+			}
+			if (exempt is not null && exempt != node) {
+				//moving on from where Back or Forward arrived: the filters have it again
+				exempt = null;
+				ApplyFilters();
+			}
+		}
+	}
+
+	//Navigation (SPEC: Navigation)
+	/// <summary>Where the selection has been.</summary>
+	public SelectionHistory History { get; } = new();
+	public ICommand BackCommand { get; }
+	public ICommand ForwardCommand { get; }
+	//set while Back or Forward moves the selection: the history's own step, not a visit
+	private bool navigating;
+	//where Back or Forward arrived: shown through the filters for as long as it is the selection
+	private KeyNode? exempt;
+
+	private bool Resolves(string label) => NodeAt(label) is not null;
+
+	private KeyNode? NodeAt(string label) => AllNodes.FirstOrDefault(node => node.FullLabel == label);
+
+	private void Navigate(string? label) {
+		if (label is null || NodeAt(label) is not { } node) {
+			return;
+		}
+		for (KeyNode? parent = node.Parent; parent is not null; parent = parent.Parent) {
+			parent.IsExpanded = true;
+		}
+		navigating = true;
+		try {
+			exempt = node;
+			Select(node);
+		}
+		finally {
+			navigating = false;
+		}
+		ApplyFilters();
 	}
 
 	private void RefreshFileLanguages() {
@@ -205,6 +251,12 @@ public class TreeViewModel : ViewModelBase {
 		foreach (KeyNode node in AllNodes) {
 			if (!node.IsVisible) {
 				node.IsVisible = EnsureVisibleDescendant(node);
+			}
+		}
+		//where Back or Forward arrived shows through the filters, and the path to it
+		if (exempt is not null && exempt == SelectedKeyNode) {
+			for (KeyNode? node = exempt; node is not null; node = node.Parent) {
+				node.IsVisible = true;
 			}
 		}
 		HiddenCount = AllNodes.Count(node => !node.IsVisible);
@@ -366,6 +418,8 @@ public class TreeViewModel : ViewModelBase {
 	public void Clear() {
 		KeyNodes.Clear();
 		SelectedKeyNode = null;
+		History.Clear();
+		exempt = null;
 		SelectedLanguage = KnownLanguages[0];
 		RefreshFileLanguages();
 		SearchFilterText = "";
