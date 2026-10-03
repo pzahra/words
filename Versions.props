@@ -5,7 +5,7 @@
        Source Link appends the commit to the informational version. -->
   <PropertyGroup>
     <!-- PatTech.Localization.Core, .WPF and .Avalonia: one API surface, released together -->
-    <ApiVersion>1.3.0</ApiVersion>
+    <ApiVersion>1.4.0</ApiVersion>
     <!-- PatTech.Localization.Analyzer: also the version the API packages depend on -->
     <AnalyzerVersion>1.3.0</AnalyzerVersion>
     <!-- Wordsmith, the editor -->
