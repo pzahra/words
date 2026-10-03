@@ -3,6 +3,7 @@ using Avalonia.Data;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
 using System;
+using System.Collections.Generic;
 
 namespace PatTech.Localization.Avalonia;
 
@@ -60,7 +61,9 @@ public class WordsExtension : MarkupExtension {
 				|| serviceProvider?.GetService(typeof(IProvideValueTarget)) is not IProvideValueTarget { TargetObject: AvaloniaObject target, TargetProperty: AvaloniaProperty property }) {
 			return value;
 		}
-		var binding = new Binding(nameof(LazyWords.Value)) { Source = LazyWords.Of(_Key), Mode = BindingMode.OneWay };
+		LazyWords holder = LazyWords.Of(_Key);
+		Hold(target, holder);
+		var binding = new Binding(nameof(LazyWords.Value)) { Source = holder, Mode = BindingMode.OneWay };
 		if (property.PropertyType == typeof(object)) {
 			//an object-typed property would take the binding itself for its value: bind
 			//it here, and hand back the current text for the loader to set meanwhile
@@ -68,6 +71,21 @@ public class WordsExtension : MarkupExtension {
 			return value;
 		}
 		return binding;
+	}
+
+	//Avalonia holds a binding's source weakly, and the shared holder's other owners
+	//are weak too, so the first collection would take it and the text would stop
+	//following: the target keeps its holders for as long as it lives
+	private static readonly AttachedProperty<List<LazyWords>?> HoldersProperty =
+		AvaloniaProperty.RegisterAttached<WordsExtension, AvaloniaObject, List<LazyWords>?>("Holders");
+
+	private static void Hold(AvaloniaObject target, LazyWords holder) {
+		List<LazyWords>? holders = target.GetValue(HoldersProperty);
+		if (holders is null) {
+			holders = new List<LazyWords>();
+			target.SetValue(HoldersProperty, holders);
+		}
+		holders.Add(holder);
 	}
 }
 

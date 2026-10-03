@@ -85,8 +85,11 @@ element — and hands the string, resolved once, anywhere else: a
 `ConverterParameter`, a `StringFormat`, a plain CLR property. Avalonia's loader
 would take a binding handed to an object-typed property (`Content`) as the
 content itself, so there the extension binds the property directly and hands
-back the current text. Off, each shape is its snapshot self, so live mode costs
-nothing when it is not asked for.
+back the current text. Avalonia also holds a binding's source weakly, and the
+shared holder's other owners are weak too, so the extension parks the holder on
+the target, which keeps it for as long as it lives; WPF's binding holds its
+source itself. Off, each shape is its snapshot self, so live mode costs nothing
+when it is not asked for.
 
 **Rendering controls.** A control that renders Words itself rather than handing a
 string to a property — `WordsInline`, on both frameworks — implements

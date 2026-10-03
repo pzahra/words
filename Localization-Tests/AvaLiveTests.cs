@@ -76,6 +76,24 @@ public class AvaLiveTests {
 	}
 
 	[AvaloniaFact]
+	public void Live_SurvivesACollection() {
+		using var globals = new WordsGlobals();
+		WordsBuilder.Create().LoadString(Ini).Live().Digest("en");
+		var block = Parse<TextBlock>($"<TextBlock {Xmlns} Text=\"{{l:Words k}}\"/>");
+		var control = Parse<ContentControl>($"<ContentControl {Xmlns} Content=\"{{l:Words k}}\"/>");
+		Assert.Equal("English value", block.Text);
+		//Avalonia holds a binding's source weakly: the shared holder needs another owner
+		GC.Collect();
+		GC.WaitForPendingFinalizers();
+		GC.Collect();
+
+		Words.SwitchLanguage("de");
+
+		Assert.Equal("Deutscher Wert", block.Text);
+		Assert.Equal("Deutscher Wert", control.Content);
+	}
+
+	[AvaloniaFact]
 	public void Off_TheMarkupIsTheSnapshot() {
 		using var globals = new WordsGlobals();
 		WordsBuilder builder = WordsBuilder.Create().LoadString(Ini);

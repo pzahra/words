@@ -103,6 +103,22 @@ public class LiveWpfTests {
 	});
 
 	[Fact]
+	public void Live_SurvivesACollection() => RunSta(() => {
+		using var globals = new WordsGlobals();
+		WordsBuilder.Create().LoadString(Ini).Live().Digest("en");
+		TextBlock block = Parse("Text=\"{l:Words k}\"");
+		Assert.Equal("English value", block.Text);
+		//the shared holder's only owners are weak but for the binding: it must keep it
+		GC.Collect();
+		GC.WaitForPendingFinalizers();
+		GC.Collect();
+
+		Words.SwitchLanguage("de");
+
+		Assert.Equal("Deutscher Wert", block.Text);
+	});
+
+	[Fact]
 	public void Off_TheMarkupIsTheSnapshot() => RunSta(() => {
 		using var globals = new WordsGlobals();
 		WordsBuilder builder = WordsBuilder.Create().LoadString(Ini);
