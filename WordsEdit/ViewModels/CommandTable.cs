@@ -224,7 +224,9 @@ public sealed class CommandTable {
 		var export = new CommandItem(Words.Known["menu.export"], PackIconKind.FileExport, vm.ExportCommand, Ctrl(Key.E));
 		var reset = new CommandItem(Words.Known["menu.reset"], PackIconKind.Reload, vm.ResetCommand);
 		var exit = new CommandItem(Words.Known["menu.exit"], PackIconKind.ExitToApp, vm.ExitCommand, new KeyGesture(Key.F4, ModifierKeys.Alt));
-		//Edit: the structure, then the flags, which read off the selected node
+		//Edit: Undo and Redo, the structure, then the flags, which read off the selected node
+		var undo = new CommandItem(Words.Known["menu.undo"], PackIconKind.Undo, vm.UndoCommand, Ctrl(Key.Z));
+		var redo = new CommandItem(Words.Known["menu.redo"], PackIconKind.Redo, vm.RedoCommand, Ctrl(Key.Y));
 		var addNode = new CommandItem(Words.Known["menu.add-node"], PackIconKind.PlusThick, vm.AddNodeCommand);
 		var addKey = new CommandItem(Words.Known["menu.add-key"], PackIconKind.KeyPlus, vm.AddKeyCommand);
 		var addComment = new CommandItem(Words.Known["menu.add-comment"], PackIconKind.CommentPlus, vm.AddOrganizerCommand);
@@ -255,7 +257,7 @@ public sealed class CommandTable {
 		var settings = new CommandItem(Words.Known["menu.settings"], PackIconKind.Cog, vm.SettingsCommand);
 		var parameters = new CommandItem(Words.Known["menu.parameters"], PackIconKind.CodeBraces, vm.TestParametersCommand);
 
-		MenuGroup edit = new(Words.Known["menu.edit"], [addNode, addKey, addComment, rename, remove, new MenuBreak(), toggleReview, toggleConstant, toggleStale, staleAll, removeKey]);
+		MenuGroup edit = new(Words.Known["menu.edit"], [undo, redo, new MenuBreak(), addNode, addKey, addComment, rename, remove, new MenuBreak(), toggleReview, toggleConstant, toggleStale, staleAll, removeKey]);
 		Menu = [
 			new MenuGroup(Words.Known["menu.file"], [load, import, merge, new MenuBreak(), save, export, new MenuBreak(), reset, exit]),
 			edit,

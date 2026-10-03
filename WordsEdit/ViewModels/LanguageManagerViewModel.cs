@@ -9,8 +9,9 @@ namespace WordsEdit.ViewModels;
 ///     are the session's languages as <see cref="LanguageRow"/>s, the pane edits
 ///     the highlighted one live, + adds a row, the trash drops one and drag
 ///     reorders. Nothing reaches the session until OK, which applies the lot —
-///     removals, re-codes and renames, additions, the order — and makes the
-///     highlighted row the tree's language; Cancel or Escape forgets it all.
+///     removals, re-codes and renames, additions, the order — as one undoable
+///     commit and makes the highlighted row the tree's language; Cancel or
+///     Escape forgets it all.
 /// </summary>
 public class LanguageManagerViewModel : DialogViewModel {
 	public override string Title => Words.Known["languages.title"];
@@ -85,56 +86,48 @@ public class LanguageManagerViewModel : DialogViewModel {
 		Close();
 	}
 
-	//the copy reaches the session. Additions whose code is free go first, so the
-	//last-language rule never refuses a removal; removals next, freeing codes; then
-	//the renames, one whose new code is still taken waiting for the rename that
-	//frees it, a cycle of swaps parking one language on a throwaway code; then the
-	//additions that waited for a code; then the order
+	//the copy reaches the session, as one undoable commit. Additions whose code is
+	//free go first, so the last-language rule never refuses a removal; removals
+	//next, freeing codes; then the renames, one whose new code is still taken
+	//waiting for the rename that frees it, a cycle of swaps parking one language on
+	//a throwaway code; then the additions that waited for a code; then the order
 	private void Apply() {
 		LanguageTable table = Parent.Session.Languages;
-		List<LanguageEntry> gone = [.. table.Known.Where(known => Rows.All(row => row.Origin != known))];
-		List<LanguageRow> additions = [.. Rows.Where(row => row.Origin is null)];
-		bool changed = AddFree(table, additions);
-		foreach (LanguageEntry entry in gone) {
-			changed |= table.Remove(entry.Code);
-		}
-		List<LanguageRow> renames = [.. Rows.Where(row => row.Origin is not null && row.IsChanged)];
-		Dictionary<LanguageRow, string> current = renames.ToDictionary(row => row, row => row.Origin!.Code);
-		while (renames.Count > 0) {
-			LanguageRow next = renames.FirstOrDefault(row => row.Code == current[row] || table.Find(row.Code) is null) ?? renames[0];
-			if (next.Code != current[next] && table.Find(next.Code) is { } blocking) {
-				LanguageRow blocked = renames.First(row => current[row] == blocking.Code);
-				current[blocked] = $"zz-{Guid.NewGuid():N}";
-				table.Rename(blocking.Code, new LanguageEntry(current[blocked], blocking.NativeName) { EnglishName = blocking.EnglishName });
+		Parent.ChangeLanguages(edit => {
+			List<LanguageEntry> gone = [.. table.Known.Where(known => Rows.All(row => row.Origin != known))];
+			List<LanguageRow> additions = [.. Rows.Where(row => row.Origin is null)];
+			AddFree(edit, table, additions);
+			foreach (LanguageEntry entry in gone) {
+				edit.Remove(entry.Code);
 			}
-			table.Rename(current[next], next.ToEntry());
-			renames.Remove(next);
-			changed = true;
-		}
-		changed |= AddFree(table, additions);
-		for (int i = 0; i < Rows.Count; i++) {
-			int at = table.Known.ToList().FindIndex(known => known.Code == Rows[i].Code);
-			if (at >= 0 && at != i) {
-				table.Reorder(at, i);
-				changed = true;
+			List<LanguageRow> renames = [.. Rows.Where(row => row.Origin is not null && row.IsChanged)];
+			Dictionary<LanguageRow, string> current = renames.ToDictionary(row => row, row => row.Origin!.Code);
+			while (renames.Count > 0) {
+				LanguageRow next = renames.FirstOrDefault(row => row.Code == current[row] || table.Find(row.Code) is null) ?? renames[0];
+				if (next.Code != current[next] && table.Find(next.Code) is { } blocking) {
+					LanguageRow blocked = renames.First(row => current[row] == blocking.Code);
+					current[blocked] = $"zz-{Guid.NewGuid():N}";
+					edit.Rename(blocking.Code, new LanguageEntry(current[blocked], blocking.NativeName) { EnglishName = blocking.EnglishName });
+				}
+				edit.Rename(current[next], next.ToEntry());
+				renames.Remove(next);
 			}
-		}
-		if (changed) {
-			//the table changed under the tree: its badges and dropdown read it
-			Parent.Tree.FollowLanguage();
-			Parent.Tree.RefreshBadges();
-			Parent.MarkDirty();
-		}
+			AddFree(edit, table, additions);
+			for (int i = 0; i < Rows.Count; i++) {
+				int at = table.Known.ToList().FindIndex(known => known.Code == Rows[i].Code);
+				if (at >= 0) {
+					edit.Reorder(at, i);
+				}
+			}
+		});
 		Parent.Tree.SelectedLanguage = (Selected is { } selected ? table.Find(selected.Code) : null) ?? table.Known[0];
 	}
 
-	//adds the rows whose code the table does not hold yet, and drops them from the list; whether any went in
-	private static bool AddFree(LanguageTable table, List<LanguageRow> additions) {
-		bool added = false;
+	//adds the rows whose code the table does not hold yet, and drops them from the list
+	private static void AddFree(LanguagesEdit edit, LanguageTable table, List<LanguageRow> additions) {
 		foreach (LanguageRow row in additions.Where(row => table.Find(row.Code) is null).ToList()) {
-			added |= table.Add(row.ToEntry());
+			edit.Add(row.ToEntry());
 			additions.Remove(row);
 		}
-		return added;
 	}
 }

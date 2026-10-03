@@ -1,5 +1,6 @@
 using PatTech.Localization;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -84,11 +85,21 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public ICommand ToggleStaleLanguageCommand { get; }
 	public ICommand ToggleNeedsReviewCommand { get; }
 	public ICommand ToggleConstantCommand { get; }
+	public ICommand UndoCommand { get; }
+	public ICommand RedoCommand { get; }
 	public ICommand ExitCommand { get; }
 	/// <summary>The command table (SPEC: Menu and toolbars): the menu, the toolbars and the context menu draw from it.</summary>
 	public CommandTable Commands { get; }
 	/// <summary>The user asked to leave: the window closes, asking about unsaved changes on the way.</summary>
 	public event Action? ExitRequested;
+
+	//Undo (SPEC: Undo)
+	/// <summary>The edits made, to take back, and the edits taken back, to put back.</summary>
+	public UndoStack UndoStack { get; } = new();
+	/// <summary>A field edit was undone or redone: the window focuses its box, so the next keystroke lands where the change did.</summary>
+	public event Action<DocumentField>? FieldFocusRequested;
+	//above zero while a command or an undo changes the document: the fields' reports are not typing
+	private int quiet;
 
 	//how the editor asks and tells: modal windows in the app, a fake in tests
 	public IDialogs Dialogs { get; }
@@ -104,7 +115,14 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			MarkDirty();
 			RenderPreviews();
 		};
-		Tree.KeyNodes.CollectionChanged += (_, _) => UpdateTitle();
+		Tree.FieldEdited += OnFieldEdited;
+		Tree.KeyNodes.CollectionChanged += (_, e) => {
+			UpdateTitle();
+			//a file in or out is a boundary (SPEC: Undo); a reorder is only precedence
+			if (e.Action != NotifyCollectionChangedAction.Move) {
+				UndoStack.Clear();
+			}
+		};
 		LoadFileCommand = new DelegateCommand(DoLoadFiles);
 		ImportCommand = new DelegateCommand(DoImport);
 		ExportCommand = new DelegateCommand(DoExport, () => Tree.KeyNodes.Count > 0);
@@ -137,11 +155,16 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		ToggleNeedsReviewCommand = new DelegateCommand(DoToggleNeedsReview, () => Tree.SelectedKey is not null);
 		ToggleConstantCommand = new DelegateCommand(DoToggleConstant, () => Tree.SelectedKey is not null && Tree.SelectedKeyNode is { CanBeConstant: true });
 		TestParametersCommand = new DelegateCommand(() => DoTestParameters(Tree.SelectedKey!), () => Tree.SelectedKey is not null);
+		UndoCommand = new DelegateCommand(() => Step(undoing: true), () => UndoStack.DoneCount > 0);
+		RedoCommand = new DelegateCommand(() => Step(undoing: false), () => UndoStack.UndoneCount > 0);
 		ExitCommand = new DelegateCommand(() => ExitRequested?.Invoke());
 		//the table last: it holds the commands above
 		Commands = new CommandTable(this);
 		//and only now the tree reaches the table: its toggles re-read on every change
 		Tree.PropertyChanged += (_, e) => {
+			if (e.PropertyName is nameof(TreeViewModel.SelectedKeyNode)) {
+				UndoStack.EndRun(); //typing on another node is another run
+			}
 			if (e.PropertyName is nameof(TreeViewModel.SelectedKey) or nameof(TreeViewModel.SelectedEntry) or nameof(TreeViewModel.SelectedLanguage)) {
 				RenderPreviews();
 			}
@@ -281,6 +304,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 		if (allSaved) {
 			IsDirty = false;
+			UndoStack.Saved();
 		}
 	}
 
@@ -315,13 +339,43 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Commands.Refresh(); //a language renamed in place: the choice rows re-read their labels
 	}
 
+	/// <summary>
+	///     Changes the language table as one action (SPEC: Undo → Languages):
+	///     <paramref name="change"/> works through the edit, which keeps each
+	///     operation's inverse. A commit that merged two languages has none, and
+	///     clears the stack instead.
+	/// </summary>
+	public void ChangeLanguages(Action<LanguagesEdit> change) => Perform(() => {
+		var edit = new LanguagesEdit(Session);
+		change(edit);
+		if (!edit.Changed) {
+			return null;
+		}
+		edit.Close();
+		//the table changed under the tree: its badges and dropdown read it
+		Tree.FollowLanguage();
+		Tree.RefreshBadges();
+		if (!edit.Merged) {
+			return edit;
+		}
+		UndoStack.Clear();
+		MarkDirty();
+		return null;
+	});
+
 	//the settings are a dictionary's own; the dialog edits the file the selection
-	//sits in, so a node must be selected to know which file that is
+	//sits in, so a node must be selected to know which file that is. Its Okay is
+	//one entry, the slots before and after
 	private void DoSettings() {
 		if (Tree.SelectedFile is not { } file) {
 			return;
 		}
-		Dialogs.Show(new SettingsViewModel(this, file));
+		Perform(() => {
+			var before = FileSettingsEdit.Slots.Of(file);
+			Dialogs.Show(new SettingsViewModel(this, file));
+			var after = FileSettingsEdit.Slots.Of(file);
+			return after.Matches(before) ? null : new FileSettingsEdit(file.Label, before, after);
+		});
 		//the slots or the tables may have changed under the previews
 		RenderPreviews();
 	}
@@ -333,9 +387,12 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 		if (node is OrganizerNode organizer) {
 			//deleting the organizer deletes the comment it presents
-			organizer.Text = "";
-			Tree.Remove(organizer);
-			MarkDirty();
+			Perform(() => {
+				var removed = new NodeRemoved(Session, organizer);
+				organizer.Text = "";
+				Tree.Remove(organizer);
+				return removed;
+			});
 			return;
 		}
 		if (node.IsFile) {
@@ -349,9 +406,12 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (keys > 0 && !Dialogs.Confirm(keys == 1 ? Words.Known.Format("ask.remove-node-one", node.Label) : Words.Known.Format("ask.remove-node-many", node.Label, keys))) {
 			return;
 		}
-		Session.RemoveKeysUnder(node.FullLabel);
-		Tree.Remove(node);
-		MarkDirty();
+		Perform(() => {
+			var removed = new NodeRemoved(Session, node);
+			Session.RemoveKeysUnder(node.FullLabel);
+			Tree.Remove(node);
+			return removed;
+		});
 	}
 
 	public void RemoveFileNodeCore(KeyNode fileNode) {
@@ -368,6 +428,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Dialogs.Show(new KeyNameViewModel(this, Tree.SelectedKeyNode));
 	}
 
+	//a rename is a move that changes the last segment alone (SPEC: Undo → Structure)
 	public void RenameNode(string newName) {
 		if (Tree.SelectedKeyNode is null or OrganizerNode || Tree.SelectedKeyNode.Parent is not { } parent) {
 			return; //files keep the name of the file
@@ -380,13 +441,16 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		//the marker is part of the key, not the name
 		string marker = WordsOperations.LastSegment(node.FullLabel).StartsWith('$') ? "$" : "";
 		string newFullLabel = $"{parent.FullLabel}.{marker}{newName}";
-		if (!Session.TryRename(node.FullLabel, newFullLabel, out var collisions)) {
-			Dialogs.Tell(Words.Known.Format("tell.rename-collides", string.Join(", ", collisions)));
-			return;
-		}
-		node.Label = newName;
-		node.Relabel(newFullLabel);
-		MarkDirty();
+		Perform(() => {
+			Place from = Place.Of(node);
+			if (!Session.TryRename(node.FullLabel, newFullLabel, out var collisions)) {
+				Dialogs.Tell(Words.Known.Format("tell.rename-collides", string.Join(", ", collisions)));
+				return null;
+			}
+			node.Label = newName;
+			node.Relabel(newFullLabel);
+			return new Move(from, Place.Of(node), comment: false);
+		});
 	}
 
 	private void DoAddNode() {
@@ -405,8 +469,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			Dialogs.Tell(Words.Known.Format("tell.node-exists", parent.FullLabel, newName));
 			return;
 		}
-		Tree.Add(parent, newName);
-		MarkDirty();
+		Perform(() => new NodeAdded(Session, Tree.Add(parent, newName)));
 	}
 
 	private void DoAddKey() {
@@ -414,19 +477,22 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (Tree.SelectedKeyNode is null or OrganizerNode || Tree.SelectedKeyNode.IsFile) {
 			return;
 		}
-		Session.AddKey(Tree.SelectedKeyNode.FullLabel);
-		Tree.FollowSelectedKey();
-		Tree.RefreshBadges(Tree.SelectedKeyNode);
-		MarkDirty();
+		KeyNode node = Tree.SelectedKeyNode;
+		Perform(() => {
+			Session.AddKey(node.FullLabel);
+			Tree.FollowSelectedKey();
+			Tree.RefreshBadges(node);
+			return new KeyAdded(node.FullLabel);
+		});
 	}
 
 	private void DoAddOrganizer() {
 		if (Tree.SelectedKeyNode is null or OrganizerNode || Tree.SelectedKeyNode.IsFile) {
 			return;
 		}
-		if (Tree.CommentAhead(Tree.SelectedKeyNode)) {
-			MarkDirty();
-		}
+		//the comment ahead is selected either way; only a new one is an edit
+		KeyNode node = Tree.SelectedKeyNode;
+		Perform(() => Tree.CommentAhead(node) ? new NodeAdded(Session, Tree.SelectedKeyNode!) : null);
 	}
 
 	private void DoRemoveKey() {
@@ -436,10 +502,16 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (!Dialogs.Confirm(Words.Known.Format("ask.remove-key", node.Label))) {
 			return;
 		}
-		Session.RemoveKey(node.FullLabel);
-		Tree.FollowSelectedKey();
-		Tree.RefreshBadges(node);
-		MarkDirty();
+		Perform(() => {
+			if (!Session.Keys.TryGetValue(node.FullLabel, out WordsKey? key)) {
+				return null;
+			}
+			var removed = new KeyRemoved(key);
+			Session.RemoveKey(node.FullLabel);
+			Tree.FollowSelectedKey();
+			Tree.RefreshBadges(node);
+			return removed;
+		});
 	}
 
 	//Flags
@@ -447,12 +519,15 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (Tree.SelectedKey is not { } key || Tree.SelectedKeyNode is not { } node) {
 			return;
 		}
-		string stamp = DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture);
-		foreach (WordsEntry entry in key.Entries.Values) {
-			entry.Stale = stamp;
-		}
-		Tree.RefreshBadges(node);
-		MarkDirty();
+		Perform(() => {
+			string stamp = DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture);
+			var edit = new StaleAllEdit(key.BlockKey, key.Entries.ToDictionary(pair => pair.Key, pair => pair.Value.Stale), stamp);
+			foreach (WordsEntry entry in key.Entries.Values) {
+				entry.Stale = stamp;
+			}
+			Tree.RefreshBadges(node);
+			return edit;
+		});
 	}
 
 	private void DoToggleStaleLanguage(string? languageCode) {
@@ -460,18 +535,23 @@ public class MainWindowViewModel : ViewModelSaveBase {
 				|| !key.Entries.TryGetValue(languageCode, out var entry)) {
 			return;
 		}
-		entry.Stale = entry.Stale is null ? DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture) : null;
-		Tree.RefreshBadges(node);
-		MarkDirty();
+		Perform(() => {
+			string? before = entry.Stale;
+			entry.Stale = before is null ? DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture) : null;
+			Tree.RefreshBadges(node);
+			return new StaleEdit(key.BlockKey, languageCode, before, entry.Stale);
+		});
 	}
 
 	private void DoToggleNeedsReview() {
 		if (Tree.SelectedKey is not { } key || Tree.SelectedKeyNode is not { } node) {
 			return;
 		}
-		key.NeedsReview = !key.NeedsReview;
-		Tree.RefreshBadges(node);
-		MarkDirty();
+		Perform(() => {
+			key.NeedsReview = !key.NeedsReview;
+			Tree.RefreshBadges(node);
+			return new ReviewEdit(key.BlockKey, key.NeedsReview);
+		});
 	}
 
 	private void DoToggleConstant() {
@@ -488,22 +568,117 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			}
 			clearEntries = true;
 		}
-		string? newKey = Session.SetConstant(key.BlockKey, makeConstant, clearEntries);
-		if (newKey is null) {
-			Dialogs.Tell(Words.Known.Format("tell.constant-exists", WordsOperations.SetConstantMarker(key.BlockKey, makeConstant)));
-			return;
-		}
-		node.Relabel(newKey);
-		Tree.FollowSelectedKey();
-		Tree.RefreshBadges(node);
-		MarkDirty();
+		Perform(() => {
+			string label = key.BlockKey;
+			IReadOnlyDictionary<string, WordsEntry>? cleared = clearEntries
+				? key.Entries.ToDictionary(pair => pair.Key, pair => new WordsEntry(pair.Value))
+				: null;
+			string? newKey = Session.SetConstant(label, makeConstant, clearEntries);
+			if (newKey is null) {
+				Dialogs.Tell(Words.Known.Format("tell.constant-exists", WordsOperations.SetConstantMarker(label, makeConstant)));
+				return null;
+			}
+			node.Relabel(newKey);
+			Tree.FollowSelectedKey();
+			Tree.RefreshBadges(node);
+			return new ConstantEdit(label, newKey, makeConstant, cleared);
+		});
 	}
 
+	//the session is one entry, the parameters before and after
 	private void DoTestParameters(WordsKey key) {
-		Dialogs.Show(new TestParametersViewModel(this, key));
+		Perform(() => {
+			IReadOnlyList<WordsParameter> before = ParametersEdit.Copy(key);
+			Dialogs.Show(new TestParametersViewModel(this, key));
+			IReadOnlyList<WordsParameter> after = ParametersEdit.Copy(key);
+			return ParametersEdit.Same(before, after) ? null : new ParametersEdit(key.BlockKey, before, after);
+		});
 		//the samples are what the previews format with
 		RenderPreviews();
 	}
+
+	//Undo
+	/// <summary>
+	///     Runs one action on the document (SPEC: Undo → Recording):
+	///     <paramref name="action"/> makes the change and returns its entry, or
+	///     null when it changed nothing. While it runs the fields' reports are not
+	///     typing; its entry goes on the stack, remembering whether the document
+	///     was dirty before.
+	/// </summary>
+	public void Perform(Func<UndoEntry?> action) {
+		bool wasDirty = IsDirty;
+		UndoEntry? entry = Quietly(action);
+		if (entry is not null) {
+			UndoStack.Push(entry, wasDirty);
+			MarkDirty();
+		}
+	}
+
+	private T Quietly<T>(Func<T> action) {
+		quiet++;
+		try {
+			return action();
+		}
+		finally {
+			quiet--;
+		}
+	}
+
+	//typing: a run of keystrokes in one field is one entry, and a note raises the
+	//key's hand as it is typed
+	private void OnFieldEdited(FieldEdit edit) {
+		if (quiet > 0) {
+			return;
+		}
+		bool wasDirty = IsDirty;
+		if (edit.IsNote && edit.After.Trim() != "" && Tree.SelectedKey is { NeedsReview: false } key) {
+			edit.RaisedReview = true;
+			key.NeedsReview = true;
+		}
+		UndoStack.Type(edit, wasDirty);
+	}
+
+	//Ctrl+Z and Ctrl+Y (SPEC: Undo → Navigate first): a change out of view is gone
+	//to and applied on the next call; once applied, the selection follows it and a
+	//field edit's box takes the focus
+	private void Step(bool undoing) {
+		UndoStack.EndRun();
+		if ((undoing ? UndoStack.NextUndo : UndoStack.NextRedo) is not { } entry) {
+			return;
+		}
+		if (entry.Site(undoing)?.Resolve(Tree) is { } site && !InView(site, entry.Language)) {
+			Tree.Show(site);
+			if (entry.Language is { } code && Session.Languages.Find(code) is { } language) {
+				Tree.SelectedLanguage = language;
+			}
+			return;
+		}
+		UndoStack.Take(undoing);
+		NodeRef? follow = Quietly(() => entry.Apply(Session, Tree, undoing));
+		//the entry may have changed anything the tree reads off the document
+		Tree.FollowLanguage();
+		Tree.FollowSelectedKey();
+		foreach (KeyNode root in Tree.KeyNodes) {
+			TreeViewModel.UpdateCanBeConstant(root);
+		}
+		Tree.RefreshBadges();
+		if (follow?.Resolve(Tree) is { } node) {
+			Tree.Show(node);
+		}
+		else {
+			Tree.ApplyFilters();
+		}
+		RenderPreviews();
+		Commands.Refresh();
+		IsDirty = undoing ? entry.DirtyBefore : entry.DirtyAfter;
+		if (entry is FieldEdit edit) {
+			FieldFocusRequested?.Invoke(edit.Field);
+		}
+	}
+
+	//the node selected and, for an entry tied to a language, that language showing
+	private bool InView(KeyNode site, string? language)
+		=> Tree.SelectedKeyNode == site && (language is null || language == Tree.SelectedLanguage.Code);
 
 	//Previews
 	private bool RenderPreviews() {

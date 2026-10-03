@@ -11,7 +11,8 @@ namespace WordsEdit.ViewModels;
 ///     what the panes show for it, and where it has been), the language the
 ///     badges are computed for, and the filters. It presents <see cref="WordsSession"/> and never writes
 ///     to it — edits made through the selection are announced by
-///     <see cref="Edited"/> for the owner to mark the session dirty.
+///     <see cref="Edited"/> for the owner to mark the session dirty, and typing
+///     by <see cref="FieldEdited"/>, with what it replaced, for the owner's undo.
 /// </summary>
 public class TreeViewModel : ViewModelBase {
 	private readonly WordsSession session;
@@ -28,6 +29,8 @@ public class TreeViewModel : ViewModelBase {
 
 	/// <summary>Raised when an edit reached the document through the selection.</summary>
 	public event Action? Edited;
+	/// <summary>A text field of the selection was typed into: which, what it held and what it holds (SPEC: Undo → Fields).</summary>
+	public event Action<FieldEdit>? FieldEdited;
 
 	public TreeViewModel(WordsSession session) {
 		this.session = session;
@@ -53,6 +56,7 @@ public class TreeViewModel : ViewModelBase {
 			if (ChangeProperty(ref field, value)) {
 				oldValue?.PropertyChanged -= OnSelectedKeyValueChanged;
 				value?.PropertyChanged += OnSelectedKeyValueChanged;
+				Remember(DocumentField.DefaultValue, DocumentField.KeyContext, DocumentField.KeyComment);
 			}
 		}
 	}
@@ -64,6 +68,7 @@ public class TreeViewModel : ViewModelBase {
 			if (ChangeProperty(ref field, value)) {
 				oldValue?.PropertyChanged -= OnSelectedEntryChanged;
 				value?.PropertyChanged += OnSelectedEntryChanged;
+				Remember(DocumentField.EntryValue, DocumentField.EntryContext, DocumentField.EntryComment);
 			}
 		}
 	}
@@ -75,6 +80,7 @@ public class TreeViewModel : ViewModelBase {
 			if (ChangeProperty(ref field, value)) {
 				oldValue?.PropertyChanged -= OnSelectedOrganizerChanged;
 				value?.PropertyChanged += OnSelectedOrganizerChanged;
+				Remember(DocumentField.CommentText);
 			}
 		}
 	}
@@ -127,16 +133,28 @@ public class TreeViewModel : ViewModelBase {
 
 	private bool Resolves(string label) => NodeAt(label) is not null;
 
-	private KeyNode? NodeAt(string label) => AllNodes.FirstOrDefault(node => node.FullLabel == label);
+	/// <summary>The first node carrying <paramref name="label"/>: a key's node, since comments share theirs.</summary>
+	public KeyNode? NodeAt(string label) => AllNodes.FirstOrDefault(node => node.FullLabel == label);
 
 	private void Navigate(string? label) {
-		if (label is null || NodeAt(label) is not { } node) {
-			return;
+		if (label is not null && NodeAt(label) is { } node) {
+			Arrive(node, visit: false);
 		}
+	}
+
+	/// <summary>
+	///     Selects <paramref name="node"/> and brings it into view, the way Back
+	///     arrives: the path to it opens and it shows through the filters until
+	///     the selection moves on. A move like a click, so Back returns from it.
+	/// </summary>
+	public void Show(KeyNode node) => Arrive(node, visit: true);
+
+	//Back and Forward step the history rather than visit
+	private void Arrive(KeyNode node, bool visit) {
 		for (KeyNode? parent = node.Parent; parent is not null; parent = parent.Parent) {
 			parent.IsExpanded = true;
 		}
-		navigating = true;
+		navigating = !visit;
 		try {
 			exempt = node;
 			Select(node);
@@ -183,13 +201,17 @@ public class TreeViewModel : ViewModelBase {
 		}
 	}
 
+	//each handler reports a text field first, so the report precedes whatever the change sets off
 	private void OnSelectedKeyValueChanged(object? sender, PropertyChangedEventArgs e) {
 		if (SelectedKey is null || SelectedKeyNode is null) {
 			return; //selection and model briefly disagree while the selection is changing
 		}
-		if (e.PropertyName == nameof(SelectedKey.Comment) && SelectedKey.Comment.Trim() != "") {
-			SelectedKey.NeedsReview = true;
-		}
+		Report(e.PropertyName switch {
+			nameof(WordsKey.DefaultValue) => DocumentField.DefaultValue,
+			nameof(WordsKey.Context) => DocumentField.KeyContext,
+			nameof(WordsKey.Comment) => DocumentField.KeyComment,
+			_ => null,
+		});
 		if (e.PropertyName is nameof(SelectedKey.DefaultValue) or nameof(SelectedKey.NeedsReview)) {
 			RefreshBadges(SelectedKeyNode);
 		}
@@ -198,6 +220,7 @@ public class TreeViewModel : ViewModelBase {
 
 	private void OnSelectedOrganizerChanged(object? sender, PropertyChangedEventArgs e) {
 		if (e.PropertyName == nameof(OrganizerNode.Text)) {
+			Report(DocumentField.CommentText);
 			Edited?.Invoke();
 		}
 	}
@@ -206,13 +229,49 @@ public class TreeViewModel : ViewModelBase {
 		if (SelectedEntry is null || SelectedKey is null || SelectedKeyNode is null) {
 			return; //selection and model briefly disagree while the selection is changing
 		}
-		if (e.PropertyName == nameof(SelectedEntry.Comment) && SelectedEntry.Comment.Trim() != "") {
-			SelectedKey.NeedsReview = true;
-		}
+		Report(e.PropertyName switch {
+			nameof(WordsEntry.Value) => DocumentField.EntryValue,
+			nameof(WordsEntry.Context) => DocumentField.EntryContext,
+			nameof(WordsEntry.Comment) => DocumentField.EntryComment,
+			_ => null,
+		});
 		if (e.PropertyName is nameof(SelectedEntry.Value) or nameof(SelectedEntry.Stale)) {
 			RefreshBadges(SelectedKeyNode);
 		}
 		Edited?.Invoke();
+	}
+
+	//the selection's text fields as they last stood (SPEC: Undo → Fields): a property
+	//change does not say what it replaced
+	private readonly Dictionary<DocumentField, string> texts = [];
+
+	private void Remember(params DocumentField[] fields) {
+		foreach (DocumentField field in fields) {
+			texts[field] = TextOf(field) ?? "";
+		}
+	}
+
+	private string? TextOf(DocumentField field) => field switch {
+		DocumentField.DefaultValue => SelectedKey?.DefaultValue,
+		DocumentField.KeyContext => SelectedKey?.Context,
+		DocumentField.KeyComment => SelectedKey?.Comment,
+		DocumentField.EntryValue => SelectedEntry?.Value,
+		DocumentField.EntryContext => SelectedEntry?.Context,
+		DocumentField.EntryComment => SelectedEntry?.Comment,
+		DocumentField.CommentText => SelectedOrganizer?.Text,
+		_ => null,
+	};
+
+	//a field of the selection changed: reported with what it held, an entry's field in the selected language
+	private void Report(DocumentField? field) {
+		if (field is not { } changed || SelectedKeyNode is not { } node) {
+			return;
+		}
+		string before = texts.GetValueOrDefault(changed, "");
+		string after = TextOf(changed) ?? "";
+		texts[changed] = after;
+		string? language = changed is DocumentField.EntryValue or DocumentField.EntryContext or DocumentField.EntryComment ? SelectedLanguage.Code : null;
+		FieldEdited?.Invoke(new FieldEdit(NodeRef.Of(node), language, changed, before, after));
 	}
 
 	//Filters

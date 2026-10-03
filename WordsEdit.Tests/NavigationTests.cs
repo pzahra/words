@@ -183,7 +183,7 @@ public class NavigationTests {
 	}
 
 	/// <summary>WPF elements insist on an STA thread; xunit runs MTA.</summary>
-	private static void RunSta(Action action) {
+	internal static void RunSta(Action action) {
 		ExceptionDispatchInfo? error = null;
 		var thread = new Thread(() => {
 			try {

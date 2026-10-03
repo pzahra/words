@@ -12,7 +12,7 @@
 		d:DataContext="{d:DesignInstance vm:MainWindowViewModel}"
         Title="{Binding TitleMarked}"
         FontFamily="Montserrat"
-		Height="640" Width="960"
+		Height="640" Width="1080"
         MinHeight="450" MinWidth="800"
         Closing="MainWindow_Closing">
 
@@ -227,6 +227,7 @@
                           Grid.Column="1"
                           Margin="3 0">
                 <StackPanel>
+                <!-- the editing boxes keep no undo of their own: Ctrl+Z in any of them is the document's (SPEC: Undo) -->
                 <StackPanel Visibility="{Binding Tree.SelectedKey, Converter={StaticResource IsNotNull}}">
                     <TextBlock TextWrapping="Wrap"
                                Margin="2.5px"
@@ -237,7 +238,9 @@
                             BorderThickness="1" 
                             Margin="0 0 30px 2.5px" 
                             BorderBrush="{DynamicResource PrimaryHueLightBrush}">
-                        <TextBox Text="{Binding Tree.SelectedKey.Context, UpdateSourceTrigger=PropertyChanged}" 
+                        <TextBox x:Name="KeyContextBox"
+                                 Text="{Binding Tree.SelectedKey.Context, UpdateSourceTrigger=PropertyChanged}"
+                                 IsUndoEnabled="False"
                                  TextWrapping="Wrap"
                                  AcceptsReturn="True"
                                  uc:Spelling.WhenEditing="True"
@@ -254,7 +257,9 @@
                             BorderThickness="1" 
                             Margin="30px 0 0 2.5px" 
                             BorderBrush="{DynamicResource MaterialDesignBody}">
-                        <TextBox Text="{Binding Tree.SelectedKey.Comment, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox x:Name="KeyCommentBox"
+                                 Text="{Binding Tree.SelectedKey.Comment, UpdateSourceTrigger=PropertyChanged}"
+                                 IsUndoEnabled="False"
                                  TextWrapping="Wrap"
                                  AcceptsReturn="True"
                                  uc:Spelling.WhenEditing="True"
@@ -272,7 +277,9 @@
                             BorderThickness="1"
                             Margin="0 0 30px 2.5px"
                             BorderBrush="{DynamicResource MaterialDesignDivider}">
-                        <TextBox Text="{Binding Tree.SelectedOrganizer.Text, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox x:Name="CommentTextBox"
+                                 Text="{Binding Tree.SelectedOrganizer.Text, UpdateSourceTrigger=PropertyChanged}"
+                                 IsUndoEnabled="False"
                                  TextWrapping="Wrap"
                                  AcceptsReturn="True"
                                  uc:Spelling.WhenEditing="True"
@@ -288,7 +295,7 @@
                   Visibility="{Binding Tree.SelectedKey, Converter={StaticResource IsNotNull}}"
                   Margin="3 0">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="38"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
@@ -336,7 +343,9 @@
                         Grid.Column="0" 
                         Grid.ColumnSpan="2">
                     <Grid>
-                        <TextBox Text="{Binding Tree.SelectedKey.DefaultValue, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox x:Name="DefaultValueBox"
+                                 Text="{Binding Tree.SelectedKey.DefaultValue, UpdateSourceTrigger=PropertyChanged}"
+                                 IsUndoEnabled="False"
                                  VerticalScrollBarVisibility="Auto"
                                  AcceptsReturn="True"
                                  TextWrapping="Wrap"
@@ -389,7 +398,9 @@
                             BorderThickness="1" 
                             Margin="0 0 30px 2.5px" 
                             BorderBrush="{DynamicResource PrimaryHueLightBrush}">
-                        <TextBox Text="{Binding Tree.SelectedEntry.Context, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox x:Name="EntryContextBox"
+                                 Text="{Binding Tree.SelectedEntry.Context, UpdateSourceTrigger=PropertyChanged}"
+                                 IsUndoEnabled="False"
                                  TextWrapping="Wrap"
                                  TextAlignment="Left"
                                  AcceptsReturn="True"
@@ -406,7 +417,9 @@
                             BorderThickness="1" 
                             Margin="30px 0 0 2.5px" 
                             BorderBrush="{DynamicResource MaterialDesignBody}">
-                        <TextBox Text="{Binding Tree.SelectedEntry.Comment, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox x:Name="EntryCommentBox"
+                                 Text="{Binding Tree.SelectedEntry.Comment, UpdateSourceTrigger=PropertyChanged}"
+                                 IsUndoEnabled="False"
                                  TextWrapping="Wrap"
                                  TextAlignment="Left"
                                  AcceptsReturn="True"
@@ -421,7 +434,7 @@
                   Visibility="{Binding Tree.SelectedEntry, Converter={StaticResource IsNotNull}}"
                   Margin="3 0">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="38"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
@@ -435,20 +448,17 @@
 				<StackPanel Grid.Row="0" 
                             Grid.Column="0"  
                             VerticalAlignment="Center">
-					<Grid Margin="2.5px"
-						  Visibility="{Binding Tree.SelectedEntry.Stale, Converter={StaticResource IsNotNull}}">
-						<Grid.ColumnDefinitions>
-							<ColumnDefinition Width="Auto"/>
-							<ColumnDefinition Width="*"/>
-						</Grid.ColumnDefinitions>
-
-						<Label Content="{l:Words main.stale}"/>
-						<TextBlock Grid.Column="1" Text="{Binding Tree.SelectedEntry.Stale, Mode=OneWay}" VerticalAlignment="Center" ToolTip="{l:Words main.stale-tip}"/>
-                    </Grid>
                     <TextBlock Text="{l:Words main.translation}"
-                               Margin="2.5px"
+                               Margin="2.5px 0"
                                FontWeight="SemiBold"
                                FontSize="14"/>
+                    <Label ToolTip="{l:Words main.stale-tip}"
+						    Visibility="{Binding Tree.SelectedEntry.Stale, Converter={StaticResource IsNotNull}}">
+                        <TextBlock Margin="4 -1">
+                            <Run Text="{l:Words main.stale}" />
+                            <Run Text="{Binding Tree.SelectedEntry.Stale, Mode=OneWay}" />
+                        </TextBlock>
+                    </Label>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal"
                             Grid.Row="0"
@@ -478,7 +488,9 @@
                         Grid.Column="0" 
                         Grid.ColumnSpan="2">
                     <Grid>
-                        <TextBox Text="{Binding Tree.SelectedEntry.Value, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox x:Name="EntryValueBox"
+                                 Text="{Binding Tree.SelectedEntry.Value, UpdateSourceTrigger=PropertyChanged}"
+                                 IsUndoEnabled="False"
                                  TextWrapping="Wrap"
                                  VerticalScrollBarVisibility="Auto"
                                  AcceptsReturn="True"

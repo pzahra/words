@@ -22,7 +22,8 @@ today; that last part describes what it does not do yet.
 - Dirtiness has one door. `ViewModelSaveBase` owns `IsDirty`: a command that
   edited the document calls `MarkDirty()`, a property that *is* document state
   sets itself with the `dirty: true` overload of `ChangeProperty`, and only
-  Save and Reset clear it. Nowhere else assigns the flag.
+  Save and Reset clear it — and Undo and Redo, which put back the dirtiness
+  their entry recorded (Undo). Nowhere else assigns the flag.
 - The main window is three panes: **tree** (left), **baseline** (middle),
   **translation** (right).
 - Dialogs are tool windows: one shell (`DialogWindow`), resizable, close
@@ -448,7 +449,7 @@ the review flag `approved="no"`; a constant keeps its `$` and is
 text being languageless while XLIFF insists on a `source-language`, the
 `source-language` option names it, `en` unless told otherwise.
 
-**Surface.** Import sits beside Load, Export beside Save. Import opens a picker
+**Surface.** Import sits beside Open, Export beside Save. Import opens a picker
 filtered by every importer's name and extensions; each pick's extension names
 its format (an unclaimed one is told), `Discover` gathers the set, and the set
 loads at its native path — asked about first when that `words.ini` is already
@@ -475,8 +476,8 @@ dirtiness, the plan, the loss and the overwrite confirmation.
 ## Menu and toolbars
 
 A menu bar carries every command the editor has, grouped the usual way —
-File (Load, Import, Merge, Save, Export, Reset, Exit), Edit (the node and key
-operations, then the flags), View (the filters, the previews, Find, then the
+File (Open, Import, Merge, Save, Export, Reset, Exit), Edit (Undo and Redo,
+the node and key operations, then the flags), View (the filters, the previews, Find, then the
 translation language and Wordsmith's own as submenus), Tools (Languages,
 Project Settings, Test Parameters) — with an access key on each menu and
 gesture text on each entry, so everything is reachable by name and by
@@ -512,9 +513,10 @@ pane headers keep their gripe badges, which act on what they sit beside.
 Buttons and toggles share one template in the icon's colours — orange under
 the mouse, a blue frame around a toggle that is on — rather than the theme's
 tool button and switch, so the two kinds match in size and weight; the
-filter popup's button is the same toggle.
-Back and Forward are rows like any other (Navigation); Undo and Redo join
-them when they exist (Undo).
+filter popup's button is the same toggle. Every toolbar gives back the room
+the theme keeps for its overflow button until it does overflow
+(`ToolBarOverflow`, set by one implicit toolbar style).
+Back, Forward, Undo and Redo are rows like any other (Navigation, Undo).
 
 **Tests.** Every command the view model and the tree expose is in the menu
 once (the two badge commands excepted); the toolbars and the context menu
@@ -557,9 +559,7 @@ selection up has made a move, so Back returns to the row it hid.
 rows of the command table: Alt+Left and Alt+Right, the mouse's back and
 forward buttons (a row may name a mouse button, which the window binds
 beside the keys through a `MouseButtonGesture`), entries in the View menu
-beside Find, and a toolbar group on the search box's left. Undo and Redo
-join the group when they exist (Undo): the four move through the document
-in its two senses.
+beside Find, and a toolbar group on the search box's left.
 
 **Tests.** The history is driven headless: select, select, Back lands on
 the first and Forward on the second; selecting the node Back points to is a
@@ -572,69 +572,158 @@ the path; the history is bounded, and a gone entry takes its twin with it;
 and the mouse's back button runs its command through WPF's own input
 bindings, on the press alone.
 
+## Undo
+
+Every edit to the document can be taken back and put back. The
+confirmations on the destructive actions (removing a node that takes keys
+with it, removing key information, making a key a constant, removing a
+language) stay.
+
+**One entry per action.** A document can be large and most edits touch very
+little of it, so the stack (`UndoStack`, on `MainWindowViewModel`) holds
+actions, not copies of the document: each entry (`UndoEntry`) carries
+exactly what its action changed and undoes it in place with the action's
+own inverse, redoing it the same way. Nothing reloads and the tree keeps its
+expansion. An entry finds what it changes by label — entries are undone in
+order, so every label still means what it meant — and a comment, which
+shares its label with its siblings, by its parent and its place. Entries
+stack: undo takes back the latest, redo puts it back, and a new edit drops
+whatever was waiting to be redone.
+
+- **Fields.** Typing into a text field — a key's default value, context or
+  comment, an entry's value, context or comment, a comment node's text — is
+  a `FieldEdit`: the node, the language (none for a key's own fields or a
+  comment), the field (`DocumentField`), and its text before and after,
+  nothing more, so each field undoes on its own; [plural
+  forms](../Localization-Core/SPEC.md) will add fields, not kinds of entry.
+  A property change does not say what it replaced, so the tree keeps the
+  selected node's text fields as they last stood and reports each change
+  (`FieldEdited`) with both texts. A note — a key's or an entry's comment —
+  raises Needs Review as it is typed, and only as it is typed: not while a
+  command or an undo runs. Its entry says so, and undoing the typing lowers
+  the hand again.
+- **Commands.** Each toggle — Needs Review, Stale in the selected language,
+  Constant — is a `KeyEdit` of its own (`ReviewEdit`, `StaleEdit`,
+  `ConstantEdit`): the key, the flag, its value before and after; Constant
+  also carries its relabel and any translations it cleared. Stale All
+  Languages, on the selected key, is a `KeyEdit` too (`StaleAllEdit`), the
+  stamps it replaced kept with it. Adding key information is `KeyAdded`;
+  removing it is `KeyRemoved`, which keeps a copy of the key and puts a copy
+  back. A Test Parameters session is one `ParametersEdit`, the key's
+  parameters before and after, made only when they differ.
+- **Structure.** Adding a node or a comment is `NodeAdded`; removing one is
+  `NodeRemoved`: the parent, the position, the node itself — its subtree,
+  comments and all — copies of the keys beneath it, and a comment's text
+  (the preamble's lives in its file, which the removal empties) — one entry,
+  however much it takes. A rename and a drag are both a `Move` — the old
+  and new place: parent, position, label and name — since a drag may or may
+  not rename and a rename is a move that changes only the last segment;
+  undoing one renames back through the session and the node moves back. A
+  drop where the node already stood changes nothing and makes no entry; a
+  file dragged among files is precedence, not content, and makes none
+  either.
+- **Settings references.** The Settings dialog's change to a file's
+  `param=` and `param-xx=` slots is a `FileSettingsEdit`, the slots before
+  and after, made only when they differ. The tables themselves are written
+  to their own files when the dialog closes, and stay outside undo.
+- **Languages.** A Language Manager commit is one `LanguagesEdit`: the
+  manager makes its table operations through it (`ChangeLanguages`, on the
+  main view model), each keeping its inverse, undone in reverse order — an
+  addition by removing the language, a relabel by restoring the entry it
+  replaced, a reorder by moving it back, a removal by putting the entries it
+  dropped back on each key and the language back in its place, a recode
+  onto a free code by recoding back, exact since the entries moved whole —
+  and then every file's table is put back whole. A recode onto a code
+  already in the table merges two languages' entries and has no tidy
+  inverse; the manager never asks for one (no two rows share a code), but a
+  commit that makes one clears the stack instead — the last resort for any
+  document-wide action that cannot keep a reversible state.
+
+**Recording.** Fields report themselves; every other entry is made by its
+command through one door (`Perform`, on the main view model): the command
+makes its change and returns its entry, or nothing when it changed nothing,
+and while it runs the field reports are not typing — a constant clearing its
+translations is not typing. A dialog a command opens belongs to the command,
+so a Test Parameters session or a Settings Okay is one entry. Each entry
+records whether the document was dirty before its action, and undo restores
+`IsDirty` to that; a save moves the marks, so an undo or redo that leaves the
+saved state stars the title and one that comes back to it clears it.
+
+**Coalescing.** Consecutive edits to the same field of the same node and
+language fold into one entry, the first text before and the last after, so
+undo takes back the typing, not a character. A different field, another
+entry, an undo or a redo, or moving to another node ends the run, and a run
+typed back to where it started leaves no entry at all.
+
+**Navigate first.** An undo should not surprise: an entry whose change is
+out of view does not undo yet — it goes there. The node is selected and
+shown, it and its ancestors exempt from the filters for as long as it is
+the selection (Navigation), and an entry tied to a language (an entry's
+field, the stale toggle) switches the translation language to it, so what
+is about to change is in view; the next Ctrl+Z undoes it. A change already
+in view — its node selected, in its language — undoes at once, and so does
+an entry that shows nowhere in the tree (a Language Manager commit, a
+Settings Okay). The step is a move like any other, so Back returns from it.
+Redo mirrors it. Once an entry is undone or redone the selection follows it
+— an undone removal selects the restored node, an undone addition its
+parent, an undone move the node in its old place — shown through the
+filters the same way, so what just changed stays in view, and a field edit
+then focuses its text box, a free action, so the next keystroke lands where
+the change did.
+
+**Boundaries.** Save does not clear the stack (a saved state can still be
+undone; the title stars again). Reset, Load, Import, Unload, Merge and Split
+do: they change which files the document is, and an entry for other files is
+no help. Each of them puts a file node into the tree or takes one out, and
+that is what clears it; a file dragged among files does not. A Language
+Manager commit that merges codes clears it too.
+
+**Text boxes.** The main window's editing boxes keep no undo of their own
+(`IsUndoEnabled` off): a box turns Ctrl+Z and Ctrl+Y into the routed Undo
+and Redo before the window's keys see them, and the window catches those on
+their way down to the box (`DocumentUndo`) and runs the document's, so a
+field focused after an undo answers the next Ctrl+Z with the stack. The
+search box keeps its own, as do the dialogs' boxes, which are other
+windows.
+
+**Surface.** `UndoCommand` and `RedoCommand` on `MainWindowViewModel`, with
+`CanExecute` from the stack depth, as rows of the command table: Ctrl+Z and
+Ctrl+Y, entries at the head of the Edit menu (and so in the tree's context
+menu), their captions in `words.ini`. They have no toolbar buttons: beside
+Back and Forward they left the search box too little room (Planned
+upgrades: The search strip).
+
+**Tests.** Every kind of entry has an undo twin, in one run through the
+example file: adding a node, a key and a comment; typing a default, a
+translation, a note that raises the hand and a comment; a rename; each
+toggle and Stale All; a constant clearing a translation; removing the
+preamble, a key, and a node with keys and comments beneath it; a parameters
+session; a drag under another parent, among siblings, and of a comment; a
+settings Okay; and each Language Manager operation — adding, removing,
+relabelling, recoding, reordering, swapping two codes. Each is one entry;
+undoing it gives back the document before it — every file's saved text and
+every row of the tree — with a clean title, and redoing it the document
+after; the whole run undone is the file as loaded, and redone the last of
+it. A typing run is one entry until another field, another node or an undo
+comes between, and typing back to the start leaves none; a note that raised
+the hand undoes both, and undoing the clearing of a note leaves a hand that
+was lowered down. An undo out of view selects the node through a search
+that hides it and switches the language, changing nothing until the second
+call, which applies it, focuses the field and keeps the node in view; Back
+returns from the navigation; an undo in view applies at once and focuses
+the field, and so does its redo. Save keeps the stack, undoing past it
+stars the title and coming back clears it; Load, Import, Unload, Split,
+Merge and Reset clear it and a file reorder does not; a commit that changes
+nothing records nothing, and a merging recode clears the stack. In a pair of
+laid-out text boxes routed the window's way, Undo in the editing box runs
+the document's undo and Redo asks the document whether it can, while in
+the search box Undo is the box's own.
+
 ---
 
 # Planned upgrades
 
 Not built yet. Each section here is the shape the feature takes when it is.
-
-## Undo
-
-There is no undo stack; the confirmations on the destructive actions
-(removing a node that takes keys with it, removing key information, making a
-key a constant, removing a language) stand in for it.
-
-**One door, again.** Every document change already passes through
-`ViewModelSaveBase.MarkDirty` (Architecture rules: dirtiness has one door), so
-that door is where an edit is recorded: what marks dirty also pushes onto the
-undo stack. Nothing else needs to know undo exists.
-
-**Snapshots, not commands.** The document is small — a handful of ini files
-— and the writer round-trips byte for byte (Saving), so the state of a file
-*is* its written text. An undo entry is the session written to strings
-(every file, in its tree node's walk order, with its language table and
-settings references) plus the full label of the node the edit is on — the
-selection for a pane or menu edit, the moved node for a drag, none for an
-edit of the language table — taken before the edit lands. Undo reloads those
-strings in place through `WordsSession.Load` (the same path as loading from
-disk, which replaces a file by path and drops what is gone), re-presents the
-tree, and reselects the label; redo mirrors it with the snapshot taken before
-the undo. Not command objects per mutation — one for each edit site, tree
-reorders and drags among them: the snapshot is correct by construction and
-costs one write of an ini-sized document per edit.
-
-**Coalescing.** Typing into a value, context or comment box raises
-`Tree.Edited` per keystroke; consecutive edits to the same field of the same
-key and language fold into one entry, so undo takes back the typing, not a
-character. Every other edit is its own entry.
-
-**Boundaries.** Save does not clear the stack (a saved state can still be
-undone; the title stars again). Reset, Load, Import, Unload, Merge and Split
-do clear it: they change which files the document is, and a snapshot of
-other files is no help. Undo restores `IsDirty` to what the snapshot had.
-
-**Navigate first.** An undo whose entry is on a node other than the selected
-one does not undo yet: it goes there. The node is selected and shown — it and
-its ancestors exempt from the filters for as long as it is the selection,
-where the filters otherwise evict a hidden selection to a shown ancestor (The
-tree) — so what is about to change is in view, and the next Ctrl+Z undoes it.
-Redo mirrors it. An entry with no node (a language-table edit) undoes at
-once, and so does one whose node is already selected. The step is a
-navigation like any other (Navigation), so Back returns from it.
-
-**Surface.** Ctrl+Z / Ctrl+Y bound on the main window, `UndoCommand` and
-`RedoCommand` on `MainWindowViewModel` with `CanExecute` from the stack depth,
-entries in the Edit menu and the tree's context menu, and a pair of toolbar
-buttons beside Back and Forward (Navigation), their captions in `words.ini`.
-Language edits made in the Language Manager are entries like any other, taken
-when the manager marks the parent dirty.
-
-**Tests.** Every mutation the dirtiness test drives gets an undo twin: the
-saved text after undo equals the text before the edit, and redo brings the
-edit back. An undo on an unselected node selects it, shown through a filter
-that hides it, and changes nothing until the second call. The drag tests and
-the merge and split flows check the stack is cleared or kept as this section
-says.
 
 ## Import and export, next
 
@@ -693,3 +782,48 @@ through one entry point the app calls at startup, into the registry
 `App.OnStartup` already builds; changing the set is a rebuild, not a hot-swap.
 Runtime plugins stay a later question, and the interface is shaped so it could
 answer it without changing.
+
+## The search strip
+
+Back and Forward share the tree's header with the search box and the
+filter button, and the tree's column is the narrowest. With Undo and Redo
+as buttons there too, the box was about 78px wide in a 960px window and
+about 35px at the minimum width — too narrow to read what was typed. For
+now Undo and Redo are the Edit menu's and the keys' alone, and the window
+opens 1080px wide: the box is about 180px in the default window and about
+100px at the minimum. To give Undo and Redo buttons back, or the box more
+room, undecided between:
+
+- **Search below the buttons.** The strip becomes two rows: the buttons on
+  top, the search box and the filter button under them at the column's
+  full width. The tree gives up a row's height.
+- **A collapsed search box.** The strip shows the magnifier alone; a click
+  on it, or Ctrl+F, grows the box over the buttons, and it collapses again
+  when it loses the focus. A search left in force needs to stay visible
+  while the box is collapsed, for example as a mark on the magnifier like
+  the filter button's hidden-row count.
+- **Move the buttons.** Undo and Redo to the empty left side of the middle
+  pane's header (mirroring Rename on its right), or all four to the menu
+  bar's empty right side.
+- **A toolbar editor.** Which rows go on which toolbar becomes the user's
+  choice, saved with the editor's settings; the command table already makes
+  every row the same kind of thing, so a toolbar is a list of rows. That
+  answers the crowding by letting a user drop what they don't use, and the
+  growing number of commands besides — but it is a feature of its own, not
+  a layout fix.
+
+## Undo inside a text box
+
+Today an editing box keeps no undo of its own and every Ctrl+Z goes to the
+document (Undo: Text boxes). A box's own undo stack cannot be read, so it
+cannot become document entries, but it need not be thrown away either:
+while a box has the focus, Ctrl+Z and Ctrl+Y could be the box's, undoing
+its typing within its own context the way any text box does, and only when
+it has nothing left to undo would Ctrl+Z reach the stack. A focus change
+ends the box's context: its own history is cleared, so coming back to the
+box never undoes typing the stack may already have taken back, and the
+typing run on the stack ends with it — whatever the box undid inside the
+run is already folded into the run's last text, and a run undone back to
+its start leaves no entry. The window's routing (`DocumentUndo`) would ask
+the focused box whether it can undo before handing the command to the
+document.

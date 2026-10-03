@@ -114,24 +114,33 @@ public class KeyDrag : IDragSource, IDropTarget {
 		if (dragged.Parent is not { } oldParent) {
 			return; //a non-file node at the root is a broken invariant; leave it be
 		}
+		//one Move on the undo stack, whether or not the drop renamed anything
+		Vm.Perform(() => Land(dragged, oldParent, newParent, index));
+	}
+
+	private Move? Land(KeyNode dragged, KeyNode oldParent, KeyNode newParent, int index) {
 		string newFullLabel = $"{newParent.FullLabel}.{WordsOperations.LastSegment(dragged.FullLabel)}";
 		if (newParent != oldParent && dragged is not CommentNode) {
 			//the document goes first and may refuse: a same-named sibling, or keys
 			//already at the destination. Nothing is overwritten to make room
 			if (newParent.Children.Any(sibling => sibling.Label == dragged.Label)) {
-				Vm.Dialogs.Tell(Words.Known.Format("tell.node-exists", newParent.FullLabel, dragged.Label));
-				return;
+				Vm!.Dialogs.Tell(Words.Known.Format("tell.node-exists", newParent.FullLabel, dragged.Label));
+				return null;
 			}
-			if (!Vm.Session.TryMove(dragged.FullLabel, newParent.FullLabel, out var collisions)) {
+			if (!Vm!.Session.TryMove(dragged.FullLabel, newParent.FullLabel, out var collisions)) {
 				Vm.Dialogs.Tell(Words.Known.Format("tell.move-collides", string.Join(", ", collisions)));
-				return;
+				return null;
 			}
 		}
-		int oldIndex = oldParent.Children.IndexOf(dragged);
-		oldParent.Children.RemoveAt(oldIndex);
+		Place from = Place.Of(dragged);
+		int oldIndex = from.Index;
 		if (newParent == oldParent && index > oldIndex) {
 			index--;
 		}
+		if (newParent == oldParent && index == oldIndex) {
+			return null; //dropped where it stood
+		}
+		oldParent.Children.RemoveAt(oldIndex);
 		newParent.Children.Insert(index, dragged);
 		if (newParent != oldParent) {
 			dragged.Relabel(newFullLabel);
@@ -140,7 +149,7 @@ public class KeyDrag : IDragSource, IDropTarget {
 		if (oldParent.Root != newParent.Root) {
 			TreeViewModel.UpdateCanBeConstant(oldParent.Root);
 		}
-		Vm.MarkDirty();
+		return new Move(from, Place.Of(dragged), dragged is CommentNode);
 	}
 
 	public void Dropped(IDropInfo dropInfo) {

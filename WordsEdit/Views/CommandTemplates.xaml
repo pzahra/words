@@ -53,7 +53,7 @@
     <!-- the toolbars' look, in the icon's own colours: a button and a toggle share one
          template, so they match in size, weight and hover; orange under the mouse, and
          a blue frame around a toggle that is on -->
-    <SolidColorBrush x:Key="WordsmithOrangeBrush" Color="#FE8122"/>
+    <SolidColorBrush x:Key="WordsmithOrangeBrush" Color="#FFE8710C" />
     <SolidColorBrush x:Key="WordsmithBlueBrush" Color="#02466E"/>
     <Style x:Key="ToolButton" TargetType="ButtonBase">
         <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}"/>
@@ -100,6 +100,9 @@
                 <Setter Property="BorderBrush" Value="{StaticResource WordsmithBlueBrush}"/>
             </Trigger>
         </Style.Triggers>
+    </Style>
+    <Style TargetType="ToolBar" BasedOn="{StaticResource MaterialDesignToolBar}">
+        <Setter Property="uc:ToolBarOverflow.Collapse" Value="True" />
     </Style>
 
     <DataTemplate DataType="{x:Type vm:CommandItem}">

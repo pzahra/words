@@ -11,6 +11,10 @@ INI escape rules.
 - **Edit** — browse the key tree, edit values, contexts, and comments per
   language; add, rename, remove, and drag keys around without breaking their
   children.
+- **Undo, and Back** — Ctrl+Z takes back the last edit, one action at a
+  time; if it happened somewhere you aren't looking, the first Ctrl+Z takes
+  you there and the second takes it back. Back and Forward retrace where
+  you've been in the tree, like a browser.
 - **Languages** — manage the language list, and see at a glance which keys
   have no value in the language you're looking at.
 - **Stale tracking** — mark a value stale (per language, or all at once) when

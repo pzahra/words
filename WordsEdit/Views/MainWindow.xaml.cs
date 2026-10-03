@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
+using System.Windows.Threading;
 using WordsEdit.Utils;
 using WordsEdit.ViewModels;
 
@@ -11,7 +12,35 @@ public partial class MainWindow : Window {
 	//the view model is the app's to make and hand over
 	public MainWindow() {
 		InitializeComponent();
-		DataContextChanged += (_, e) => BindShortcuts(e.NewValue as MainWindowViewModel);
+		DataContextChanged += (_, e) => {
+			BindShortcuts(e.NewValue as MainWindowViewModel);
+			(e.OldValue as MainWindowViewModel)?.FieldFocusRequested -= FocusField;
+			(e.NewValue as MainWindowViewModel)?.FieldFocusRequested += FocusField;
+		};
+		//Ctrl+Z and Ctrl+Y in the editing boxes are the document's; the search box keeps its own (SPEC: Undo)
+		DocumentUndo.Route(this,
+			() => (DataContext as MainWindowViewModel)?.UndoCommand,
+			() => (DataContext as MainWindowViewModel)?.RedoCommand,
+			source => source == SearchBox);
+	}
+
+	//an undone or redone field edit: its box takes the focus once the panes have
+	//caught up with the selection, the caret at the end
+	private void FocusField(DocumentField field) {
+		TextBox box = field switch {
+			DocumentField.DefaultValue => DefaultValueBox,
+			DocumentField.KeyContext => KeyContextBox,
+			DocumentField.KeyComment => KeyCommentBox,
+			DocumentField.EntryValue => EntryValueBox,
+			DocumentField.EntryContext => EntryContextBox,
+			DocumentField.EntryComment => EntryCommentBox,
+			_ => CommentTextBox,
+		};
+		Dispatcher.BeginInvoke(() => {
+			if (box.Focus()) {
+				box.CaretIndex = box.Text.Length;
+			}
+		}, DispatcherPriority.Input);
 	}
 
 	//the command table's keys and mouse buttons, bound once (SPEC: Menu and toolbars):

@@ -7,7 +7,8 @@ namespace WordsEdit.ViewModels;
 ///     A view model over a saveable document: a title that stars while dirty,
 ///     a Save, and one door for dirtiness — <see cref="MarkDirty"/> for an edit
 ///     a command made, the <c>dirty</c> overload of <c>ChangeProperty</c> for a
-///     property that is document state. Save and Reset are the only cleaners.
+///     property that is document state. Save and Reset are the only cleaners,
+///     but for Undo and Redo putting back the dirtiness their entry recorded.
 /// </summary>
 public abstract class ViewModelSaveBase : ViewModelBase {
 	public string TitleMarked => IsDirty ? Title + " *" : Title;
