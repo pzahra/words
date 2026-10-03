@@ -28,7 +28,8 @@
                  image of ThemeIcon turns from sun to moon with the dark-theme switch —
                  and from gold to silver, its brush asked for the same way
                  (?foreground=dynres:ThemeIconBrush) — while a staticres: one keeps
-                 whatever it resolved at load. The pane, card and chip brushes follow too -->
+                 whatever it resolved at load. The pane, card and chip brushes follow too,
+                 and so does every markdown link, through WordsLinkBrush -->
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="ThemeIconBrush" Color="Goldenrod"/>
@@ -37,6 +38,8 @@
                     <SolidColorBrush x:Key="CardBackground" Color="#FAFAFB"/>
                     <SolidColorBrush x:Key="CardBorder" Color="#DDDDE3"/>
                     <SolidColorBrush x:Key="ChipBackground" Color="#E9E9EF"/>
+                    <!-- the sample's own link colour, over the package's default -->
+                    <SolidColorBrush x:Key="WordsLinkBrush" Color="#0A58CA"/>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
                     <SolidColorBrush x:Key="ThemeIconBrush" Color="Silver"/>
@@ -45,6 +48,7 @@
                     <SolidColorBrush x:Key="CardBackground" Color="#27272A"/>
                     <SolidColorBrush x:Key="CardBorder" Color="#3C3C42"/>
                     <SolidColorBrush x:Key="ChipBackground" Color="#35353C"/>
+                    <SolidColorBrush x:Key="WordsLinkBrush" Color="#6EA8FE"/>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
             <!-- resolved by markdown images through the staticres: and dynres: schemes -->

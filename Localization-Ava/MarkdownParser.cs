@@ -55,6 +55,16 @@ public class MarkdownParser(float baseFontSize = MarkdownParser.DefaultBaseFontS
 
 	/// <summary>Creates a plain <see cref="global::Avalonia.Controls.Documents.Run"/> for unformatted text.</summary>
 	protected override Inline Run(string text) => new Run { Text = text };
+	/// <summary>
+	///     A code span: a <see cref="global::Avalonia.Controls.Documents.Run"/> in a monospace
+	///     font on a subtle background, bound to the resources <c>WordsCodeFont</c> and
+	///     <c>WordsCodeBackground</c> where they are defined, so it follows a theme switch.
+	/// </summary>
+	protected override Inline Code(string text) {
+		var run = new Run { Text = text };
+		ThemeResources.ApplyCode(run);
+		return run;
+	}
 	/// <summary>Groups multiple inlines into a single <see cref="global::Avalonia.Controls.Documents.Span"/>.</summary>
 	protected override Inline Span(IEnumerable<Inline> inlines) {
 		// populate the existing collection: replacing it via the setter leaves the
@@ -65,7 +75,9 @@ public class MarkdownParser(float baseFontSize = MarkdownParser.DefaultBaseFontS
 	}
 	/// <summary>
 	///     Wraps <paramref name="content"/> in a <see cref="PatTech.Localization.Avalonia.Hyperlink"/>
-	///     pointing at <paramref name="target"/>, underlined and blue in the traditional manner.
+	///     pointing at <paramref name="target"/>, underlined, bound to the colour of the resource
+	///     <c>WordsLinkBrush</c> where it is defined — so it follows a theme switch — and blue in
+	///     the traditional manner where it is not.
 	/// </summary>
 	protected override Inline Hyperlink(Inline content, Uri target, string? tooltip) {
 		var link = new Hyperlink {
@@ -73,6 +85,7 @@ public class MarkdownParser(float baseFontSize = MarkdownParser.DefaultBaseFontS
 			ToolTip = tooltip,
 		};
 		link.Inlines.Add(content);
+		ThemeResources.ApplyLink(link);
 		return link;
 	}
 

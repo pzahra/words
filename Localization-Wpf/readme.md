@@ -224,6 +224,13 @@ and every view can say `{StaticResource WordsMarkdown}`, `WordsFormat`,
 `WordsFlagsDescriptionList` (one description per flag), `WordsParamsArray`, or
 `WordsResourceVisual`.
 
+It also holds the look of rendered markdown: `WordsLinkBrush`, the colour of a
+link, and `WordsCodeFont` and `WordsCodeBackground` for a `` `code` `` span
+(brushes or colours). Define your own under those keys, in the window, the
+application or the theme dictionary you swap in, and links and code spans
+follow, a theme swap included. Merge nothing and define nothing, and links still
+come out blue and code spans monospace on a faint grey.
+
 ## The rest of the suite
 
 - **[PatTech.Localization.Core](https://www.nuget.org/packages/PatTech.Localization.Core)** — the engine: `words.ini` files, lookups by key, languages and fallbacks, `{0}`/`{Name}` parameters, `{>key}` references, a markdown dialect.

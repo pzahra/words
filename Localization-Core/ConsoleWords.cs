@@ -5,10 +5,10 @@ using System.Text;
 namespace PatTech.Localization {
 	/// <summary>
 	/// Gives you Words in the terminal: renders Words markdown as a string decorated
-	/// with ANSI escape codes. Bold and italic use SGR styling, links become real
-	/// clickable hyperlinks (OSC 8) underlined and blue in the traditional manner,
-	/// sub/superscript translate to their Unicode forms where such forms exist, and
-	/// images degrade gracefully to their alt text.
+	/// with ANSI escape codes. Bold, italic and code spans (dim) use SGR styling, links
+	/// become real clickable hyperlinks (OSC 8) underlined and blue in the traditional
+	/// manner, sub/superscript translate to their Unicode forms where such forms exist,
+	/// and images degrade gracefully to their alt text.
 	/// </summary>
 	/// <remarks>
 	/// The output assumes a VT-capable terminal (Windows Terminal, and practically
@@ -76,10 +76,17 @@ namespace PatTech.Localization {
 		/// </summary>
 		protected override string Image(Uri source, string? altText, string? tooltip)
 			=> AltPlaceholder(Sanitize(altText ?? source.OriginalString));
+		/// <summary>
+		/// A code span, as written: SGR dim (<c>CSI 2 m</c> … <c>CSI 22 m</c>) with ANSI
+		/// enabled, the bare text without — the backticks are not put back.
+		/// </summary>
+		protected override string Code(string text)
+			=> useAnsi ? $"{Esc}[2m{Sanitize(text)}{Esc}[22m" : Sanitize(text);
 
 		/// <summary>Wraps the content in SGR bold (<c>CSI 1 m</c> … <c>CSI 22 m</c>).</summary>
 		protected override void Embolden(ref string content) {
-			if (useAnsi) content = $"{Esc}[1m{content}{Esc}[22m";
+			// a code span's CSI 22 m ends bold as well as dim, so bold resumes after it
+			if (useAnsi) content = $"{Esc}[1m{content.Replace($"{Esc}[22m", $"{Esc}[22;1m")}{Esc}[22m";
 		}
 		/// <summary>Wraps the content in SGR italic (<c>CSI 3 m</c> … <c>CSI 23 m</c>).</summary>
 		protected override void Italicize(ref string content) {

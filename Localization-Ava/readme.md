@@ -23,9 +23,10 @@ formats with the culture the binding hands it — `CurrentCulture` unless a
 
 ## Handle Hyperlinks
 
-Markdown links render underlined and blue in the traditional manner, carry
-pointer-placed tooltips from their `"title"`, and route every click through
-one global handler — custom schemes make handy in-app commands:
+Markdown links render underlined, in your theme's `WordsLinkBrush` (blue in the
+traditional manner if you have none), carry pointer-placed tooltips from their
+`"title"`, and route every click through one global handler — custom schemes
+make handy in-app commands:
 
 ``` csharp
 public override void OnFrameworkInitializationCompleted() {
@@ -193,6 +194,14 @@ and every view can say `{StaticResource WordsMarkdown}`, `WordsFormat`,
 `WordsEnumDescription`, `WordsFlagsDescription` (joined text),
 `WordsFlagsDescriptionList` (one description per flag), `WordsParamsArray`, or
 `WordsResourceVisual`.
+
+It also holds the look of rendered markdown: `WordsLinkBrush`, the colour of a
+link, in a light and a dark variant, and `WordsCodeFont` and
+`WordsCodeBackground` for a `` `code` `` span (brushes or colours). Define your
+own under those keys — in your theme dictionaries, if light and dark want
+different ones — and links and code spans follow, theme switches included. Merge
+nothing and define nothing, and links still come out blue and code spans
+monospace on a faint grey.
 
 ## See it all at once
 

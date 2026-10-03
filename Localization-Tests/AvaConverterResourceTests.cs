@@ -28,6 +28,12 @@ public class AvaConverterResourceTests {
 		var list = Assert.IsType<FlagsDescriptionConverter>(dictionary["WordsFlagsDescriptionList"]);
 		Assert.True(list.AsArray);
 		Assert.IsType<ArrayMultiConverter>(dictionary["WordsParamsArray"]);
+		Assert.True(dictionary.TryGetResource("WordsLinkBrush", global::Avalonia.Styling.ThemeVariant.Light, out var light));
+		Assert.True(dictionary.TryGetResource("WordsLinkBrush", global::Avalonia.Styling.ThemeVariant.Dark, out var dark));
+		Assert.NotEqual(Assert.IsAssignableFrom<global::Avalonia.Media.ISolidColorBrush>(light).Color,
+			Assert.IsAssignableFrom<global::Avalonia.Media.ISolidColorBrush>(dark).Color);
+		Assert.IsType<global::Avalonia.Media.FontFamily>(dictionary["WordsCodeFont"]);
+		Assert.IsAssignableFrom<global::Avalonia.Media.ISolidColorBrush>(dictionary["WordsCodeBackground"]);
 	}
 
 	[AvaloniaFact]

@@ -204,6 +204,94 @@ Avalonia compiled binding and object-typed target are wrapped too; a WPF setter
 takes a bound key, and a WPF template loaded twice converts in both. The tickle
 pulses on every swap and is still when off.
 
+## Link colour from the theme
+
+A link the markdown renders takes its colour from the theme, so it reads on a
+dark background as well as a light one, and a theme switch repaints it as it
+does a `dynres:` image.
+
+**The brush.** The link's foreground is the resource `WordsLinkBrush` (a brush or
+a colour), looked up from the link itself, so it resolves through the window, the
+application and, on Avalonia, the theme variant — and follows when any of them
+changes. WPF holds a resource reference on the `Hyperlink`; Avalonia binds the
+`Hyperlink`'s foreground to the resource. The packages' converters dictionaries
+define a default — blue on WPF, a light and a dark variant on Avalonia — so an app
+that merges them, as it already does, gets a link that reads in both themes. An
+app that defines its own `WordsLinkBrush`, in its theme dictionaries or the one it
+swaps in, overrides it; both samples do, and their theme switch shows it. The
+underline stays as it was, and so does the console's ANSI blue.
+
+**Nothing defined.** An app that defines no brush and merges nothing still gets
+blue: the link carries it as a fixed fallback until the lookup finds something,
+and returns to it if the resource goes. A `Hyperlink` an app writes in its own
+Avalonia markup keeps the class's blue default; only rendered Words follow the
+resource.
+
+**Tests.** On each framework a link with no resource anywhere is blue; on WPF a
+link follows its theme dictionary swapped for another, on Avalonia the theme
+variant, and the Avalonia package's default reads differently light and dark; a
+code span inside a link takes the link's colour; both converters dictionaries hold
+the default.
+
+## Code spans
+
+A value can show an API name, a file name or a line of `words.ini` as written,
+in a code span.
+
+**The syntax.** CommonMark's: a run of backticks opens a span and the next run
+of the same length closes it, so `` `{l:Words key}` `` shows the extension, and
+double backticks hold a single one. A span binds tightest — the parser lifts
+every span out before it reads any other markup — so nothing inside is markup: no
+emphasis, no entities, no shortcodes, no links, no images, and a `*` in a span
+neither opens nor closes the emphasis around it. A span may sit in emphasis or a
+link label, and in an image's alt text or a title it reads as written. One
+leading and trailing space are trimmed when both are there. An unclosed run is
+literal backticks.
+
+**Blocks.** Unlike CommonMark, a line break inside a span is kept, not turned
+into a space: a value has one only because a trailing `\` asked for it. A span
+that starts and ends on a line break drops one at each end, so backticks on lines
+of their own fence a block:
+
+````ini
+[how.greeting]
+value=Write it like this:\
+```\
+[greeting]\
+value=Hello\
+```
+````
+
+The fence takes no info string; a word after the opening backticks is code.
+
+**What is not protected.** A span protects its text from markdown only.
+References expand at lookup, before markdown sees the value, so a `{>key}` shown
+in a span still escapes its brace, `{{>key}`; and a value handed to `Format` is a
+format string, braces in a span included.
+
+**The renderers.** `MarkdownParser` has `protected virtual TInline Code(string
+text)`, defaulting to `Run(text)`, so a parser of one's own written before it
+keeps compiling and shows the text plain. WPF and Avalonia render a monospace run
+on a subtle background, from the resources `WordsCodeFont` and
+`WordsCodeBackground` (a brush or a colour), looked up and followed the way a
+link's colour is. The converters dictionaries define both; where neither is
+found, the same look stands in: Consolas on a translucent grey that reads on a
+light theme and a dark one. A span keeps the colour of the text around it, a
+link's included. The console renders a span dim (ANSI 2), bold picking up again
+after a span inside it, and plain text drops the backticks.
+
+**Tests.** Spans with emphasis, links, images, entities and shortcodes inside
+read back verbatim; a span inside italics leaves the italics whole, and sits
+inside bold and a link label; a double-backtick span holds a single backtick; an
+unclosed run, or one closed by a run of another length, stays literal; one space
+or one line break is trimmed at each end, and inner line breaks are kept; a span
+in alt text and a title reads as written; a parser with no `Code` of its own
+renders a run. On each framework the span carries the monospace family and the
+tint with no resources anywhere, takes both resources from where it lands and
+follows a swap, and on Avalonia follows the theme variant; both converters
+dictionaries hold the two defaults. The console writes the dim sequence, resumes
+bold after it, and writes nothing with ANSI off.
+
 ---
 
 # Planned upgrades
@@ -288,57 +376,3 @@ the expected forms; a category without a form falls to the plain value; a named
 selector picks the same form as a numbered one; a key selecting its own forms
 renders the circular mark; the indexer returns the template with the selector
 intact, and the count indexer returns the key's own form for the count.
-
-## Link colour from the theme
-
-A link is painted `Brushes.Blue`, fixed: WPF sets it on the link's content,
-Avalonia as the `Hyperlink`'s default and current value. Blue reads on white
-and barely on a dark theme, and a theme switch leaves it where it was — the one
-part of rendered Words a `dynres:` image can follow and a link cannot.
-
-**The brush.** A link takes its foreground from the resource `WordsLinkBrush`,
-looked up dynamically from the link itself, so it resolves through the window,
-the application and, on Avalonia, the theme variant — and follows when any of
-them changes. WPF sets a resource reference on the `Hyperlink`; Avalonia binds
-the property to the resource. The packages' `Converters.xaml`/`Converters.axaml`
-define a default — blue on WPF, a light and a dark variant on Avalonia — so an
-app that merges them, as it already does, gets a link that reads in both themes;
-an app that defines its own `WordsLinkBrush` in its theme dictionaries overrides
-it, and the sample's theme switch shows it. The underline stays as it is.
-
-**What changes.** Only where the colour comes from: an app that defines no brush
-and merges nothing still gets blue, as a local fallback when the lookup finds
-nothing. The console renderer keeps its ANSI blue.
-
-**Tests.** A headless test per framework renders a link, swaps the resource
-`WordsLinkBrush` resolves to — a merged dictionary on WPF, the theme variant on
-Avalonia — and reads the new foreground off the link; with no resource defined
-anywhere, the link is blue.
-
-## Code spans
-
-The markdown dialect has no code span, so a value cannot show an API name, a
-file name or a line of `words.ini` as written: the samples' guidance names APIs
-in bold, and an example of the markup itself is lost to the markup.
-
-**The syntax.** CommonMark's: a run of backticks opens a span and the next run
-of the same length closes it, so `` `{l:Words key}` `` shows the extension, and
-double backticks hold a single one. Inside, nothing is markup — no emphasis, no
-entities, no shortcodes, no links, no images — and one leading and trailing
-space are trimmed when both are there. An unclosed run is literal backticks.
-References expand at lookup, before markdown sees the value, so a `{>key}` shown
-in a span still escapes its brace, `{{>key}`.
-
-**The renderers.** `MarkdownParser` gains `protected virtual TInline Code(string
-text)`, defaulting to `Run(text)`, so a parser of one's own keeps compiling and
-shows the text plain. WPF and Avalonia render a monospace run on a subtle
-background, both from resources — `WordsCodeFont` and `WordsCodeBackground`,
-with defaults in the converters dictionaries — so a theme can restyle them as it
-does the link brush. The console renders it dim (ANSI 2), and plain text drops
-the backticks.
-
-**Tests.** Parse spans with emphasis, links, entities and shortcodes inside and
-read them back verbatim; a double-backtick span holds a single backtick; an
-unclosed run stays literal; a framework span carries the monospace family and the
-background resource; the console writes the dim sequence, and nothing with ANSI
-off.

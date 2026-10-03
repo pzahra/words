@@ -54,6 +54,19 @@ public class CoreWordsTests {
 		protected override void Italicize(ref string content) => content = $"<i>{content}</i>";
 		protected override void Subscript(ref string content) => content = $"<sub>{content}</sub>";
 		protected override void Superscript(ref string content) => content = $"<sup>{content}</sup>";
+		protected override string Code(string text) => $"<code>{text}</code>";
+	}
+
+	/// <summary>A parser of one's own written before code spans: it overrides no <c>Code</c>.</summary>
+	private sealed class CodelessMarkdownParser() : MarkdownParser<string>(null) {
+		protected override string Span(IEnumerable<string> inlines) => string.Concat(inlines);
+		protected override string Run(string text) => $"[{text}]";
+		protected override string Hyperlink(string content, Uri target, string? tooltip) => content;
+		protected override string Image(Uri source, string? altText, string? tooltip) => altText ?? "";
+		protected override void Embolden(ref string content) { }
+		protected override void Italicize(ref string content) { }
+		protected override void Subscript(ref string content) { }
+		protected override void Superscript(ref string content) { }
 	}
 
 	[Fact]
@@ -129,5 +142,70 @@ public class CoreWordsTests {
 		var inline = parser.ToInline("***loud*** and ~low~");
 
 		Assert.Equal("<i><b>loud</b></i> and <sub>low</sub>", inline);
+	}
+
+	[Fact]
+	public void Markdown_CodeSpan_ReadsNoMarkupInside() {
+		var parser = new TextMarkdownParser();
+
+		Assert.Equal("use <code>{l:Words key}</code> here", parser.ToInline("use `{l:Words key}` here"));
+		Assert.Equal("<code>**bold** *it* ^up^ ~down~</code>", parser.ToInline("`**bold** *it* ^up^ ~down~`"));
+		Assert.Equal("<code>[there](https://example.test/) <https://example.test/></code>",
+			parser.ToInline("`[there](https://example.test/) <https://example.test/>`"));
+		Assert.Equal("<code>![alt](assets:a.png)</code>", parser.ToInline("`![alt](assets:a.png)`"));
+		Assert.Equal("<code>&amp; &#65; :rocket:</code>", parser.ToInline("`&amp; &#65; :rocket:`"));
+	}
+
+	[Fact]
+	public void Markdown_CodeSpan_BindsTighterThanEmphasis() {
+		var parser = new TextMarkdownParser();
+
+		// the asterisk inside the span neither opens nor closes the italic around it
+		Assert.Equal("<i>times <code>*</code> here</i>", parser.ToInline("*times `*` here*"));
+		Assert.Equal("<code>2*3</code> and <code>4*5</code>", parser.ToInline("`2*3` and `4*5`"));
+		// the span's own text comes back inside the emphasis and the link label
+		Assert.Equal("<b>see <code>a</code></b>", parser.ToInline("**see `a`**"));
+		Assert.Equal("link(<code>key]</code>|https://example.test/|)", parser.ToInline("[`key]`](https://example.test/)"));
+	}
+
+	[Fact]
+	public void Markdown_CodeSpan_RunsOfBackticks() {
+		var parser = new TextMarkdownParser();
+
+		Assert.Equal("<code>a`b</code>", parser.ToInline("``a`b``"));
+		Assert.Equal("<code>`</code>", parser.ToInline("`` ` ``"));
+		// an unclosed run is literal, and a run of another length does not close it
+		Assert.Equal("a ` b", parser.ToInline("a ` b"));
+		Assert.Equal("``a` <i>b</i>", parser.ToInline("``a` *b*"));
+	}
+
+	[Fact]
+	public void Markdown_CodeSpan_TrimsOneSpaceOrOneLineBreakAtEachEnd() {
+		var parser = new TextMarkdownParser();
+
+		Assert.Equal("<code>a</code>", parser.ToInline("` a `"));
+		Assert.Equal("<code> a</code>", parser.ToInline("`  a `"));
+		Assert.Equal("<code>a </code>", parser.ToInline("`a `"));
+		Assert.Equal("<code>   </code>", parser.ToInline("`   `"));
+		// on lines of its own a fence holds a block, its inner line breaks kept
+		Assert.Equal("<code>[greeting]\nvalue=Hello</code>", parser.ToInline("```\n[greeting]\nvalue=Hello\n```"));
+		Assert.Equal("<code>one\r\ntwo</code>", parser.ToInline("```\r\none\r\ntwo\r\n```"));
+		Assert.Equal("<code>a\nb</code>", parser.ToInline("`a\nb`"));
+	}
+
+	[Fact]
+	public void Markdown_CodeSpan_InAltTextAndTitle_IsWritten() {
+		var parser = new TextMarkdownParser();
+
+		var inline = parser.ToInline(@"![a `&amp;` b](https://example.test/d.png ""`&copy;` &copy;"")");
+
+		Assert.Equal("image(https://example.test/d.png|a &amp; b|&copy; ©)", inline);
+	}
+
+	[Fact]
+	public void Markdown_CodeSpan_DefaultsToARun() {
+		var parser = new CodelessMarkdownParser();
+
+		Assert.Equal("[use ][*x*][ here]", parser.ToInline("use `*x*` here"));
 	}
 }

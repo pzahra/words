@@ -49,6 +49,9 @@ public class ConverterResourceTests {
 			var list = Assert.IsType<FlagsDescriptionConverter>(dictionary["WordsFlagsDescriptionList"]);
 			Assert.True(list.AsArray);
 			Assert.IsType<ArrayMultiConverter>(dictionary["WordsParamsArray"]);
+			Assert.Equal(System.Windows.Media.Colors.Blue, Assert.IsType<System.Windows.Media.SolidColorBrush>(dictionary["WordsLinkBrush"]).Color);
+			Assert.IsType<System.Windows.Media.FontFamily>(dictionary["WordsCodeFont"]);
+			Assert.IsType<System.Windows.Media.SolidColorBrush>(dictionary["WordsCodeBackground"]);
 			return null;
 		});
 	}

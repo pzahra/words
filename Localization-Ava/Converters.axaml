@@ -9,7 +9,10 @@
       </ResourceDictionary>
     </Application.Resources>
 
-    and every view can say {StaticResource WordsMarkdown} and friends.
+    and every view can say {StaticResource WordsMarkdown} and friends. The
+    last resources colour markdown links, light and dark, and style code spans;
+    define your own under the same keys, in theme dictionaries if you like, to
+    restyle them.
 -->
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -21,4 +24,14 @@
   <l:FlagsDescriptionConverter x:Key="WordsFlagsDescriptionList"/>
   <l:ArrayMultiConverter x:Key="WordsParamsArray"/>
   <l:ResourceVisualConverter x:Key="WordsResourceVisual"/>
+  <ResourceDictionary.ThemeDictionaries>
+    <ResourceDictionary x:Key="Light">
+      <SolidColorBrush x:Key="WordsLinkBrush" Color="Blue"/>
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="Dark">
+      <SolidColorBrush x:Key="WordsLinkBrush" Color="#6CB4FF"/>
+    </ResourceDictionary>
+  </ResourceDictionary.ThemeDictionaries>
+  <FontFamily x:Key="WordsCodeFont">Consolas, Menlo, Courier New</FontFamily>
+  <SolidColorBrush x:Key="WordsCodeBackground" Color="#22808080"/>
 </ResourceDictionary>

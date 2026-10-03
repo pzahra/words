@@ -116,7 +116,8 @@ properties, or logs.
 
 - `*italic*`, `**bold**`, `***both***`, `^superscript^`, `~subscript~`
 - Links: `[label](url "tooltip")` — label may be styled markdown — and `<url>`
-  autolinks. Rendered underlined and blue; tooltips follow the pointer.
+  autolinks. Rendered underlined, in the resource `WordsLinkBrush` (blue
+  without it; follows theme swaps); tooltips follow the pointer.
 - Images: `![alt](scheme:path?width=W&height=H&background=B&foreground=F)`.
   The query carries display options only — it is parsed off before the scheme
   resolver sees the URI. `B`/`F` are a color, or a brush resource as
@@ -127,6 +128,12 @@ properties, or logs.
   the logger; they never throw. A link whose URI won't parse renders its
   label as plain unlinked content.
 - HTML entities (`&copy;`, `&#8482;`, `&#x41;`) and `:emoji:` shortcodes.
+- Code spans: `` `{l:Words key}` `` shows its text as written — nothing inside
+  is markup — in a monospace run on a tint (resources `WordsCodeFont`,
+  `WordsCodeBackground`; dim in the console). Double backticks hold a single
+  one. Line breaks inside are kept, and backticks on lines of their own (value
+  lines ending `\`) fence a block. A span does not stop `{>key}` expanding at
+  lookup: write `{{>key}` to show one.
 
 ## Avalonia (`PatTech.Localization.Avalonia`)
 

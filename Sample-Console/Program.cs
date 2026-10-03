@@ -16,6 +16,7 @@ Console.WriteLine();
 Console.WriteWordsLine("demo.styles");
 Console.WriteWordsLine("demo.scripts");
 Console.WriteWordsLine("demo.entities");
+Console.WriteWordsLine("demo.code");
 Console.WriteWordsLine("demo.links");
 Console.WriteWordsLine("demo.image");
 Console.WriteWordsLine("demo.reference");

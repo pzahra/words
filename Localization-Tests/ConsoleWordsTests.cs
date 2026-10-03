@@ -46,6 +46,22 @@ public class ConsoleWordsTests {
 	}
 
 	[Fact]
+	public void Ansi_CodeSpan_IsDim() {
+		var parser = new ConsoleMarkdownParser(useAnsi: true);
+
+		Assert.Equal($"run {Esc}[2m*it*{Esc}[22m now", parser.ToInline("run `*it*` now"));
+		// CSI 22 m ends bold too, so the bold around a span picks up again after it
+		Assert.Equal($"{Esc}[1mrun {Esc}[2mit{Esc}[22;1m now{Esc}[22m", parser.ToInline("**run `it` now**"));
+	}
+
+	[Fact]
+	public void Plain_CodeSpan_DropsTheBackticks() {
+		var parser = new ConsoleMarkdownParser(useAnsi: false);
+
+		Assert.Equal("run *it* now", parser.ToInline("run `*it*` now"));
+	}
+
+	[Fact]
 	public void SubAndSuperscript_TranslateToUnicode() {
 		var parser = new ConsoleMarkdownParser(useAnsi: false);
 

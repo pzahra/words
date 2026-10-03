@@ -15,10 +15,18 @@ namespace PatTech.Localization;
 /// built by the abstract factory methods a subclass supplies. Supported syntax:
 /// <c>*italic*</c>, <c>**bold**</c>, <c>***both***</c>, <c>^superscript^</c>,
 /// <c>~subscript~</c>, links as <c>[text](url "title")</c> or <c>&lt;url&gt;</c>,
-/// images as <c>![alt](url "title")</c>, HTML entities (<c>&amp;amp;</c>,
-/// <c>&amp;#65;</c>, <c>&amp;#x41;</c>) and <c>:emoji:</c> shortcodes. Block-level
-/// markdown (headings, lists, paragraphs) is out of scope.
+/// images as <c>![alt](url "title")</c>, code spans in backticks, HTML entities
+/// (<c>&amp;amp;</c>, <c>&amp;#65;</c>, <c>&amp;#x41;</c>) and <c>:emoji:</c>
+/// shortcodes. Block-level markdown (headings, lists, paragraphs) is out of scope.
 /// </summary>
+/// <remarks>
+/// A code span opens with a run of backticks and closes at the next run of the same
+/// length, so double backticks can hold a single one. It binds tightest: nothing inside
+/// is markup, and its text comes through as written, less one space at each end when
+/// both are there — or, when it starts and ends on a line break, one line break at each
+/// end, so backticks on lines of their own fence a block. Line breaks inside are kept.
+/// An unclosed run is literal backticks.
+/// </remarks>
 /// <typeparam name="TInline">The framework's inline type, e.g. a WPF <c>Inline</c>.</typeparam>
 public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 	private static readonly Regex MarkdownTextFormatPattern = new(
@@ -39,6 +47,16 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 		options: RegexOptions.Compiled
 			| RegexOptions.IgnorePatternWhitespace
 			| RegexOptions.ExplicitCapture);
+	private static readonly Regex CodeSpanPattern = new(
+		pattern: @"(?<!`)(?<ticks>`+)(?!`)(?<code>.+?)(?<!`)\k<ticks>(?!`)",
+		options: RegexOptions.Compiled
+			| RegexOptions.Singleline
+			| RegexOptions.ExplicitCapture);
+	// a protected code span's stand-in: its index between two noncharacters, which Unicode
+	// reserves for a program's internal use, so no real text holds them
+	private const char TokenOpen = '\uFDD0', TokenClose = '\uFDD1';
+	private static readonly Regex TokenPattern = new("\uFDD0(?<index>[0-9]+)\uFDD1",
+		options: RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 	private static readonly Dictionary<string, string> EntityDictionary;
 	private static readonly Dictionary<string, string> EmojiDictionary;
 
@@ -80,6 +98,11 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 	/// Raises <paramref name="content"/> to superscript, in place or by replacement.
 	/// </summary>
 	protected abstract void Superscript(ref TInline content);
+	/// <summary>
+	/// Creates the inline for a code span: its text exactly as written, no markup read
+	/// and no entities decoded. Defaults to a plain <see cref="Run"/>.
+	/// </summary>
+	protected virtual TInline Code(string text) => Run(text);
 
 	/// <summary>The stand-in for an image that resolved to nothing: its alt text, marked.</summary>
 	public static string AltPlaceholder(string? altText) => $"[🖼️!{altText}]";
@@ -89,7 +112,56 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 	public TInline ToInline(
 			string markdown,
 			MarkdownElementType disallowedElements = MarkdownElementType.None) {
-		var inlines = ToInlines(markdown, disallowedElements);
+		var codes = ProtectCode(ref markdown);
+		return ToInline(markdown, disallowedElements, codes);
+	}
+	/// <inheritdoc/>
+	/// <exception cref="InvalidOperationException">A disallowed element was encountered.</exception>
+	public IReadOnlyList<TInline> ToInlines(
+			string markdown,
+			MarkdownElementType disallowedElements = MarkdownElementType.None) {
+		var codes = ProtectCode(ref markdown);
+		return ToInlines(markdown, disallowedElements, codes);
+	}
+	/// <inheritdoc/>
+	/// <exception cref="InvalidOperationException">A disallowed element was encountered.</exception>
+	public IEnumerator<TInline> EnumerateInlines(
+			string markdown,
+			MarkdownElementType disallowedElements = MarkdownElementType.None) {
+		var codes = ProtectCode(ref markdown);
+		return EnumerateInlines(markdown, disallowedElements, codes);
+	}
+
+	// code spans bind tightest, so each is swapped for a token before any other markup is
+	// read, and comes back through Code wherever its token lands; null when there are none
+	private static List<string>? ProtectCode(ref string markdown) {
+		if (!markdown.Contains('`')) {
+			return null;
+		}
+		List<string> codes = [];
+		markdown = CodeSpanPattern.Replace(markdown, match => {
+			codes.Add(TrimCode(match.Groups["code"].Value));
+			return $"{TokenOpen}{codes.Count - 1}{TokenClose}";
+		});
+		return codes.Count > 0 ? codes : null;
+	}
+
+	// framed by line breaks, one goes from each end, so a fence on lines of its own reads
+	// as a block; otherwise one space from each end when both are there, as CommonMark has it
+	private static string TrimCode(string code) {
+		var lead = code.StartsWith("\r\n") ? 2 : code.StartsWith('\n') ? 1 : 0;
+		var trail = code.EndsWith("\r\n") ? 2 : code.EndsWith('\n') ? 1 : 0;
+		if (lead > 0 && trail > 0 && lead + trail <= code.Length) {
+			return code[lead..^trail];
+		}
+		if (code.Length > 1 && code[0] == ' ' && code[^1] == ' ' && code.AsSpan().Trim(' ').Length > 0) {
+			return code[1..^1];
+		}
+		return code;
+	}
+
+	private TInline ToInline(string markdown, MarkdownElementType disallowedElements, List<string>? codes) {
+		var inlines = ToInlines(markdown, disallowedElements, codes);
 
 		if (inlines.Count == 1) {
 			return inlines[0];
@@ -97,12 +169,9 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 
 		return Span(inlines);
 	}
-	/// <inheritdoc/>
-	/// <exception cref="InvalidOperationException">A disallowed element was encountered.</exception>
-	public IReadOnlyList<TInline> ToInlines(
-			string markdown,
-			MarkdownElementType disallowedElements = MarkdownElementType.None) {
-		var enumerator = EnumerateInlines(markdown, disallowedElements);
+
+	private IReadOnlyList<TInline> ToInlines(string markdown, MarkdownElementType disallowedElements, List<string>? codes) {
+		var enumerator = EnumerateInlines(markdown, disallowedElements, codes);
 		if (!enumerator.MoveNext()) {
 			var ex = new InvalidOperationException("Expecting at least one inline.");
 			logger.Error(ex, "MD:TOEMPTY");
@@ -118,20 +187,20 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 		}
 		return inlines;
 	}
-	/// <inheritdoc/>
-	/// <exception cref="InvalidOperationException">A disallowed element was encountered.</exception>
-	public IEnumerator<TInline> EnumerateInlines(
-			string markdown,
-			MarkdownElementType disallowedElements = MarkdownElementType.None) {
+	private IEnumerator<TInline> EnumerateInlines(string markdown, MarkdownElementType disallowedElements, List<string>? codes) {
 		if (!MarkdownTextFormatPattern.TryMatch(markdown, out var match)) {
-			yield return Run(DecodeText(markdown));
+			foreach (var inline in Text(markdown, codes)) {
+				yield return inline;
+			}
 			yield break;
 		}
 
 		var lastIndex = 0;
 		do {
 			if (lastIndex < match.Index) {
-				yield return Run(DecodeText(markdown[lastIndex..match.Index]));
+				foreach (var inline in Text(markdown[lastIndex..match.Index], codes)) {
+					yield return inline;
+				}
 			}
 
 			// text-content patterns
@@ -146,7 +215,7 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 					logger.Error(ex, "MD:TX:" + match.Value);
 					throw ex;
 				}
-				var content = ToInline(group.Value, disallowedElements & ~MarkdownElementType.Basic);
+				var content = ToInline(group.Value, disallowedElements & ~MarkdownElementType.Basic, codes);
 				if (mark is "**" or "***") Embolden(ref content);
 				if (mark is "*" or "***") Italicize(ref content);
 				if (mark is "~") Subscript(ref content);
@@ -154,12 +223,12 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 				yield return content;
 			}
 			else if (match.TryGetGroup("url", out var urlGroup)) {
-				var url = urlGroup.Value;
+				var url = RestoreCode(urlGroup.Value, codes);
 				if (match.TryGetGroup("image", out _)) {
-					yield return DecodeImage(disallowedElements, match, url);
+					yield return DecodeImage(disallowedElements, match, url, codes);
 				}
 				else {
-					yield return DecodeHyperlink(disallowedElements, match, url);
+					yield return DecodeHyperlink(disallowedElements, match, url, codes);
 				}
 			}
 			else {
@@ -174,12 +243,59 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 
 		// add any remaining text
 		if (lastIndex != markdown.Length) {
-			yield return Run(DecodeText(markdown[lastIndex..]));
+			foreach (var inline in Text(markdown[lastIndex..], codes)) {
+				yield return inline;
+			}
 		}
 		yield break;
 	}
 
-	private TInline DecodeImage(MarkdownElementType disallowedElements, Match match, string url) {
+	// text between markup: decoded runs, with a code span wherever a token stands
+	private IEnumerable<TInline> Text(string text, List<string>? codes) {
+		if (codes is null || !text.Contains(TokenOpen)) {
+			yield return Run(DecodeText(text));
+			yield break;
+		}
+		var lastIndex = 0;
+		foreach (Match token in TokenPattern.Matches(text)) {
+			if (lastIndex < token.Index) {
+				yield return Run(DecodeText(text[lastIndex..token.Index]));
+			}
+			yield return Code(CodeOf(token, codes));
+			lastIndex = token.Index + token.Length;
+		}
+		if (lastIndex < text.Length) {
+			yield return Run(DecodeText(text[lastIndex..]));
+		}
+	}
+
+	// text that ends up a plain string — alt text, a title: decoded, but a code span as written
+	private static string PlainText(string text, List<string>? codes) {
+		if (codes is null || !text.Contains(TokenOpen)) {
+			return DecodeText(text);
+		}
+		var sb = new StringBuilder();
+		var lastIndex = 0;
+		foreach (Match token in TokenPattern.Matches(text)) {
+			sb.Append(DecodeText(text[lastIndex..token.Index]));
+			sb.Append(CodeOf(token, codes));
+			lastIndex = token.Index + token.Length;
+		}
+		return sb.Append(DecodeText(text[lastIndex..])).ToString();
+	}
+
+	// a url is never decoded, so a code span in one simply goes back as written
+	private static string RestoreCode(string text, List<string>? codes) {
+		if (codes is null || !text.Contains(TokenOpen)) {
+			return text;
+		}
+		return TokenPattern.Replace(text, token => CodeOf(token, codes));
+	}
+
+	private static string CodeOf(Match token, List<string> codes)
+		=> codes[int.Parse(token.Groups["index"].ValueSpan, CultureInfo.InvariantCulture)];
+
+	private TInline DecodeImage(MarkdownElementType disallowedElements, Match match, string url, List<string>? codes) {
 		if (disallowedElements.HasFlag(MarkdownElementType.Image)) {
 			var ex = new InvalidOperationException($"Image element not allowed in this context. {disallowedElements}");
 			logger.Error(ex, "MD:IMG:" + url);
@@ -187,11 +303,11 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 		}
 		string? toolTip = null;
 		if (match.TryGetGroup("title", out var titleGroup)) {
-			toolTip = DecodeText(titleGroup.Value);
+			toolTip = PlainText(titleGroup.Value, codes);
 		}
 		string? altText = null;
 		if (match.TryGetGroup("text", out var altGroup)) {
-			altText = DecodeText(altGroup.Value);
+			altText = PlainText(altGroup.Value, codes);
 		}
 		if (!Uri.TryCreate(url, UriKind.Absolute, out var source)) {
 			// a malformed URI degrades like an unresolvable image: alt text, not a throw
@@ -201,7 +317,7 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 		return Image(source, altText, toolTip);
 	}
 
-	private TInline DecodeHyperlink(MarkdownElementType disallowedElements, Match match, string url) {
+	private TInline DecodeHyperlink(MarkdownElementType disallowedElements, Match match, string url, List<string>? codes) {
 		TInline content;
 		if (disallowedElements.HasFlag(MarkdownElementType.Hyperlink)) {
 			var ex = new InvalidOperationException($"Hyperlink element not allowed in this context. {disallowedElements}");
@@ -209,14 +325,14 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 			throw ex;
 		}
 		if (match.TryGetGroup("text", out var textGroup)) {
-			content = ToInline(textGroup.Value, (disallowedElements | MarkdownElementType.Hyperlink) & ~MarkdownElementType.Basic);
+			content = ToInline(textGroup.Value, (disallowedElements | MarkdownElementType.Hyperlink) & ~MarkdownElementType.Basic, codes);
 		}
 		else {
 			content = Run(DecodeText(url));
 		}
 		string? toolTip = null;
 		if (match.TryGetGroup("title", out var titleGroup)) {
-			toolTip = DecodeText(titleGroup.Value);
+			toolTip = PlainText(titleGroup.Value, codes);
 		}
 		if (!Uri.TryCreate(url, UriKind.Absolute, out var target)) {
 			// a malformed URI leaves the label standing as plain content, unlinked

@@ -7,6 +7,7 @@
     <SolidColorBrush x:Key="CardBackground" Color="#27272A"/>
     <SolidColorBrush x:Key="CardBorder" Color="#3C3C42"/>
     <SolidColorBrush x:Key="ChipBackground" Color="#35353C"/>
+    <SolidColorBrush x:Key="WordsLinkBrush" Color="#6EA8FE"/>
     <!-- a crescent moon, in silver -->
     <SolidColorBrush x:Key="ThemeIconBrush" Color="Silver"/>
     <Geometry x:Key="ThemeIcon">M8,0 A8,8 0 0 0 8,16 A4,8 0 0 1 8,0 Z</Geometry>

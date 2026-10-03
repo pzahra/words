@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
-using System.Windows.Media;
 
 namespace PatTech.Localization.Wpf {
 	/// <summary>
@@ -59,6 +58,16 @@ namespace PatTech.Localization.Wpf {
 
 		/// <summary>Creates a plain <see cref="System.Windows.Documents.Run"/> for unformatted text.</summary>
 		protected override Inline Run(string text) => new Run { Text = text };
+		/// <summary>
+		///     A code span: a <see cref="System.Windows.Documents.Run"/> in a monospace font on
+		///     a subtle background, from the resources <c>WordsCodeFont</c> and
+		///     <c>WordsCodeBackground</c> where they are defined, and followed when they change.
+		/// </summary>
+		protected override Inline Code(string text) {
+			var run = new Run { Text = text };
+			ThemeResources.ApplyCode(run);
+			return run;
+		}
 		/// <summary>Groups multiple inlines into a single <see cref="System.Windows.Documents.Span"/>.</summary>
 		protected override Inline Span(IEnumerable<Inline> inlines) {
 			var span = new Span();
@@ -68,17 +77,20 @@ namespace PatTech.Localization.Wpf {
 
 		/// <summary>
 		///     Wraps <paramref name="content"/> in a <see cref="System.Windows.Documents.Hyperlink"/>
-		///     pointing at <paramref name="target"/>, underlined and blue in the traditional manner.
+		///     pointing at <paramref name="target"/>, underlined, in the colour of the resource
+		///     <c>WordsLinkBrush</c> where it is defined — followed when it changes — and blue
+		///     in the traditional manner where it is not.
 		/// </summary>
 		protected override Inline Hyperlink(Inline content, Uri target, string? tooltip) {
 			content.TextDecorations = TextDecorations.Underline;
-			content.Foreground = Brushes.Blue;
 			// qualified: the namespace's own Hyperlink (the navigate-handler helper) shadows the using
-			return new System.Windows.Documents.Hyperlink {
+			var link = new System.Windows.Documents.Hyperlink {
 				Inlines = { content },
 				NavigateUri = target,
 				ToolTip = tooltip,
 			};
+			ThemeResources.ApplyLink(link);
+			return link;
 		}
 
 		/// <summary>

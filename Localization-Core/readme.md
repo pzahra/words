@@ -229,10 +229,10 @@ Console.WriteWordsLine("main.title");
 Console.WriteWordsLine("main.greeting", userName);
 ```
 
-Markdown comes along for the ride: bold and italic become ANSI styling, links
-become genuinely clickable OSC 8 hyperlinks (underlined and blue in the
-traditional manner), `m^2^` becomes `m²`, and images bow out gracefully as
-their alt text, marked `[🖼️!alt]`. When output is redirected to a pipe or
+Markdown comes along for the ride: bold, italic and `` `code` `` become ANSI
+styling, links become genuinely clickable OSC 8 hyperlinks (underlined and blue
+in the traditional manner), `m^2^` becomes `m²`, and images bow out gracefully
+as their alt text, marked `[🖼️!alt]`. When output is redirected to a pipe or
 file, the escape codes stay home and you get plain text with links spelled
 out as `text (url)`.
 

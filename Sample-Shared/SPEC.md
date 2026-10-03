@@ -42,10 +42,11 @@ inline, the converter, the scheme. The card takes one key, `<topic>.<card>`: its
 value is the heading, `.guide` beneath it is the guidance, and `.demo` is the
 demonstration text where the card shows one. Heading and guidance render as
 Words with markdown, so the explanation is itself a demonstration and follows a
-language switch. The dialect has no code spans yet (the runtime spec plans
-them), so guidance names an API in bold and leaves the exact spelling to the
-chips. References resolve in guidance as anywhere, so a brace meant literally is
-written twice: `{{>key}` shows as `{>key}`.
+language switch. Guidance written before the dialect had code spans names an
+API in bold and leaves the exact spelling to the chips; the Markdown page's code
+card spells its resources in code spans, as later guidance may. References
+resolve in guidance as anywhere, a code span included, so a brace meant
+literally is written twice: `{{>key}` shows as `{>key}`.
 
 ## The words
 
@@ -83,9 +84,9 @@ template, Avalonia through its view locator.
 | Topic | Cards |
 |---|---|
 | Getting started | words in markup (`{l:Words}`); a missing key, shown as `#key#` |
-| Markdown | inline styles; entities and emoji; the kitchen sink; the playground (`WordsMarkdown`) |
+| Markdown | inline styles; entities and emoji; code spans and blocks (`WordsCodeFont`, `WordsCodeBackground`); the kitchen sink; the playground (`WordsMarkdown`) |
 | References | one key inside another (`{>key}`); constants (`{$constant}`, from `framework.ini`); dot-relative blocks and references; a loop, cut at `# ∞ #` |
-| Hyperlinks | tooltips, autolinks and app commands (`RegisterGlobalNavigateHandler`); the app's report of them (`Params`) |
+| Hyperlinks | tooltips, autolinks and app commands (`RegisterGlobalNavigateHandler`), coloured by the theme (`WordsLinkBrush`); the app's report of them (`Params`) |
 | Images | every scheme, `staticres:` beside `dynres:` under the theme toggle |
 | Format parameters | positional, as a child binding; named, read off an object; numbers and dates in the language's culture, with `UseSystemNumbers` |
 | Enums | a `[Words]` enum in a picker (`WordsEnumDescription`); its tooltip, subtitle and description; a `[Flags]` value joined and listed |

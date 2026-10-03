@@ -9,6 +9,8 @@
     <SolidColorBrush x:Key="CardBackground" Color="#FAFAFB"/>
     <SolidColorBrush x:Key="CardBorder" Color="#DDDDE3"/>
     <SolidColorBrush x:Key="ChipBackground" Color="#E9E9EF"/>
+    <!-- markdown links: the sample's own colour, over the package's default blue -->
+    <SolidColorBrush x:Key="WordsLinkBrush" Color="#0A58CA"/>
     <!-- a sun, in gold: the theme-scoped icon the sample shows through staticres: and
          dynres:, its brush asked for the same way (?foreground=dynres:ThemeIconBrush) -->
     <SolidColorBrush x:Key="ThemeIconBrush" Color="Goldenrod"/>

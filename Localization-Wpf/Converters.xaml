@@ -9,7 +9,9 @@
       </ResourceDictionary>
     </Application.Resources>
 
-    and every view can say {StaticResource WordsMarkdown} and friends.
+    and every view can say {StaticResource WordsMarkdown} and friends. The
+    last three resources colour markdown links and style code spans; define
+    your own under the same keys, in your theme, to restyle them.
 -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -21,4 +23,7 @@
   <l:FlagsDescriptionConverter x:Key="WordsFlagsDescriptionList"/>
   <l:ArrayMultiConverter x:Key="WordsParamsArray"/>
   <l:ResourceVisualConverter x:Key="WordsResourceVisual"/>
+  <SolidColorBrush x:Key="WordsLinkBrush" Color="Blue"/>
+  <FontFamily x:Key="WordsCodeFont">Consolas, Courier New</FontFamily>
+  <SolidColorBrush x:Key="WordsCodeBackground" Color="#22808080"/>
 </ResourceDictionary>

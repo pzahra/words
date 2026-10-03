@@ -10,7 +10,7 @@
        appcmd: links come here -->
   <StackPanel>
     <!-- card: links.links -->
-    <c:DemoCard Key="links.links" Uses="WordsInline, Hyperlink.RegisterGlobalNavigateHandler">
+    <c:DemoCard Key="links.links" Uses="WordsInline, Hyperlink.RegisterGlobalNavigateHandler, WordsLinkBrush">
       <TextBlock TextWrapping="Wrap"><l:WordsInline Key="links.links.demo"/></TextBlock>
     </c:DemoCard>
     <!-- /card -->

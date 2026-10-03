@@ -19,6 +19,12 @@
     </c:DemoCard>
     <!-- /card -->
 
+    <!-- card: markdown.code -->
+    <c:DemoCard Key="markdown.code" Uses="WordsInline, WordsCodeFont, WordsCodeBackground">
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="markdown.code.demo"/></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+
     <!-- card: markdown.kitchen -->
     <c:DemoCard Key="markdown.kitchen" Uses="WordsInline">
       <TextBlock TextWrapping="Wrap"><l:WordsInline Key="markdown.kitchen.demo"/></TextBlock>
