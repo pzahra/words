@@ -163,6 +163,49 @@ public class WordsBuilderTests {
 		Assert.Equal(DefaultBrand + "![pic](avares://App/Assets/pic.png)", words["k"]); // the value is still branded
 	}
 
+	// value=!xx declares the default's language: the default speaks it, and a bare
+	// language's regional variants, so falling back to it there misses nothing
+	[Fact]
+	public void Debug_LeavesTheDefaultUnbrandedWhereItSpeaks() {
+		var wb = WordsBuilder.Create().LoadString(
+			"value=!en\n" +
+			"value-en=English\n" +
+			"value-en-AU=Australian\n" +
+			"value-de=Deutsch\n" +
+			"\n" +
+			"[k]\nvalue=default\n").Debug();
+
+		Assert.Equal("en", wb.DefaultLanguage);
+		Assert.Equal("default", wb.ToWords("en")["k"]);
+		Assert.Equal("default", wb.ToWords("en-AU")["k"]);
+		Assert.Equal(DefaultBrand + "default", wb.ToWords("de")["k"]);
+		Assert.Equal(["en", "en-AU", "de"], wb.GetLanguages().Select(language => language.Key)); //the declaration lists nothing
+
+		//an en-AU default speaks for en-AU alone: en-US is missing its words
+		var australian = WordsBuilder.Create().LoadString(
+			"value=!en-AU\n" +
+			"value-en-AU=Australian\n" +
+			"value-en-US=American\n" +
+			"\n" +
+			"[k]\nvalue=colour\n").Debug();
+		Assert.Equal("colour", australian.ToWords("en-AU")["k"]);
+		Assert.Equal(DefaultBrand + "colour", australian.ToWords("en-US")["k"]);
+		Assert.Null(WordsBuilder.Create().LoadString(Ini).DefaultLanguage);
+	}
+
+	[Theory]
+	[InlineData("en", "en", true)]
+	[InlineData("en", "EN", true)]
+	[InlineData("en", "en-AU", true)]
+	[InlineData("en-AU", "en-AU", true)]
+	[InlineData("en-AU", "en-US", false)]
+	[InlineData("en-AU", "en", false)]
+	[InlineData("en", "de", false)]
+	[InlineData(null, "en", false)]
+	[InlineData("en", "", false)]
+	public void TheDefaultSpeaksItsLanguageAndABareLanguagesRegions(string? defaultLanguage, string code, bool speaks)
+		=> Assert.Equal(speaks, WordsParser.DefaultSpeaks(defaultLanguage, code));
+
 	[Fact]
 	public void Debug_IsOffByDefault_AndSwitchesBackOff() {
 		var wb = WordsBuilder.Create().Load(new StringReader(Ini));

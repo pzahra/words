@@ -31,6 +31,13 @@ namespace PatTech.Localization.Authoring {
 		/// </summary>
 		public List<string> Languages { get; }
 		/// <summary>
+		///     The language the default is written in, declared by <c>value=!xx</c>
+		///     atop the file, or <see langword="null"/>. Where the default speaks a
+		///     language (<see cref="WordsParser.DefaultSpeaks"/>), an empty entry
+		///     falls back to it and misses nothing. It need not be in <see cref="Languages"/>.
+		/// </summary>
+		public string? DefaultLanguage { get; set; }
+		/// <summary>
 		///     The project settings file named by <c>param=</c>, as written (relative
 		///     to the file), or empty; <see cref="SettingsPath()"/> resolves it.
 		/// </summary>
@@ -67,6 +74,7 @@ namespace PatTech.Localization.Authoring {
 			Preamble = loaded.Preamble;
 			Trailer = loaded.Trailer;
 			Languages = [.. loaded.DeclaredLanguages];
+			DefaultLanguage = loaded.DefaultLanguage;
 			Settings = loaded.Settings;
 			LanguageSettings = new(loaded.LanguageSettings);
 			List<string> errors = [.. loaded.Errors];

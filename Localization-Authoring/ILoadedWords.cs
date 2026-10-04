@@ -16,6 +16,8 @@ namespace PatTech.Localization.Authoring {
 		IReadOnlyDictionary<string, LanguageEntry> KnownLanguages { get; }
 		/// <summary>The codes the file declares — its own language table — in its order.</summary>
 		IReadOnlyList<string> DeclaredLanguages { get; }
+		/// <summary>The language the default is written in (<c>value=!xx</c> atop an ini), or <see langword="null"/> when the file does not say.</summary>
+		string? DefaultLanguage => null;
 		/// <summary>The comment run above the language table.</summary>
 		string Preamble { get; }
 		/// <summary>The comment run after the last block.</summary>
@@ -42,6 +44,8 @@ namespace PatTech.Localization.Authoring {
 		public OrderedDictionary<string, LanguageEntry> KnownLanguages { get; } = new();
 		/// <inheritdoc cref="ILoadedWords.DeclaredLanguages"/>
 		public List<string> DeclaredLanguages { get; } = [];
+		/// <inheritdoc cref="ILoadedWords.DefaultLanguage"/>
+		public string? DefaultLanguage { get; set; }
 		/// <inheritdoc cref="ILoadedWords.Preamble"/>
 		public string Preamble { get; set; } = "";
 		/// <inheritdoc cref="ILoadedWords.Trailer"/>

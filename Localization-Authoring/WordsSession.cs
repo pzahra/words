@@ -186,7 +186,7 @@ namespace PatTech.Localization.Authoring {
 		public void Save(WordsFile file, IKeyTreeNode tree, TextWriter writer) {
 			EnsureTreeCovers(file, tree);
 			writer.NewLine = file.NewLine;
-			IniWriter.WriteFile(tree, writer, keys, Languages.For(file), preamble: file.Preamble, settings: file.Settings, languageSettings: file.LanguageSettings);
+			IniWriter.WriteFile(tree, writer, keys, Languages.For(file), preamble: file.Preamble, settings: file.Settings, languageSettings: file.LanguageSettings, defaultLanguage: file.DefaultLanguage);
 		}
 
 		//the writer only emits keys the walk reaches, so a stale or wrong tree would
@@ -282,7 +282,7 @@ namespace PatTech.Localization.Authoring {
 		///     <paramref name="outPath"/> taking every key and the unlocalised fields
 		///     from <paramref name="baseFile"/> and each language's entries from the
 		///     file mapped to it, declaring the base file's languages plus the merged
-		///     ones and keeping the base file's preamble and settings references; then
+		///     ones and keeping the base file's preamble, settings references and default's language; then
 		///     loads it. Returns <see langword="null"/> — and writes nothing — when the files
 		///     disagree on their key sets; the disagreements come back in
 		///     <paramref name="conflicts"/>.
@@ -305,7 +305,7 @@ namespace PatTech.Localization.Authoring {
 				.Select(Languages.Find)
 				.OfType<LanguageEntry>()];
 			IniWriter.WriteFile(KeyTree.Relabel(baseTree, outLabel), outPath, merged, languages,
-				preamble: baseFile.Preamble, settings: baseFile.Settings, languageSettings: baseFile.LanguageSettings, newLine: baseFile.NewLine);
+				preamble: baseFile.Preamble, settings: baseFile.Settings, languageSettings: baseFile.LanguageSettings, newLine: baseFile.NewLine, defaultLanguage: baseFile.DefaultLanguage);
 			return Load(outPath);
 		}
 
@@ -313,7 +313,7 @@ namespace PatTech.Localization.Authoring {
 		///     The inverse of <see cref="Merge"/>: writes <paramref name="languageCode"/>'s
 		///     entries from <paramref name="source"/> into their own file at
 		///     <paramref name="outPath"/> — unlocalised fields kept for reference, that
-		///     one language declared, the source's shape, preamble and settings
+		///     one language declared, the source's shape, preamble, default's language and settings
 		///     references — and loads it. Exactly what <see cref="Merge"/> consumes back.
 		/// </summary>
 		public WordsFile Split(WordsFile source, string languageCode, IKeyTreeNode sourceTree, string outPath) {
@@ -321,7 +321,7 @@ namespace PatTech.Localization.Authoring {
 			var split = WordsOperations.Split(keys, source.Label, languageCode, outLabel);
 			List<LanguageEntry> languages = Languages.Find(languageCode) is { } language ? [language] : [];
 			IniWriter.WriteFile(KeyTree.Relabel(sourceTree, outLabel), outPath, split, languages,
-				preamble: source.Preamble, settings: source.Settings, languageSettings: source.LanguageSettings, newLine: source.NewLine);
+				preamble: source.Preamble, settings: source.Settings, languageSettings: source.LanguageSettings, newLine: source.NewLine, defaultLanguage: source.DefaultLanguage);
 			return Load(outPath);
 		}
 

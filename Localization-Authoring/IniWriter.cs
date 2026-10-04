@@ -106,10 +106,10 @@ namespace PatTech.Localization.Authoring {
 		public static ICutStrategy NeverCuts { get; } = new ChainOnly();
 
 		/// <summary>Writes a file atomically, with <paramref name="newLine"/> for its line breaks, or the system's.</summary>
-		public static void WriteFile(IKeyTreeNode fileNode, string fileName, IReadOnlyDictionary<string, WordsKey> allKeys, IReadOnlyCollection<LanguageEntry> languages, ICutStrategy? cutStrategy = null, string preamble = "", string trailer = "", string settings = "", IReadOnlyDictionary<string, string>? languageSettings = null, string? newLine = null)
+		public static void WriteFile(IKeyTreeNode fileNode, string fileName, IReadOnlyDictionary<string, WordsKey> allKeys, IReadOnlyCollection<LanguageEntry> languages, ICutStrategy? cutStrategy = null, string preamble = "", string trailer = "", string settings = "", IReadOnlyDictionary<string, string>? languageSettings = null, string? newLine = null, string? defaultLanguage = null)
 			=> WriteAtomic(fileName, stream => {
 				stream.NewLine = newLine ?? stream.NewLine;
-				WriteFile(fileNode, stream, allKeys, languages, cutStrategy, preamble, trailer, settings, languageSettings);
+				WriteFile(fileNode, stream, allKeys, languages, cutStrategy, preamble, trailer, settings, languageSettings, defaultLanguage);
 			});
 
 		/// <summary>
@@ -131,12 +131,12 @@ namespace PatTech.Localization.Authoring {
 				throw;
 			}
 		}
-		public static void WriteFile(IKeyTreeNode fileNode, TextWriter stream, IReadOnlyDictionary<string, WordsKey> allKeys, IReadOnlyCollection<LanguageEntry> languages, ICutStrategy? cutStrategy = null, string preamble = "", string trailer = "", string settings = "", IReadOnlyDictionary<string, string>? languageSettings = null) {
+		public static void WriteFile(IKeyTreeNode fileNode, TextWriter stream, IReadOnlyDictionary<string, WordsKey> allKeys, IReadOnlyCollection<LanguageEntry> languages, ICutStrategy? cutStrategy = null, string preamble = "", string trailer = "", string settings = "", IReadOnlyDictionary<string, string>? languageSettings = null, string? defaultLanguage = null) {
 			using var writer = new IniWriter(stream, cutStrategy);
 			if (preamble != "") {
 				writer.WriteComment(preamble);
 			}
-			writer.WriteLanguages(languages, settings, languageSettings);
+			writer.WriteLanguages(languages, settings, languageSettings, defaultLanguage);
 			writer.WriteKeys(fileNode, allKeys);
 			if (trailer != "") {
 				writer.WriteComment(trailer);
@@ -144,22 +144,27 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		/// <summary>
-		///     Writes the top-of-file language table: a <c>value-</c>/<c>comment-</c>
-		///     pair per language, then the project settings references as keyless
+		///     Writes the top-of-file language table: the default's language as a
+		///     keyless <c>value=!xx</c>, a <c>value-</c>/<c>comment-</c> pair per
+		///     language, then the project settings references as keyless
 		///     <c>param=</c> and <c>param-xx=</c> fields (recovered by
 		///     <see cref="WordsParserToLocalizationProvider.Settings"/> and
 		///     <see cref="WordsParserToLocalizationProvider.LanguageSettings"/> on the
-		///     next load). A file with neither languages nor settings writes no header.
+		///     next load). A file with none of these writes no header.
 		/// </summary>
 		/// <param name="languages">The file's own table.</param>
 		/// <param name="settings">The dictionary's settings file, relative to it, or empty.</param>
 		/// <param name="languageSettings">Per-language settings files, code → relative path; empty paths are skipped.</param>
-		public void WriteLanguages(IReadOnlyCollection<LanguageEntry> languages, string settings = "", IReadOnlyDictionary<string, string>? languageSettings = null) {
+		/// <param name="defaultLanguage">The language the default is written in, or <see langword="null"/>.</param>
+		public void WriteLanguages(IReadOnlyCollection<LanguageEntry> languages, string settings = "", IReadOnlyDictionary<string, string>? languageSettings = null, string? defaultLanguage = null) {
 			bool hasSettings = settings != "" || languageSettings?.Values.Any(path => path != "") is true;
 			//a file that declares no languages (a bare library file) has no header —
-			//unless it names settings files, which live in this same section
-			if (languages.Count == 0 && !hasSettings) {
+			//unless it names settings files or the default's language, which live in this same section
+			if (languages.Count == 0 && !hasSettings && defaultLanguage is null) {
 				return;
+			}
+			if (defaultLanguage is not null) {
+				WritePair("value", "!" + defaultLanguage);
 			}
 			foreach (var lang in languages) {
 				WritePair($"value-{lang.Code}", lang.NativeName);

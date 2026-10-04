@@ -20,9 +20,10 @@ namespace PatTech.Localization.Authoring.Codecs {
 		/// <summary>The manifest name of the format's words.</summary>
 		public const string WordsResource = "PatTech.Localization.Authoring.Codecs.xliff.words.ini";
 		/// <summary>
-		///     The option naming the <c>source-language</c> an export declares —
-		///     <c>en</c> when unset, the default text being languageless while XLIFF
-		///     insists on a code.
+		///     The option naming the <c>source-language</c> an export declares. Unset,
+		///     it is the file's default language (<see cref="WordsFile.DefaultLanguage"/>),
+		///     and <c>en</c> for a file that declares none, as XLIFF insists on a code.
+		///     An import takes the attribute back as the default's language.
 		/// </summary>
 		public const string SourceLanguageOption = "source-language";
 		private static readonly XNamespace Xliff = "urn:oasis:names:tc:xliff:document:1.2";
@@ -84,6 +85,11 @@ namespace PatTech.Localization.Authoring.Codecs {
 					continue;
 				}
 				foreach (XElement fileElement in XmlText.Children(root, "file")) {
+					//the source text is the default, so its language is the default's
+					if (loaded.DefaultLanguage is null && (string?)fileElement.Attribute("source-language") is { Length: > 0 } sourceLanguage) {
+						string declared = Code(sourceLanguage, file, loaded.Errors, "source-language");
+						loaded.DefaultLanguage = declared == "" ? null : declared;
+					}
 					string code = Code((string?)fileElement.Attribute("target-language"), file, loaded.Errors);
 					if (code != "") {
 						FileNames.Declare(loaded, code);
@@ -161,7 +167,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 
 		//the target language in canonical casing; a code the parser cannot read is
 		//kept as written, with a gripe
-		private static string Code(string? raw, string file, List<string> gripes) {
+		private static string Code(string? raw, string file, List<string> gripes, string attribute = "target-language") {
 			if (string.IsNullOrEmpty(raw)) {
 				return "";
 			}
@@ -169,7 +175,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 				return WordsParser.NormalizeLanguageCasing(raw);
 			}
 			catch (ArgumentException) {
-				gripes.Add($"{file}: target-language '{raw}' is no lang or lang-REGION code, kept as written");
+				gripes.Add($"{file}: {attribute} '{raw}' is no lang or lang-REGION code, kept as written");
 				return raw;
 			}
 		}
@@ -190,7 +196,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 			}
 			string code = unit.Languages[0];
 			string file = Path.GetFileName(unit.Path);
-			string sourceLanguage = options?.GetValueOrDefault(SourceLanguageOption) is { Length: > 0 } asked ? asked : "en";
+			string sourceLanguage = options?.GetValueOrDefault(SourceLanguageOption) is { Length: > 0 } asked ? asked : source.File.DefaultLanguage ?? "en";
 			WordsFeatures used = source.Used();
 			if ((used & WordsFeatures.FreeComments) != 0) {
 				gripes.Add($"{file}: dropped the preamble and the comments between blocks: XLIFF has no slot for them");

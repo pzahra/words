@@ -154,6 +154,21 @@ public class UndoTests {
 			Assert.True(manager.OkCommand.CanExecute(null));
 			manager.OkCommand.Execute(null);
 		});
+		Twin("declare the default's language", () => {
+			var manager = Manager();
+			manager.Rows.Single(row => row.Code == "en-GB").IsDefault = true;
+			manager.OkCommand.Execute(null);
+		});
+		Twin("recode the default's language", () => {
+			var manager = Manager();
+			manager.Rows.Single(row => row.Code == "en-GB").Code = "en-NZ";
+			manager.OkCommand.Execute(null);
+		});
+		Twin("move the default's language", () => {
+			var manager = Manager();
+			manager.Rows.Single(row => row.Code == "en-US").IsDefault = true;
+			manager.OkCommand.Execute(null);
+		});
 		Assert.Empty(dialogs.Notices);
 
 		//the whole run backwards is the file as loaded, and forwards again the last of it

@@ -1,3 +1,4 @@
+using PatTech.Localization;
 using PatTech.Localization.Authoring;
 using WordsEdit.Utils;
 using WordsEdit.ViewModels;
@@ -157,6 +158,42 @@ value-de=y
 		Assert.Equal("y", vm.Session.Keys["Example.k"].Entries["de-DE"].Value);
 		Assert.True(vm.IsDirty);
 		Assert.Empty(dialogs.Shown);
+	}
+
+	//one row may be the default's language: a tick moves it, the names written in it
+	//head their field by it, OK declares it in every file, and the trash takes it along
+	[Fact]
+	public void LanguageManager_TheDefaultsLanguageIsOneRowsTick() {
+		var (vm, dialogs) = Load();
+		var manager = new LanguageManagerViewModel(vm);
+		LanguageRow english = manager.Rows.Single(row => row.Code == "en");
+		LanguageRow german = manager.Rows.Single(row => row.Code == "de");
+		Assert.Null(manager.DefaultRow); //the file does not say
+		Assert.Equal(Words.Known["language.english-name"], manager.ExonymHeader);
+
+		english.IsDefault = true;
+		Assert.Same(english, manager.DefaultRow);
+		Assert.Equal(Words.Known.Format("language.name-in", "English"), manager.ExonymHeader);
+		german.IsDefault = true;
+		Assert.False(english.IsDefault);
+		german.NativeName = "Deutsch (DE)";
+		Assert.Equal(Words.Known.Format("language.name-in", "Deutsch (DE)"), manager.ExonymHeader);
+		german.IsDefault = false;
+		Assert.Null(manager.DefaultRow);
+		Assert.Null(vm.Session.Files[0].DefaultLanguage); //not until OK
+
+		english.IsDefault = true;
+		manager.OkCommand.Execute(null);
+		Assert.Equal("en", vm.Session.Files[0].DefaultLanguage);
+		Assert.True(vm.IsDirty);
+
+		manager = new LanguageManagerViewModel(vm);
+		Assert.Equal("en", manager.DefaultRow!.Code); //read back from the files
+		dialogs.ConfirmAnswer = true;
+		manager.DefaultRow.RemoveCommand.Execute(null);
+		Assert.Null(manager.DefaultRow);
+		manager.OkCommand.Execute(null);
+		Assert.Null(vm.Session.Files[0].DefaultLanguage);
 	}
 
 	[Fact]

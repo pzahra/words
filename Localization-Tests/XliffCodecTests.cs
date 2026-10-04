@@ -142,6 +142,7 @@ context-fr=untranslated, with a note
 
 			Assert.Equal(Path.Combine(folder, "Strings.ini"), file.Path);
 			Assert.Equal(["de", "fr"], file.Languages); //the set's order: by code
+			Assert.Equal("en", file.DefaultLanguage); //the source text is the default
 			Assert.Equal("français", session.Languages.Find("fr")!.NativeName);
 			Assert.Equal(["Strings.greeting", "Strings.$unit", "Strings.menu.file", "Strings.frozen"], session.Keys.Keys);
 
@@ -231,10 +232,14 @@ context-fr=untranslated, with a note
 		Assert.Contains(gripes, gripe => gripe.StartsWith("Strings.fr.xlf: dropped the preamble and the comments between blocks"));
 		Assert.Contains(gripes, gripe => gripe.StartsWith("Strings.fr.xlf: dropped the settings references"));
 
-		//the source language defaults to en; a unit must carry exactly one language
+		//the source language defaults to the file's default language, else en; a unit must carry exactly one language
 		var english = new StringWriter();
 		codec.Write(source, units[0], english, gripes);
 		Assert.Equal("en", (string)XDocument.Parse(english.ToString()).Root!.Element(X + "file")!.Attribute("source-language")!);
+		file.DefaultLanguage = "en-AU";
+		var australian = new StringWriter();
+		codec.Write(source, units[0], australian, gripes);
+		Assert.Equal("en-AU", (string)XDocument.Parse(australian.ToString()).Root!.Element(X + "file")!.Attribute("source-language")!);
 		Assert.Throws<ArgumentException>(() => codec.Write(source, new ExportUnit("x.xlf", []), new StringWriter(), gripes));
 	}
 
@@ -244,6 +249,7 @@ context-fr=untranslated, with a note
 		try {
 			var session = new WordsSession();
 			WordsFile original = session.Load(new StringReader(Full), Path.Combine(folder, "Main.ini"));
+			original.DefaultLanguage = "en-AU";
 			var codec = new XliffCodec();
 			var source = new ExportSource(session, original, KeyTree.Build(session, original));
 			string outFolder = Path.Combine(folder, "out");
@@ -259,6 +265,7 @@ context-fr=untranslated, with a note
 			Assert.Empty(again.Errors);
 			Assert.Equal(Path.Combine(outFolder, "Main.ini"), again.Path);
 			Assert.Equal(["en", "fr"], again.Languages);
+			Assert.Equal("en-AU", again.DefaultLanguage); //source-language, there and back
 			foreach (WordsKey before in session.KeysOf(original)) {
 				WordsKey after = session.Keys[again.Label + before.BlockKey[original.Label.Length..]];
 				Assert.Equal(before.DefaultValue, after.DefaultValue);

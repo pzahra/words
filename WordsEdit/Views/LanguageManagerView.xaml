@@ -13,6 +13,9 @@
              Padding="10">
     <!-- the Languages window (SPEC: Languages): the working copy's rows at the left, the
          highlighted row's fields at the right, OK and Cancel below -->
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="IsTrue"/>
+    </UserControl.Resources>
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto"/>
@@ -65,7 +68,8 @@
                 </ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <!-- the code, live as the pane types it and red while the row holds OK back; and the trash -->
+                        <!-- the code, live as the pane types it and red while the row holds OK back; a
+                             mark on the default's language; and the trash -->
                         <DockPanel>
                             <Button DockPanel.Dock="Right"
                                     Command="{Binding RemoveCommand}"
@@ -73,6 +77,11 @@
                                     Style="{StaticResource ToolButton}">
                                 <md:PackIcon Kind="Delete"/>
                             </Button>
+                            <md:PackIcon DockPanel.Dock="Right"
+                                         Kind="Star"
+                                         VerticalAlignment="Center"
+                                         ToolTip="{l:Words language.default}"
+                                         Visibility="{Binding IsDefault, Converter={StaticResource IsTrue}}"/>
                             <TextBlock Text="{Binding Code}"
                                        VerticalAlignment="Center"
                                        Margin="4 0 12 0">
@@ -99,32 +108,36 @@
             </Button>
         </StackPanel>
 
-        <!-- the pane: the highlighted row's fields, each flagged once it has been typed in -->
+        <!-- the pane: the highlighted row's fields, each flagged once it has been typed in; the
+             other names are in the default's language, so their header names it -->
         <StackPanel Grid.Column="1"
                     Grid.Row="0"
-                    Margin="16 0 0 0"
-                    DataContext="{Binding Selected}">
+                    Margin="16 0 0 0">
             <HeaderedContentControl Header="{l:Words language.code}"
                                     Margin="2.5px"
                                     FontWeight="SemiBold">
-                <TextBox Text="{Binding Code, UpdateSourceTrigger=PropertyChanged}"
+                <TextBox Text="{Binding Selected.Code, UpdateSourceTrigger=PropertyChanged}"
                          FontWeight="Normal"
                          Width="180"/>
             </HeaderedContentControl>
             <HeaderedContentControl Header="{l:Words language.native-name}"
                                     FontWeight="SemiBold"
                                     Margin="2.5px">
-                <TextBox Text="{Binding NativeName, UpdateSourceTrigger=PropertyChanged}"
+                <TextBox Text="{Binding Selected.NativeName, UpdateSourceTrigger=PropertyChanged}"
                          FontWeight="Normal"
                          Width="180"/>
             </HeaderedContentControl>
-            <HeaderedContentControl Header="{l:Words language.english-name}"
+            <HeaderedContentControl Header="{Binding ExonymHeader}"
                                     FontWeight="SemiBold"
                                     Margin="2.5px">
-                <TextBox Text="{Binding EnglishName, UpdateSourceTrigger=PropertyChanged}"
+                <TextBox Text="{Binding Selected.EnglishName, UpdateSourceTrigger=PropertyChanged}"
                          FontWeight="Normal"
                          Width="180"/>
             </HeaderedContentControl>
+            <CheckBox IsChecked="{Binding Selected.IsDefault}"
+                      Content="{l:Words language.default}"
+                      ToolTip="{l:Words language.default-tip}"
+                      Margin="2.5px 8px 2.5px 2.5px"/>
         </StackPanel>
 
         <StackPanel Grid.Row="1"

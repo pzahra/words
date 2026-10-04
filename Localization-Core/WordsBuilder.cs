@@ -118,9 +118,19 @@ namespace PatTech.Localization {
 		}
 
 		/// <summary>
+		/// The language the default is written in, as a top-of-file <c>value=!xx</c>
+		/// declares it (the <c>!</c> keeps it off <see cref="GetLanguages"/>), or
+		/// <see langword="null"/> when no file declares one; the last file loaded wins.
+		/// </summary>
+		public string? DefaultLanguage
+			=> _builder.Languages.GetValueOrDefault("")?.GetValueOrDefault("", "") is { Length: > 1 } label && label[0] == '!' ? label[1..] : null;
+
+		/// <summary>
 		/// Brands values that fell back to another language, so missing translations
 		/// stand out: 🕮 for a family fallback, 📚 for a default fallback. Constants
-		/// (<c>$</c> keys) are language-less and never branded. A debugging aid, off by
+		/// (<c>$</c> keys) are language-less and never branded, and neither is the default
+		/// where it speaks the language (<see cref="DefaultLanguage"/>,
+		/// <see cref="WordsParser.DefaultSpeaks"/>). A debugging aid, off by
 		/// default; it applies to every dictionary this builder then produces, so chain
 		/// it before <see cref="Digest(string)"/> or leave it out.
 		/// </summary>
@@ -185,6 +195,8 @@ namespace PatTech.Localization {
 			DictionaryWordsProvider? primary;
 			DictionaryWordsProvider? secondary = null;
 			var fallback = _builder.Languages.GetValueOrDefault("");
+			//where the default speaks the language, falling back to it misses nothing
+			bool brandDefault = _showFallback && !WordsParser.DefaultSpeaks(DefaultLanguage, languageCode);
 			if (separator > 0) {
 				primary = _builder.Languages.GetValueOrDefault(languageCode);
 				secondary = _builder.Languages.GetValueOrDefault(languageCode[..separator]);
@@ -201,13 +213,13 @@ namespace PatTech.Localization {
 					patch(words, secondary, "🕮", _showFallback);
 				}
 				if (fallback != null) {
-					patch(words, fallback, "📚", _showFallback);
+					patch(words, fallback, "📚", brandDefault);
 				}
 			}
 			else if (secondary != null) {
 				words = new(secondary);
 				if (fallback != null) {
-					patch(words, fallback, "📚", _showFallback);
+					patch(words, fallback, "📚", brandDefault);
 				}
 			}
 			else if (fallback != null) {

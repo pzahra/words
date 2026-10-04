@@ -42,7 +42,16 @@ A session holds one or more files. Each file contributes:
 - A **language table** from top-of-file `value-xx=Label` lines. A `!Label`
   declares a language without listing it — subordinate dictionaries legally
   support more languages than the host app offers. The editor must show these
-  as intentional, never as errors, and never strip the `!`.
+  as intentional, never as errors, and never strip the `!`. The labels are
+  each language's own name (`value-xx`, the endonym) and its name in the
+  default's language (`comment-xx`, the exonym).
+- The **default's language**, from a keyless `value=!xx` leading that table
+  (the runtime spec's *The default's language*): what the default is written
+  in. Where the default speaks the selected language, its own code or, for a
+  bare code, a regional variant of it, an empty entry falls back to the
+  default and misses nothing (Badges). A file without the line says nothing.
+  `value=xx` without the `!` loads as the same declaration with a gripe, and
+  saves with the `!`.
 - A **key tree**: dotted block keys (`view.section.key`), prefixed in memory
   with the file's label — its name, disambiguated when two loaded files
   share one (`strings`, `strings-2`), since files are identified by path. `$keys` are constants (no translations). A key carries:
@@ -116,7 +125,10 @@ One tree presents every loaded file:
   promise, so its gaps show; but in a project of several dictionaries, a file
   that does not register the selected language at all has no gap to show, and
   its keys stay plain. A code found only on stray fields is a gripe, not a
-  registration — declare it and the gaps appear.
+  registration — declare it and the gaps appear. Nor has a file a gap in a
+  language its default speaks (The document): an empty entry there falls back
+  to the default and misses nothing, so an `en` default leaves `en` and
+  `en-AU` plain, while `en-US` under an `en-AU` default still shows its gaps.
 - **Filters**: substring search, stale-only, needs-review-only, missing-only —
   composable; ancestors of a match stay visible so the path is readable. The
   search reads what a translator searches for: a key's name, its default and
@@ -152,7 +164,8 @@ flags — constant (only a leaf directly under a file), and needs-review
 
 - **Preview**: the default value can be rendered through the Words markdown
   dialect in place of the raw text (image handling is the editor's own — see
-  Markdown previews).
+  Markdown previews). Its parameter samples format in the default's language
+  when the file declares one, as the translation's do in the selected one.
 - **Parameter testing**: keys with `param-` declarations can run their sample
   values through `Format` to prove the placeholders work before shipping.
   `{>reference}` and `{$constant}` tokens work across files for this purpose,
@@ -176,14 +189,18 @@ with a toggle that sets and clears it), and the markdown preview.
 - Language codes found on fields but not registered at the top of the file are
   auto-added to the list with a `!` label and a gripe — wrong, probably, but
   still selectable so the stray entries can be inspected and fixed.
+- Where the default speaks the selected language, the empty value box shows
+  the default greyed as its hint: what the entry reads as until it is given
+  words of its own.
 - Changing the dropdown re-contextualizes the whole window: tree badges and
   empty-value emphasis refresh to the new language (file by file — see
   Badges), and the stale filter re-evaluates against it.
 - **Spelling**, in both panes: a box checks its text once it has the focus
   and stops when a new node's text arrives, so moving through the tree never
   waits on the speller (seconds per kilobyte of markdown). The translation
-  boxes check in the selected language's dictionary, the baseline's in the
-  system's. A light beside the language comes on when this system has no
+  boxes check in the selected language's dictionary; the default, the
+  context and the freeform comments in the default's language when the file
+  declares one, else the system's. A light beside the language comes on when this system has no
   spell checker for it, since the speller would otherwise check against
   nothing and say so to nobody.
 
@@ -283,6 +300,12 @@ Escape forgets it all. On OK the copy is applied: a removal (confirmed at the
 trash) deletes the language's entries from every key; an addition backfills
 an empty entry on every key; a relabelling may re-code a language, which
 shifts its entries; the order follows the rows; every file's table follows.
+One row may be the default's language: a tick in the pane sets it and moves
+it from the row that had it, a mark beside the code shows it in the list, and
+the field for the names written in the default's language is headed by it
+("Name in English"), or "English Language Name" while no row is ticked. On OK
+every file declares it (a file that declared none gains it only when the
+choice changed), a recode carries it along and a removal takes it.
 The table's `Rename` can also absorb a language into one that already holds
 the code (where both hold a value the target's is kept, the source value is
 parked in the entry's `context-xx` field where the translator can copy/paste
@@ -452,9 +475,11 @@ four note channels `<note>`s told apart by `from` (developer, translator) and
 format throws away — an untranslated entry is `needs-translation`, a stale one
 `needs-review-translation` with its stale text in a Words-namespace attribute,
 the review flag `approved="no"`; a constant keeps its `$` and is
-`translate="no"`; parameters ride as Words extension elements. The default
-text being languageless while XLIFF insists on a `source-language`, the
-`source-language` option names it, `en` unless told otherwise.
+`translate="no"`; parameters ride as Words extension elements. XLIFF insists
+on a `source-language`. The file's default language is it, `en` for a file
+that declares none, and the `source-language` option overrides both. On the
+way in, the attribute declares the default's language. The default's
+language is a feature like any other: resx has no slot for it and says so.
 
 **Surface.** Import sits beside Open, Export beside Save. Import opens a picker
 filtered by every importer's name and extensions; each pick's extension names
@@ -639,12 +664,14 @@ whatever was waiting to be redone.
   addition by removing the language, a relabel by restoring the entry it
   replaced, a reorder by moving it back, a removal by putting the entries it
   dropped back on each key and the language back in its place, a recode
-  onto a free code by recoding back, exact since the entries moved whole —
-  and then every file's table is put back whole. A recode onto a code
-  already in the table merges two languages' entries and has no tidy
-  inverse; the manager never asks for one (no two rows share a code), but a
-  commit that makes one clears the stack instead — the last resort for any
-  document-wide action that cannot keep a reversible state.
+  onto a free code by recoding back, exact since the entries moved whole, a
+  change of the default's language by giving each file the one it had —
+  and then every file's table, and its default's language, is put back
+  whole. A recode onto a code already in the table merges two languages'
+  entries and has no tidy inverse; the manager never asks for one (no two
+  rows share a code), but a commit that makes one clears the stack instead
+  — the last resort for any document-wide action that cannot keep a
+  reversible state.
 
 **Recording.** Fields report themselves; every other entry is made by its
 command through one door (`Perform`, on the main view model): the command
@@ -707,8 +734,9 @@ toggle and Stale All; a constant clearing a translation; removing the
 preamble, a key, and a node with keys and comments beneath it; a parameters
 session; a drag under another parent, among siblings, and of a comment; a
 settings Okay; and each Language Manager operation — adding, removing,
-relabelling, recoding, reordering, swapping two codes. Each is one entry;
-undoing it gives back the document before it — every file's saved text and
+relabelling, recoding, reordering, swapping two codes, and declaring, recoding
+and moving the default's language. Each is one entry; undoing it gives back
+the document before it — every file's saved text and
 every row of the tree — with a clean title, and redoing it the document
 after; the whole run undone is the file as loaded, and redone the last of
 it. A typing run is one entry until another field, another node or an undo
@@ -735,7 +763,7 @@ Not built yet. Each section here is the shape the feature takes when it is.
 ## Import and export, next
 
 **Options.** `FormatOptions` has a seam and no door yet: xliff's
-`source-language` is `en` until a dialog asks. The spreadsheet importer is what
+`source-language` is the file's default language until a dialog asks. The spreadsheet importer is what
 earns that door, and it is the format that will prove the seam.
 
 **Spreadsheets.** A CSV has no real consistency, so the one assumption made is

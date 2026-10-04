@@ -919,6 +919,50 @@ value=x
 		Assert.False(Node(vm, "Example.$rsi-unit").IsVisible); //constants want no translation
 	}
 
+	//where the default speaks the selected language its empty entries miss nothing:
+	//no emphasis, no place in the missing view, and the translation box hints the default
+	[Fact]
+	public void TheDefaultsLanguageMissesNothing() {
+		var vm = NewVm();
+		vm.LoadFile(new StringReader("value=!en\nvalue-en=English\nvalue-en-AU=Australian\nvalue-fr=Français\n\n[k]\nvalue=colour\n"), "Main");
+		KeyNode k = Node(vm, "Main.k");
+		vm.Tree.Select(k);
+		void Speak(string code) => vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.Single(language => language.Code == code);
+
+		Assert.Equal("en", vm.Tree.DefaultLanguage);
+		foreach (string code in (string[])["en", "en-AU"]) {
+			Speak(code);
+			Assert.False(k.EmptyValue, code);
+			Assert.Equal("colour", vm.Tree.DefaultHint);
+		}
+		Speak("fr");
+		Assert.True(k.EmptyValue);
+		Assert.Null(vm.Tree.DefaultHint);
+		vm.Tree.MissingFilter = true;
+		Assert.True(k.IsVisible);
+		Speak("en");
+		Assert.False(k.IsVisible);
+		vm.Tree.MissingFilter = false;
+		vm.Tree.Select(k); //the view let go of the row it hid
+
+		//the hint follows the default as it is typed
+		List<string?> raised = [];
+		vm.Tree.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+		vm.Tree.SelectedKey!.DefaultValue = "color";
+		Assert.Contains(nameof(TreeViewModel.DefaultHint), raised);
+		Assert.Equal("color", vm.Tree.DefaultHint);
+
+		//an en-AU default speaks for en-AU alone: en-US still wants its words
+		vm.LoadFile(new StringReader("value=!en-AU\nvalue-en-AU=Australian\nvalue-en-US=American\n\n[k]\nvalue=colour\n"), "Aussie");
+		KeyNode aussie = Node(vm, "Aussie.k");
+		vm.Tree.Select(aussie);
+		Speak("en-AU");
+		Assert.False(aussie.EmptyValue);
+		Speak("en-US");
+		Assert.True(aussie.EmptyValue);
+		Assert.Null(vm.Tree.DefaultHint);
+	}
+
 	[Fact]
 	public void MainWindowViewModel_TitleNamesTheFilesAndStarsWhenDirty() {
 		var vm = NewVm();

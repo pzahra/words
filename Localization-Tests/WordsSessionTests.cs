@@ -300,6 +300,52 @@ value-fr=Ouvrir
 		Assert.Equal("family", session.Keys["Main.k"].Entries["eo"].Value);
 	}
 
+	//value=!xx says which language the default is written in: no language of the
+	//table's, written first, carried by a split and moved by the table's recodes
+	private const string Declared = @"value=!en
+value-en=English
+comment-en=English
+value-fr=Français
+comment-fr=French
+
+[greeting]
+value=Hello
+value-fr=Bonjour
+
+";
+
+	[Fact]
+	public void DefaultLanguage_RoundTripsAndFollowsTheTable() {
+		var session = Load(Declared);
+		WordsFile file = session.Files[0];
+
+		Assert.Equal("en", file.DefaultLanguage);
+		Assert.Equal(["en", "fr"], file.Languages);
+		Assert.Empty(file.Errors);
+		Assert.Equal(Declared, Save(session, file));
+		Assert.Equal("en", session.Languages.DefaultLanguage);
+
+		session.Languages.Rename("en", new LanguageEntry("en-AU", "Australian"));
+		Assert.Equal("en-AU", file.DefaultLanguage);
+		session.Languages.Remove("en-AU");
+		Assert.Null(file.DefaultLanguage);
+		Assert.DoesNotContain("value=", Save(session, file).Split('\n')[0]);
+
+		session.Languages.DefaultLanguage = "fr";
+		Assert.StartsWith("value=!fr" + file.NewLine, Save(session, file)); //the fixture's line break, whichever the checkout gave it
+	}
+
+	[Fact]
+	public void DefaultLanguage_WithoutItsMarkIsTakenWithAGripe_AndWrittenWithIt() {
+		var session = Load("value=en\nvalue-fr=Français\n\n[k]\nvalue=x\n");
+		WordsFile file = session.Files[0];
+
+		Assert.Equal("en", file.DefaultLanguage);
+		Assert.Equal(["fr"], file.Languages); //never a language with no code
+		Assert.Contains(file.Errors, error => error.Contains("value=!en"));
+		Assert.StartsWith("value=!en\n", Save(session, file));
+	}
+
 	[Fact]
 	public void Merge_WritesTheBaseFilesTablePreambleAndSchemesThenLoads() {
 		string folder = Path.Combine(Path.GetTempPath(), $"WordsSessionMerge-{Guid.NewGuid():N}");
@@ -395,10 +441,12 @@ value-fr=Ouvrir
 			var session = new WordsSession();
 			WordsFile source = session.Load(new StringReader(Main.ReplaceLineEndings("\n")), Path.Combine(folder, "Main.ini"));
 			string outPath = Path.Combine(folder, "Main.fr.ini");
+			source.DefaultLanguage = "en";
 
 			WordsFile split = session.Split(source, "fr", KeyTree.Build(session, source), outPath);
 
 			Assert.Equal("Main-fr", split.Label);
+			Assert.Equal("en", split.DefaultLanguage); //the defaults kept for reference are still English
 			Assert.Equal(["fr"], split.Languages);
 			string text = File.ReadAllText(outPath);
 			Assert.StartsWith("; about Main", text);
@@ -413,6 +461,7 @@ value-fr=Ouvrir
 			WordsFile? merged = session.Merge(source, new Dictionary<string, WordsFile> { ["fr"] = split }, KeyTree.Build(session, source), Path.Combine(folder, "Back.ini"), out _);
 			Assert.NotNull(merged);
 			Assert.Equal("Ouvrir", session.Keys["Back.menu.file.open"].Entries["fr"].Value);
+			Assert.Equal("en", merged.DefaultLanguage);
 			Assert.DoesNotContain('\r', File.ReadAllText(Path.Combine(folder, "Back.ini")));
 		}
 		finally {

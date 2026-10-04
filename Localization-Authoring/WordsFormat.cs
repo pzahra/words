@@ -43,8 +43,11 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>The settings-file references, <c>param=</c> and <c>param-xx=</c>.</summary>
 		[Words("feature.settings")]
 		Settings = 1 << 9,
+		/// <summary>The language the default is written in, <c>value=!xx</c>.</summary>
+		[Words("feature.default-language")]
+		DefaultLanguage = 1 << 10,
 		/// <summary>Everything: what the native format keeps.</summary>
-		All = Context | Comment | EntryContext | EntryComment | Parameters | Stale | NeedsReview | Constants | FreeComments | Settings,
+		All = Context | Comment | EntryContext | EntryComment | Parameters | Stale | NeedsReview | Constants | FreeComments | Settings | DefaultLanguage,
 	}
 
 	/// <summary>A format's descriptor: how the registry and the editor's dropdowns know it.</summary>
@@ -190,6 +193,9 @@ namespace PatTech.Localization.Authoring {
 			}
 			if (File.Preamble != "" || HasComment(Tree)) {
 				used |= WordsFeatures.FreeComments;
+			}
+			if (File.DefaultLanguage is not null) {
+				used |= WordsFeatures.DefaultLanguage;
 			}
 			foreach (WordsKey key in Keys()) {
 				if (key.Context != "") {

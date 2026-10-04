@@ -138,6 +138,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 				WordsFeatures used = source.Used();
 				Drop("the preamble and the comments between blocks", (used & WordsFeatures.FreeComments) != 0 ? 1 : 0);
 				Drop("the settings references", (used & WordsFeatures.Settings) != 0 ? 1 : 0);
+				Drop("the default's language", (used & WordsFeatures.DefaultLanguage) != 0 ? 1 : 0);
 			}
 			foreach (WordsKey key in source.Keys()) {
 				string name = key.BlockKey[(key.BlockKey.IndexOf('.') + 1)..];

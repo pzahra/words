@@ -240,6 +240,7 @@
                             BorderBrush="{DynamicResource PrimaryHueLightBrush}">
                         <TextBox x:Name="KeyContextBox"
                                  Text="{Binding Tree.SelectedKey.Context, UpdateSourceTrigger=PropertyChanged}"
+                                 uc:Spelling.Language="{Binding Tree.DefaultLanguage}"
                                  IsUndoEnabled="False"
                                  TextWrapping="Wrap"
                                  AcceptsReturn="True"
@@ -279,6 +280,7 @@
                             BorderBrush="{DynamicResource MaterialDesignDivider}">
                         <TextBox x:Name="CommentTextBox"
                                  Text="{Binding Tree.SelectedOrganizer.Text, UpdateSourceTrigger=PropertyChanged}"
+                                 uc:Spelling.Language="{Binding Tree.DefaultLanguage}"
                                  IsUndoEnabled="False"
                                  TextWrapping="Wrap"
                                  AcceptsReturn="True"
@@ -345,6 +347,7 @@
                     <Grid>
                         <TextBox x:Name="DefaultValueBox"
                                  Text="{Binding Tree.SelectedKey.DefaultValue, UpdateSourceTrigger=PropertyChanged}"
+                                 uc:Spelling.Language="{Binding Tree.DefaultLanguage}"
                                  IsUndoEnabled="False"
                                  VerticalScrollBarVisibility="Auto"
                                  AcceptsReturn="True"
@@ -490,6 +493,7 @@
                     <Grid>
                         <TextBox x:Name="EntryValueBox"
                                  Text="{Binding Tree.SelectedEntry.Value, UpdateSourceTrigger=PropertyChanged}"
+                                 md:HintAssist.Hint="{Binding Tree.DefaultHint}"
                                  IsUndoEnabled="False"
                                  TextWrapping="Wrap"
                                  VerticalScrollBarVisibility="Auto"

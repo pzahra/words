@@ -12,6 +12,8 @@ Place a `words.ini` in the project assets or resources. It can be loaded from a
 local file, or as an embedded resource.
 
 ``` INI
+; the language the default values are written in; the ! keeps it off the menu
+value=!en
 value-en=!English (Common)
 comment-en=exclamation mark means it isn't displayed
 value-en-GB=English (Traditional)
@@ -113,6 +115,13 @@ the menu in one call — the samples' language dropdown is the pattern, switchin
 live as below. (`ToWords` is the same build without the install, for a
 dictionary that is not the process-wide one; `.Debug()` before either brands
 values that fell back to another language, to spot missing translations.)
+
+The keyless `value=!en` up top says which language your defaults are written
+in. English falling back to English defaults isn't a missing translation, so
+`.Debug()` leaves those alone, and so does Wordsmith's missing view. Regional
+variants come along too: an `en` default covers `en-AU`. An `en-AU` default
+covers only itself, so `en-US` still gets told what it's missing. Each
+`comment-xx=` label is that language's name in the default's language.
 
 Relaunch is the default. `Words.Known` is process-wide and, out of the box,
 nothing that already read it — `LazyWords`, strings a view model composed and

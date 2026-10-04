@@ -148,6 +148,7 @@ public class ResxCodecTests {
 	public void Write_PlansOneFilePerCulture_KeepsContextsAndConstants_DropsTheRestWithAGripe() {
 		var session = new WordsSession();
 		WordsFile file = session.Load(new StringReader(@"; about Main
+value=!en
 value-en=English
 value-fr=Français
 param=wordsmith.ini
@@ -203,7 +204,8 @@ value=Open
 		Assert.Contains(gripes, gripe => gripe.StartsWith("Strings.resx: dropped stale= (1)"));
 		Assert.Contains(gripes, gripe => gripe.StartsWith("Strings.resx: dropped the preamble and the comments between blocks (1)"));
 		Assert.Contains(gripes, gripe => gripe.StartsWith("Strings.resx: dropped the settings references (1)"));
-		Assert.Equal(5, gripes.Count);
+		Assert.Contains(gripes, gripe => gripe.StartsWith("Strings.resx: dropped the default's language (1)"));
+		Assert.Equal(6, gripes.Count);
 
 		var french = new StringWriter();
 		gripes.Clear();

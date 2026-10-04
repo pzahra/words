@@ -9,8 +9,9 @@ namespace WordsEdit.ViewModels;
 /// <summary>
 ///     One language of the manager's working copy (SPEC: Languages): the code
 ///     and the two names, edited live in the pane and checked against the other
-///     rows, with the trash that drops the row. <see cref="Origin"/> is the
-///     session's entry the row came from; null for one added this sitting.
+///     rows, whether the default is written in it, and the trash that drops the
+///     row. <see cref="Origin"/> is the session's entry the row came from; null
+///     for one added this sitting.
 ///     <see cref="DataViewModelBase.HasErrors"/> is the whole truth, for OK; the
 ///     red text only covers fields that have been typed in, so a fresh row is
 ///     not scolded for being blank.
@@ -24,6 +25,11 @@ public sealed class LanguageRow : DataViewModelBase {
 	public string Code { get; set => Edit(ref field, value); } = "";
 	public string NativeName { get; set => Edit(ref field, value); } = "";
 	public string EnglishName { get; set => Edit(ref field, value); } = "";
+	/// <summary>Whether the default is written in this row's language; ticking it unticks the row that was.</summary>
+	public bool IsDefault {
+		get => owner.DefaultRow == this;
+		set => owner.DefaultRow = value ? this : IsDefault ? null : owner.DefaultRow;
+	}
 	/// <summary>Whether applying the row would change the session: new, or no longer as its origin reads.</summary>
 	public bool IsChanged => Origin is null || Code != Origin.Code || NativeName != Origin.NativeName || EnglishName != Origin.EnglishName;
 	public ICommand RemoveCommand { get; }
@@ -48,6 +54,9 @@ public sealed class LanguageRow : DataViewModelBase {
 			Validate(property);
 		}
 	}
+
+	/// <summary>The owner's default row moved to or from this one.</summary>
+	internal void DefaultMoved() => AffectProperty(nameof(IsDefault));
 
 	/// <summary>The row as a session entry.</summary>
 	public LanguageEntry ToEntry() => new(Code, NativeName) { EnglishName = EnglishName };

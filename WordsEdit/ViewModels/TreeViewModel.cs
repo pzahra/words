@@ -104,6 +104,23 @@ public class TreeViewModel : ViewModelBase {
 	/// <summary>The file the selected node belongs to, if any.</summary>
 	public WordsFile? SelectedFile => SelectedKeyNode is null ? null : session.FileOf(SelectedKeyNode.Root.FullLabel);
 
+	/// <summary>The language the selected node's file writes its default in, if it says: the default and the developer's notes spell-check in it.</summary>
+	public string? DefaultLanguage => SelectedFile?.DefaultLanguage;
+
+	/// <summary>
+	///     The default, as the translation box's hint where the default speaks the
+	///     selected language (<see cref="WordsParser.DefaultSpeaks"/>): an empty entry
+	///     there falls back to it, so it shows what the entry reads as.
+	/// </summary>
+	public string? DefaultHint
+		=> SelectedKey is { } key && WordsParser.DefaultSpeaks(DefaultLanguage, SelectedLanguage.Code) ? key.DefaultValue : null;
+
+	//the selection, its language or its file's default changed: what reads them follows
+	private void RaiseDefault() {
+		AffectProperty(nameof(DefaultLanguage));
+		AffectProperty(nameof(DefaultHint));
+	}
+
 	private void OnSelectedKeyNodeChanged() {
 		SelectedOrganizer = SelectedKeyNode as OrganizerNode;
 		FollowSelectedKey();
@@ -199,6 +216,7 @@ public class TreeViewModel : ViewModelBase {
 			SelectedKey = null;
 			SelectedEntry = null;
 		}
+		RaiseDefault();
 	}
 
 	//each handler reports a text field first, so the report precedes whatever the change sets off
@@ -214,6 +232,9 @@ public class TreeViewModel : ViewModelBase {
 		});
 		if (e.PropertyName is nameof(SelectedKey.DefaultValue) or nameof(SelectedKey.NeedsReview)) {
 			RefreshBadges(SelectedKeyNode);
+		}
+		if (e.PropertyName is nameof(SelectedKey.DefaultValue)) {
+			AffectProperty(nameof(DefaultHint));
 		}
 		Edited?.Invoke();
 	}
@@ -400,6 +421,7 @@ public class TreeViewModel : ViewModelBase {
 		}
 		//every path that changes the language table passes here
 		RefreshFileLanguages();
+		RaiseDefault();
 	}
 
 	public void RefreshBadges(KeyNode node) => RefreshBadges(node, session.FileOf(node.Root.FullLabel));
@@ -423,10 +445,11 @@ public class TreeViewModel : ViewModelBase {
 		node.IsOverwritten = key.HasRegionalOverride(code);
 		//a key wanting words in the default, or in the selected language where its
 		//file registers that language (listed or !-hidden), reads emphasized; a file
-		//that never declared the language has no gap to show (SPEC: Badges)
-		bool registers = file?.Languages.Contains(code) == true;
+		//that never declared the language has no gap to show, nor one whose default
+		//speaks it, since its empty entries fall back to the default (SPEC: Badges)
+		bool wanting = file is not null && file.Languages.Contains(code) && !WordsParser.DefaultSpeaks(file.DefaultLanguage, code);
 		node.EmptyValue = !key.IsConstant
-			&& (key.DefaultValue.Trim() == "" || (registers && (key.Entries.GetValueOrDefault(code)?.Value.Trim() ?? "") == ""));
+			&& (key.DefaultValue.Trim() == "" || (wanting && (key.Entries.GetValueOrDefault(code)?.Value.Trim() ?? "") == ""));
 	}
 
 	//only a leaf directly under a file may become a constant (SPEC: baseline pane)

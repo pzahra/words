@@ -148,6 +148,27 @@ namespace PatTech.Localization {
 		);
 
 		/// <summary>
+		/// Whether the default, written in <paramref name="defaultLanguage"/>, speaks for
+		/// <paramref name="languageCode"/>: that language itself, or one of its regional
+		/// variants when the default is a bare language. An <c>en</c> default speaks for
+		/// <c>en-AU</c>; an <c>en-AU</c> default speaks for neither <c>en-US</c> nor <c>en</c>.
+		/// Where the default speaks, falling back to it is no missing word.
+		/// </summary>
+		/// <param name="defaultLanguage">The language a top-of-file <c>value=!xx</c> declares, or <see langword="null"/> when none is declared.</param>
+		/// <param name="languageCode">The language asked about.</param>
+		public static bool DefaultSpeaks(string? defaultLanguage, string languageCode) {
+			if (string.IsNullOrEmpty(defaultLanguage) || string.IsNullOrEmpty(languageCode)) {
+				return false;
+			}
+			if (string.Equals(languageCode, defaultLanguage, StringComparison.OrdinalIgnoreCase)) {
+				return true;
+			}
+			int separator = languageCode.IndexOf('-');
+			return !defaultLanguage.Contains('-') && separator > 0
+				&& string.Equals(languageCode[..separator], defaultLanguage, StringComparison.OrdinalIgnoreCase);
+		}
+
+		/// <summary>
 		/// Normalizes a language identifier to canonical casing: language lowercase,
 		/// region uppercase, e.g. <c>"EN-gb"</c> becomes <c>"en-GB"</c>. The empty
 		/// string (the language-less default) passes through unchanged.

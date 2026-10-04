@@ -33,6 +33,20 @@ namespace PatTech.Localization.Authoring {
 		public LanguageEntry? Find(string code) => Known.FirstOrDefault(language => language.Code == code);
 
 		/// <summary>
+		///     The language the session's defaults are written in: the first file's that
+		///     declares one (<see cref="WordsFile.DefaultLanguage"/>), or <see langword="null"/>.
+		///     Setting it declares it in every file, as a manager edits the session.
+		/// </summary>
+		public string? DefaultLanguage {
+			get => session.Files.Select(file => file.DefaultLanguage).FirstOrDefault(code => code is not null);
+			set {
+				foreach (WordsFile file in session.Files) {
+					file.DefaultLanguage = value;
+				}
+			}
+		}
+
+		/// <summary>
 		///     The file's own table: its declared codes, in its order, carrying the
 		///     session's current labels. A file declaring nothing writes no table.
 		/// </summary>
@@ -95,7 +109,8 @@ namespace PatTech.Localization.Authoring {
 
 		/// <summary>
 		///     Removes a language and its entries from every key and every file's
-		///     table. The last language stays: a session always has one.
+		///     table, and as any file's default language. The last language stays: a
+		///     session always has one.
 		/// </summary>
 		public bool Remove(string code) {
 			LanguageEntry? known = Find(code);
@@ -105,6 +120,9 @@ namespace PatTech.Localization.Authoring {
 			Known.Remove(known);
 			foreach (WordsFile file in session.Files) {
 				file.Languages.Remove(code);
+				if (file.DefaultLanguage == code) {
+					file.DefaultLanguage = null;
+				}
 			}
 			foreach (WordsKey key in session.Keys.Values) {
 				key.Entries.Remove(code);
@@ -116,15 +134,18 @@ namespace PatTech.Localization.Authoring {
 		///     Replaces the language at <paramref name="code"/> with
 		///     <paramref name="replacement"/>. A changed code re-codes the entries
 		///     (<see cref="WordsOperations.Shift"/>: the target's values win, displaced
-		///     ones park in context, stale-marked) and every file's table follows.
-		///     Re-coding onto a language that already exists absorbs into it. Returns
-		///     the entry now standing for the language.
+		///     ones park in context, stale-marked) and every file's table, and default
+		///     language, follows. Re-coding onto a language that already exists absorbs
+		///     into it. Returns the entry now standing for the language.
 		/// </summary>
 		public LanguageEntry Rename(string code, LanguageEntry replacement) {
 			LanguageEntry edited = Find(code) ?? throw new ArgumentException($"no language '{code}'", nameof(code));
 			if (replacement.Code != code) {
 				WordsOperations.Shift(session.Keys.Values, code, replacement.Code);
 				foreach (WordsFile file in session.Files) {
+					if (file.DefaultLanguage == code) {
+						file.DefaultLanguage = replacement.Code;
+					}
 					int i = file.Languages.IndexOf(code);
 					if (i < 0) {
 						continue;

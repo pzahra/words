@@ -298,6 +298,35 @@ follows a swap, and on Avalonia follows the theme variant; both converters
 dictionaries hold the two defaults. The console writes the dim sequence, resumes
 bold after it, and writes nothing with ANSI off.
 
+## The default's language
+
+A key's `value=` is the default, the words an app reads when a language has
+none of its own. It has no language code, but it is always written in some
+language, and a file can say which one.
+
+**The declaration.** A keyless `value=!xx` in the top-of-file language section
+names the default's language. The top-of-file `value-xx=` lines are the
+languages' own names (endonyms) and `comment-xx=` lines their names in the
+default's language (exonyms), English unless the declaration says otherwise. To
+the parser the declaration is just a label of the default, as `value-xx=` labels
+language `xx`. The `!` is what keeps it off `GetLanguages()`, as for any
+`!Label`, so a runtime that predates it lists nothing new. The language it names
+is usually registered too, so it stays on the menu and keeps its culture. It
+need not be.
+
+**Where the default speaks.** The default speaks its own language and, when it
+is a bare language, that language's regional variants: an `en` default speaks
+for `en` and `en-AU`, while an `en-AU` default speaks for `en-AU` alone, so
+`en-US` and `en` still miss their words (`WordsParser.DefaultSpeaks`). In those
+languages, falling back to the default misses nothing.
+`WordsBuilder.DefaultLanguage` reads the declaration (the last file loaded
+wins), and `Debug()` leaves the default unbranded where it speaks: no 📚.
+Family fallbacks keep their 🕮.
+
+**Tests.** A file declaring `en` brands nothing in `en` or `en-AU` and still
+brands `de`, and lists exactly its three languages. An `en-AU` default brands
+`en-US`. `DefaultSpeaks` covers the matrix, case included.
+
 ---
 
 # Planned upgrades

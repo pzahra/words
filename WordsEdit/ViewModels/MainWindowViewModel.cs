@@ -352,9 +352,11 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			return null;
 		}
 		edit.Close();
-		//the table changed under the tree: its badges and dropdown read it
+		//the table changed under the tree: its badges and dropdown read it, and the
+		//previews format in its languages
 		Tree.FollowLanguage();
 		Tree.RefreshBadges();
+		RenderPreviews();
 		if (!edit.Merged) {
 			return edit;
 		}
@@ -688,30 +690,31 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			DefaultPreview.Clear();
 		}
 		else {
-			Render(DefaultPreview, key, null, Session.SettingsFor(file));
+			Render(DefaultPreview, key, null, file.DefaultLanguage, Session.SettingsFor(file));
 		}
 		if (key is null || file is null || !ShowLocalizationPreview || Tree.SelectedEntry is null) {
 			TranslationPreview.Clear();
 		}
 		else {
-			Render(TranslationPreview, key, Tree.SelectedLanguage.Code, Session.SettingsFor(file, Tree.SelectedLanguage.Code));
+			Render(TranslationPreview, key, Tree.SelectedLanguage.Code, Tree.SelectedLanguage.Code, Session.SettingsFor(file, Tree.SelectedLanguage.Code));
 		}
 		return true;
 	}
 
 	//every loaded file in tree order resolves {>references} and {$constants}, like a
 	//host app stacking dictionaries; the samples then go through the same formatting
-	//the host applies, in the language's culture where there is one. A sample that
-	//will not format keeps the raw text and heads the pane's gripes; what Words
-	//complained about on the way, and what is wrong with the rules, follow
-	private void Render(PreviewPane pane, WordsKey key, string? languageCode, ProjectSettings settings) {
+	//the host applies, in the language's culture where there is one, and the default
+	//in the one it is written in. A sample that will not format keeps the raw text
+	//and heads the pane's gripes; what Words complained about on the way, and what
+	//is wrong with the rules, follow
+	private void Render(PreviewPane pane, WordsKey key, string? languageCode, string? cultureCode, ProjectSettings settings) {
 		List<string> gripes = [];
 		string text;
 		using (Gripes.Listen(gripes)) {
 			text = Words.RenderKey(Session.Provider(Tree.FileLabels, languageCode), key.BlockKey);
 			if (key.Parameters.Count != 0) {
 				try {
-					text = WordsOperations.FormatSample(key, text, WordsOperations.CultureFor(languageCode));
+					text = WordsOperations.FormatSample(key, text, WordsOperations.CultureFor(cultureCode));
 				}
 				catch (Exception ex) when (ex is FormatException or OverflowException) {
 					gripes.Insert(0, ex.Message);

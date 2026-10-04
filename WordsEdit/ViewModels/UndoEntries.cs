@@ -306,16 +306,17 @@ public sealed class FileSettingsEdit(string file, FileSettingsEdit.Slots before,
 
 /// <summary>
 ///     A Language Manager commit: the table operations, made through here so
-///     each keeps its inverse, undone in reverse order; every file's table is
-///     put back whole. A recode onto a code the table holds merges two
-///     languages and has no inverse: <see cref="Merged"/> says the commit made
-///     one, and the commit is a boundary instead. It shows nowhere in the tree.
+///     each keeps its inverse, undone in reverse order; every file's table, and
+///     the language its default is written in, is put back whole. A recode onto
+///     a code the table holds merges two languages and has no inverse:
+///     <see cref="Merged"/> says the commit made one, and the commit is a
+///     boundary instead. It shows nowhere in the tree.
 /// </summary>
 public sealed class LanguagesEdit : UndoEntry {
 	private readonly WordsSession session;
 	private readonly List<(Action Undo, Action Redo)> steps = [];
-	private readonly Dictionary<WordsFile, string[]> tablesBefore;
-	private Dictionary<WordsFile, string[]> tablesAfter = [];
+	private readonly Dictionary<WordsFile, (string[] Codes, string? Default)> tablesBefore;
+	private Dictionary<WordsFile, (string[] Codes, string? Default)> tablesAfter = [];
 
 	public LanguagesEdit(WordsSession session) {
 		this.session = session;
@@ -379,10 +380,29 @@ public sealed class LanguagesEdit : UndoEntry {
 		steps.Add((() => Table.Reorder(to, from), () => Table.Reorder(from, to)));
 	}
 
+	/// <summary>
+	///     Declares the language the default is written in, in every file
+	///     (<see cref="LanguageTable.DefaultLanguage"/>); nothing happens when the
+	///     session already says so.
+	/// </summary>
+	public void Declare(string? code) {
+		string? before = Table.DefaultLanguage;
+		if (before == code) {
+			return;
+		}
+		Dictionary<WordsFile, string?> each = session.Files.ToDictionary(file => file, file => file.DefaultLanguage);
+		Table.DefaultLanguage = code;
+		steps.Add((() => {
+			foreach (var (file, declared) in each) {
+				file.DefaultLanguage = declared;
+			}
+		}, () => Table.DefaultLanguage = code));
+	}
+
 	/// <summary>The commit is done: every file's table as it now stands is what a redo puts back.</summary>
 	internal void Close() => tablesAfter = Tables();
 
-	private Dictionary<WordsFile, string[]> Tables() => session.Files.ToDictionary(file => file, file => file.Languages.ToArray());
+	private Dictionary<WordsFile, (string[] Codes, string? Default)> Tables() => session.Files.ToDictionary(file => file, file => (file.Languages.ToArray(), file.DefaultLanguage));
 
 	public override NodeRef? Site(bool undoing) => null;
 
@@ -397,9 +417,10 @@ public sealed class LanguagesEdit : UndoEntry {
 				redo();
 			}
 		}
-		foreach (var (file, codes) in undoing ? tablesBefore : tablesAfter) {
+		foreach (var (file, (codes, defaultLanguage)) in undoing ? tablesBefore : tablesAfter) {
 			file.Languages.Clear();
 			file.Languages.AddRange(codes);
+			file.DefaultLanguage = defaultLanguage;
 		}
 		return null;
 	}

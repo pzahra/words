@@ -16,6 +16,7 @@ public class WordsFormatsTests {
 	//emits, so the round trips are byte for byte — in the platform's line ending,
 	//which the writer uses whatever this source file was checked out with
 	private static readonly string Full = @"; about Main
+value=!en
 value-en=English
 comment-en=English
 value-fr=Français

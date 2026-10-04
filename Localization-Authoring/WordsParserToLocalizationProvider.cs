@@ -28,6 +28,12 @@ namespace PatTech.Localization.Authoring {
 		/// </summary>
 		public IReadOnlyList<string> DeclaredLanguages => declaredLanguages;
 		/// <summary>
+		///     The language the default is written in, from a keyless <c>value=!xx</c>
+		///     in the top-of-file language section, or <see langword="null"/>. The
+		///     <c>!</c> keeps a runtime from listing the default as a language of its own.
+		/// </summary>
+		public string? DefaultLanguage { get; private set; }
+		/// <summary>
 		///     The project settings file named by a keyless <c>param=</c> in the
 		///     top-of-file language section — an authoring tool's use of that
 		///     otherwise idle slot (SPEC: Markdown previews); the path as written,
@@ -77,6 +83,20 @@ namespace PatTech.Localization.Authoring {
 			}
 			if (wordKeys.Count == 0) {
 				switch (fieldType) {
+					case "value" when languageCode == "":
+						//the keyless value slot names the default's language, as !xx
+						if (!value.StartsWith('!')) {
+							errors.Add($"value={value} at the top of the file names the default's language: write it value=!{value}, or a runtime lists the default as a language");
+						}
+						string code = value.TrimStart('!').Trim();
+						try {
+							DefaultLanguage = code == "" ? null : WordsParser.NormalizeLanguageCasing(code);
+						}
+						catch (ArgumentException) {
+							errors.Add($"value=!{code} at the top of the file is not a language code");
+							DefaultLanguage = code;
+						}
+						break;
 					case "value":
 						if (knownLanguages.TryGetValue(languageCode, out var named)) {
 							//its comment- label came first and made the entry; this is the name

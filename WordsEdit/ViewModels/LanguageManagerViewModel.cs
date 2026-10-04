@@ -7,9 +7,10 @@ namespace WordsEdit.ViewModels;
 /// <summary>
 ///     The language table (SPEC: Languages), edited on a working copy: the rows
 ///     are the session's languages as <see cref="LanguageRow"/>s, the pane edits
-///     the highlighted one live, + adds a row, the trash drops one and drag
-///     reorders. Nothing reaches the session until OK, which applies the lot —
-///     removals, re-codes and renames, additions, the order — as one undoable
+///     the highlighted one live, + adds a row, the trash drops one, drag
+///     reorders and one row may be the default's language. Nothing reaches the
+///     session until OK, which applies the lot — removals, re-codes and renames,
+///     additions, the default's language, the order — as one undoable
 ///     commit and makes the highlighted row the tree's language; Cancel or
 ///     Escape forgets it all.
 /// </summary>
@@ -28,6 +29,31 @@ public class LanguageManagerViewModel : DialogViewModel {
 		}
 	}
 
+	/// <summary>
+	///     The row whose language the default is written in, or null when the
+	///     files do not say (SPEC: Languages); ticking a row moves it there. Every
+	///     file declares it on OK.
+	/// </summary>
+	public LanguageRow? DefaultRow {
+		get;
+		set {
+			LanguageRow? was = field;
+			if (ChangeProperty(ref field, value)) {
+				was?.DefaultMoved();
+				value?.DefaultMoved();
+				AffectProperty(nameof(ExonymHeader));
+			}
+		}
+	}
+
+	/// <summary>
+	///     The header over the names in the default's language: what the file's
+	///     <c>comment-xx</c> labels are written in, English while no row says.
+	/// </summary>
+	public string ExonymHeader => DefaultRow?.NativeName.TrimStart('!').Trim() is { Length: > 0 } name
+		? Words.Known.Format("language.name-in", name)
+		: Words.Known["language.english-name"];
+
 	public ICommand AddCommand { get; }
 	public ICommand OkCommand { get; }
 	public ICommand CancelCommand { get; }
@@ -38,6 +64,7 @@ public class LanguageManagerViewModel : DialogViewModel {
 		foreach (LanguageEntry known in parent.Tree.KnownLanguages) {
 			Rows.Add(new LanguageRow(this, known));
 		}
+		DefaultRow = Rows.FirstOrDefault(row => row.Code == parent.Session.Languages.DefaultLanguage);
 		Revalidate();
 		Selected = Rows.FirstOrDefault(row => row.Origin == parent.Tree.SelectedLanguage) ?? Rows[0];
 		AddCommand = new DelegateCommand(DoAdd);
@@ -45,11 +72,12 @@ public class LanguageManagerViewModel : DialogViewModel {
 		CancelCommand = new DelegateCommand(Close);
 	}
 
-	/// <summary>Every row checks itself against the others. Always true, to chain.</summary>
+	/// <summary>Every row checks itself against the others, and the header reads the default row's name again. Always true, to chain.</summary>
 	internal bool Revalidate() {
 		foreach (LanguageRow row in Rows) {
 			row.Check([.. Rows.Where(other => other != row)]);
 		}
+		AffectProperty(nameof(ExonymHeader));
 		return true;
 	}
 
@@ -72,6 +100,9 @@ public class LanguageManagerViewModel : DialogViewModel {
 		}
 		int i = Rows.IndexOf(row);
 		Rows.Remove(row);
+		if (DefaultRow == row) {
+			DefaultRow = null;
+		}
 		if (Selected == row) {
 			Selected = Rows[Math.Min(i, Rows.Count - 1)];
 		}
@@ -90,7 +121,8 @@ public class LanguageManagerViewModel : DialogViewModel {
 	//free go first, so the last-language rule never refuses a removal; removals
 	//next, freeing codes; then the renames, one whose new code is still taken
 	//waiting for the rename that frees it, a cycle of swaps parking one language on
-	//a throwaway code; then the additions that waited for a code; then the order
+	//a throwaway code; then the additions that waited for a code; then the
+	//default's language, every code being final; then the order
 	private void Apply() {
 		LanguageTable table = Parent.Session.Languages;
 		Parent.ChangeLanguages(edit => {
@@ -113,6 +145,7 @@ public class LanguageManagerViewModel : DialogViewModel {
 				renames.Remove(next);
 			}
 			AddFree(edit, table, additions);
+			edit.Declare(DefaultRow?.Code);
 			for (int i = 0; i < Rows.Count; i++) {
 				int at = table.Known.ToList().FindIndex(known => known.Code == Rows[i].Code);
 				if (at >= 0) {
