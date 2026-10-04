@@ -206,7 +206,7 @@ public class PluralFormsTests {
 		Assert.False(words.ContainsKey("word#plural"));
 		Assert.False(builder.Flatten("en").ContainsKey("#other")); //a label has no forms
 		Assert.Equal(3, logger.Messages.Count(message => message.StartsWith("WP:FORM:")));
-		Assert.Contains(logger.Messages, message => message.StartsWith("WP:HASH:") && message.Contains("odd#key"));
+		Assert.Contains(logger.Messages, message => message == "WP:NAME:`odd#key`");
 	}
 
 	// ---- the selector and the count indexer ----

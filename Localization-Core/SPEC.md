@@ -328,6 +328,45 @@ Family fallbacks keep their 🕮.
 brands `de`, and lists exactly its three languages. An `en-AU` default brands
 `en-US`. `DefaultSpeaks` covers the matrix, case included.
 
+## Key names
+
+A key's name is segments of letters, digits, `_` and `-`, each starting with
+one of the first three, joined by dots: `menu.file-open`. Letters and digits
+are any script's (the regex `\w`), so `é-ü` is a segment. A constant is `$`
+and one segment, `$unit`, and has no children. A header is `[name]`, or
+`[.child]` under the last full header, and the key it resolves to must be a
+name. `WordsParser.IsKeyName` is the check, and `IsKeySegment` its one segment.
+
+**Why there is a grammar.** Until plural forms nothing hung on it, and a header
+took anything up to `]`. Now `#` marks a form, so `[lang.c#]` beside
+`[lang.c]` read as a form of `lang.c`, and `lang.c#` itself rendered as a
+missing key where 1.4.0 read `C#`. A space, `=`, `:`, `;`, a brace or `>` is
+no better: the reference and selector syntax, `{>key}` and `{0#key}`, could
+never name one. Wordsmith never let anyone type them.
+
+**What a runtime does.** A block whose name is none is skipped, its fields with
+it, and warned about once (`WP:NAME`, with the key it resolved to); so are the
+`[.child]` headers under it, and under a constant. A file's top-of-file labels
+are read, whichever block the file loaded before it ended in. The one check
+serves every reader: the authoring reader keeps such a block, griping that a
+runtime skips it, so an editor can rename it (the editor spec's *The
+document*); the command line writes no key that is none; an import makes a
+foreign name one.
+
+**What changes.** A hand-written file that 1.4.0 read with such a name loses
+that key; none of Wordsmith's can hold one. `WP:HASH` became `WP:NAME`, which
+covers `#` and the rest.
+
+**Tests.** The grammar accepts dotted segments in any script, dashes inside,
+and a one-segment constant; it refuses an empty name or segment, a leading dot
+or dash, `$` inside or a constant's child, and each of the characters above.
+A runtime skips `[lang.c#]` and its continued value, warns once, and reads
+`[lang.c]` and the block after; it skips the children of a constant and of a
+skipped block; a second file's labels are read after a first that ended in a
+skipped block. The authoring reader keeps the block, with its gripe, and saves
+it back unchanged; the command line refuses to write one and removes one; an
+import maps WinForms' and bracketed names and tells two apart.
+
 ## Plural forms
 
 Pick the word for a count in the dictionary, not in code. The app that writes
@@ -346,7 +385,7 @@ form is an entry beside its key's value, keyed `word#other`, so it digests per
 language as a value does, with one difference: a key's forms come whole from
 one level (*Which form a count reads*). `Debug` brands a form that fell back
 as it brands a value. The mark is the forms' alone: a block
-whose name holds a `#` is warned about (`WP:HASH`), and so is a form that is none
+whose name holds a `#` is no key (*Key names*), skipped with `WP:NAME`, and a form that is none is warned about
 (`WP:FORM`) — one on a label, `#one` (the plain value is that form), or a
 category CLDR does not have — which is left out.
 

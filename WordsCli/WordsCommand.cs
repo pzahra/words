@@ -24,7 +24,9 @@ namespace PatTech.Localization.Cli {
 
 			A field is named as in the file: value, value-fr, value-mt#few, context-fr,
 			comment-fr, stale-fr, param-count. A value of - is read from stdin, its last
-			line break dropped. A key is the file's own, as its header names it.
+			line break dropped. A key is its full dotted name, menu.file-open, whatever
+			[.child] header holds it: segments of letters, digits, _ and -, or a
+			$constant of one segment. set writes no other name.
 
 			Exit codes: 0 done, 1 the key or field is not there, 2 a bad call or a file
 			that does not parse.

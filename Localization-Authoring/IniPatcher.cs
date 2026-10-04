@@ -119,7 +119,7 @@ namespace PatTech.Localization.Authoring {
 		///     its nearest sibling, as a full header.
 		/// </summary>
 		/// <returns>The gripes the change adds to the file's.</returns>
-		/// <exception cref="ArgumentException"><paramref name="key"/> cannot be a block's name.</exception>
+		/// <exception cref="ArgumentException"><paramref name="key"/> is no key name (<see cref="WordsParser.IsKeyName"/>).</exception>
 		/// <exception cref="IniPatchException">The change would change anything else.</exception>
 		public IReadOnlyList<string> Set(string key, WordsField field, string text) {
 			CheckKey(key);
@@ -187,7 +187,7 @@ namespace PatTech.Localization.Authoring {
 		/// </summary>
 		/// <returns>The gripes the change adds to the file's.</returns>
 		/// <exception cref="KeyNotFoundException">The file has no such key.</exception>
-		/// <exception cref="IniPatchException">The change would change anything else.</exception>
+		/// <exception cref="IniPatchException">The change would change anything else, or the key is a constant that bases <c>[.child]</c> headers.</exception>
 		public IReadOnlyList<string> Remove(string key) {
 			if (Find(key) is null) {
 				throw new KeyNotFoundException($"no key {key}");
@@ -196,7 +196,14 @@ namespace PatTech.Localization.Authoring {
 			var headers = reading.Headers;
 			for (int i = 0; i < headers.Count; i++) {
 				bool bases = headers[i].IsFull && i + 1 < headers.Count && !headers[i + 1].IsFull;
-				if (headers[i].Key == key && !bases) {
+				if (headers[i].Key != key) {
+					continue;
+				}
+				if (bases && key.StartsWith('$')) {
+					//its bare header would still be the constant, and without it the children re-base
+					throw new IniPatchException($"refused: {key} bases [.child] headers, which no constant can; give them full headers first");
+				}
+				if (!bases) {
 					edit.Delete(headers[i].Line, headers[i].Line);
 				}
 			}
@@ -206,10 +213,11 @@ namespace PatTech.Localization.Authoring {
 			return Commit(Collapse(edit), keys => keys.Remove(key));
 		}
 
-		//a block's name: what a header can hold and the reader takes for a key
+		//a key's name, which a runtime reads (runtime SPEC: Key names); a file's own
+		//invalid block can still be read and removed, but not written to
 		private static void CheckKey(string key) {
-			if (key == "" || key[0] == '.' || key.AsSpan().IndexOfAny("]\r\n") >= 0) {
-				throw new ArgumentException($"'{key}' cannot name a block: a key is not empty, does not start with a dot and holds no ] or line break");
+			if (!WordsParser.IsKeyName(key)) {
+				throw new ArgumentException($"'{key}' is no key name: {WordsParserToLocalizationProvider.KeyNameRule}");
 			}
 		}
 

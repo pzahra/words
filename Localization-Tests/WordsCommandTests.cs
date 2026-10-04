@@ -75,6 +75,8 @@ public sealed class WordsCommandTests : IDisposable {
 	[InlineData("list", "FILE", "--stale")]
 	[InlineData("list", "FILE", "--missing", "not a code")]
 	[InlineData("set", "FILE", "menu.edit", "param-n", "x", "--stale")]
+	[InlineData("set", "FILE", "menu edit", "value", "x")]
+	[InlineData("set", "FILE", "lang.c#", "value", "x")]
 	public void ABadCall_ExitsTwo_AndSaysWhy(params string[] args) {
 		File.WriteAllText(path, Sample);
 

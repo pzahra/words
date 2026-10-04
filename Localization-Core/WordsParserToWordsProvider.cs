@@ -33,6 +33,9 @@ namespace PatTech.Localization {
 		private readonly List<string> languageCodes = [];
 		//the entry a form's continuation lines append to; null while the form was refused
 		private string? formEntry;
+		//the fields of a block whose name is no key's are read past; a file's labels,
+		//before its first block, never are, though the file before ended in such a block
+		private bool skipping;
 
 		/// <summary>
 		/// Stores a <c>value</c> field, or a plural form, in its language's dictionary,
@@ -42,6 +45,9 @@ namespace PatTech.Localization {
 		/// </summary>
 		public void VisitFieldDeclaration(FieldKey key, string value) {
 			var (blockKey, fieldType, languageCode) = key;
+			if (skipping && blockKey != "") {
+				return;
+			}
 
 			switch (fieldType) {
 				case "value":
@@ -80,6 +86,9 @@ namespace PatTech.Localization {
 		/// </summary>
 		public void VisitFieldContinuation(FieldKey key, string value) {
 			var (blockKey, fieldType, languageCode) = key;
+			if (skipping && blockKey != "") {
+				return;
+			}
 
 			if (fieldType is "value") {
 				Debug.Assert(languageCodes.Contains(languageCode));
@@ -93,12 +102,15 @@ namespace PatTech.Localization {
 		}
 
 		/// <summary>
-		/// A block whose name holds a <c>#</c> is warned about: the mark separates a key
-		/// from its plural form, so <c>[word#few]</c> would read as <c>word</c>'s form.
+		/// A block whose name is no key's (<see cref="WordsParser.IsKeyName"/>) is warned
+		/// about and skipped, its fields with it: a <c>#</c> would read as a plural form,
+		/// <c>[word#few]</c> as <c>word</c>'s, and a constant has no children.
 		/// </summary>
 		public void VisitBlock(string baseKey, string name) {
-			if (name.Contains('#')) {
-				logger.Warn(string.Format("WP:HASH:`{0}`", name));
+			string key = name.StartsWith('.') ? baseKey + name : name;
+			skipping = !WordsParser.IsKeyName(key);
+			if (skipping) {
+				logger.Warn(string.Format("WP:NAME:`{0}`", key));
 			}
 		}
 

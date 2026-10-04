@@ -91,7 +91,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 					}
 					string value = (string?)data.Element("value") ?? "";
 					string comment = (string?)data.Element("comment") ?? "";
-					WordsKey key = loaded.Key(FileNames.BlockKey(name, file, loaded.Errors));
+					WordsKey key = loaded.Key(FileNames.BlockKey(loaded, name, file));
 					if (code == "") {
 						key.DefaultValue = value;
 						key.Context = comment;

@@ -26,7 +26,9 @@ words list   strings.ini --missing it                # the keys Italian still mi
 - **Fields** are named as in the file: `value`, `value-fr`, `value-mt#few`,
   `context-fr`, `comment-fr`, `stale-fr`, `param-count`.
 - **Keys** are the full dotted name, whatever `[.child]` header the file wrote
-  them under.
+  them under: segments of letters, digits, `_` and `-`, or a `$constant` of one
+  segment. `set` writes no other name, since a runtime skips one; `get` and
+  `remove` still reach it, so you can clear it out.
 - **Values** are an argument, or `-` for stdin, so a multi-line value needs no
   shell quoting; the last line break is dropped.
 - **`--stale`** marks the language's entry stale as well, so a machine-written

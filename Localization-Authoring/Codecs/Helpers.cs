@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
 
@@ -42,18 +43,31 @@ namespace PatTech.Localization.Authoring.Codecs {
 		}
 
 		/// <summary>
-		///     A foreign name as a block key: anything but <c>]</c> goes, and a leading
-		///     dot would read as relative to the block before it. A change is a gripe.
+		///     A foreign name as a block key: a key's name as it is (runtime SPEC: Key
+		///     names), otherwise each dotted segment made one — what is no letter, digit,
+		///     <c>_</c> or <c>-</c> becomes <c>_</c>, and an empty or dash-led segment
+		///     gains one, so <c>$this.Text</c> loads as <c>_this.Text</c>. Two names made
+		///     one key are told apart with a number, never overwritten. A change is a gripe.
 		/// </summary>
-		public static string BlockKey(string name, string file, List<string> gripes) {
-			string blockKey = name.Replace(']', '_').TrimStart('.');
-			if (blockKey == "") {
-				blockKey = "_";
+		public static string BlockKey(LoadedWords loaded, string name, string file) {
+			string blockKey = WordsParser.IsKeyName(name) ? name : string.Join('.', name.Split('.').Select(Segment));
+			if (loaded.ForeignNames.TryGetValue(blockKey, out string? other) && other != name) {
+				string taken = blockKey;
+				for (int n = 2; loaded.ForeignNames.ContainsKey(blockKey = $"{taken}-{n}"); n++) { }
+				loaded.Errors.Add($"{file}: '{name}' would load as '{taken}', which '{other}' already is, so it loads as '{blockKey}'");
 			}
-			if (blockKey != name) {
-				gripes.Add($"{file}: '{name}' is no words.ini key, loaded as '{blockKey}'");
+			else if (blockKey != name) {
+				loaded.Errors.Add($"{file}: '{name}' is no words.ini key, loaded as '{blockKey}'");
 			}
+			loaded.ForeignNames[blockKey] = name;
 			return blockKey;
+		}
+
+		private static readonly Regex rxNoKey = new(@"[^\w-]");
+
+		private static string Segment(string segment) {
+			string made = rxNoKey.Replace(segment, "_");
+			return made == "" || made[0] == '-' ? "_" + made : made;
 		}
 
 		/// <summary>

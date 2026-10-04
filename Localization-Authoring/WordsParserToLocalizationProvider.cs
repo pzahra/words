@@ -267,6 +267,9 @@ namespace PatTech.Localization.Authoring {
 			}
 		}
 
+		/// <summary>The key-name grammar in a sentence, for a gripe (runtime SPEC: Key names).</summary>
+		public const string KeyNameRule = "a key is segments of letters, digits, _ and -, joined by dots, and a $constant is one segment";
+
 		private static string Field(string languageCode, string form)
 			=> languageCode == "" ? $"value#{form}" : $"value-{languageCode}#{form}";
 
@@ -297,11 +300,12 @@ namespace PatTech.Localization.Authoring {
 
 		void IWordsParserConsumer.VisitBlock(string baseKey, string name) {
 			WordsKey keyToAdd;
-			if (name.Contains('#')) {
-				errors.Add($"[{name}]: '#' marks a plural form, so a runtime warns about a block named with one");
-			}
 			if (name[0] == '.') {
 				baseKey += name;
+			}
+			//kept, so an editor can rename it, but a runtime reads past it (runtime SPEC: Key names)
+			if (!WordsParser.IsKeyName(baseKey)) {
+				errors.Add($"[{name}]: '{baseKey}' is no key name, so a runtime skips it: {KeyNameRule}");
 			}
 			if (baseKey[0] == '$') {
 				keyToAdd = new WordsKey(baseKey) {

@@ -112,7 +112,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 				loaded.Errors.Add($"{file}: a trans-unit without an id was skipped");
 				return;
 			}
-			WordsKey key = loaded.Key(FileNames.BlockKey(id, file, loaded.Errors));
+			WordsKey key = loaded.Key(FileNames.BlockKey(loaded, id, file));
 			if ((string?)unit.Attribute("translate") == "no" && !key.IsConstant) {
 				loaded.Errors.Add($"{file}: translate=\"no\" on '{id}' ignored: a Words constant is a $key");
 			}

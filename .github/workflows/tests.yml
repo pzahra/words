@@ -1,6 +1,9 @@
 # Runs the test suites on every push to main and every pull request, so the
-# README's status badge reflects whether the tests pass. Publishing lives in
-# build.yml and release-editor.yml; this workflow only tests.
+# README's status badge reflects whether the tests pass. build.yml,
+# release-editor.yml and release-samples.yml also call it (workflow_call) on the
+# tagged commit, and publish only if it passes.
+# Publishing lives in build.yml, release-editor.yml and release-samples.yml;
+# this workflow only tests.
 name: tests
 
 on:
@@ -9,6 +12,7 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read

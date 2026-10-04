@@ -58,7 +58,11 @@ A session holds one or more files. Each file contributes:
   saves with the `!`.
 - A **key tree**: dotted block keys (`view.section.key`), prefixed in memory
   with the file's label — its name, disambiguated when two loaded files
-  share one (`strings`, `strings-2`), since files are identified by path. `$keys` are constants (no translations). A key carries:
+  share one (`strings`, `strings-2`), since files are identified by path. `$keys` are constants (no translations). A key's name
+  is the runtime's grammar (its spec's *Key names*): segments of letters,
+  digits, `_` and `-`, joined by dots, and a constant one segment. A block the
+  file names otherwise loads all the same, with a gripe that a runtime skips
+  it, and saves back as it was; renaming it is the fix. A key carries:
   default value, context (programmer → translator), comment (translator-facing),
   format parameters (`param-x=Type:sample`), a needs-review flag, and a
   **banner** (the freeform `;` comment run above its header).
@@ -155,7 +159,9 @@ One tree presents every loaded file:
   translator raises a hand by setting the unlocalised `stale=` flag
   (recycled as the "raise hand" action), and the programmer filters for it.
 - **Structure edits**: add/rename/remove nodes and keys; renames rewrite every
-  descendant key; drag-and-drop moves subtrees. A group node can gain key data
+  descendant key; drag-and-drop moves subtrees. A new or renamed node's name
+  is one segment of a key's name (`WordsParser.IsKeySegment`), the check the
+  runtime skips a block by, so nothing Wordsmith writes is skipped. A group node can gain key data
   ("add key information") and a key can exist on any node except a file.
   They are reachable from the button strip, the tree's context menu and the
   keyboard (F2 rename, Delete remove, Ctrl+Shift+S stale-all; Ctrl+O and
@@ -493,7 +499,13 @@ that declares none, and the `source-language` option overrides both. On the
 way in, the attribute declares the default's language. The default's
 language is a feature like any other: resx has no slot for it and says so.
 So are plural forms, which neither has a slot for: to a translation tool a
-form is no unit of its own, so both drop them, counted, with a gripe.
+form is no unit of its own, so both drop them, counted, with a gripe. A
+foreign name that is no key's (the runtime spec's *Key names*) is made one,
+segment by segment, with a gripe: what is no letter, digit, `_` or `-` becomes
+`_`, and an empty or dash-led segment gains one, so WinForms' `$this.Text`
+loads as `_this.Text`. A name that is already a key's, a `$constant` included,
+loads as it is. Two names made one key are told apart with a number (`a_`,
+`a_-2`) and a gripe, never one overwriting the other.
 
 **Surface.** Import sits beside Open, Export beside Save. Import opens a picker
 filtered by every importer's name and extensions; each pick's extension names
@@ -928,7 +940,12 @@ value needs no shell quoting:
   stderr says which.
 - `--version` and `--help`.
 
-A key is the file's own, without the session's file-label prefix. Values go
+A key is the file's own, without the session's file-label prefix, and a key's
+name (the runtime spec's *Key names*): `set` writes no other, exit 2, though
+`get` and `remove` reach a block the file already names otherwise, so it can
+be read and cleared. `remove` refuses a constant whose header bases
+`[.child]` headers, which no constant can: its bare header would still be the
+constant, and without one the children re-base. Values go
 to stdout and gripes to stderr: the reader's gripes the edit adds (a field in
 an undeclared language, a form the language never reads), and a note when a
 field declared twice is made one. The exit code is 0 for done, 1 when the
@@ -1129,3 +1146,62 @@ run is already folded into the run's last text, and a run undone back to
 its start leaves no entry. The window's routing (`DocumentUndo`) would ask
 the focused box whether it can undo before handing the command to the
 document.
+
+## Machine translation
+
+A button that fills a language from a translation service the user already
+has. Wordsmith brings the selection, the context and the checking; the
+service and its credentials are the user's.
+
+**What goes.** The user picks a target language and a filter: the keys
+missing it (`MissingWords`, as the badges count), the keys stale in it, or
+everything under the selected node, combined as the tree's filter combines
+them. A language not in the table yet is added through the language manager
+first, and then filled. Constants never go, since they aren't translated.
+
+**The request is a template.** The user writes the request once, and
+Wordsmith fills it per key from fields:
+- `{key}`, `{default}`, `{context}` and `{comment}`;
+- the target's existing text, for a stale key;
+- the source and target codes and names;
+- the form being asked for.
+
+The template is a command line that reads the request on stdin and answers
+on stdout, so a script, a vendor's CLI, a local model or `curl` all serve.
+Wordsmith keeps no integration per vendor and never holds a secret: the key
+lives in the user's tool or environment. If a built-in HTTP transport is
+added later, its credentials go to the Windows Credential Manager, never to
+`config.ini` (plain text) or anything beside the words files.
+
+**The answer has to map back.** Values can hold line breaks, so a
+line-per-key answer cannot be trusted. Undecided between:
+- one request per key: robust, but slow, and the service sees no
+  neighbouring context;
+- a batch whose lines carry the key (`key<TAB>text`, with the value's
+  escapes);
+- a JSON object keyed by key.
+
+**Nothing is written unchecked.** Each answer's placeholders are compared
+with the default's: `{0}`, `{Name}`, `{>ref}`, `{$const}`, `{n#key}`, code
+spans and markdown links. An answer that adds, drops or changes one is
+flagged and not applied; services routinely translate inside braces. A key
+with plural forms asks for the target's categories (`PluralRules.Categories`),
+not just the plain value, and an answer missing a form the language needs is
+flagged the same way.
+
+**It lands for review.** The answers open in a preview grid (key, default,
+proposed text, flags), where rows can be edited, unticked or retried. Apply
+writes the ticked rows with `stale-xx=machine <date>`, so the stale filter
+surfaces them for a translator to review, as it does any stale translation.
+The batch is one undo entry, as any action is (*Undo*).
+
+**Privacy.** The first use says that the app's strings go to the service
+the template names, and the user confirms once per template.
+
+**Where it lives.** Authoring does the work, tested headless: selecting the
+keys, rendering a request, running the command behind a seam the tests can
+fake, parsing the answer and checking it. The editor's view model holds the
+intent (filter, template, target) and shows the grid. The pieces exist on
+the command line already: `words list --missing`, a script, then
+`words set --stale … -` per key is the same loop without the grid, and is
+the way to try a service before the button exists.

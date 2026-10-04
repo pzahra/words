@@ -12,6 +12,10 @@
 # share the Releases page, so this one is never marked Latest, and its notes run
 # from the previous api/ tag rather than from whichever release came last.
 # Run it by hand (workflow_dispatch) to build everything without releasing.
+#
+# Nothing is built or released unless the test suites pass on the commit: the
+# windows job, which creates the release, needs the tests job (tests.yml), and
+# the unix job follows it.
 name: release-samples
 
 on:
@@ -24,7 +28,11 @@ permissions:
   contents: write        # to create the release
 
 jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+
   windows:
+    needs: tests
     runs-on: windows-latest      # Sample-Wpf is WPF (net10.0-windows)
     steps:
       - uses: actions/checkout@v7

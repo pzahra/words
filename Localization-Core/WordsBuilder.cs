@@ -187,7 +187,8 @@ namespace PatTech.Localization {
 		/// <returns>The flattened provider; an empty provider if nothing was loaded at all.</returns>
 		public IWordsProvider Flatten(string languageCode) {
 			if (languageCode is "") {
-				return _builder.Languages[""];
+				//a file can hold no default value at all
+				return _builder.Languages.TryGetValue("", out var defaults) ? defaults : WordsProvider.Empty();
 			}
 
 			languageCode = WordsParser.NormalizeLanguageCasing(languageCode);

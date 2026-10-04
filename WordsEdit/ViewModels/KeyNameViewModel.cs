@@ -1,5 +1,4 @@
 ﻿using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
 using System.Windows.Input;
 using WordsEdit.Utils;
 
@@ -62,7 +61,6 @@ public class KeyNameViewModel : DataViewModelBase, IDialogViewModel {
 	public void Closed() {
 	}
 
-	private static readonly Regex rxValidName = new(@"^\w[\w-]*$");
 	protected override bool Validate([CallerMemberName] string? propertyName = null) {
 		var all = string.IsNullOrEmpty(propertyName);
 		if (all) {
@@ -84,7 +82,8 @@ public class KeyNameViewModel : DataViewModelBase, IDialogViewModel {
 			if (siblings.Any(k => k != renaming && k.Label.Equals(KeyName, StringComparison.CurrentCultureIgnoreCase))) {
 				SetError(Words.Known["key-name.exists"], nameof(KeyName));
 			}
-			if (!rxValidName.IsMatch(KeyName)) {
+			//one segment of a key's name, the grammar the runtime reads (runtime SPEC: Key names)
+			if (!WordsParser.IsKeySegment(KeyName)) {
 				SetError(Words.Known["key-name.invalid"]);
 			}
 		}

@@ -155,6 +155,21 @@ namespace PatTech.Localization {
 			@"^(?<lang>\w+)(-(?<region>\w+))?$",
 			RegexOptions.Compiled | RegexOptions.ExplicitCapture
 		);
+		private static readonly Regex rxKeySegment = new(@"^\w[\w-]*\z", RegexOptions.Compiled);
+		private static readonly Regex rxKeyName = new(@"^(\$\w[\w-]*|\w[\w-]*(\.\w[\w-]*)*)\z", RegexOptions.Compiled);
+
+		/// <summary>
+		/// Whether <paramref name="key"/> is a key's name (runtime SPEC: Key names): segments
+		/// of letters, digits, <c>_</c> and <c>-</c>, each starting with one of the first
+		/// three, joined by dots (<c>menu.file-open</c>); or a constant, <c>$</c> and one
+		/// segment, which has no children. A block named otherwise — a space, <c>#</c>,
+		/// <c>=</c>, an empty segment — is skipped with a warning.
+		/// </summary>
+		/// <param name="key">A full key, as a <c>[.child]</c> header resolves to.</param>
+		public static bool IsKeyName(string key) => key is not null && rxKeyName.IsMatch(key);
+
+		/// <summary>Whether <paramref name="segment"/> is one dotted segment of a key's name (<see cref="IsKeyName"/>).</summary>
+		public static bool IsKeySegment(string segment) => segment is not null && rxKeySegment.IsMatch(segment);
 
 		/// <summary>
 		/// Whether the default, written in <paramref name="defaultLanguage"/>, speaks for

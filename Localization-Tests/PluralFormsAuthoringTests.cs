@@ -99,7 +99,7 @@ value=a key named like a form
 			error => Assert.StartsWith("word: value-pl#other is kept, but 'pl' counts no whole number as other (one, few, many)", error),
 			error => Assert.StartsWith("word: value-pl#lots names no plural category", error),
 			error => Assert.Contains("unrecognized `word.context#other-`", error),
-			error => Assert.StartsWith("[word#few]: '#' marks a plural form", error));
+			error => Assert.StartsWith("[word#few]: 'word#few' is no key name, so a runtime skips it", error));
 	}
 
 	[Fact]
