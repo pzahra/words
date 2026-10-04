@@ -391,7 +391,9 @@ where the default's `other` would read "4 files", in English; Maltese leaves
 out `#other`, its plain word. A key with no words in the language takes its
 family's, or the default's, forms included, branded under `Debug` as values
 are. A language with one category, such as Japanese, speaks only its plain
-value, its own or the one it falls back to.
+value, its own or the one it falls back to. `Words.FormKey(provider, language,
+key, form)` names the entry a count in a form reads, for a tool that shows it:
+the editor's hints and previews.
 
 **Optional categories.** Some categories usually read like another, so a
 translation may leave them out. `PluralRules.Optional(language)` names them,
@@ -430,7 +432,9 @@ by the form its argument selects, rendered, so a form may itself carry a
 `{>key}` or a `{0}`, and selected through in turn, so a form may select too. A
 `{{` pair is left for `string.Format`. On the named path `{0}` is the object
 itself, as `PreFormatByName` slots it, so a converter's bound count selects with
-`{0#word}`. The indexer leaves a selector in place — it has no argument to select
+`{0#word}`; `FormatByName` takes the names as a dictionary too, as
+`PreFormatByName` does, so a tool holding samples by name selects as an app
+would. The indexer leaves a selector in place — it has no argument to select
 with — so a plural template reached through `Words.Known[key]` and the caller's
 own `string.Format` throws, which is the right signal: that template wanted
 `Words.Format`. The provider-level `RenderKey` leaves it too: a provider has no

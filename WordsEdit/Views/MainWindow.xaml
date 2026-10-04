@@ -95,13 +95,13 @@
                         </Style>
                     </md:Badged.Style>
                     <Grid>
-                        <!-- a toolbar toggle opens a plain popup; it closes on a click anywhere else, the code-behind
-                             keeps the click that closed it from reopening it -->
+                        <!-- a toolbar toggle opens a plain popup; it closes on a click anywhere else, and
+                             PopupToggle keeps the click that closed it from reopening it -->
                         <ToggleButton x:Name="FilterToggle"
                                       Style="{StaticResource ToolToggle}"
                                       IsChecked="{Binding IsOpen, ElementName=FilterPopup, Mode=TwoWay}"
                                       ToolTip="{l:Words main.filters}"
-                                      PreviewMouseLeftButtonDown="FilterToggle_PreviewMouseLeftButtonDown">
+                                      uc:PopupToggle.Popup="{Binding ElementName=FilterPopup}">
                             <md:PackIcon Kind="FilterVariant"/>
                         </ToggleButton>
                         <Popup x:Name="FilterPopup"
@@ -109,8 +109,7 @@
                                Placement="Bottom"
                                StaysOpen="False"
                                AllowsTransparency="True"
-                               PopupAnimation="Fade"
-                               Closed="FilterPopup_Closed">
+                               PopupAnimation="Fade">
                             <md:Card Padding="2" Margin="6" UniformCornerRadius="3" md:ElevationAssist.Elevation="Dp4">
                                 <ToolBarTray Orientation="Vertical" IsLocked="True" Background="Transparent">
                                     <ToolBar ItemsSource="{Binding Commands.FilterTools}" Background="Transparent"/>
@@ -308,7 +307,7 @@
 
 				<md:ColorZone Mode="PrimaryLight" Grid.Row="0" Grid.ColumnSpan="2" VerticalAlignment="Stretch" />
 
-				<TextBlock Text="{l:Words main.default}"
+				<TextBlock Text="{Binding Tree.DefaultTitle}"
                            ToolTip="{l:Words main.default-tip}"
                            Grid.Row="0"
                            Grid.Column="0"
@@ -333,9 +332,11 @@
                                 Padding="4 0"
                                 Margin="2.5px" />
                     </md:Badged>
-                    <!-- the header's commands, from the table (SPEC: Menu and toolbars): the test, the key's flags, the eye -->
+                    <!-- the header's commands, from the table (SPEC: Menu and toolbars): the form, the test, the key's
+                         flags, the eye; unclipped, so the form's badge shows above its button -->
                     <ToolBar ItemsSource="{Binding Commands.DefaultTools}"
                              ToolBarTray.IsLocked="True"
+                             ClipToBounds="False"
                              Background="Transparent"/>
                 </StackPanel>
                 <Border CornerRadius="3" 
@@ -346,7 +347,8 @@
                         Grid.ColumnSpan="2">
                     <Grid>
                         <TextBox x:Name="DefaultValueBox"
-                                 Text="{Binding Tree.SelectedKey.DefaultValue, UpdateSourceTrigger=PropertyChanged}"
+                                 Text="{Binding Tree.DefaultText, UpdateSourceTrigger=PropertyChanged}"
+                                 md:HintAssist.Hint="{Binding Tree.DefaultFormHint}"
                                  uc:Spelling.Language="{Binding Tree.DefaultLanguage}"
                                  IsUndoEnabled="False"
                                  VerticalScrollBarVisibility="Auto"
@@ -451,7 +453,7 @@
 				<StackPanel Grid.Row="0" 
                             Grid.Column="0"  
                             VerticalAlignment="Center">
-                    <TextBlock Text="{l:Words main.translation}"
+                    <TextBlock Text="{Binding Tree.TranslationTitle}"
                                Margin="2.5px 0"
                                FontWeight="SemiBold"
                                FontSize="14"/>
@@ -479,9 +481,10 @@
                             Padding="4 0"
                             Margin="2.5px" />
                 </md:Badged>
-                    <!-- the test, the stale flag in the selected language, the eye -->
+                    <!-- the form, the test, the stale flag in the selected language, the eye -->
                     <ToolBar ItemsSource="{Binding Commands.TranslationTools}"
                              ToolBarTray.IsLocked="True"
+                             ClipToBounds="False"
                              Background="Transparent"/>
                 </StackPanel>
                 <Border CornerRadius="3" 
@@ -492,8 +495,8 @@
                         Grid.ColumnSpan="2">
                     <Grid>
                         <TextBox x:Name="EntryValueBox"
-                                 Text="{Binding Tree.SelectedEntry.Value, UpdateSourceTrigger=PropertyChanged}"
-                                 md:HintAssist.Hint="{Binding Tree.DefaultHint}"
+                                 Text="{Binding Tree.EntryText, UpdateSourceTrigger=PropertyChanged}"
+                                 md:HintAssist.Hint="{Binding Tree.EntryHint}"
                                  IsUndoEnabled="False"
                                  TextWrapping="Wrap"
                                  VerticalScrollBarVisibility="Auto"

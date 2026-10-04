@@ -271,6 +271,22 @@ namespace PatTech.Localization.Authoring {
 		///     failure the host would see.
 		/// </summary>
 		public static string FormatSample(WordsKey key, string text, IFormatProvider? provider = null) {
+			var (named, positional) = Samples(key);
+			return Words.FormatByName(provider, text, named, positional);
+		}
+
+		/// <summary>
+		///     The same, looked up in <paramref name="words"/> by the key's name, so a
+		///     plural selector (<c>{0#word}</c>) picks its form by the samples, in the
+		///     dictionary's language, as a host app's <c>Format</c> would.
+		/// </summary>
+		public static string FormatSample(IWords words, WordsKey key, IFormatProvider? provider = null) {
+			var (named, positional) = Samples(key);
+			return words.FormatByName(provider, key.BlockKey, named, positional);
+		}
+
+		//the samples as a host app would hand them: numbered ones in their slots, the rest by name
+		private static (Dictionary<string, object?> Named, object?[] Positional) Samples(WordsKey key) {
 			var named = new Dictionary<string, object?>();
 			var positional = new List<object?>();
 			foreach (WordsParameter parameter in key.Parameters) {
@@ -285,7 +301,7 @@ namespace PatTech.Localization.Authoring {
 					named[parameter.Key] = value;
 				}
 			}
-			return Words.FormatByName(provider, text, named, [.. positional]);
+			return (named, [.. positional]);
 		}
 
 		/// <summary>

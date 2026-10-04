@@ -37,14 +37,30 @@
     <ItemContainerTemplate x:Key="ChoiceMenuTemplate">
         <MenuItem Header="{Binding Caption}"
                   Icon="{Binding Icon, Converter={StaticResource PackIconConverter}}"
+                  IsEnabled="{Binding IsEnabled}"
                   ItemsSource="{Binding Options}"
                   UsesItemContainerTemplate="True"
                   ItemContainerTemplateSelector="{StaticResource MenuRowSelector}"/>
     </ItemContainerTemplate>
+    <!-- an option marked bold (a plural form with words), greyed where the language does not use it -->
+    <Style x:Key="ChoiceOptionLabel" TargetType="TextBlock">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsMarked}" Value="True">
+                <Setter Property="FontWeight" Value="Bold"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding IsGreyed}" Value="True">
+                <Setter Property="Opacity" Value="0.6"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
     <ItemContainerTemplate x:Key="ChoiceOptionTemplate">
-        <MenuItem Header="{Binding Label}"
-                  IsCheckable="True"
-                  IsChecked="{Binding IsChecked}"/>
+        <MenuItem IsCheckable="True"
+                  IsChecked="{Binding IsChecked}"
+                  IsEnabled="{Binding IsEnabled}">
+            <MenuItem.Header>
+                <TextBlock Text="{Binding Label}" Style="{StaticResource ChoiceOptionLabel}"/>
+            </MenuItem.Header>
+        </MenuItem>
     </ItemContainerTemplate>
     <ItemContainerTemplate x:Key="MenuBreakTemplate">
         <Separator/>
@@ -62,6 +78,7 @@
         <Setter Property="BorderThickness" Value="2"/>
         <Setter Property="Padding" Value="2"/>
         <Setter Property="Margin" Value="1"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
@@ -73,7 +90,7 @@
                             Padding="{TemplateBinding Padding}"
                             CornerRadius="3"
                             SnapsToDevicePixels="True">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <MultiTrigger>
@@ -121,12 +138,80 @@
         </ToggleButton>
     </DataTemplate>
     <!-- a choice on a toolbar: a combo box, wide enough for a language's name -->
-    <DataTemplate DataType="{x:Type vm:ChoiceItem}">
+    <DataTemplate x:Key="ChoiceComboTemplate" DataType="{x:Type vm:ChoiceItem}">
         <ComboBox ItemsSource="{Binding Options}"
                   DisplayMemberPath="Label"
                   SelectedItem="{Binding Selected}"
+                  IsEnabled="{Binding IsEnabled}"
                   ToolTip="{Binding Caption}"
                   MinWidth="180"
                   Style="{DynamicResource {x:Static ToolBar.ComboBoxStyleKey}}"/>
+    </DataTemplate>
+    <!-- or a popup button of ticked rows, the way the filters' button holds them, which costs
+         a narrow header no more than a button: it wears the pick as a badge, bare on the first
+         row (SPEC: Plural forms → The selector) -->
+    <DataTemplate x:Key="ChoicePopupTemplate" DataType="{x:Type vm:ChoiceItem}">
+        <md:Badged Badge="{Binding Badge}" BadgeColorZoneMode="SecondaryMid" VerticalAlignment="Center">
+            <Grid>
+                <ToggleButton x:Name="Toggle"
+                              Style="{StaticResource ToolToggle}"
+                              IsChecked="{Binding IsOpen, ElementName=Rows, Mode=TwoWay}"
+                              IsEnabled="{Binding IsEnabled}"
+                              ToolTip="{Binding Caption}"
+                              uc:PopupToggle.Popup="{Binding ElementName=Rows}">
+                    <md:PackIcon Kind="{Binding Icon}"/>
+                </ToggleButton>
+                <Popup x:Name="Rows"
+                       PlacementTarget="{Binding ElementName=Toggle}"
+                       Placement="Bottom"
+                       StaysOpen="False"
+                       AllowsTransparency="True"
+                       PopupAnimation="Fade">
+                    <md:Card Padding="2" Margin="6" UniformCornerRadius="3" md:ElevationAssist.Elevation="Dp4">
+                        <ItemsControl ItemsSource="{Binding Options}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:Choice}">
+                                    <ToggleButton IsChecked="{Binding IsChecked}"
+                                                  IsEnabled="{Binding IsEnabled}"
+                                                  Style="{StaticResource ToolButton}"
+                                                  HorizontalContentAlignment="Left"
+                                                  Padding="4 2 10 2">
+                                        <StackPanel Orientation="Horizontal">
+                                            <md:PackIcon Kind="Check" Margin="0 0 6 0">
+                                                <md:PackIcon.Style>
+                                                    <Style TargetType="md:PackIcon">
+                                                        <Setter Property="Visibility" Value="Hidden"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsChecked}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </md:PackIcon.Style>
+                                            </md:PackIcon>
+                                            <TextBlock Text="{Binding Label}" Style="{StaticResource ChoiceOptionLabel}"/>
+                                        </StackPanel>
+                                    </ToggleButton>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </md:Card>
+                </Popup>
+            </Grid>
+        </md:Badged>
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:ChoiceItem}">
+        <ContentControl Content="{Binding}" Focusable="False" IsTabStop="False">
+            <ContentControl.Style>
+                <Style TargetType="ContentControl">
+                    <Setter Property="ContentTemplate" Value="{StaticResource ChoiceComboTemplate}"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsPopup}" Value="True">
+                            <Setter Property="ContentTemplate" Value="{StaticResource ChoicePopupTemplate}"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ContentControl.Style>
+        </ContentControl>
     </DataTemplate>
 </ResourceDictionary>

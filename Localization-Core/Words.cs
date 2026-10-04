@@ -321,10 +321,23 @@ namespace PatTech.Localization {
 			return words[FormKey(words.Provider, language, key, PluralRules.Select(language, count))];
 		}
 
-		//the entry a count reads (SPEC: Plural forms): key#form, else the form an optional
-		//category reads instead, else key#other, else the plain value, which is the one
-		//form; a language with one category has only that
-		private static string FormKey(IWordsProvider provider, string language, string key, string form) {
+		/// <summary>
+		/// The entry a count in <paramref name="form"/> reads in <paramref name="language"/>
+		/// (SPEC: Plural forms): <c>key#form</c> when the provider has it, else the form an
+		/// optional category reads instead (<see cref="PluralRules.Optional"/>), else
+		/// <c>key#other</c>, else <paramref name="key"/> itself, the plain value, which is
+		/// the <c>one</c> form. A language with one category reads only the plain value.
+		/// </summary>
+		/// <param name="provider">The flattened words to look in.</param>
+		/// <param name="language">The language whose rules apply, e.g. <c>"mt"</c>.</param>
+		/// <param name="key">The key whose forms to choose among.</param>
+		/// <param name="form">The CLDR category, as <see cref="PluralRules.Select"/> names it.</param>
+		/// <returns>An entry the provider can be asked for, or <paramref name="key"/>.</returns>
+		public static string FormKey(IWordsProvider provider, string language, string key, string form) {
+			ArgumentNullException.ThrowIfNull(provider);
+			ArgumentNullException.ThrowIfNull(language);
+			ArgumentNullException.ThrowIfNull(key);
+			ArgumentNullException.ThrowIfNull(form);
 			if (form != "one" && PluralRules.Categories(language).Count > 1) {
 				if (provider.ContainsKey($"{key}#{form}")) {
 					return $"{key}#{form}";
@@ -436,6 +449,25 @@ namespace PatTech.Localization {
 			};
 		}
 
+		//by name, a value of the dictionary; by number, a positional argument, and the one
+		//past them nothing, as the dictionary's PreFormatByName slots it
+		private static Func<string, object?> Named(IReadOnlyDictionary<string, object?> values, object?[]? args) {
+			var positional = Positional(args);
+			int count = args?.Length ?? 0;
+			return name => {
+				if (char.IsDigit(name[0])) {
+					return int.TryParse(name, NumberStyles.None, CultureInfo.InvariantCulture, out int index) && index == count
+						? null
+						: positional(name);
+				}
+				if (values.TryGetValue(name, out var found)) {
+					return found;
+				}
+				Logger.Warn($"WORDS:FIELD:`{name}`");
+				return null;
+			};
+		}
+
 		//a public field or property by name; a null item has every member, as null
 		private static bool TryMember(object? item, string name, out object? found) {
 			found = null;
@@ -513,6 +545,22 @@ namespace PatTech.Localization {
 		[return: Localized]
 		public static string FormatByName(this IWords known, IFormatProvider? provider, string key, object? value, params object?[] args)
 			=> FormatByName(provider, SelectForms(known, known[key], key, Named(value, args)), value, args);
+		/// <summary>
+		/// <see cref="FormatByName(IWords, IFormatProvider?, string, object?, object?[])"/>
+		/// with the named values supplied by a dictionary instead of an object's members —
+		/// for callers that assemble them at runtime, such as an authoring tool trying out
+		/// sample parameters. A plural selector names its count either way.
+		/// </summary>
+		/// <param name="known">The dictionary to read.</param>
+		/// <param name="provider">Culture-specific formatting, or <see langword="null"/> for the current culture.</param>
+		/// <param name="key">The key of the format template.</param>
+		/// <param name="values">The named values, by the name the template uses.</param>
+		/// <param name="args">Additional positional arguments.</param>
+		[return: Localized]
+		public static string FormatByName(this IWords known, IFormatProvider? provider, string key, IReadOnlyDictionary<string, object?> values, params object?[] args) {
+			ArgumentNullException.ThrowIfNull(values);
+			return FormatByName(provider, SelectForms(known, known[key], key, Named(values, args)), values, args);
+		}
 
 		/// <summary>
 		/// Looks up <paramref name="key"/> and fills its placeholders from whatever

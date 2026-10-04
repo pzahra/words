@@ -75,22 +75,40 @@ public sealed class ToggleItem : CommandItem {
 	}
 }
 
+/// <summary>What a <see cref="ChoiceItem"/>'s options say beyond their names, and how the row shows on a toolbar.</summary>
+/// <param name="CanPick">Whether an option can be picked; every one when absent.</param>
+/// <param name="Marked">Whether an option is marked: a plural form with words.</param>
+/// <param name="Greyed">Whether an option reads greyed while it can still be picked.</param>
+/// <param name="Enabled">Whether the choice applies now; always when absent.</param>
+/// <param name="Badge">What the toolbar button wears; nothing when absent or null.</param>
+/// <param name="Popup">A popup button of ticked rows on a toolbar, rather than a combo box.</param>
+public sealed record ChoiceLook(Func<object, bool>? CanPick = null, Func<object, bool>? Marked = null, Func<object, bool>? Greyed = null,
+	Func<bool>? Enabled = null, Func<string?>? Badge = null, bool Popup = false);
+
 /// <summary>
-///     A pick among options — the translation language, Wordsmith's own — as a
-///     submenu of ticked rows in a menu and a combo box on a toolbar. The
-///     options and the pick live on the owner: the row mirrors the options as
-///     <see cref="Choice"/> rows, re-reads them (<see cref="Refresh"/>) when the
-///     owner changed, and sends a pick back through the owner.
+///     A pick among options — the translation language, Wordsmith's own, a
+///     pane's plural form — as a submenu of ticked rows in a menu and a combo
+///     box or a popup button on a toolbar. The options and the pick live on the
+///     owner: the row mirrors the options as <see cref="Choice"/> rows, re-reads
+///     them (<see cref="Refresh"/>) when the owner changed, and sends a pick
+///     back through the owner.
 /// </summary>
 public sealed class ChoiceItem : MenuRow {
 	private readonly Func<IEnumerable<object>> options;
 	private readonly Func<object, string> label;
 	private readonly Func<object?> current;
 	private readonly Action<object> pick;
+	private readonly ChoiceLook look;
 
 	[Localized]
 	public string Caption { get; }
 	public PackIconKind Icon { get; }
+	/// <summary>Whether the choice applies now: a greyed selector still shows its pick.</summary>
+	public bool IsEnabled => look.Enabled?.Invoke() ?? true;
+	/// <summary>The toolbar button's badge: the plural form showing, if not the plain value.</summary>
+	public string? Badge => look.Badge?.Invoke();
+	/// <summary>A popup button on a toolbar, rather than a combo box.</summary>
+	public bool IsPopup => look.Popup;
 	/// <summary>The options as rows, in the owner's order; turned over when the owner's change.</summary>
 	public ObservableCollection<Choice> Options { get; } = [];
 	/// <summary>
@@ -107,29 +125,33 @@ public sealed class ChoiceItem : MenuRow {
 			if (value is null) {
 				return;
 			}
-			if (!Equals(value.Value, current())) {
+			if (!Equals(value.Value, current()) && IsEnabled && CanPick(value.Value)) {
 				pick(value.Value);
 			}
 			Refresh(); //a pick the owner declined (Wordsmith's language asks first) stays put
 		}
 	}
 
-	private ChoiceItem([Localized] string caption, PackIconKind icon, Func<IEnumerable<object>> options, Func<object, string> label, Func<object?> current, Action<object> pick) {
+	private ChoiceItem([Localized] string caption, PackIconKind icon, Func<IEnumerable<object>> options, Func<object, string> label, Func<object?> current, Action<object> pick, ChoiceLook? look) {
 		Caption = caption;
 		Icon = icon;
 		this.options = options;
 		this.label = label;
 		this.current = current;
 		this.pick = pick;
+		this.look = look ?? new();
 		Refresh();
 	}
 
 	/// <summary>A choice among <typeparamref name="T"/>s, read and written as the owner holds them.</summary>
-	public static ChoiceItem Of<T>([Localized] string caption, PackIconKind icon, Func<IEnumerable<T>> options, Func<T, string> label, Func<T?> current, Action<T> pick) where T : notnull
-		=> new(caption, icon, () => options().Cast<object>(), value => label((T)value), () => current(), value => pick((T)value));
+	public static ChoiceItem Of<T>([Localized] string caption, PackIconKind icon, Func<IEnumerable<T>> options, Func<T, string> label, Func<T?> current, Action<T> pick, ChoiceLook? look = null) where T : notnull
+		=> new(caption, icon, () => options().Cast<object>(), value => label((T)value), () => current(), value => pick((T)value), look);
 
 	internal string LabelOf(object value) => label(value);
 	internal bool IsCurrent(object value) => Equals(value, current());
+	internal bool CanPick(object value) => look.CanPick?.Invoke(value) ?? true;
+	internal bool IsMarked(object value) => look.Marked?.Invoke(value) ?? false;
+	internal bool IsGreyed(object value) => look.Greyed?.Invoke(value) ?? false;
 
 	/// <summary>The owner's options, their names or its pick changed: the rows follow.</summary>
 	public void Refresh() {
@@ -144,6 +166,8 @@ public sealed class ChoiceItem : MenuRow {
 			option.Refresh();
 		}
 		AffectProperty(nameof(Selected));
+		AffectProperty(nameof(IsEnabled));
+		AffectProperty(nameof(Badge));
 	}
 }
 
@@ -163,10 +187,19 @@ public sealed class Choice(ChoiceItem owner, object value) : ViewModelBase {
 			}
 		}
 	}
+	/// <summary>Whether it can be picked: an empty plural form no count reads cannot.</summary>
+	public bool IsEnabled => owner.CanPick(Value);
+	/// <summary>A plural form with words.</summary>
+	public bool IsMarked => owner.IsMarked(Value);
+	/// <summary>Greyed, though it may still be picked: a form the language does not count by.</summary>
+	public bool IsGreyed => owner.IsGreyed(Value);
 
 	public void Refresh() {
 		AffectProperty(nameof(IsChecked));
 		AffectProperty(nameof(Label));
+		AffectProperty(nameof(IsEnabled));
+		AffectProperty(nameof(IsMarked));
+		AffectProperty(nameof(IsGreyed));
 	}
 }
 
@@ -196,10 +229,10 @@ public sealed class CommandTable {
 	public IReadOnlyList<CommandItem> FilterTools { get; }
 	/// <summary>Beside the selected node's name: Rename.</summary>
 	public IReadOnlyList<CommandItem> NameTools { get; }
-	/// <summary>The baseline pane's header: the test, the key's flags, its preview.</summary>
-	public IReadOnlyList<CommandItem> DefaultTools { get; }
-	/// <summary>The translation pane's header: the test, the stale flag, its preview.</summary>
-	public IReadOnlyList<CommandItem> TranslationTools { get; }
+	/// <summary>The baseline pane's header: the form, the test, the key's flags, its preview.</summary>
+	public IReadOnlyList<MenuRow> DefaultTools { get; }
+	/// <summary>The translation pane's header: the form, the test, the stale flag, its preview.</summary>
+	public IReadOnlyList<MenuRow> TranslationTools { get; }
 	/// <summary>Above the translation pane: the languages, and the one selected as a combo box.</summary>
 	public IReadOnlyList<MenuRow> LanguageTools { get; }
 	/// <summary>By the search: Back and Forward, which move through the document as it does.</summary>
@@ -249,9 +282,14 @@ public sealed class CommandTable {
 		var forward = new CommandItem(Words.Known["menu.forward"], PackIconKind.ArrowRight, tree.ForwardCommand, new KeyGesture(Key.Right, ModifierKeys.Alt), MouseButton.XButton2);
 		var find = new CommandItem(Words.Known["menu.find"], PackIconKind.Magnify, ApplicationCommands.Find, Ctrl(Key.F));
 		ChoiceItem translationLanguage = ChoiceItem.Of(Words.Known["menu.translation-language"], PackIconKind.Earth,
-			() => tree.FileLanguages, language => language.NativeName, () => tree.SelectedLanguage, language => tree.SelectedLanguage = language);
+			() => tree.FileLanguages, language => language.DisplayName, () => tree.SelectedLanguage, language => tree.SelectedLanguage = language);
 		ChoiceItem uiLanguage = ChoiceItem.Of(Words.Known["menu.ui-language"], PackIconKind.Web,
 			() => vm.UiLanguages, pair => pair.Value, () => vm.UiLanguages.FirstOrDefault(pair => pair.Key == vm.UiLanguage), pair => vm.UiLanguage = pair.Key);
+		//each value pane's plural form (SPEC: Plural forms): CLDR's six rows, a popup on the pane's header
+		ChoiceItem defaultForm = ChoiceItem.Of(Words.Known["menu.default-form"], PackIconKind.Counter,
+			() => PluralRules.Names, tree.DefaultForms.Label, () => tree.DefaultForms.Form, tree.PickDefaultForm, Forms(tree.DefaultForms, () => tree.DefaultFormsEnabled));
+		ChoiceItem translationForm = ChoiceItem.Of(Words.Known["menu.translation-form"], PackIconKind.Counter,
+			() => PluralRules.Names, tree.TranslationForms.Label, () => tree.TranslationForms.Form, tree.PickTranslationForm, Forms(tree.TranslationForms, () => tree.TranslationFormsEnabled));
 		//Tools
 		var languages = new CommandItem(Words.Known["menu.languages"], PackIconKind.Translate, vm.ManageLanguagesCommand);
 		var settings = new CommandItem(Words.Known["menu.settings"], PackIconKind.Cog, vm.SettingsCommand);
@@ -261,7 +299,7 @@ public sealed class CommandTable {
 		Menu = [
 			new MenuGroup(Words.Known["menu.file"], [load, import, merge, new MenuBreak(), save, export, new MenuBreak(), reset, exit]),
 			edit,
-			new MenuGroup(Words.Known["menu.view"], [staleView, reviewView, missingView, clearFilters, new MenuBreak(), defaultPreview, translationPreview, new MenuBreak(), back, forward, find, new MenuBreak(), translationLanguage, uiLanguage]),
+			new MenuGroup(Words.Known["menu.view"], [staleView, reviewView, missingView, clearFilters, new MenuBreak(), defaultPreview, translationPreview, new MenuBreak(), back, forward, find, new MenuBreak(), defaultForm, translationForm, new MenuBreak(), translationLanguage, uiLanguage]),
 			new MenuGroup(Words.Known["menu.tools"], [languages, settings, parameters]),
 		];
 		EditRows = edit.Items;
@@ -269,8 +307,8 @@ public sealed class CommandTable {
 		KeyTools = [addKey, removeKey, staleAll];
 		FilterTools = [staleView, reviewView, missingView, clearFilters];
 		NameTools = [rename];
-		DefaultTools = [parameters, toggleConstant, toggleReview, defaultPreview];
-		TranslationTools = [parameters, toggleStale, translationPreview];
+		DefaultTools = [defaultForm, parameters, toggleConstant, toggleReview, defaultPreview];
+		TranslationTools = [translationForm, parameters, toggleStale, translationPreview];
 		LanguageTools = [languages, translationLanguage];
 		NavigationTools = [back, forward];
 	}
@@ -287,4 +325,13 @@ public sealed class CommandTable {
 	}
 
 	private static KeyGesture Ctrl(Key key) => new(key, ModifierKeys.Control);
+
+	//a form selector's rows: marked with words, greyed where the language does not count by them
+	private static ChoiceLook Forms(FormPane pane, Func<bool> enabled) => new(
+		CanPick: category => pane.CanPick((string)category),
+		Marked: category => pane.HasWords((string)category),
+		Greyed: category => pane.Row((string)category) == FormRow.Unused,
+		Enabled: enabled,
+		Badge: () => pane.Badge,
+		Popup: true);
 }

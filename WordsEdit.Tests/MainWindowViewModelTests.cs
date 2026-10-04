@@ -192,7 +192,10 @@ value-de=n={0:N1}
 		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.First(l => l.Code == "zh");
 		Assert.True(vm.SpellCheckerMissing);
 		Assert.Contains(nameof(MainWindowViewModel.SpellCheckerMissing), raised);
-		Assert.Contains(vm.Tree.SelectedLanguage.NativeName, FakeDialogs.Rendered(vm.SpellCheckerNote));
+		//the note names the language by its exonym, not its own name
+		vm.Tree.SelectedLanguage.NativeName = "中文";
+		Assert.Contains("Chinese (Simplified)", FakeDialogs.Rendered(vm.SpellCheckerNote));
+		Assert.DoesNotContain("中文", vm.SpellCheckerNote);
 	}
 
 	[Fact]

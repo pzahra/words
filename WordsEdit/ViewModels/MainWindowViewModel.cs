@@ -2,6 +2,7 @@ using PatTech.Localization;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Windows.Input;
@@ -53,7 +54,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	//dictionary for it, so the speller checks its boxes against nothing, silently
 	public bool SpellCheckerMissing => !spellCheckers(Tree.SelectedLanguage.Code);
 	[Localized]
-	public string SpellCheckerNote => Words.Known.Format("main.no-spell-checker", Tree.SelectedLanguage.NativeName);
+	public string SpellCheckerNote => Words.Known.Format("main.no-spell-checker", Tree.SelectedLanguage.DisplayName);
 	/// <summary>Where the runtime's gripes go: heard by whichever render is under way, dropped otherwise.</summary>
 	public static GripeCollector Gripes { get; } = new();
 
@@ -165,8 +166,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			if (e.PropertyName is nameof(TreeViewModel.SelectedKeyNode)) {
 				UndoStack.EndRun(); //typing on another node is another run
 			}
-			if (e.PropertyName is nameof(TreeViewModel.SelectedKey) or nameof(TreeViewModel.SelectedEntry) or nameof(TreeViewModel.SelectedLanguage)) {
-				RenderPreviews();
+			if (e.PropertyName is nameof(TreeViewModel.SelectedKey) or nameof(TreeViewModel.SelectedEntry) or nameof(TreeViewModel.SelectedLanguage)
+					or nameof(TreeViewModel.DefaultForms) or nameof(TreeViewModel.TranslationForms)) {
+				RenderPreviews(); //a pane picked another form: its preview renders that one
 			}
 			if (e.PropertyName is nameof(TreeViewModel.SelectedLanguage)) {
 				AffectProperty(nameof(SpellCheckerMissing));
@@ -352,10 +354,11 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			return null;
 		}
 		edit.Close();
-		//the table changed under the tree: its badges and dropdown read it, and the
-		//previews format in its languages
+		//the table changed under the tree: its badges and dropdown read it, the forms
+		//count by its languages, and the previews format in them
 		Tree.FollowLanguage();
 		Tree.RefreshBadges();
+		Tree.RevalidateForms();
 		RenderPreviews();
 		if (!edit.Merged) {
 			return edit;
@@ -648,10 +651,17 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if ((undoing ? UndoStack.NextUndo : UndoStack.NextRedo) is not { } entry) {
 			return;
 		}
-		if (entry.Site(undoing)?.Resolve(Tree) is { } site && !InView(site, entry.Language)) {
+		if (entry.Site(undoing)?.Resolve(Tree) is { } site && !InView(site, entry)) {
 			Tree.Show(site);
 			if (entry.Language is { } code && Session.Languages.Find(code) is { } language) {
 				Tree.SelectedLanguage = language;
+			}
+			//last, as the key and the language have each had their say on the pick
+			if (entry is FieldEdit { Field: DocumentField.EntryValue, Form: var entryForm }) {
+				Tree.PickTranslationForm(entryForm ?? FormPane.Plain);
+			}
+			else if (entry is FieldEdit { Field: DocumentField.DefaultValue, Form: var defaultForm }) {
+				Tree.PickDefaultForm(defaultForm ?? FormPane.Plain);
 			}
 			return;
 		}
@@ -678,9 +688,11 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 	}
 
-	//the node selected and, for an entry tied to a language, that language showing
-	private bool InView(KeyNode site, string? language)
-		=> Tree.SelectedKeyNode == site && (language is null || language == Tree.SelectedLanguage.Code);
+	//the node selected and, for an entry tied to a language, that language showing,
+	//and for a value, the form it was typed into
+	private bool InView(KeyNode site, UndoEntry entry)
+		=> Tree.SelectedKeyNode == site && (entry.Language is null || entry.Language == Tree.SelectedLanguage.Code)
+			&& (entry is not FieldEdit edit || Tree.FormsOf(edit.Field) is not { } pane || pane.Form == (edit.Form ?? FormPane.Plain));
 
 	//Previews
 	private bool RenderPreviews() {
@@ -690,31 +702,37 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			DefaultPreview.Clear();
 		}
 		else {
-			Render(DefaultPreview, key, null, file.DefaultLanguage, Session.SettingsFor(file));
+			Render(DefaultPreview, key, null, file.DefaultLanguage, Tree.DefaultForms, Session.SettingsFor(file));
 		}
 		if (key is null || file is null || !ShowLocalizationPreview || Tree.SelectedEntry is null) {
 			TranslationPreview.Clear();
 		}
 		else {
-			Render(TranslationPreview, key, Tree.SelectedLanguage.Code, Tree.SelectedLanguage.Code, Session.SettingsFor(file, Tree.SelectedLanguage.Code));
+			Render(TranslationPreview, key, Tree.SelectedLanguage.Code, Tree.SelectedLanguage.Code, Tree.TranslationForms, Session.SettingsFor(file, Tree.SelectedLanguage.Code));
 		}
 		return true;
 	}
 
 	//every loaded file in tree order resolves {>references} and {$constants}, like a
-	//host app stacking dictionaries; the samples then go through the same formatting
-	//the host applies, in the language's culture where there is one, and the default
-	//in the one it is written in. A sample that will not format keeps the raw text
-	//and heads the pane's gripes; what Words complained about on the way, and what
-	//is wrong with the rules, follow
-	private void Render(PreviewPane pane, WordsKey key, string? languageCode, string? cultureCode, ProjectSettings settings) {
+	//host app stacking dictionaries; the pane's form reads as the runtime picks it for
+	//a count in that form. The samples then go through the same formatting the host
+	//applies, selectors and all, in the language's culture where there is one, and the
+	//default in the one it is written in. A sample that will not format keeps the raw
+	//text and heads the pane's gripes; what Words complained about on the way, and
+	//what is wrong with the rules, follow
+	private void Render(PreviewPane pane, WordsKey key, string? languageCode, string? cultureCode, FormPane forms, ProjectSettings settings) {
 		List<string> gripes = [];
 		string text;
 		using (Gripes.Listen(gripes)) {
-			text = Words.RenderKey(Session.Provider(Tree.FileLabels, languageCode), key.BlockKey);
+			IWordsProvider provider = Session.Provider(Tree.FileLabels, languageCode);
+			if (!forms.IsPlain) {
+				provider = new FormAsKey(provider, key.BlockKey, Words.FormKey(provider, forms.Language, key.BlockKey, forms.Form));
+			}
+			text = Words.RenderKey(provider, key.BlockKey);
 			if (key.Parameters.Count != 0) {
+				CultureInfo culture = WordsOperations.CultureFor(cultureCode);
 				try {
-					text = WordsOperations.FormatSample(key, text, WordsOperations.CultureFor(cultureCode));
+					text = WordsOperations.FormatSample(new CulturedWords(provider, culture), key, culture);
 				}
 				catch (Exception ex) when (ex is FormatException or OverflowException) {
 					gripes.Insert(0, ex.Message);
@@ -722,6 +740,13 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			}
 		}
 		pane.Show(text, settings, gripes.Concat(settings.Errors), Gripes);
+	}
+
+	//a provider whose key reads as one of its entries: the form a pane shows
+	private sealed class FormAsKey(IWordsProvider inner, string key, string form) : IWordsProvider {
+		public string this[string name] => inner[name == key ? form : name];
+		public bool ContainsKey(string name) => inner.ContainsKey(name == key ? form : name);
+		public bool TryGetValue(string name, [MaybeNullWhen(false), Localized] out string value) => inner.TryGetValue(name == key ? form : name, out value);
 	}
 
 	/// <summary>

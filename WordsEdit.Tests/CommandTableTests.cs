@@ -15,7 +15,7 @@ namespace WordsEdit.Tests;
 ///     owner's options and pick.
 /// </summary>
 public class CommandTableTests {
-	private const string Ini = "value-en=English\nvalue-de=Deutsch\n\n[k]\nvalue=x\nvalue-de=y\n";
+	private const string Ini = "value-en=English\nvalue-de=Deutsch\ncomment-de=German\n\n[k]\nvalue=x\nvalue-de=y\n";
 
 	private static MainWindowViewModel NewVm() => new(new FakeDialogs());
 
@@ -55,8 +55,8 @@ public class CommandTableTests {
 		//the flags on the selected key are toggles: a tick in the menu, a state on the toolbar
 		Assert.IsType<ToggleItem>(rows.Single(row => row.Command == vm.ToggleConstantCommand));
 		Assert.IsType<ToggleItem>(rows.Single(row => row.Command == vm.ToggleStaleLanguageCommand));
-		//both languages are choices, under View
-		Assert.Equal(2, vm.Commands.Menu[2].Items.OfType<ChoiceItem>().Count());
+		//both panes' plural forms and both languages are choices, under View
+		Assert.Equal(4, vm.Commands.Menu[2].Items.OfType<ChoiceItem>().Count());
 	}
 
 	[Fact]
@@ -97,9 +97,15 @@ public class CommandTableTests {
 		Assert.DoesNotContain(Tools(vm.Commands).OfType<CommandItem>(), tool => tool.Command == vm.LoadFileCommand);
 		Assert.DoesNotContain(Tools(vm.Commands).OfType<CommandItem>(), tool => tool.Command == vm.ResetCommand);
 		//the test sits in both pane headers, the same row; each header toggles its own preview
-		Assert.Same(vm.Commands.DefaultTools.Single(tool => tool.Command == vm.TestParametersCommand), vm.Commands.TranslationTools.Single(tool => tool.Command == vm.TestParametersCommand));
-		Assert.Contains(vm.Commands.DefaultTools, tool => tool.Caption == Words.Known["menu.default-preview"]);
-		Assert.Contains(vm.Commands.TranslationTools, tool => tool.Caption == Words.Known["menu.translation-preview"]);
+		//and leads with its own plural form, a popup
+		Assert.Same(vm.Commands.DefaultTools.OfType<CommandItem>().Single(tool => tool.Command == vm.TestParametersCommand),
+			vm.Commands.TranslationTools.OfType<CommandItem>().Single(tool => tool.Command == vm.TestParametersCommand));
+		Assert.Contains(vm.Commands.DefaultTools.OfType<CommandItem>(), tool => tool.Caption == Words.Known["menu.default-preview"]);
+		Assert.Contains(vm.Commands.TranslationTools.OfType<CommandItem>(), tool => tool.Caption == Words.Known["menu.translation-preview"]);
+		Assert.Equal(Words.Known["menu.default-form"], Assert.IsType<ChoiceItem>(vm.Commands.DefaultTools[0]).Caption);
+		Assert.Equal(Words.Known["menu.translation-form"], Assert.IsType<ChoiceItem>(vm.Commands.TranslationTools[0]).Caption);
+		Assert.All([vm.Commands.DefaultTools[0], vm.Commands.TranslationTools[0]], tool => Assert.True(((ChoiceItem)tool).IsPopup));
+		Assert.False(ChoiceOf(vm, "menu.translation-language").IsPopup);
 		//the filter popup: the three views and the clear; Rename alone beside the name
 		Assert.Equal(3, vm.Commands.FilterTools.OfType<ToggleItem>().Count());
 		Assert.Contains(vm.Commands.FilterTools, tool => tool.Command == vm.ClearFiltersCommand);
@@ -181,10 +187,11 @@ public class CommandTableTests {
 	public void AChoiceMirrorsItsOwner() {
 		var vm = LoadedVm();
 		ChoiceItem language = ChoiceOf(vm, "menu.translation-language");
-		Assert.Equal(vm.Tree.FileLanguages.Select(entry => entry.NativeName), language.Options.Select(option => option.Label));
+		//each language by its exonym, its own name where it has none
+		Assert.Equal(["English", "German"], language.Options.Select(option => option.Label));
 		Assert.Same(vm.Tree.SelectedLanguage, language.Selected!.Value);
 
-		Choice german = language.Options.Single(option => option.Label == "Deutsch");
+		Choice german = language.Options.Single(option => option.Label == "German");
 		List<string?> raised = [];
 		german.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
 		german.IsChecked = true; //the submenu's tick
@@ -230,7 +237,7 @@ public class CommandTableTests {
 		vm.Session.Languages.Add(new LanguageEntry("fr", "Français"));
 		vm.Tree.RefreshBadges(); //every path that changes the table passes here: the rows turn over once
 		Assert.Equal(1, pushes);
-		Assert.Equal(["English", "Deutsch", "Français"], language.Options.Select(option => option.Label));
+		Assert.Equal(["English", "German", "Français"], language.Options.Select(option => option.Label));
 		Assert.Same(vm.Tree.SelectedLanguage, language.Selected!.Value);
 	}
 

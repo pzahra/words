@@ -330,6 +330,26 @@ public class PluralFormsTests {
 	}
 
 	[Fact]
+	public void ADictionaryOfValuesSelectsByName_AndByNumber() {
+		var ru = In("ru");
+
+		Assert.Equal(ru.FormatByName("named", new { Count = 5 }), ru.FormatByName(null, "named", new Dictionary<string, object?> { ["Count"] = 5 }));
+		Assert.Equal(ru.Format("files", 22), ru.FormatByName(null, "files", new Dictionary<string, object?>(), 22));
+	}
+
+	[Fact]
+	public void FormKey_NamesTheEntryACountInAFormReads() {
+		var maltese = WordsBuilder.Create().LoadString(
+			"value=!en\nvalue-mt=Malti\n\n[file]\nvalue=file\nvalue#other=files\nvalue-mt=fajl\nvalue-mt#few=fajls\n").Flatten("mt");
+
+		Assert.Equal("file#few", Words.FormKey(maltese, "mt", "file", "few"));
+		Assert.Equal("file#few", Words.FormKey(maltese, "mt", "file", "two"));  //optional, reads few
+		Assert.Equal("file", Words.FormKey(maltese, "mt", "file", "many"));     //reads other, which Maltese left to its plain value
+		Assert.Equal("file", Words.FormKey(maltese, "mt", "file", "one"));
+		Assert.Equal("file", Words.FormKey(maltese, "ja", "file", "few"));      //one category: the plain value alone
+	}
+
+	[Fact]
 	public void TheIndexerKeepsTheSelector_TheCountIndexerReadsTheKeysOwnForm() {
 		var ru = In("ru");
 

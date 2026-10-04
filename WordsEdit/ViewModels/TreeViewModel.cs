@@ -34,6 +34,11 @@ public class TreeViewModel : ViewModelBase {
 
 	public TreeViewModel(WordsSession session) {
 		this.session = session;
+		//the panes before the language: setting it reads them
+		DefaultForms = new FormPane(() => DefaultRulesLanguage, () => SelectedKey?.Forms, () => SelectedKey?.DefaultValue ?? "");
+		TranslationForms = new FormPane(() => SelectedLanguage.Code, () => SelectedEntry?.Forms, () => SelectedEntry?.Value ?? "");
+		DefaultForms.PropertyChanged += OnFormPicked;
+		TranslationForms.PropertyChanged += OnFormPicked;
 		SelectedLanguage = KnownLanguages[0];
 		BackCommand = new DelegateCommand(() => Navigate(History.Back(Resolves)), () => History.CanGoBack);
 		ForwardCommand = new DelegateCommand(() => Navigate(History.Forward(Resolves)), () => History.CanGoForward);
@@ -119,6 +124,168 @@ public class TreeViewModel : ViewModelBase {
 	private void RaiseDefault() {
 		AffectProperty(nameof(DefaultLanguage));
 		AffectProperty(nameof(DefaultHint));
+		RaiseForms();
+	}
+
+	//Plural forms (SPEC: Plural forms)
+	/// <summary>The baseline pane's form selector, over the default's language.</summary>
+	public FormPane DefaultForms { get; }
+	/// <summary>The translation pane's, over the selected language.</summary>
+	public FormPane TranslationForms { get; }
+
+	/// <summary>The language whose rules the baseline's forms follow: the default's, English while the file declares none.</summary>
+	public string DefaultRulesLanguage => DefaultLanguage ?? "en";
+
+	/// <summary>A key with a form in any language, the default included.</summary>
+	public bool IsPlural => SelectedKey is { } key && IsPluralKey(key);
+	private static bool IsPluralKey(WordsKey key) => key.Forms.HasWords() || key.Entries.Values.Any(entry => entry.Forms.HasWords());
+
+	/// <summary>The baseline's selector: how a key becomes plural, so live on any key.</summary>
+	public bool DefaultFormsEnabled => SelectedKey is not null && DefaultForms.AnyToPick;
+	/// <summary>The translation's: live on a plural key, where the language has forms to pick.</summary>
+	public bool TranslationFormsEnabled => SelectedEntry is not null && IsPlural && TranslationForms.AnyToPick;
+
+	/// <summary>The baseline box: the default's plain value, or the form picked.</summary>
+	public string DefaultText {
+		get => SelectedKey is not { } key ? "" : DefaultForms.IsPlain ? key.DefaultValue : key.Forms.GetValueOrDefault(DefaultForms.Form, "");
+		set {
+			if (SelectedKey is not { } key) {
+				return;
+			}
+			if (DefaultForms.IsPlain) {
+				key.DefaultValue = value; //the key says it changed
+			}
+			else if (FormPane.Write(key.Forms, DefaultForms.Form, value)) {
+				FormEdited(DocumentField.DefaultValue);
+			}
+		}
+	}
+
+	/// <summary>The translation box: the entry's plain value, or the form picked.</summary>
+	public string EntryText {
+		get => SelectedEntry is not { } entry ? "" : TranslationForms.IsPlain ? entry.Value : entry.Forms.GetValueOrDefault(TranslationForms.Form, "");
+		set {
+			if (SelectedEntry is not { } entry) {
+				return;
+			}
+			if (TranslationForms.IsPlain) {
+				entry.Value = value;
+			}
+			else if (FormPane.Write(entry.Forms, TranslationForms.Form, value)) {
+				FormEdited(DocumentField.EntryValue);
+			}
+		}
+	}
+
+	/// <summary>The baseline pane's title, naming the form picked ("Default · other").</summary>
+	[Localized]
+	public string DefaultTitle => Titled(Words.Known["main.default"], DefaultForms);
+	/// <summary>The translation pane's ("Translation · few").</summary>
+	[Localized]
+	public string TranslationTitle => Titled(Words.Known["main.translation"], TranslationForms);
+
+	[return: Localized]
+	private static string Titled([Localized] string title, FormPane pane) => pane.IsPlain ? title : Words.Known.Format("main.pane-form", title, pane.Form);
+
+	/// <summary>An empty form's hint in the baseline box: what that count reads as until the form has words.</summary>
+	public string? DefaultFormHint => DefaultForms.IsPlain || SelectedKey is not { } key ? null : Reads(null, DefaultRulesLanguage, key, DefaultForms.Form);
+
+	/// <summary>
+	///     The translation box's hint: the default where it speaks the language
+	///     (<see cref="DefaultHint"/>), and on a form what that count reads as —
+	///     the language's own words once it has any for the key.
+	/// </summary>
+	public string? EntryHint {
+		get {
+			if (TranslationForms.IsPlain) {
+				return DefaultHint;
+			}
+			if (SelectedKey is not { } key || SelectedEntry is not { } entry) {
+				return null;
+			}
+			bool own = entry.Value != "" || entry.Forms.HasWords();
+			return own || WordsParser.DefaultSpeaks(DefaultLanguage, SelectedLanguage.Code)
+				? Reads(SelectedLanguage.Code, SelectedLanguage.Code, key, TranslationForms.Form)
+				: null;
+		}
+	}
+
+	//the raw text a count in the form reads, as the runtime picks it (Words.FormKey)
+	private string? Reads(string? languageCode, string rules, WordsKey key, string form) {
+		IWordsProvider provider = session.Provider(FileLabels, languageCode);
+		return provider.TryGetValue(Words.FormKey(provider, rules, key.BlockKey, form), out string? text) && text != "" ? text : null;
+	}
+
+	/// <summary>Picks the baseline's form.</summary>
+	public void PickDefaultForm(string form) => DefaultForms.Form = form;
+
+	/// <summary>
+	///     Picks the translation's form, and moves the baseline to the form the
+	///     pick's first number takes in the default's language (SPEC: The two follow).
+	/// </summary>
+	public void PickTranslationForm(string form) {
+		TranslationForms.Form = form;
+		if (FormNumbers.Sample(SelectedLanguage.Code, form) is { } count) {
+			string follows = PluralRules.Select(DefaultRulesLanguage, count);
+			DefaultForms.Form = DefaultForms.Row(follows) == FormRow.Unused ? FormPane.Plain : follows;
+		}
+	}
+
+	/// <summary>The pane whose box shows <paramref name="field"/>'s forms, if it has any.</summary>
+	public FormPane? FormsOf(DocumentField field) => field switch {
+		DocumentField.DefaultValue => DefaultForms,
+		DocumentField.EntryValue => TranslationForms,
+		_ => null,
+	};
+
+	/// <summary>
+	///     A pick the selection no longer offers goes back to the plain value: on
+	///     a key that is not plural, or where the picked row is greyed and empty
+	///     (SPEC: Which keys count). Run when the key or the language changes, not
+	///     on an edit, so clearing a form leaves it picked.
+	/// </summary>
+	public void RevalidateForms() {
+		if (!IsPlural || !DefaultFormsEnabled || !DefaultForms.CanPick(DefaultForms.Form)) {
+			DefaultForms.Form = FormPane.Plain;
+		}
+		if (!TranslationFormsEnabled || !TranslationForms.CanPick(TranslationForms.Form)) {
+			TranslationForms.Form = FormPane.Plain;
+		}
+	}
+
+	private void OnFormPicked(object? sender, PropertyChangedEventArgs e) {
+		if (e.PropertyName != nameof(FormPane.Form)) {
+			return;
+		}
+		//the box now shows another text: the next edit replaces that one
+		Remember(sender == DefaultForms ? DocumentField.DefaultValue : DocumentField.EntryValue);
+		RaiseForms();
+		AffectProperty(sender == DefaultForms ? nameof(DefaultForms) : nameof(TranslationForms));
+	}
+
+	//a form was typed into: reported like its field, and the badges and pickers follow
+	private void FormEdited(DocumentField field) {
+		Report(field);
+		if (SelectedKeyNode is { } node) {
+			RefreshBadges(node);
+		}
+		RaiseForms();
+		Edited?.Invoke();
+	}
+
+	//the forms, the pick or the selection changed: whatever reads them follows
+	private void RaiseForms() {
+		DefaultForms.Refresh();
+		TranslationForms.Refresh();
+		AffectProperty(nameof(IsPlural));
+		AffectProperty(nameof(DefaultFormsEnabled));
+		AffectProperty(nameof(TranslationFormsEnabled));
+		AffectProperty(nameof(DefaultText));
+		AffectProperty(nameof(EntryText));
+		AffectProperty(nameof(DefaultTitle));
+		AffectProperty(nameof(TranslationTitle));
+		AffectProperty(nameof(DefaultFormHint));
+		AffectProperty(nameof(EntryHint));
 	}
 
 	private void OnSelectedKeyNodeChanged() {
@@ -188,7 +355,7 @@ public class TreeViewModel : ViewModelBase {
 			HashSet<string> codes = [.. file.Languages, SelectedLanguage.Code];
 			foreach (WordsKey key in session.KeysOf(file)) {
 				foreach (var (code, entry) in key.Entries) {
-					if (entry.Value.Trim() != "") {
+					if (entry.Value.Trim() != "" || entry.Forms.HasWords()) {
 						codes.Add(code);
 					}
 				}
@@ -208,6 +375,7 @@ public class TreeViewModel : ViewModelBase {
 
 	/// <summary>Re-reads the selected node's key and entry from the document.</summary>
 	public void FollowSelectedKey() {
+		(WordsKey? key, WordsEntry? entry) before = (SelectedKey, SelectedEntry);
 		if (SelectedKeyNode is not null && session.Keys.TryGetValue(SelectedKeyNode.FullLabel, out var key)) {
 			SelectedKey = key;
 			SelectedEntry = key.IsConstant ? null : key.Entries[SelectedLanguage.Code];
@@ -216,6 +384,11 @@ public class TreeViewModel : ViewModelBase {
 			SelectedKey = null;
 			SelectedEntry = null;
 		}
+		if (before != (SelectedKey, SelectedEntry)) {
+			RevalidateForms(); //another key or language: the picks it no longer offers go plain
+		}
+		//a form written behind the boxes' backs (an undo) is what the next edit replaces
+		Remember(DocumentField.DefaultValue, DocumentField.EntryValue);
 		RaiseDefault();
 	}
 
@@ -225,7 +398,8 @@ public class TreeViewModel : ViewModelBase {
 			return; //selection and model briefly disagree while the selection is changing
 		}
 		Report(e.PropertyName switch {
-			nameof(WordsKey.DefaultValue) => DocumentField.DefaultValue,
+			//the box shows the plain value only on the plain pick; a form reports its own
+			nameof(WordsKey.DefaultValue) when DefaultForms.IsPlain => DocumentField.DefaultValue,
 			nameof(WordsKey.Context) => DocumentField.KeyContext,
 			nameof(WordsKey.Comment) => DocumentField.KeyComment,
 			_ => null,
@@ -235,6 +409,8 @@ public class TreeViewModel : ViewModelBase {
 		}
 		if (e.PropertyName is nameof(SelectedKey.DefaultValue)) {
 			AffectProperty(nameof(DefaultHint));
+			AffectProperty(nameof(DefaultText));
+			AffectProperty(nameof(EntryHint));
 		}
 		Edited?.Invoke();
 	}
@@ -251,13 +427,17 @@ public class TreeViewModel : ViewModelBase {
 			return; //selection and model briefly disagree while the selection is changing
 		}
 		Report(e.PropertyName switch {
-			nameof(WordsEntry.Value) => DocumentField.EntryValue,
+			nameof(WordsEntry.Value) when TranslationForms.IsPlain => DocumentField.EntryValue,
 			nameof(WordsEntry.Context) => DocumentField.EntryContext,
 			nameof(WordsEntry.Comment) => DocumentField.EntryComment,
 			_ => null,
 		});
 		if (e.PropertyName is nameof(SelectedEntry.Value) or nameof(SelectedEntry.Stale)) {
 			RefreshBadges(SelectedKeyNode);
+		}
+		if (e.PropertyName is nameof(SelectedEntry.Value)) {
+			AffectProperty(nameof(EntryText));
+			AffectProperty(nameof(EntryHint));
 		}
 		Edited?.Invoke();
 	}
@@ -272,18 +452,20 @@ public class TreeViewModel : ViewModelBase {
 		}
 	}
 
+	//a value as its box shows it: the plain value or the form picked
 	private string? TextOf(DocumentField field) => field switch {
-		DocumentField.DefaultValue => SelectedKey?.DefaultValue,
+		DocumentField.DefaultValue => SelectedKey is null ? null : DefaultText,
 		DocumentField.KeyContext => SelectedKey?.Context,
 		DocumentField.KeyComment => SelectedKey?.Comment,
-		DocumentField.EntryValue => SelectedEntry?.Value,
+		DocumentField.EntryValue => SelectedEntry is null ? null : EntryText,
 		DocumentField.EntryContext => SelectedEntry?.Context,
 		DocumentField.EntryComment => SelectedEntry?.Comment,
 		DocumentField.CommentText => SelectedOrganizer?.Text,
 		_ => null,
 	};
 
-	//a field of the selection changed: reported with what it held, an entry's field in the selected language
+	//a field of the selection changed: reported with what it held, an entry's field in the
+	//selected language, a value in the form its pane shows
 	private void Report(DocumentField? field) {
 		if (field is not { } changed || SelectedKeyNode is not { } node) {
 			return;
@@ -292,7 +474,8 @@ public class TreeViewModel : ViewModelBase {
 		string after = TextOf(changed) ?? "";
 		texts[changed] = after;
 		string? language = changed is DocumentField.EntryValue or DocumentField.EntryContext or DocumentField.EntryComment ? SelectedLanguage.Code : null;
-		FieldEdited?.Invoke(new FieldEdit(NodeRef.Of(node), language, changed, before, after));
+		string? form = FormsOf(changed) is { IsPlain: false } pane ? pane.Form : null;
+		FieldEdited?.Invoke(new FieldEdit(NodeRef.Of(node), language, changed, before, after, form));
 	}
 
 	//Filters
@@ -395,9 +578,11 @@ public class TreeViewModel : ViewModelBase {
 		}
 		WordsEntry? entry = key.Entries.GetValueOrDefault(SelectedLanguage.Code);
 		return key.DefaultValue.Contains(text, ignoreCase)
+			|| key.Forms.Values.Any(form => form.Contains(text, ignoreCase))
 			|| key.Context.Contains(text, ignoreCase)
 			|| key.Comment.Contains(text, ignoreCase)
-			|| (entry is not null && (entry.Value.Contains(text, ignoreCase) || entry.Context.Contains(text, ignoreCase) || entry.Comment.Contains(text, ignoreCase)));
+			|| (entry is not null && (entry.Value.Contains(text, ignoreCase) || entry.Forms.Values.Any(form => form.Contains(text, ignoreCase))
+				|| entry.Context.Contains(text, ignoreCase) || entry.Comment.Contains(text, ignoreCase)));
 	}
 
 	private static bool EnsureVisibleDescendant(KeyNode node) {
@@ -448,8 +633,15 @@ public class TreeViewModel : ViewModelBase {
 		//that never declared the language has no gap to show, nor one whose default
 		//speaks it, since its empty entries fall back to the default (SPEC: Badges)
 		bool wanting = file is not null && file.Languages.Contains(code) && !WordsParser.DefaultSpeaks(file.DefaultLanguage, code);
+		//a plural key also wants every form its languages count by, bar the optional ones;
+		//a language with no words of its own misses its value, and the default's forms
+		//stand in until it has some (SPEC: Plural forms → Badges)
+		bool plural = IsPluralKey(key);
+		WordsEntry? entry = key.Entries.GetValueOrDefault(code);
+		string value = entry?.Value.Trim() ?? "";
 		node.EmptyValue = !key.IsConstant
-			&& (key.DefaultValue.Trim() == "" || (wanting && (key.Entries.GetValueOrDefault(code)?.Value.Trim() ?? "") == ""));
+			&& (key.DefaultValue.Trim() == "" || (plural && FormPane.Misses(file?.DefaultLanguage ?? "en", key.Forms))
+				|| (wanting && (value == "" || (plural && FormPane.Misses(code, entry!.Forms)))));
 	}
 
 	//only a leaf directly under a file may become a constant (SPEC: baseline pane)

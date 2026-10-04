@@ -522,15 +522,16 @@ dirtiness, the plan, the loss and the overwrite confirmation.
 
 A menu bar carries every command the editor has, grouped the usual way —
 File (Open, Import, Merge, Save, Export, Reset, Exit), Edit (Undo and Redo,
-the node and key operations, then the flags), View (the filters, the previews, Find, then the
-translation language and Wordsmith's own as submenus), Tools (Languages,
+the node and key operations, then the flags), View (the filters, the previews, Find, then each
+pane's plural form, then the translation language and Wordsmith's own, all
+four submenus), Tools (Languages,
 Project Settings, Test Parameters) — with an access key on each menu and
 gesture text on each entry, so everything is reachable by name and by
 keyboard, not only by icon. The toolbars are toolbar controls populated from
 the same commands and carry only what is convenient: the node operations
 under the tree, the key operations under the baseline pane, the filters as
 a vertical toolbar in the popup beside the search box, Back and Forward on
-the box's other side, Rename at the right of the selected node's name, each pane's header (Test Parameters, the key's
+the box's other side, Rename at the right of the selected node's name, each pane's header (its plural form, Test Parameters, the key's
 flags, its preview) and, above the translation pane, Languages beside the
 translation language as a combo box.
 Files in and out, Merge, Reset and Project Settings live in the menu alone,
@@ -546,8 +547,10 @@ checkable in the menu and a toggle on a toolbar; its command flips the state
 and the row reads it back, and the owner tells the row when the state, or
 whether it applies, changed elsewhere, so the tick, the popup's button and
 the pane's toggle agree. A pick among options (`ChoiceItem`: the two
-languages) is a submenu of ticked rows in the menu and a combo box on a
-toolbar, its options mirrored from the owner's. The window binds the table's
+languages, each pane's plural form) is a submenu of ticked rows in the menu
+and a combo box on a toolbar, or a popup button of ticked rows (the forms), its
+options mirrored from the owner's; an option may be greyed, marked or out of
+reach, and a choice that does not apply greys whole. The window binds the table's
 gestures once, from the rows that carry one, and the mouse buttons a row
 names beside them; Find is a routed command and carries Ctrl+F of its own. The captions are looked up by literal key in the
 table, so the editor's own words name every one of them.
@@ -558,7 +561,9 @@ pane headers keep their gripe badges, which act on what they sit beside.
 Buttons and toggles share one template in the icon's colours — orange under
 the mouse, a blue frame around a toggle that is on — rather than the theme's
 tool button and switch, so the two kinds match in size and weight; the
-filter popup's button is the same toggle. Every toolbar gives back the room
+filter popup's button and the forms' are the same toggle, and a click that
+closes either popup on its own button does not reopen it (`PopupToggle`).
+Every toolbar gives back the room
 the theme keeps for its overflow button until it does overflow
 (`ToolBarOverflow`, set by one implicit toolbar style).
 Back, Forward, Undo and Redo are rows like any other (Navigation, Undo).
@@ -638,9 +643,9 @@ whatever was waiting to be redone.
 - **Fields.** Typing into a text field — a key's default value, context or
   comment, an entry's value, context or comment, a comment node's text — is
   a `FieldEdit`: the node, the language (none for a key's own fields or a
-  comment), the field (`DocumentField`), and its text before and after,
-  nothing more, so each field undoes on its own; [plural
-  forms](../Localization-Core/SPEC.md) will add fields, not kinds of entry.
+  comment), the field (`DocumentField`), for a value the plural form typed
+  into (Plural forms), and its text before and after, nothing more, so each
+  field and each form undoes on its own.
   A property change does not say what it replaced, so the tree keeps the
   selected node's text fields as they last stood and reports each change
   (`FieldEdited`) with both texts. A note — a key's or an entry's comment —
@@ -706,9 +711,10 @@ typed back to where it started leaves no entry at all.
 out of view does not undo yet — it goes there. The node is selected and
 shown, it and its ancestors exempt from the filters for as long as it is
 the selection (Navigation), and an entry tied to a language (an entry's
-field, the stale toggle) switches the translation language to it, so what
-is about to change is in view; the next Ctrl+Z undoes it. A change already
-in view — its node selected, in its language — undoes at once, and so does
+field, the stale toggle) switches the translation language to it, and a
+value typed into a plural form picks that form in its pane, so what is
+about to change is in view; the next Ctrl+Z undoes it. A change already
+in view — its node selected, in its language and form — undoes at once, and so does
 an entry that shows nowhere in the tree (a Language Manager commit, a
 Settings Okay). The step is a move like any other, so Back returns from it.
 Redo mirrors it. Once an entry is undone or redone the selection follows it
@@ -767,24 +773,15 @@ laid-out text boxes routed the window's way, Undo in the editing box runs
 the document's undo and Redo asks the document whether it can, while in
 the search box Undo is the box's own.
 
----
-
-# Planned upgrades
-
-Not built yet. Each section here is the shape the feature takes when it is.
-The next release is *Plural forms* and *A command line for tools*, both
-complete.
-
 ## Plural forms
 
 The runtime spec's *Plural forms* gives a key a form per CLDR category beside
 its plain value (`value-mt#few=Kelmiet`). The editor shows one form at a time in
-each value box, and a selector in each pane picks which. The runtime and
-authoring's round trip are built (Order, below), so Wordsmith keeps a file's
-forms through a save while it cannot show them yet.
+each value box, and a selector in each pane picks which. The runtime,
+authoring's round trip and the editor are built, in that order (Order, below).
 
 **The selector.** The baseline pane's header toolbar and the translation
-pane's each get one: a popup button (`Counter`) holding the forms as ticked
+pane's each lead with one: a popup button (`Counter`) holding the forms as ticked
 rows, the way the filter popup holds the filters. A combo box would say which
 form is showing at a glance, but it costs a narrow header a box as wide as
 "other", several buttons' worth. The popup button says it where it matters
@@ -797,17 +794,23 @@ say little to a translator, and marks the forms that have words. The plain
 row is captioned as the language's `one`. The selector is a `ChoiceItem` like
 the two languages: a submenu of ticked rows in the View menu, and the popup on
 the toolbar. That is a second toolbar template for a choice, not a new kind of
-row.
+row. The popup stays open while rows are picked, as the filters' does, and
+closes on a click anywhere else.
 
-**What is offered.** The baseline offers the default's language's categories
-(English while the file declares none), and the translation offers the
-selected language's. Each offers what CLDR's table gives the language and an
-integer reaches, while fractions wait: Maltese offers `two`, `few`, `many` and
-`other` beside its plain value, but Polish's `other` takes only fractions, so
-it is not offered yet. A form the key already has outside those stays
-offered, marked as one the language does not use (and griped on load), so
-nothing written is out of reach. A language with a single category, such as
-Japanese, has nothing to pick, and its button greys.
+**What is offered.** Every row, every time: the plain value and CLDR's other
+five, in CLDR's order, so the list keeps its shape from language to language
+and `few` is always where a translator last saw it. The baseline's rows are
+the default's language's (English while the file declares none), the
+translation's the selected language's. A row the language counts by is live,
+with its numbers, while fractions wait; an optional one (the runtime spec's
+*Optional categories*) is live too, and says what it reads while empty ("two:
+2 — reads few"). A row the language does not count by is greyed: English's
+`zero`, `two`, `few` and `many`, Polish's `other`, which only fractions take,
+and every row but the plain value in Japanese. A greyed row that has words
+anyway, written by hand and griped on load, is marked and stays pickable, so
+it can be read and cleared; an empty greyed row cannot be picked, so nothing
+new is written where no count reads it. A language with a single category and
+no stray forms has nothing to pick, and its button greys.
 
 **Which keys count.** A key is plural when it has a form in any language, the
 default included. The baseline's selector is how a key becomes plural, so it
@@ -815,29 +818,39 @@ is always live. The translation's is live on a plural key and greys on any
 other, showing the plain value: whether a key counts is the developer's call,
 made where the developer writes `{0#word}` or `Words.Known[key, n]`. Each pane
 keeps its pick from key to key, which suits a run through every `few`, but
-returns to the plain value on a key that is not plural, and on a language that
-lacks the picked category. Otherwise a new key's default could be typed into
-`other` by mistake.
+returns to the plain value on a key that is not plural, and where the picked
+row is greyed and empty. Otherwise a new key's default could be typed into
+`other` by mistake. The check runs when the key or the language changes, not
+on an edit, so a form just cleared stays picked, to be typed again or undone.
 
 **The two follow.** Translating a form means reading the source for the same
 numbers, and two languages' categories rarely line up: Maltese `few` (3–10)
-is English `other`, and so is Maltese `other` (20 up). Picking a form in the translation pane moves the baseline's
-selector to the form that the pick's first number takes in the default's
-language. The baseline's own pick moves nothing else.
+is English `other`, and so is Maltese `other` (20 up). Picking a form in the
+translation pane moves the baseline's selector to the form that the pick's
+first number takes in the default's language. The baseline's own pick moves
+nothing else.
 
 **Empty forms.** An empty form's box hints, greyed, what that count reads as
 until the form has words of its own, the way the translation box hints the
-default: the `other` form, or the plain value without one (the runtime spec's
-*Which form a count reads*). Clearing a form removes it, and a key
-whose last form goes is plural no more.
+default: for an optional category the form it reads instead, else the `other`
+form, else the plain value, all the language's own once it has words for the
+key (the runtime spec's *Which form a count reads*). A language with no words
+of its own for the key hints a form only where the default speaks it, as its
+plain value does. Clearing a form removes it, and a key whose last form goes
+is plural no more.
 
-**Badges.** A plural key misses words in a language that uses a category and
-has no form for it, on top of the empty value (Badges); a language the default
-speaks falls back to the default's forms and misses nothing, as it does for
-the value. Which categories a language uses is the runtime's table, which
-follows current CLDR. That gives French, Italian and Spanish a `many` for
-exact millions ("un milione di file"), so a plural key shows a gap there until
-it has one: the price of being right at a million.
+**Badges.** A plural key misses words in a language that has its own value
+for the key and no form for a category it counts by, on top of the empty
+value (Badges). Optional categories never count, since they read another
+form: Maltese leaves out `two` and `many`, and the exact millions of French,
+Italian and Spanish read `other` without a gap. A language with no words of
+its own for the key misses its value, as ever, and the default's forms stand
+in until it has some; a language the default speaks misses nothing, as for
+the value. The default misses a form too: a plural key wants each category
+the default's language counts by, bar the optional ones, in every language's
+view, since a key a translation made plural still needs its source's plural.
+Which categories a language counts by is the runtime's table, which follows
+current CLDR.
 
 **Everything else.** The previews render the selected form. A value that
 selects (`{0#word}`) previews with the Test Parameters samples, so changing
@@ -848,16 +861,19 @@ with it. Stale stays one per entry and one per key, as do the notes. XLIFF and
 resx have no slot for a form, so an export lists the forms as lost
 (`WordsFeatures.PluralForms`), the way it lists the default's language.
 
-**Tests.** A plural key's selectors offer English `other` and Maltese `two`,
-`few`, `many` and `other`, each with its numbers. The badge shows a missing
-Maltese form, and none where the default speaks the language. Typing into a
-form writes `value-mt#few` and undoes. Picking Maltese `few` moves the
-baseline to `other`. A key that is not plural greys the translation's selector
-and shows the plain value. A form the language does not use stays reachable,
-with a gripe.
+**Tests.** A plural key's selectors list all six rows: English `other` live
+and its `zero`, `two`, `few` and `many` greyed; Maltese `two`, `few`, `many`
+and `other` live, each with its numbers, `two` and `many` saying what they
+read. The badge shows a missing Maltese `few`, not a missing `two` or `many`,
+and none where the default speaks the language. Typing into a form writes
+`value-mt#few` and undoes. Picking Maltese `few` moves the baseline to
+`other`. A key that is not plural greys the translation's selector and shows
+the plain value. A form the language does not use stays reachable, marked,
+with a gripe, and an empty greyed row cannot be picked.
 
 **Order.** The runtime comes first, proven in the samples: the grammar, the
-CLDR integer table, the digest, the `{n#key}` selector and the count indexer.
+CLDR integer table, the digest, the `{n#key}` selector and the count indexer,
+then a key's forms kept to the level of its words, and the optional categories.
 Authoring's model and round trip come next: `WordsKey.Forms` and
 `WordsEntry.Forms` hold each form's text by category, and `IniWriter` writes
 each form after its plain value. The reader keeps every CLDR category it meets
@@ -866,9 +882,17 @@ does not count by, any form in a language with one; a word that is no
 category is dropped, with a gripe (Round-trip guarantees). Copies, a recode, a
 split and a merge carry the forms; the preview providers answer `key#few` as
 the runtime flattens it, so a dictionary over them selects; resx and XLIFF
-list the forms as lost. Both are built. The editor follows, as above. The
+list the forms as lost. The editor follows, as above. All three are built. The
 command line comes after the authoring step, so it edits forms like any other
 field from its first build. Each is its own commit.
+
+---
+
+# Planned upgrades
+
+Not built yet. Each section here is the shape the feature takes when it is.
+The next release is *Plural forms*, built above, and *A command line for
+tools*, complete.
 
 ## Import and export, next
 

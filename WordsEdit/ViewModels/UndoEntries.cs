@@ -6,13 +6,16 @@ namespace WordsEdit.ViewModels;
 
 /// <summary>
 ///     Typing into one text field: the node, the language for an entry's field,
-///     the field, and its text before and after. A run of keystrokes in the
-///     field folds into the entry its first keystroke made.
+///     the field and, for a value, the plural form typed into, and its text
+///     before and after. A run of keystrokes in the field folds into the entry
+///     its first keystroke made.
 /// </summary>
-public sealed class FieldEdit(NodeRef node, string? language, DocumentField field, string before, string after) : UndoEntry {
+public sealed class FieldEdit(NodeRef node, string? language, DocumentField field, string before, string after, string? form = null) : UndoEntry {
 	public NodeRef Node { get; } = node;
 	public override string? Language { get; } = language;
 	public DocumentField Field { get; } = field;
+	/// <summary>The plural form typed into (SPEC: Plural forms); null for the plain value and every other field.</summary>
+	public string? Form { get; } = form;
 	public string Before { get; } = before;
 	public string After { get; private set; } = after;
 	/// <summary>The typing raised the key's Needs Review, as a note does; undoing it lowers the hand.</summary>
@@ -23,7 +26,7 @@ public sealed class FieldEdit(NodeRef node, string? language, DocumentField fiel
 
 	//the next keystroke, when it lands in the same field: the run's last text is its
 	internal bool Absorb(FieldEdit next) {
-		if (next.Node != Node || next.Language != Language || next.Field != Field) {
+		if (next.Node != Node || next.Language != Language || next.Field != Field || next.Form != Form) {
 			return false;
 		}
 		After = next.After;
@@ -46,6 +49,8 @@ public sealed class FieldEdit(NodeRef node, string? language, DocumentField fiel
 		}
 		WordsEntry? entry = Language is null ? null : key.Entries.GetValueOrDefault(Language);
 		switch (Field) {
+			case DocumentField.DefaultValue when Form is not null: FormPane.Write(key.Forms, Form, text); break;
+			case DocumentField.EntryValue when entry is not null && Form is not null: FormPane.Write(entry.Forms, Form, text); break;
 			case DocumentField.DefaultValue: key.DefaultValue = text; break;
 			case DocumentField.KeyContext: key.Context = text; break;
 			case DocumentField.KeyComment: key.Comment = text; break;

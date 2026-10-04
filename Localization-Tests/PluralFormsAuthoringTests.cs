@@ -260,4 +260,20 @@ value-it#other=Parole
 		Assert.Equal("Kelmiet", words["word", 5]);
 		Assert.Equal("Kelma", words["word", 11]); //many reads other, and then its own plain value
 	}
+
+	[Fact]
+	public void FormatSample_SelectsByTheSamples_InTheDictionarysLanguage() {
+		var word = new WordsKey("A.word") { DefaultValue = "Word" };
+		word.Forms["other"] = "Words";
+		word.Entries["mt"] = new WordsEntry { Value = "Kelma" };
+		word.Entries["mt"].Forms["few"] = "Kelmiet";
+		var count = new WordsKey("A.count") { DefaultValue = "{0} {0#word}, {Name}" };
+		count.Parameters.Add(new WordsParameter("0", WordsParameterType.All[1], "4"));
+		count.Parameters.Add(new WordsParameter("Name", WordsParameterType.String, "Pat"));
+		Dictionary<string, WordsKey> keys = new() { ["A.word"] = word, ["A.count"] = count };
+
+		Assert.Equal("4 Words, Pat", WordsOperations.FormatSample(new CulturedWords(new DefaultWordsProvider(keys, ["A"]), CultureInfo.InvariantCulture), count));
+		var maltese = CultureInfo.GetCultureInfo("mt");
+		Assert.Equal("4 Kelmiet, Pat", WordsOperations.FormatSample(new CulturedWords(new LanguageWordsProvider(keys, "mt", ["A"]), maltese), count, maltese));
+	}
 }
