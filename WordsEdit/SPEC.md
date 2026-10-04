@@ -91,7 +91,8 @@ a repeated `value=` also warns); and the languageless `stale=`, kept as a
 review flag with no stored text. A bare `[group]` header reloads as an empty
 key (below).
 
-Canonicalized by the writer (`IniWriter`): line wrapping (~50 columns),
+Canonicalized by the writer (`IniWriter`): line wrapping (a value line of
+120 characters or more folds at a word break past 80, while 40 or more remain),
 escaping (`__`, `''`, leading-whitespace `_` marker), newline continuations,
 and block headers — a block extending the last full header is written as one
 dot-relative `[.suffix]`; an `ICutStrategy` decides where extra full-header

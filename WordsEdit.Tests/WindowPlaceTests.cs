@@ -9,6 +9,7 @@ namespace WordsEdit.Tests;
 ///     The main window opens as it last closed: its normal size and whether it was
 ///     maximized, kept in the editor's config beside the language, cut to fit the screen.
 /// </summary>
+[Collection(nameof(EditorConfig))] //swaps EditorConfig.Path: never beside another class that does
 public class WindowPlaceTests {
 	[Fact]
 	public void TheConfigRemembersTheWindowBesideTheLanguage() {

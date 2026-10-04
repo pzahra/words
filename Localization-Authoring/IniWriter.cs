@@ -231,7 +231,7 @@ namespace PatTech.Localization.Authoring {
 			value = value.Replace("\\", "\\\\");
 			value = Regex.Replace(value, @"\r\n?|\n\r?", "\\" + writer.NewLine);
 			value = Regex.Replace(value, @"['_]", m => string.Concat(m.ValueSpan, m.ValueSpan));
-			value = Regex.Replace(value, @"(.{50}(?=.{40})\S*)(?<![\\'])(?=\W+\w)", "$1_" + writer.NewLine);
+			value = Regex.Replace(value, @"(.{80}(?=.{40})\S*)(?<![\\'])(?=\W+\w)", "$1_" + writer.NewLine);
 			writer.Write(key);
 			writer.Write('=');
 			if (Regex.IsMatch(value, @"^\s")) {

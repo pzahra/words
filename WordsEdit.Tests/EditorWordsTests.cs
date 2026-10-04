@@ -15,6 +15,7 @@ namespace WordsEdit.Tests;
 ///     trip byte for byte, and names every key the source asks for, and no more.
 ///     How the library resolves, falls back and sets cultures is its own tests' business.
 /// </summary>
+[Collection(nameof(EditorConfig))] //swaps EditorConfig.Path: never beside another class that does
 public class EditorWordsTests {
 	[Fact]
 	public void TheFileIsWiredIn() {
