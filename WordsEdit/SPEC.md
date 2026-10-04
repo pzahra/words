@@ -766,6 +766,93 @@ the search box Undo is the box's own.
 # Planned upgrades
 
 Not built yet. Each section here is the shape the feature takes when it is.
+The next release is *Plural forms* and *A command line for tools*, both
+complete.
+
+## Plural forms
+
+The runtime spec's *Plural forms* gives a key a form per CLDR category beside
+its plain value (`value-ru#few=слова`). The editor shows one form at a time in
+each value box, and a selector in each pane picks which.
+
+**The selector.** The baseline pane's header toolbar and the translation
+pane's each get one: a popup button (`Counter`) holding the forms as ticked
+rows, the way the filter popup holds the filters. A combo box would say which
+form is showing at a glance, but it costs a narrow header a box as wide as
+"other", several buttons' worth. The popup button says it where it matters
+instead: on the plain value it is bare. On any other form it wears the
+category as a badge, the way the filter button wears its count, and the
+pane's title names it ("Translation · few"), so typing into `few` never looks
+like typing into the plain value. Each row reads the category and the numbers
+it takes in that language ("few: 2–4, 22–24, 32–34…"), since the names alone
+say little to a translator, and marks the forms that have words. The plain
+row is captioned as the language's `one`. The selector is a `ChoiceItem` like
+the two languages: a submenu of ticked rows in the View menu, and the popup on
+the toolbar. That is a second toolbar template for a choice, not a new kind of
+row.
+
+**What is offered.** The baseline offers the default's language's categories
+(English while the file declares none), and the translation offers the
+selected language's. Each offers what CLDR's table gives the language and an
+integer reaches, while fractions wait: Russian's `other` takes only fractions,
+so it is not offered yet. A form the key already has outside those stays
+offered, marked as one the language does not use (and griped on load), so
+nothing written is out of reach. A language with a single category, such as
+Japanese, has nothing to pick, and its button greys.
+
+**Which keys count.** A key is plural when it has a form in any language, the
+default included. The baseline's selector is how a key becomes plural, so it
+is always live. The translation's is live on a plural key and greys on any
+other, showing the plain value: whether a key counts is the developer's call,
+made where the developer writes `{0#word}` or `Words.Known[key, n]`. Each pane
+keeps its pick from key to key, which suits a run through every `few`, but
+returns to the plain value on a key that is not plural, and on a language that
+lacks the picked category. Otherwise a new key's default could be typed into
+`other` by mistake.
+
+**The two follow.** Translating a form means reading the source for the same
+numbers, and two languages' categories rarely line up: Russian `few` (2–4) is
+English `other`. Picking a form in the translation pane moves the baseline's
+selector to the form that the pick's first number takes in the default's
+language. The baseline's own pick moves nothing else.
+
+**Empty forms.** An empty form's box hints its language's plain value,
+greyed, the way the translation box hints the default: what that count reads
+as until the form has words of its own. Clearing a form removes it, and a key
+whose last form goes is plural no more.
+
+**Badges.** A plural key misses words in a language that uses a category and
+has no form for it, on top of the empty value (Badges); a language the default
+speaks falls back to the default's forms and misses nothing, as it does for
+the value. Which categories a language uses is the runtime's table, which
+follows current CLDR. That gives French, Italian and Spanish a `many` for
+exact millions ("un milione di file"), so a plural key shows a gap there until
+it has one: the price of being right at a million.
+
+**Everything else.** The previews render the selected form. A value that
+selects (`{0#word}`) previews with the Test Parameters samples, so changing
+the sample changes the form spliced in. A `FieldEdit` carries the form beside
+its field, so typing into a form undoes as any field does (Undo: Fields). The
+search reads every form. A recode, a split or a merge carries an entry's forms
+with it. Stale stays one per entry and one per key, as do the notes. XLIFF and
+resx have no slot for a form, so an export lists the forms as lost
+(`WordsFeatures.PluralForms`), the way it lists the default's language.
+
+**Tests.** A plural key's selectors offer English `other` and Russian `few`
+and `many`, each with its numbers. The badge shows a missing Russian form, and
+none where the default speaks the language. Typing into a form writes
+`value-ru#few` and undoes. Picking Russian `few` moves the baseline to
+`other`. A key that is not plural greys the translation's selector and shows
+the plain value. A form the language does not use stays reachable, with a
+gripe.
+
+**Order.** The runtime comes first, proven in the samples: the grammar, the
+CLDR integer table, the digest, the `{n#key}` selector and the count indexer.
+Authoring's model and round trip come next: `WordsKey` and `WordsEntry` gain
+their forms, and `IniWriter` writes each form after its plain value. The
+editor follows, as above. The command line comes after the authoring step, so
+it edits forms like any other field from its first build. Each is its own
+commit.
 
 ## Import and export, next
 
@@ -880,8 +967,9 @@ Wordsmith already wrote and noisy for one written by hand. The command line
 changes the entry it is asked to change and leaves every other byte alone.
 
 **Verbs.** One file per call; a field is named as in the file (`value`,
-`value-fr`, `context-fr`, `stale-fr`); a value is an argument, or `-` for
-stdin, so a multi-line value needs no shell quoting:
+`value-fr`, `value-ru#few`, `context-fr`, `stale-fr`), plural forms included
+(*Plural forms*, above); a value is an argument, or `-` for stdin, so a
+multi-line value needs no shell quoting:
 
 - `get <file> <key> [field]` prints a field's value, unescaped, or the whole
   block when no field is named.
@@ -913,13 +1001,29 @@ the original only once that passes.
 **Where it lives.** The patcher in Authoring, tested headless. It needs
 positions the parser does not report today: the line where each declaration
 starts, an additive member of `IWordsParserConsumer` so existing consumers do
-not change. The command line itself is a thin console project over it. The
-root `CommandLine.cs`, an unused argument parser from the original import, is
-the candidate for its arguments, or for deletion. The agent skill
-(`SKILL.md`) then tells agents to use it rather than edit `words.ini` by hand.
+not change. The command line itself is a thin console project over it, on
+plain `net10.0`: it runs wherever .NET does, so it references Authoring and
+Core and never the editor, and Authoring stays free of anything
+Windows-only. The root `CommandLine.cs`, an unused argument parser from the
+original import, is the candidate for its arguments, or for deletion.
 
-Undecided: how it ships (beside Wordsmith on GitHub Releases, or as a .NET
-tool package, `dotnet words set …`, which would need its own tag and
-version), and whether Wordsmith's Save later patches just the fields that
-changed in the same way, which would answer the hand-written-formatting
-question for the editor too.
+**How it ships.** With the editor, at its version (`WordsmithVersion`): each
+`editor/` release carries Wordsmith for Windows and the command line for
+Windows, Linux and macOS (x64, and Arm64 for macOS), each a self-contained
+single file, so nothing needs .NET installed. The Linux and macOS builds are
+packed as `.tar.gz` on a Linux runner, which keeps the executable bit a zip
+made on Windows would lose. They are unsigned, so macOS quarantines a download
+until it is cleared (`xattr -d com.apple.quarantine`), and the release notes
+say so.
+
+**The agent skill.** The packaged `SKILL.md` tells agents the tools exist and
+where to get them: Wordsmith for a person editing on Windows, the command line
+for an agent or a script on any platform, both from the editor's GitHub
+Releases. An agent checks whether the command line is installed (`words
+--version`), uses it for any change to a `words.ini` when it is, and edits by
+hand, keeping the format's continuation and escaping rules, only when it is
+not.
+
+Undecided: the executable's name (`words`, proposed), and whether
+Wordsmith's Save later patches just the fields that changed in the same way,
+which would answer the hand-written-formatting question for the editor too.

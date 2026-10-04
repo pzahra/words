@@ -364,7 +364,9 @@ value-ru#many=слов
 The categories are Unicode CLDR's six — zero, one, two, few, many, other — and
 which numbers fall in which is CLDR's rule for the language, carried as a table
 in Core since .NET exposes none; the integer rules cover nearly every real call,
-so fractions may wait. An English file writes `other` and nothing more, and a
+so fractions may wait. The table follows the current CLDR release, newer forms
+included: French, Italian and Spanish use `many` for exact millions ("un milione
+di file"), which older tables lack. An English file writes `other` and nothing more, and a
 Russian translator adds `few` and `many` without a line of code changing.
 
 **The selector.** A third reference beside `{$constant}` and `{>key}`, with the
@@ -400,9 +402,9 @@ needs nothing.
 **What changes.** The pair grammar admits `#form` after the language, and the
 form travels with the field type, so a consumer that knows `value` learns
 `value#other` the same way: Core to digest it, the authoring side to round-trip
-it. Wordsmith shows the forms as extra value boxes at first, and later shows
-each language the categories CLDR says it uses, so a Russian translator sees
-`few` and `many` beside the value and an English one sees `other`. Nothing else
+it. Wordsmith shows one form at a time, picked in each pane from the categories
+CLDR gives the language, so a Russian translator picks among `few` and `many`
+and an English one has `other` (the editor spec's *Plural forms*). Nothing else
 moves: a file with no `#` forms parses, digests and renders byte for byte as
 today.
 
