@@ -171,6 +171,8 @@ value=kg
 ; the file menu
 [.file]
 value=File
+value#other=Files
+value-fr#other=Fichiers
 context-fr=untranslated, with a note
 
 [.file.open]
@@ -205,7 +207,8 @@ value=Open
 		Assert.Contains(gripes, gripe => gripe.StartsWith("Strings.resx: dropped the preamble and the comments between blocks (1)"));
 		Assert.Contains(gripes, gripe => gripe.StartsWith("Strings.resx: dropped the settings references (1)"));
 		Assert.Contains(gripes, gripe => gripe.StartsWith("Strings.resx: dropped the default's language (1)"));
-		Assert.Equal(6, gripes.Count);
+		Assert.Contains(gripes, gripe => gripe.StartsWith("Strings.resx: dropped value#form= (1)"));
+		Assert.Equal(7, gripes.Count);
 
 		var french = new StringWriter();
 		gripes.Clear();
@@ -219,7 +222,8 @@ value=Open
 		Assert.Contains(gripes, gripe => gripe.StartsWith("Strings.fr.resx: dropped comment-fr= (1)"));
 		Assert.Contains(gripes, gripe => gripe.StartsWith("Strings.fr.resx: dropped stale-fr= (1)"));
 		Assert.Contains(gripes, gripe => gripe.StartsWith("Strings.fr.resx: dropped context-fr= on an untranslated key (1)"));
-		Assert.Equal(3, gripes.Count);
+		Assert.Contains(gripes, gripe => gripe.StartsWith("Strings.fr.resx: dropped value-fr#form= (1)")); //an untranslated entry's forms too
+		Assert.Equal(4, gripes.Count);
 
 		//nothing in English beyond the defaults: a header-only satellite, no gripes
 		var english = new StringWriter();

@@ -82,21 +82,25 @@ so load → save is not a verbatim copy of arbitrary input.
 
 Preserved (through load → save, and stable thereafter): every recognized field
 and language entry, key order, freeform comments, preamble, trailer, constants,
-`!` labels, per-language stale values (freeform text, kept as written), and the
-top-of-file `param`/`param-xx` settings-file references (see Markdown previews).
+`!` labels, per-language stale values (freeform text, kept as written), the
+top-of-file `param`/`param-xx` settings-file references (see Markdown previews),
+and plural forms (`value#few`, `value-xx#few`), every CLDR category written —
+one a runtime never reads, such as `#one`, is kept with a gripe.
 
 Not preserved: unknown field types and unknown `param` data-types (dropped or
-coerced to `String`, with a gripe); a field repeated within one key (last wins,
-a repeated `value=` also warns); and the languageless `stale=`, kept as a
-review flag with no stored text. A bare `[group]` header reloads as an empty
-key (below).
+coerced to `String`, with a gripe); a form that names no CLDR category, and a
+form on a language label (dropped, with a gripe); a field repeated within one
+key (last wins, a repeated `value=` also warns); and the languageless
+`stale=`, kept as a review flag with no stored text. A bare `[group]` header
+reloads as an empty key (below).
 
 Canonicalized by the writer (`IniWriter`): line wrapping (a value line of
 120 characters or more folds at a word break past 80, while 40 or more remain),
 escaping (`__`, `''`, leading-whitespace `_` marker), newline continuations,
-and block headers — a block extending the last full header is written as one
-dot-relative `[.suffix]`; an `ICutStrategy` decides where extra full-header
-cuts go. The default (`GroupCuts`) writes a bare `[group]` header at a keyless
+field order (a plural form follows its plain value, the forms in CLDR's order:
+zero, one, two, few, many, other), and block headers — a block extending the
+last full header is written as one dot-relative `[.suffix]`; an
+`ICutStrategy` decides where extra full-header cuts go. The default (`GroupCuts`) writes a bare `[group]` header at a keyless
 group gathering two or more keyed blocks, the shape a hand-author uses; the
 bare header reloads as an empty key (accepted tradeoff), and a group whose
 keys all sit under a deeper cut keeps no header of its own. Pass
@@ -446,8 +450,8 @@ not words). A format's *gripes* stay plain diagnostic strings, the
 formats hold, so export drops things — and says so, first. A format declares
 (`WordsFeatures`) what it preserves — the context and comment channels, key
 and per-language; parameters; stale marks and the review flag; constants;
-freeform comments; settings references. Values every format keeps, so they
-are not a feature. The loss preview (`format.Loses(source)`) is what *this*
+freeform comments; settings references; plural forms. Values every format
+keeps, so they are not a feature. The loss preview (`format.Loses(source)`) is what *this*
 document actually uses minus what the format keeps, so it warns about
 parameters only when a key has them. Each feature names its words by key —
 `[Words("feature.x")]` on `WordsFeatures`, read by `Describe` — and the seam's
@@ -487,6 +491,8 @@ on a `source-language`. The file's default language is it, `en` for a file
 that declares none, and the `source-language` option overrides both. On the
 way in, the attribute declares the default's language. The default's
 language is a feature like any other: resx has no slot for it and says so.
+So are plural forms, which neither has a slot for: to a translation tool a
+form is no unit of its own, so both drop them, counted, with a gripe.
 
 **Surface.** Import sits beside Open, Export beside Save. Import opens a picker
 filtered by every importer's name and extensions; each pick's extension names
@@ -773,7 +779,9 @@ complete.
 
 The runtime spec's *Plural forms* gives a key a form per CLDR category beside
 its plain value (`value-mt#few=Kelmiet`). The editor shows one form at a time in
-each value box, and a selector in each pane picks which.
+each value box, and a selector in each pane picks which. The runtime and
+authoring's round trip are built (Order, below), so Wordsmith keeps a file's
+forms through a save while it cannot show them yet.
 
 **The selector.** The baseline pane's header toolbar and the translation
 pane's each get one: a popup button (`Counter`) holding the forms as ticked
@@ -850,11 +858,17 @@ with a gripe.
 
 **Order.** The runtime comes first, proven in the samples: the grammar, the
 CLDR integer table, the digest, the `{n#key}` selector and the count indexer.
-Authoring's model and round trip come next: `WordsKey` and `WordsEntry` gain
-their forms, and `IniWriter` writes each form after its plain value. The
-editor follows, as above. The command line comes after the authoring step, so
-it edits forms like any other field from its first build. Each is its own
-commit.
+Authoring's model and round trip come next: `WordsKey.Forms` and
+`WordsEntry.Forms` hold each form's text by category, and `IniWriter` writes
+each form after its plain value. The reader keeps every CLDR category it meets
+and gripes about one a runtime never reads: `#one`, a category the language
+does not count by, any form in a language with one; a word that is no
+category is dropped, with a gripe (Round-trip guarantees). Copies, a recode, a
+split and a merge carry the forms; the preview providers answer `key#few` as
+the runtime flattens it, so a dictionary over them selects; resx and XLIFF
+list the forms as lost. Both are built. The editor follows, as above. The
+command line comes after the authoring step, so it edits forms like any other
+field from its first build. Each is its own commit.
 
 ## Import and export, next
 

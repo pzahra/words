@@ -131,6 +131,9 @@ namespace PatTech.Localization.Authoring {
 							languageSettings[languageCode] = value;
 						}
 						break;
+					case var form when form.StartsWith("value#", StringComparison.Ordinal):
+						errors.Add($"{Field(languageCode, form[6..])} at the top of the file: a language label has no plural forms, ignored");
+						break;
 				}
 			}
 			else {
@@ -143,6 +146,9 @@ namespace PatTech.Localization.Authoring {
 				}
 				var localizationKey = wordKeys[blockKey];
 				switch ((languageCode, fieldType)) {
+					case (_, var form) when form.StartsWith("value#", StringComparison.Ordinal):
+						StoreForm(localizationKey, languageCode, form[6..], value);
+						break;
 					case ("", "value"):
 						localizationKey.DefaultValue = value;
 						break;
@@ -212,6 +218,13 @@ namespace PatTech.Localization.Authoring {
 
 			var localizationKey = wordKeys[blockKey];
 			switch ((languageCode, fieldType)) {
+				case (_, var form) when form.StartsWith("value#", StringComparison.Ordinal):
+					// a dropped form's tail goes with it, griped once already
+					var forms = FormsOf(localizationKey, languageCode);
+					if (forms.ContainsKey(form[6..])) {
+						forms[form[6..]] += value;
+					}
+					break;
 				case ("", "value"):
 					localizationKey.DefaultValue += value;
 					break;
@@ -254,8 +267,39 @@ namespace PatTech.Localization.Authoring {
 			}
 		}
 
+		private static string Field(string languageCode, string form)
+			=> languageCode == "" ? $"value#{form}" : $"value-{languageCode}#{form}";
+
+		private static Dictionary<string, string> FormsOf(WordsKey key, string languageCode)
+			=> languageCode == "" ? key.Forms : key.Entries[languageCode].Forms;
+
+		//a plural form (runtime SPEC: Plural forms): one of CLDR's categories is kept,
+		//with a gripe when a runtime would never read it; any other word is no form
+		private void StoreForm(WordsKey key, string languageCode, string form, string value) {
+			string field = Field(languageCode, form);
+			if (!PluralRules.Names.Contains(form)) {
+				errors.Add($"{key.BlockKey}: {field} names no plural category ({string.Join(", ", PluralRules.Names)}), dropped");
+				return;
+			}
+			string language = languageCode != "" ? languageCode : DefaultLanguage ?? "en";
+			var categories = PluralRules.Categories(language);
+			if (form == "one") {
+				errors.Add($"{key.BlockKey}: {field} is kept, but a runtime ignores it: the plain value is the one form");
+			}
+			else if (categories.Count == 1) {
+				errors.Add($"{key.BlockKey}: {field} is kept, but '{language}' has one form, the plain value, and a runtime reads nothing else");
+			}
+			else if (!categories.Contains(form)) {
+				errors.Add($"{key.BlockKey}: {field} is kept, but '{language}' counts no whole number as {form} ({string.Join(", ", categories)})");
+			}
+			FormsOf(key, languageCode)[form] = value;
+		}
+
 		void IWordsParserConsumer.VisitBlock(string baseKey, string name) {
 			WordsKey keyToAdd;
+			if (name.Contains('#')) {
+				errors.Add($"[{name}]: '#' marks a plural form, so a runtime warns about a block named with one");
+			}
 			if (name[0] == '.') {
 				baseKey += name;
 			}

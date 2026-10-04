@@ -263,6 +263,7 @@ namespace PatTech.Localization.Authoring {
 			if (key.DefaultValue != "") {
 				WritePair("value", key.DefaultValue);
 			}
+			WriteForms("value", key.Forms);
 
 			if (key.Parameters.Count != 0) {
 				foreach (WordsParameter parameter in key.Parameters) {
@@ -281,6 +282,7 @@ namespace PatTech.Localization.Authoring {
 				if (entry.Value != "") {
 					WritePair($"value-{lang}", entry.Value);
 				}
+				WriteForms($"value-{lang}", entry.Forms);
 
 				if (entry.Stale is not null) {
 					WritePair($"stale-{lang}", $"{entry.Stale?.ToString(CultureInfo.InvariantCulture)}");
@@ -296,6 +298,13 @@ namespace PatTech.Localization.Authoring {
 			}
 			if (key.DefaultValue != "") {
 				WriteLine();
+			}
+		}
+
+		//each plural form after its plain value, value-xx#few, in CLDR's order
+		private void WriteForms(string field, Dictionary<string, string> forms) {
+			foreach (var (form, text) in forms.Written()) {
+				WritePair($"{field}#{form}", text);
 			}
 		}
 

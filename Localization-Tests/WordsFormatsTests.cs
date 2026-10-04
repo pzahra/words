@@ -41,7 +41,9 @@ value=kg
 ; the file menu
 [.file]
 value=File
+value#other=Files
 value-fr=Fichier
+value-fr#other=Fichiers
 
 [.file.open]
 value=Open

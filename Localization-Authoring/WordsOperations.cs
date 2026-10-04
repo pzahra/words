@@ -119,7 +119,8 @@ namespace PatTech.Localization.Authoring {
 		///     nothing occupied overwritten. On a value clash the target's wins and
 		///     the displaced value is appended to its <c>context</c> with a stale
 		///     marker; the source's context, comment and stale marker fold into any
-		///     of the target's still empty.
+		///     of the target's still empty. Plural forms merge as the value does, form
+		///     by form, a displaced form noted with its category (<c>#few: …</c>).
 		/// </summary>
 		public static void Shift(IEnumerable<WordsKey> keys, string fromCode, string toCode) {
 			foreach (var key in keys) {
@@ -130,13 +131,25 @@ namespace PatTech.Localization.Authoring {
 					key.Entries[toCode] = moved;
 					continue;
 				}
-				bool valueClash = target.Value != "" && moved.Value != "" && moved.Value != target.Value;
+				bool clash = target.Value != "" && moved.Value != "" && moved.Value != target.Value;
 				if (target.Value == "") {
 					target.Value = moved.Value;
 				}
 				target.Context = Fold(target.Context, moved.Context);
-				if (valueClash) {
+				if (clash) {
 					target.Context = Fold(target.Context, moved.Value);
+				}
+				foreach (var (form, text) in moved.Forms.Written()) {
+					string held = target.Forms.GetValueOrDefault(form, "");
+					if (held == "") {
+						target.Forms[form] = text;
+					}
+					else if (text != held) {
+						target.Context = Fold(target.Context, $"#{form}: {text}");
+						clash = true;
+					}
+				}
+				if (clash) {
 					target.Stale = DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture);
 				}
 				else {

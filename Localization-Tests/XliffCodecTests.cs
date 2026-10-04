@@ -9,8 +9,8 @@ namespace PatTech.Localization.Tests;
 ///     The XLIFF 1.2 codec (SPEC: Import and export, the built-ins): one file per
 ///     target language, the four note channels kept apart, the target state and
 ///     Words attributes carrying the stale and review flags, and everything but
-///     the freeform comments and settings references unchanged through import,
-///     export, import.
+///     the freeform comments, settings references and plural forms unchanged
+///     through import, export, import.
 /// </summary>
 public class XliffCodecTests {
 	private static readonly XNamespace X = "urn:oasis:names:tc:xliff:document:1.2";
@@ -90,7 +90,9 @@ value=kg
 ; the file menu
 [.file]
 value=File
+value#other=Files
 value-fr=Fichier
+value-fr#other=Fichiers
 
 [.file.open]
 value=Open
@@ -207,7 +209,7 @@ context-fr=untranslated, with a note
 		var codec = new XliffCodec();
 		var source = new ExportSource(session, file, KeyTree.Build(session, file));
 
-		Assert.Equal(WordsFeatures.FreeComments | WordsFeatures.Settings, codec.Loses(source));
+		Assert.Equal(WordsFeatures.FreeComments | WordsFeatures.Settings | WordsFeatures.PluralForms, codec.Loses(source));
 
 		IReadOnlyList<ExportUnit> units = codec.Plan(source, Path.Combine("out", "Strings.fr.xlf"));
 		Assert.Equal([Path.Combine("out", "Strings.en.xlf"), Path.Combine("out", "Strings.fr.xlf")], units.Select(unit => unit.Path));
@@ -249,9 +251,10 @@ context-fr=untranslated, with a note
 		Assert.Equal("needs-translation", (string)open.Element(X + "target")!.Attribute("state")!);
 		Assert.Equal("untranslated, with a note", Assert.Single(open.Elements(X + "note")).Value);
 
-		Assert.Equal(2, gripes.Count);
+		Assert.Equal(3, gripes.Count);
 		Assert.Contains(gripes, gripe => gripe.StartsWith("Strings.fr.xlf: dropped the preamble and the comments between blocks"));
 		Assert.Contains(gripes, gripe => gripe.StartsWith("Strings.fr.xlf: dropped the settings references"));
+		Assert.Contains(gripes, gripe => gripe.StartsWith("Strings.fr.xlf: dropped the plural forms (2)")); //the default's and French's
 
 		//the source language defaults to the file's default language, else en; a unit must carry exactly one language
 		var english = new StringWriter();
@@ -265,7 +268,7 @@ context-fr=untranslated, with a note
 	}
 
 	[Fact]
-	public void ImportExportImport_KeepsEverythingButTheCommentsAndSettings() {
+	public void ImportExportImport_KeepsEverythingButTheCommentsSettingsAndForms() {
 		string folder = Folder();
 		try {
 			var session = new WordsSession();
@@ -303,10 +306,11 @@ context-fr=untranslated, with a note
 				}
 			}
 			Assert.Equal(session.KeysOf(original).Count(), session.KeysOf(again).Count());
-			//and what was lost is exactly the two features the format does not keep
+			//and what was lost is exactly the three features the format does not keep
 			Assert.Equal("", again.Preamble);
 			Assert.Equal("", again.Settings);
 			Assert.Empty(again.BlockComments);
+			Assert.All(session.KeysOf(again), key => Assert.False(key.Forms.HasWords() || key.Entries.Values.Any(entry => entry.Forms.HasWords())));
 		}
 		finally {
 			Directory.Delete(folder, recursive: true);

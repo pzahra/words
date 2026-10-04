@@ -12,9 +12,9 @@ namespace PatTech.Localization.Authoring.Codecs {
 	///     in <c>needs-review-translation</c> with its stale text in a Words
 	///     attribute; the review flag is <c>approved="no"</c>; a constant keeps its
 	///     <c>$</c> and is marked <c>translate="no"</c>; parameters ride as Words
-	///     extension elements. Only the freeform comments and the settings
-	///     references have nowhere to go. XLIFF 2.0 is another shape, refused with
-	///     a gripe.
+	///     extension elements. Only the freeform comments, the settings references
+	///     and the plural forms have nowhere to go: a form is no unit of its own to
+	///     a translation tool. XLIFF 2.0 is another shape, refused with a gripe.
 	/// </summary>
 	public sealed class XliffCodec : IWordsImporter, IWordsExporter {
 		/// <summary>The manifest name of the format's words.</summary>
@@ -30,7 +30,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 		private static readonly XNamespace Ext = "https://github.com/pzahra/words";
 
 		/// <inheritdoc/>
-		public WordsFormatInfo Info { get; } = new("xliff", [".xlf", ".xliff"], WordsFeatures.All & ~(WordsFeatures.FreeComments | WordsFeatures.Settings));
+		public WordsFormatInfo Info { get; } = new("xliff", [".xlf", ".xliff"], WordsFeatures.All & ~(WordsFeatures.FreeComments | WordsFeatures.Settings | WordsFeatures.PluralForms));
 
 		/// <inheritdoc/>
 		public TextReader? Init()
@@ -205,7 +205,9 @@ namespace PatTech.Localization.Authoring.Codecs {
 				gripes.Add($"{file}: dropped the settings references: XLIFF has no slot for them");
 			}
 			var body = new XElement(Xliff + "body");
+			int forms = 0;
 			foreach (WordsKey key in source.Keys()) {
+				forms += key.Forms.Written().Count() + (key.Entries.GetValueOrDefault(code)?.Forms.Written().Count() ?? 0);
 				string name = key.BlockKey[(key.BlockKey.IndexOf('.') + 1)..];
 				var trans = new XElement(Xliff + "trans-unit", new XAttribute("id", name), new XAttribute(XNamespace.Xml + "space", "preserve"));
 				if (key.IsConstant) {
@@ -233,6 +235,9 @@ namespace PatTech.Localization.Authoring.Codecs {
 					trans.Add(new XElement(Ext + "param", new XAttribute("name", parameter.Key), new XAttribute("type", parameter.DataType.Name), parameter.Value));
 				}
 				body.Add(trans);
+			}
+			if (forms != 0) {
+				gripes.Add($"{file}: dropped the plural forms ({forms}): XLIFF has no slot for them");
 			}
 			var root = new XElement(Xliff + "xliff",
 				new XAttribute("version", "1.2"),

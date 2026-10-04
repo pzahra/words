@@ -46,8 +46,11 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>The language the default is written in, <c>value=!xx</c>.</summary>
 		[Words("feature.default-language")]
 		DefaultLanguage = 1 << 10,
+		/// <summary>Plural forms, <c>value#few=</c> and <c>value-xx#few=</c>.</summary>
+		[Words("feature.plural-forms")]
+		PluralForms = 1 << 11,
 		/// <summary>Everything: what the native format keeps.</summary>
-		All = Context | Comment | EntryContext | EntryComment | Parameters | Stale | NeedsReview | Constants | FreeComments | Settings | DefaultLanguage,
+		All = Context | Comment | EntryContext | EntryComment | Parameters | Stale | NeedsReview | Constants | FreeComments | Settings | DefaultLanguage | PluralForms,
 	}
 
 	/// <summary>A format's descriptor: how the registry and the editor's dropdowns know it.</summary>
@@ -212,6 +215,9 @@ namespace PatTech.Localization.Authoring {
 				}
 				if (key.IsConstant) {
 					used |= WordsFeatures.Constants;
+				}
+				if (key.Forms.HasWords() || key.Entries.Values.Any(entry => entry.Forms.HasWords())) {
+					used |= WordsFeatures.PluralForms;
 				}
 				foreach (WordsEntry entry in key.Entries.Values) {
 					if (entry.Context != "") {

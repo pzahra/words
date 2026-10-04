@@ -10,7 +10,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 	///     language's entry's. Constants keep their <c>$</c> in the name, so they
 	///     come back as constants. Everything else the model holds — the
 	///     translator-facing comment channels, parameters, stale marks, the review
-	///     flag, freeform comments, settings references — resx has no slot for and
+	///     flag, plural forms, freeform comments, settings references — resx has no slot for and
 	///     an export drops with a gripe. Typed and binary resources are skipped on
 	///     the way in, with a gripe; a culture file carries only what is
 	///     translated, since an empty value in a satellite would shadow the default
@@ -147,8 +147,10 @@ namespace PatTech.Localization.Authoring.Codecs {
 					Drop("comment=", key.Comment != "" ? 1 : 0);
 					Drop("param-x=", key.Parameters.Count);
 					Drop("stale=", key.NeedsReview ? 1 : 0);
+					Drop("value#form=", key.Forms.Written().Count());
 				}
 				else if (key.Entries.TryGetValue(code, out WordsEntry? entry)) {
+					Drop($"value-{code}#form=", entry.Forms.Written().Count());
 					if (entry.Value == "") {
 						//no value, no data: an empty satellite entry would shadow the default
 						Drop($"context-{code}= on an untranslated key", entry.Context != "" ? 1 : 0);
