@@ -321,12 +321,16 @@ namespace PatTech.Localization {
 			return words[FormKey(words.Provider, language, key, PluralRules.Select(language, count))];
 		}
 
-		//the entry a count reads (SPEC: Plural forms): key#form, else key#other, else the
-		//plain value, which is the one form; a language with one category has only that
+		//the entry a count reads (SPEC: Plural forms): key#form, else the form an optional
+		//category reads instead, else key#other, else the plain value, which is the one
+		//form; a language with one category has only that
 		private static string FormKey(IWordsProvider provider, string language, string key, string form) {
 			if (form != "one" && PluralRules.Categories(language).Count > 1) {
 				if (provider.ContainsKey($"{key}#{form}")) {
 					return $"{key}#{form}";
+				}
+				if (PluralRules.Optional(language).TryGetValue(form, out string? standIn) && provider.ContainsKey($"{key}#{standIn}")) {
+					return $"{key}#{standIn}";
 				}
 				if (provider.ContainsKey($"{key}#other")) {
 					return $"{key}#other";

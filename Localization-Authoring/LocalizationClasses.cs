@@ -223,8 +223,8 @@ namespace PatTech.Localization.Authoring {
 	///     dictionaries would: an exact (already-prefixed) key hits directly; a bare
 	///     reference like <c>{&gt;group.key}</c> or <c>{$constant}</c> probes each
 	///     file's prefix, later-loaded files winning. A plural form, <c>key#few</c>,
-	///     is there when the key has it in the language, its family or the default,
-	///     the way the runtime flattens forms.
+	///     is there when the key has it at the first of the language, its family and
+	///     the default that has any of its words, the way the runtime flattens forms.
 	/// </summary>
 	public abstract class WordsProviderBase(IReadOnlyDictionary<string, WordsKey> keys, IEnumerable<string> fileNames) : IWordsProvider {
 		private readonly string[] fileNames = [.. fileNames.Reverse()];
@@ -280,10 +280,15 @@ namespace PatTech.Localization.Authoring {
 		protected override string Value(WordsKey word)
 			=> First(word.Entries.GetValueOrDefault(code)?.Value, family is null ? null : word.Entries.GetValueOrDefault(family)?.Value, word.DefaultValue);
 
-		protected override string Form(WordsKey word, string form)
-			=> First(word.Entries.GetValueOrDefault(code)?.Forms.GetValueOrDefault(form),
-				family is null ? null : word.Entries.GetValueOrDefault(family)?.Forms.GetValueOrDefault(form),
-				word.Forms.GetValueOrDefault(form, ""));
+		//the forms of the first level with any of the key's words, as the runtime flattens them
+		protected override string Form(WordsKey word, string form) {
+			foreach (WordsEntry? level in (WordsEntry?[])[word.Entries.GetValueOrDefault(code), family is null ? null : word.Entries.GetValueOrDefault(family)]) {
+				if (level is not null && (level.Value != "" || level.Forms.HasWords())) {
+					return level.Forms.GetValueOrDefault(form, "");
+				}
+			}
+			return word.Forms.GetValueOrDefault(form, "");
+		}
 
 		//the language's, else its family's, else the default's
 		private static string First(string? language, string? familys, string fallback)

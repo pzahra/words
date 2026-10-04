@@ -234,15 +234,91 @@ public class PluralFormsTests {
 	}
 
 	[Fact]
-	public void AFormTheLanguageLacks_FallsBackToTheDefaultsLikeAValue_Branded() {
-		Assert.Equal(DefaultBrand + "things", In("ru", debug: true)["thing", 5]);
-		Assert.Equal("вещь", In("ru", debug: true)["thing", 1]); //one is the plain value, its own
+	public void ATranslationNeverBorrowsTheDefaultsForms_ItsOwnPlainValueStandsIn() {
+		var ru = In("ru", debug: true);
+
+		Assert.Equal("вещь", ru["thing", 5]); //not the default's "things", branded
+		Assert.Equal("вещь", ru["thing", 1]);
+		Assert.False(WordsBuilder.Create().LoadString(Ini).Flatten("ru").ContainsKey("thing#other"));
+	}
+
+	[Fact]
+	public void AKeyWithNoWordsInTheLanguage_TakesTheDefaultsForms_Branded() {
+		Assert.Equal(DefaultBrand + "items", In("ru", debug: true)["relative.n", 5]);
+		Assert.Equal(DefaultBrand + "item", In("ru", debug: true)["relative.n", 1]);
+	}
+
+	[Fact]
+	public void TheFamilysWordsKeepTheDefaultsFormsOut_AsALanguagesOwnDo() {
+		var builder = WordsBuilder.Create().LoadString(
+			"value=!en\nvalue-fr=Français\nvalue-fr-CA=Français (Canada)\n\n[word]\nvalue=word\nvalue#other=words\nvalue-fr=mot\n\n[file]\nvalue=file\nvalue#other=files\nvalue-fr=fichier\nvalue-fr#other=fichiers\n");
+		var canadian = builder.ToWords("fr-CA");
+
+		Assert.Equal("mot", canadian["word", 2]);
+		Assert.Equal("fichiers", canadian["file", 2]); //the family's own forms do flatten in
 	}
 
 	[Fact]
 	public void ALanguageWithOneCategory_SpeaksOnlyItsPlainValue() {
-		//the default's other form flattens into Japanese, and is never what a count reads
 		Assert.Equal("2 単語", In("ja").Format("files", 2));
+		Assert.Equal("item", In("ja")["relative.n", 2]); //even where the default's forms flatten in
+	}
+
+	// ---- optional categories ----
+
+	[Fact]
+	public void OptionalCategories_ReadLikeAnother_ByLanguage() {
+		Assert.Equal(new Dictionary<string, string> { ["two"] = "few", ["many"] = "other" }, PluralRules.Optional("mt"));
+		Assert.Equal(new Dictionary<string, string> { ["two"] = "other" }, PluralRules.Optional("he"));
+		Assert.Equal(new Dictionary<string, string> { ["many"] = "other" }, PluralRules.Optional("pt-PT"));
+		Assert.Empty(PluralRules.Optional("en"));
+		Assert.Empty(PluralRules.Optional("ar")); //a true dual for every noun
+		Assert.Empty(PluralRules.Optional(""));
+	}
+
+	[Theory]
+	[InlineData("mt")]
+	[InlineData("he")]
+	[InlineData("iw")]
+	[InlineData("ca")]
+	[InlineData("es")]
+	[InlineData("fr")]
+	[InlineData("it")]
+	[InlineData("lld")]
+	[InlineData("pt")]
+	[InlineData("pt-PT")]
+	[InlineData("scn")]
+	[InlineData("vec")]
+	public void AnOptionalCategory_AndWhatItReads_AreTheLanguagesOwn(string language) {
+		var categories = PluralRules.Categories(language);
+		Assert.NotEmpty(PluralRules.Optional(language));
+		Assert.All(PluralRules.Optional(language), pair => {
+			Assert.Contains(pair.Key, categories);
+			Assert.Contains(pair.Value, categories);
+			Assert.NotEqual("other", pair.Key);
+		});
+	}
+
+	[Theory]
+	[InlineData(1, "1 fajl")]
+	[InlineData(2, "2 fajls")]  //two reads few
+	[InlineData(5, "5 fajls")]
+	[InlineData(11, "11 fajl")] //many reads other, and Maltese's other is its plain value
+	[InlineData(20, "20 fajl")]
+	public void AMissingOptionalForm_ReadsTheFormItStandsFor(int count, string expected) {
+		var maltese = WordsBuilder.Create().LoadString(
+			"value=!en\nvalue-mt=Malti\n\n[file]\nvalue=file\nvalue#other=files\nvalue-mt=fajl\nvalue-mt#few=fajls\n\n[files]\nvalue={0} {0#file}\n").ToWords("mt");
+
+		Assert.Equal(expected, maltese.Format("files", count));
+	}
+
+	[Fact]
+	public void AWrittenOptionalForm_IsReadAsAnyOther() {
+		var maltese = WordsBuilder.Create().LoadString(
+			"value=!en\nvalue-mt=Malti\n\n[year]\nvalue=year\nvalue#other=years\nvalue-mt=sena\nvalue-mt#two=sentejn\nvalue-mt#few=snin\n").ToWords("mt");
+
+		Assert.Equal("sentejn", maltese["year", 2]); //a word that keeps its dual
+		Assert.Equal("snin", maltese["year", 3]);
 	}
 
 	[Fact]

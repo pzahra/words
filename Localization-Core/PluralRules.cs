@@ -45,21 +45,44 @@ namespace PatTech.Localization {
 			return Find(languageCode).Categories;
 		}
 
+		/// <summary>
+		/// The categories a translation into <paramref name="languageCode"/> may leave
+		/// out, each with the category a missing form reads instead: the ones that
+		/// usually read like another. Maltese <c>two</c> reads <c>few</c>, since only a
+		/// handful of its words keep a dual, and its <c>many</c> reads <c>other</c>;
+		/// Hebrew <c>two</c> reads <c>other</c>; the exact millions of French, Italian,
+		/// Spanish, Portuguese and Catalan read <c>other</c>. Words' own table, not
+		/// CLDR's; empty for most languages.
+		/// </summary>
+		/// <param name="languageCode">A language, as for <see cref="Select"/>.</param>
+		public static IReadOnlyDictionary<string, string> Optional(string languageCode) {
+			ArgumentNullException.ThrowIfNull(languageCode);
+			return Lookup(optional, languageCode) ?? None;
+		}
+
 		private const decimal Large = 1_000_000_000_000m;
 
 		private sealed record Rule(Func<long, string> Select, string[] Categories);
 
-		private static Rule Find(string languageCode) {
-			if (languageCode == "") {
-				return One;
-			}
+		private static Rule Find(string languageCode)
+			=> languageCode == "" ? One : Lookup(rules, languageCode) ?? Other;
+
+		//the language's entry, else its first segment's
+		private static T? Lookup<T>(Dictionary<string, T> table, string languageCode) where T : class {
 			string code = languageCode.Replace('_', '-');
-			if (rules.TryGetValue(code, out var rule)) {
-				return rule;
+			if (table.TryGetValue(code, out var entry)) {
+				return entry;
 			}
 			int separator = code.IndexOf('-');
-			return separator > 0 && rules.TryGetValue(code[..separator], out rule) ? rule : Other;
+			return separator > 0 && table.TryGetValue(code[..separator], out entry) ? entry : null;
 		}
+
+		private static readonly Dictionary<string, string> None = [];
+
+		private static readonly Dictionary<string, IReadOnlyDictionary<string, string>> optional = Table<IReadOnlyDictionary<string, string>>(
+			(new Dictionary<string, string> { ["two"] = "few", ["many"] = "other" }, "mt"),
+			(new Dictionary<string, string> { ["two"] = "other" }, "he iw"),
+			(new Dictionary<string, string> { ["many"] = "other" }, "ca es fr it lld pt scn vec"));
 
 		private static bool Million(long i) => i != 0 && i % 1_000_000 == 0;
 
@@ -140,11 +163,11 @@ namespace PatTech.Localization {
 			(Arabic, "ar ars"),
 			(Welsh, "cy"));
 
-		private static Dictionary<string, Rule> Table(params (Rule Rule, string Codes)[] groups) {
-			var table = new Dictionary<string, Rule>(StringComparer.OrdinalIgnoreCase);
-			foreach (var (rule, codes) in groups) {
+		private static Dictionary<string, T> Table<T>(params (T Entry, string Codes)[] groups) {
+			var table = new Dictionary<string, T>(StringComparer.OrdinalIgnoreCase);
+			foreach (var (entry, codes) in groups) {
 				foreach (string code in codes.Split(' ')) {
-					table.Add(code, rule);
+					table.Add(code, entry);
 				}
 			}
 			return table;

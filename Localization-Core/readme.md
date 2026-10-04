@@ -213,9 +213,7 @@ language tells apart, the category after the language, and let the count pick:
 value=file
 value#other=files
 value-mt=fajl
-value-mt#two=fajls
 value-mt#few=fajls
-value-mt#other=fajl
 
 [files.count]
 value={0} {0#file}
@@ -226,9 +224,11 @@ Maltese, which is back to "20 fajl" by twenty. `{0#file}` splices in whichever
 form of `file` the count picks, without printing the count, and
 `Words.Known["file", n]` hands you the form on its own. The rules are Unicode
 CLDR's current ones (`PluralRules`), so French counts zero as singular and a
-million as `many`. A form a translation lacks falls to its `other` — Maltese's
-`many`, eleven to nineteen, reads "fajl" that way — then to its plain value. An
-`other` it lacks is the default's, which is why Maltese writes its own.
+million as `many`. Five opinions, one form written: a form a translation lacks
+falls to its `other`, then to its own plain value, never to another language's.
+And a few categories usually read like another, so they may be left out:
+Maltese's `two` reads its `few`, since only a handful of its words keep a dual
+(`PluralRules.Optional` lists them).
 
 An argument is substituted into the value and then rendered as markdown along
 with it, so an argument can carry markdown of its own — a dynamic

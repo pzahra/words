@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 
 namespace PatTech.Localization {
@@ -178,7 +179,8 @@ namespace PatTech.Localization {
 		/// Merges the loaded languages into a single read-only provider for
 		/// <paramref name="languageCode"/>. Per key, the value comes from the exact
 		/// language (e.g. <c>en-GB</c>) first, then its language family (<c>en</c>),
-		/// then the language-less default. Passing <c>""</c> returns the raw default
+		/// then the language-less default; a key's plural forms come whole from the
+		/// first of those with any of its words. Passing <c>""</c> returns the raw default
 		/// dictionary directly. Fallbacks are branded when <see cref="Debug"/> is on.
 		/// </summary>
 		/// <param name="languageCode">The language to flatten, e.g. <c>"en"</c> or <c>"en-GB"</c>; casing is normalized for you.</param>
@@ -232,8 +234,11 @@ namespace PatTech.Localization {
 			return new ReadOnlyWordsProvider(words);
 
 			static void patch(IDictionary<string, string> target, DictionaryWordsProvider source, string fallbackPrefix, bool showFallbackPrefix) {
+				//a key's forms come from the first level with any of its words (SPEC: Plural
+				//forms): beside a translation's own words, no form flattens in
+				var owned = new HashSet<string>(target.Keys.Select(key => key.IndexOf('#') is > 0 and var mark ? key[..mark] : key));
 				foreach (var (key, value) in source) {
-					if (target.ContainsKey(key)) {
+					if (target.ContainsKey(key) || key.IndexOf('#') is > 0 and var mark && owned.Contains(key[..mark])) {
 						continue;
 					}
 					//a constant is language-less, so it never fell back from anything; branded,

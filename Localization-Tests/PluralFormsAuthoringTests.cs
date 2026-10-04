@@ -233,7 +233,8 @@ value-it#other=Parole
 		word.Entries["en"].Forms["other"] = "Words (en)";
 		word.Entries["en-GB"] = new WordsEntry();
 		word.Entries["mt"] = new WordsEntry { Value = "Kelma" };
-		word.Entries["mt"].Forms["two"] = "Kelmtejn";
+		word.Entries["mt"].Forms["few"] = "Kelmiet";
+		word.Entries["fil"] = new WordsEntry();
 		Dictionary<string, WordsKey> keys = new() { ["A.word"] = word };
 
 		var defaults = new DefaultWordsProvider(keys, ["A"]);
@@ -243,17 +244,20 @@ value-it#other=Parole
 		Assert.False(defaults.ContainsKey("missing#other"));
 
 		var british = new LanguageWordsProvider(keys, "en-GB", ["A"]);
-		Assert.Equal("Words (en)", british["word#other"]); //the family's
+		Assert.Equal("Words (en)", british["word#other"]); //no words of its own: the family's
+
+		var untranslated = new LanguageWordsProvider(keys, "fil", ["A"]);
+		Assert.Equal("Words", untranslated["word#other"]); //no words anywhere: the default's
 
 		var maltese = new LanguageWordsProvider(keys, "mt", ["A"]);
-		Assert.Equal("Kelmtejn", maltese["word#two"]);
-		Assert.Equal("Words", maltese["word#other"]); //the default's
-		Assert.False(maltese.ContainsKey("word#few"));
+		Assert.Equal("Kelmiet", maltese["word#few"]);
+		Assert.False(maltese.ContainsKey("word#other")); //its own words keep the default's forms out
 
 		//so a dictionary over the preview provider picks by count, as an app would
 		var words = new CulturedWords(maltese, CultureInfo.GetCultureInfo("mt"));
 		Assert.Equal("Kelma", words["word", 1]);
-		Assert.Equal("Kelmtejn", words["word", 2]);
-		Assert.Equal("Words", words["word", 5]); //few is missing: the other form, the default's here
+		Assert.Equal("Kelmiet", words["word", 2]); //two reads few
+		Assert.Equal("Kelmiet", words["word", 5]);
+		Assert.Equal("Kelma", words["word", 11]); //many reads other, and then its own plain value
 	}
 }

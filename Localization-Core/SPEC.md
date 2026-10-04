@@ -333,9 +333,9 @@ brands `de`, and lists exactly its three languages. An `en-AU` default brands
 Pick the word for a count in the dictionary, not in code. The app that writes
 `count == 1 ? "file" : "files"` has encoded English's rule: Maltese gives 2 a
 form of its own, puts 3 to 10 in the plural and goes back to the singular from
-11; Arabic has six forms; French counts zero as singular. The translator who knows the rule cannot
-reach the code that applies it, so the choice moves into the value, where the
-translator is.
+11; Arabic has six forms; French counts zero as singular. The translator who
+knows the rule cannot reach the code that applies it, so the choice moves into
+the value, where the translator is.
 
 **The forms.** A key's plural forms are variants of its value, marked with the
 category after the language: `value-en#other=Words`, or `value#other` for the
@@ -343,8 +343,9 @@ default. The plain value is the `one` form, implied — every key already has it
 and it is what `{>word}` and the indexer render — and a language with one form
 writes only that. Comment, context and stale stay one per key. To the runtime a
 form is an entry beside its key's value, keyed `word#other`, so it digests per
-language with the same exact → family → default resolution, and `Debug` brands
-a form that fell back as it brands a value. The mark is the forms' alone: a block
+language as a value does, with one difference: a key's forms come whole from
+one level (*Which form a count reads*). `Debug` brands a form that fell back
+as it brands a value. The mark is the forms' alone: a block
 whose name holds a `#` is warned about (`WP:HASH`), and so is a form that is none
 (`WP:FORM`) — one on a label, `#one` (the plain value is that form), or a
 category CLDR does not have — which is left out.
@@ -358,7 +359,6 @@ value-it#other=Parole
 value-mt=Kelma
 value-mt#two=Kelmtejn
 value-mt#few=Kelmiet
-value-mt#other=Kelma
 ```
 
 The categories are Unicode CLDR's six — zero, one, two, few, many, other — and
@@ -367,8 +367,8 @@ in Core since .NET exposes none; the integer rules cover nearly every real call,
 so fractions may wait. The table follows the current CLDR release, newer forms
 included: French, Italian and Spanish use `many` for exact millions ("un milione
 di file"), which older tables lack. An English file writes `other` and nothing
-more, and a Maltese translator adds `two`, `few` and `other`, leaving `many` to
-read `other`, without a line of code changing.
+more, and a Maltese translator adds `few`, and `two` for a word that keeps a
+dual, as *kelma* does, without a line of code changing.
 `PluralRules.Select(language, n)` names a count's category and
 `PluralRules.Categories(language)` the ones a whole number reaches, so Russian's
 `other`, which takes only fractions, is not among them. A region the table does
@@ -378,16 +378,34 @@ invariant culture counts as English. Until fractions come, a number with a
 fractional part is `other`; the sign is ignored, and a whole value counts as
 whole whatever its scale.
 
-**Which form a count reads.** The category's form, else the key's `other` form,
-else its plain value. `other` is the form a language always has for "more", so
-it stands in for a category a translation lacks: Italian without its `many`
-reads "1.000.000 messaggi", not "messaggio". Each step looks in the flattened
-dictionary, which holds the language's own forms and, where it lacks them, its
-family's and then the default's, branded under `Debug`, as for values — so a
-language whose `other` is its plain word, as Maltese's is, writes it, or reads
-the default's. A
-language with one category, such as Japanese, speaks only its plain value: the
-default's `other` flattens into it and is never what a count reads.
+**Which form a count reads.** The category's form, else, for an optional
+category, the form it reads instead (below), else the key's `other` form, else
+its plain value. `other` is the form a language always has for "more", so it
+stands in for a category a translation lacks: Italian without its `many` reads
+"1.000.000 messaggi", not "messaggio". A translation's words are a unit: a
+key's forms come whole from the first of the language, its family and the
+default that has any of the key's words, plain or form, so a translation never
+borrows another level's forms beside its own value. Filipino, whose nouns do
+not change with the count, writes `value-fil=file` alone and reads "4 file",
+where the default's `other` would read "4 files", in English; Maltese leaves
+out `#other`, its plain word. A key with no words in the language takes its
+family's, or the default's, forms included, branded under `Debug` as values
+are. A language with one category, such as Japanese, speaks only its plain
+value, its own or the one it falls back to.
+
+**Optional categories.** Some categories usually read like another, so a
+translation may leave them out. `PluralRules.Optional(language)` names them,
+each with the category a missing one reads. Maltese `two` reads `few`, since
+only a handful of its words keep a dual, most of them time (*jumejn*,
+*sentejn*), and its `many`, 11 to 19, reads `other`, the same singular noun.
+Hebrew `two` reads `other`, its dual kept by time words too. The exact
+millions of French, Italian, Spanish, Portuguese and Catalan, and of Ladin,
+Sicilian and Venetian, which share the rule, read `other`: the difference is a
+"de" or a "di". The table is Words' own judgement, not CLDR's, kept beside its
+rules. A translator still writes an optional form where a word needs one,
+`value-mt#two=Kelmtejn`, and it reads as any form does. The editor counts only
+the categories that are not optional as missing words. Russian's `other`,
+which takes fractions and reads like its `few`, joins when fractions do.
 
 **The selector.** A third reference beside `{$constant}` and `{>key}`, with the
 same mark as the forms: `{0#word}` names a parameter and a key. The parameter is
@@ -432,9 +450,9 @@ form travels with the field type, lowercased (`value#other`), so a consumer that
 knows `value` learns `value#other` the same way: Core digests it, the authoring
 side round-trips it. A runtime from before skips every `#` line, so a file with
 forms still loads there with its plain values. Wordsmith shows one form at a
-time, picked in each pane from the categories CLDR gives the language, so a
-Maltese translator picks among `two`, `few`, `many` and `other` and an English
-one has `other` (the editor spec's *Plural forms*). Nothing else moves: a file
+time, picked in each pane among CLDR's six, the language's own live and the
+rest greyed, so a Maltese translator picks among `two`, `few`, `many` and
+`other` and an English one has `other` (the editor spec's *Plural forms*). Nothing else moves: a file
 with no `#` forms parses, digests and renders byte for byte as before. The
 samples show it on the Format parameters page, the positional card's count
 picking its words in English, Italian and Maltese, which speaks on that page
@@ -443,13 +461,17 @@ alone.
 **Tests.** A headless test digests a file with English, Russian, French and
 Japanese, formats a counted key at 1, 2, 5, 11, 21, 22, 25 and 101 under English
 and Russian, and reads the expected forms. A category without a form falls to
-`other`, then to the plain value; a form the language lacks is the default's,
-branded; Japanese reads only its plain value; a named selector picks the same
+`other`, then to the plain value; a translation's own words keep the default's
+forms out, as a family's keep them out of its regions, and a key with no words
+in the language takes the default's, branded; a missing optional form reads
+the one it stands for, and a written one reads as any; Japanese reads only its
+plain value; a named selector picks the same
 form as a numbered one; a key selecting its own forms renders the circular mark;
 forms refer, format and select in turn, and a `{{` pair stays; every formatting
 path selects; the indexer returns the template with the selector intact, and the
 count indexer returns the key's own form for the count. The table's spot checks
-follow current CLDR, and each rule's categories are what whole numbers reach.
+follow current CLDR, and each rule's categories are what whole numbers reach;
+an optional category, and the one it reads, are both its language's.
 The parser lowercases a form, continues it and warns about forms that are none.
 Checked once against the ICU that Windows ships (CLDR 35): the table agrees
 except where CLDR has changed since.

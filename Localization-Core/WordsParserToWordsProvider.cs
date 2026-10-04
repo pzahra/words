@@ -9,7 +9,8 @@ namespace PatTech.Localization {
 	/// into one dictionary per language, ready for <see cref="WordsBuilder"/> to
 	/// flatten. A plural form is an entry beside its key's value, keyed
 	/// <c>key#form</c> (<c>value-ru#few</c> under <c>[word]</c> is <c>word#few</c> in
-	/// <c>ru</c>), so it flattens like one. <c>comment</c>, <c>context</c> and
+	/// <c>ru</c>), so it flattens like one, though only from the level that owns the
+	/// key's words. <c>comment</c>, <c>context</c> and
 	/// <c>param</c> fields are ignored; <c>stale</c> fields, unknown field types and
 	/// forms that are none are reported to the logger.
 	/// </summary>
