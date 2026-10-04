@@ -32,13 +32,20 @@ public partial class App : Application {
 		var window = new MainWindow { DataContext = viewModel };
 		//Exit is the menu's: the window closes as by its own button, asking first
 		viewModel.ExitRequested += window.Close;
+		//the window opens as it last closed; a close the save question cancelled is no close
+		EditorConfig.Window?.ApplyTo(window);
+		window.Closing += (_, e) => {
+			if (!e.Cancel) {
+				EditorConfig.Window = WindowPlace.Of(window);
+			}
+		};
 		window.Show();
 	}
 
 	//{l:Words} resolves when a window loads, so a change of language is a new
 	//process: unsaved changes are asked about first, the choice is saved, and
 	//the same files are opened again. The window has had its question answered
-	//and retires without asking twice
+	//and retires without asking twice, before the new process reads its place
 	private void Restart(MainWindowViewModel viewModel, string languageCode) {
 		if (!viewModel.TryClose() || Environment.ProcessPath is not { } exe) {
 			return;
@@ -48,8 +55,8 @@ public partial class App : Application {
 		foreach (WordsFile file in viewModel.Session.Files) {
 			start.ArgumentList.Add(file.Path);
 		}
-		Process.Start(start);
 		(MainWindow as MainWindow)?.Retire();
+		Process.Start(start);
 		Shutdown();
 	}
 }

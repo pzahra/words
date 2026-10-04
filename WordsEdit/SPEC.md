@@ -340,6 +340,13 @@ language, translate, relaunch in it. What stays hard-coded is file syntax and
 key caps, not words: `[images]`, `shellexec`, `F2`.
 [The Core skill](../Localization-Core/SKILL.md) is the how-to.
 
+**The window.** The same config file remembers the main window as it last
+closed — its normal size, and whether it was maximized — and the next run
+opens it so, cut to the screen's work area and no smaller than its minimum
+(`EditorConfig.Window`, a `WindowPlace`). A close the save question cancels
+is no close; a language restart remembers the window before the new editor
+reads it. Where the window sits is still the system's choice.
+
 ## Import and export
 
 The editor speaks `words.ini`; the world speaks resx, XLIFF, and whatever a
