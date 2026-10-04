@@ -119,34 +119,34 @@ extension builds what it hands out once, on first use: the binding it was given
 can change only before its first use, and an extension in a template may be
 asked again for each instance.
 
-**Known gap: the XAML analyser.** The IDE's XAML analyser has not caught up with
-the `object` constructor. It does not understand it, and balks at a key passed
-as a string, `{l:Words some.key}`, though that builds and runs as it always
-did. Not yet looked into; one lead is that `Key`, the property
-`[ConstructorArgument("key")]` names, is still a `string`.
+**The XAML analyser.** `Key` names no constructor argument. Marked
+`[ConstructorArgument("key")]`, a `string` property naming the `object`
+constructor's argument, it made the IDE's XAML analyser balk at a key passed as
+a string, `{l:Words some.key}`, though that built and ran. The mark is for XAML
+serialization, which nothing does with `{l:Words}`; both twins go without it.
 
 **The converter hoist.** Wrapping a converted binding in a `MultiBinding` with
-the tickle is *not* enough, and the reason is easy to miss: a `MultiBinding` does
+the trigger is *not* enough, and the reason is easy to miss: a `MultiBinding` does
 not re-run a child's converter when a sibling leg changes — each child caches its
 converted value and recomputes only when its own source moves, so pulsing the
-tickle hands back the source leg's stale string. Live, `{l:Words}` therefore
+trigger hands back the source leg's stale string. Live, `{l:Words}` therefore
 **hoists** the inner binding's converter: it reads `.Converter`,
 `.ConverterParameter`, `.ConverterCulture` and `.StringFormat` off the binding
 (which arrives before it is instanced, so they move cheaply, no clone), clears
-them, uses the bare source as leg 0, adds the tickle as leg 1, and its
+them, uses the bare source as leg 0, adds the trigger as leg 1, and its
 multi-converter re-applies the hoisted converter to the current source value —
 or, for a bound key, looks the key up — with the string format on the
-`MultiBinding`, applied after it as it was. A swap pulses the tickle, the
+`MultiBinding`, applied after it as it was. A swap pulses the trigger, the
 multi-converter runs again, and the value re-localizes; a source change drives it
 the same way. Avalonia takes the same hoist, so the twins match; its
 `ConverterCulture` arrived after 11.0, which the package still takes, so it moves
 only where it exists. This is display-only: the hoisted converters are one-way
 (`ConvertBack` throws), which localization is.
 
-**The tickle.** `WordsTickle.Instance`, in Core: one keyless `IKnowWords` for the
+**The trigger.** `TriggerWords.Instance`, in Core: one keyless `IKnowWords` for the
 whole process, carrying no text, only the pulse — a `Pulse` count that raises
 `PropertyChanged` on every swap. The extension registers it
-(`WordsTickle.Watch()`) when it builds a live multi-binding; off, it never
+(`TriggerWords.Watch()`) when it builds a live multi-binding; off, it never
 pulses. An app can give its own multi-bindings the same leg.
 
 **Rendering controls.** A control that renders Words itself rather than handing a
@@ -207,7 +207,7 @@ again, and off, the markup is the snapshot. Over a binding, on each framework: a
 bound key follows its source and a switch, a converted binding converts again on
 a switch and on a source change, and off, both follow their source only; an
 Avalonia compiled binding and object-typed target are wrapped too; a WPF setter
-takes a bound key, and a WPF template loaded twice converts in both. The tickle
+takes a bound key, and a WPF template loaded twice converts in both. The trigger
 pulses on every swap and is still when off.
 
 ## Link colour from the theme

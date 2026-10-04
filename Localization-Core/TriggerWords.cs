@@ -9,11 +9,11 @@ namespace PatTech.Localization {
 	/// though the wrapped source did not move. The framework packages' <c>{l:Words}</c>
 	/// adds the leg; an app can bind to it the same way.
 	/// </summary>
-	public sealed class WordsTickle : INotifyPropertyChanged, IKnowWords {
-		/// <summary>The one tickle; it lives as long as the process.</summary>
-		public static WordsTickle Instance { get; } = new();
+	public sealed class TriggerWords : INotifyPropertyChanged, IKnowWords {
+		/// <summary>The one trigger; it lives as long as the process.</summary>
+		public static TriggerWords Instance { get; } = new();
 
-		private WordsTickle() { }
+		private TriggerWords() { }
 
 		/// <summary>How many swaps it has felt: the value a leg reads, different after every one.</summary>
 		public int Pulse { get; private set; }
@@ -22,11 +22,11 @@ namespace PatTech.Localization {
 		public event PropertyChangedEventHandler? PropertyChanged;
 
 		/// <summary>
-		/// Registers the tickle with the live registry for the calling thread and returns it;
+		/// Registers the trigger with the live registry for the calling thread and returns it;
 		/// off, it is returned unregistered and never pulses. Call it on the thread whose
 		/// bindings listen.
 		/// </summary>
-		public static WordsTickle Watch() {
+		public static TriggerWords Watch() {
 			Words.Watch(Instance);
 			return Instance;
 		}

@@ -46,7 +46,6 @@ public class WordsExtension : MarkupExtension {
 	///     The key of the Words to provide. Assigning it immediately resolves the value
 	///     from <see cref="Words.Known"/>; unknown keys resolve to <c>#key#</c>.
 	/// </summary>
-	[ConstructorArgument("key")]
 	public string Key {
 		get => _Key;
 		set => this.value = Words.Known[_Key = value];
@@ -115,7 +114,7 @@ public class WordsExtension : MarkupExtension {
 
 	//the binding as it localizes: off, a bound key gains a lookup and a converted binding
 	//is itself; live, the converter (or the lookup) moves up to a multi-binding with the
-	//tickle beside the binding, since a multi-binding re-runs only its own converter
+	//trigger beside the binding, since a multi-binding re-runs only its own converter
 	private static IBinding Wrap(IBinding wrapped, bool live) {
 		if (wrapped is not BindingBase binding) {
 			return wrapped;
@@ -136,7 +135,7 @@ public class WordsExtension : MarkupExtension {
 		ConverterCulture?.SetValue(binding, null);
 		binding.StringFormat = null;
 		multi.Bindings.Add(binding);
-		multi.Bindings.Add(new Binding(nameof(WordsTickle.Pulse)) { Source = WordsTickle.Watch(), Mode = BindingMode.OneWay });
+		multi.Bindings.Add(new Binding(nameof(TriggerWords.Pulse)) { Source = TriggerWords.Watch(), Mode = BindingMode.OneWay });
 		return multi;
 	}
 

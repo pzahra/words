@@ -101,38 +101,38 @@ public class LiveWordsTests {
 	}
 
 	[Fact]
-	public void TheTickle_PulsesOnEverySwap() {
+	public void TheTrigger_PulsesOnEverySwap() {
 		using var globals = new WordsGlobals();
 		WordsBuilder builder = WordsBuilder.Create().LoadString(Ini).Live();
 		builder.Digest("en");
-		WordsTickle tickle = WordsTickle.Watch();
-		var pulse = tickle.Pulse;
+		TriggerWords trigger = TriggerWords.Watch();
+		var pulse = trigger.Pulse;
 		var raised = new List<string?>();
 		void Heard(object? sender, PropertyChangedEventArgs e) => raised.Add(e.PropertyName);
-		tickle.PropertyChanged += Heard; //the tickle is the process's: let go of it after
+		trigger.PropertyChanged += Heard; //the trigger is the process's: let go of it after
 		try {
 			Words.SwitchLanguage("de");
 			Words.Known = builder.ToWords("en");
 
-			Assert.Equal(pulse + 2, tickle.Pulse);
-			Assert.Equal(new[] { nameof(WordsTickle.Pulse), nameof(WordsTickle.Pulse) }, raised);
+			Assert.Equal(pulse + 2, trigger.Pulse);
+			Assert.Equal(new[] { nameof(TriggerWords.Pulse), nameof(TriggerWords.Pulse) }, raised);
 		}
 		finally {
-			tickle.PropertyChanged -= Heard;
+			trigger.PropertyChanged -= Heard;
 		}
 	}
 
 	[Fact]
-	public void TheTickle_IsStillWhenOff() {
+	public void TheTrigger_IsStillWhenOff() {
 		using var globals = new WordsGlobals();
 		WordsBuilder builder = WordsBuilder.Create().LoadString(Ini);
 		builder.Digest("en");
-		WordsTickle tickle = WordsTickle.Watch(); //off: a no-op
-		var pulse = tickle.Pulse;
+		TriggerWords trigger = TriggerWords.Watch(); //off: a no-op
+		var pulse = trigger.Pulse;
 
 		Words.Known = builder.ToWords("de");
 
-		Assert.Equal(pulse, tickle.Pulse);
+		Assert.Equal(pulse, trigger.Pulse);
 	}
 
 	[Fact]

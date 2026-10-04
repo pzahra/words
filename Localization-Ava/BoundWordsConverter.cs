@@ -12,7 +12,7 @@ namespace PatTech.Localization.Avalonia;
 ///     Without an inner converter the bound value is a key, looked up in
 ///     <see cref="Words.Known"/>; with one, the inner converter runs with the parameter and
 ///     culture it came with. Live, it sits on a multi-binding whose first leg is the wrapped
-///     binding, stripped of its converter, and whose second is <see cref="WordsTickle"/>: a
+///     binding, stripped of its converter, and whose second is <see cref="TriggerWords"/>: a
 ///     multi-binding never re-runs a leg's own converter when a sibling changes, so the
 ///     converter is hoisted here, where a pulse runs it again.
 /// </summary>

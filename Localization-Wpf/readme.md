@@ -79,7 +79,7 @@ a template) a binding to a shared `LazyWords` instead of a string, so the text
 follows the switch; a property that can hold no binding — a `ConverterParameter`, a `StringFormat` —
 still gets the string, resolved once. A bound key is looked up again, and a
 converted binding wrapped in `{l:Words}` converts again: its converter moves up
-to a `MultiBinding` beside `WordsTickle`, the process's pulse, since a
+to a `MultiBinding` beside `TriggerWords`, the process's pulse, since a
 `MultiBinding` never re-runs a child's own converter. `WordsInline` renders
 again. Everything is held weakly and refreshed on the dispatcher it lives on.
 What does not follow: strings a view model composed and kept (implement
