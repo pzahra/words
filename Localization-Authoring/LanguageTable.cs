@@ -55,7 +55,7 @@ namespace PatTech.Localization.Authoring {
 
 		//a freshly parsed file's languages join the union: the first file's table
 		//replaces the placeholder default; a real label upgrades a !code placeholder;
-		//an English name fills in where the union only had the native one
+		//an exonym fills in where the union had none
 		internal void Absorb(ILoadedWords loaded, bool firstFile) {
 			if (firstFile) {
 				Known.Clear();
@@ -67,9 +67,11 @@ namespace PatTech.Localization.Authoring {
 				}
 				else if (known.IsPlaceholder && !language.IsPlaceholder) {
 					known.NativeName = language.NativeName;
-					known.EnglishName = language.EnglishName;
+					if (language.EnglishName != "") {
+						known.EnglishName = language.EnglishName;
+					}
 				}
-				else if (language.EnglishName != language.NativeName && known.EnglishName == known.NativeName) {
+				else if (known.EnglishName == "") {
 					known.EnglishName = language.EnglishName;
 				}
 			}

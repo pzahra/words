@@ -168,7 +168,9 @@ namespace PatTech.Localization.Authoring {
 			}
 			foreach (var lang in languages) {
 				WritePair($"value-{lang.Code}", lang.NativeName);
-				WritePair($"comment-{lang.Code}", lang.EnglishName);
+				if (lang.EnglishName != "") {
+					WritePair($"comment-{lang.Code}", lang.EnglishName);
+				}
 			}
 			if (settings != "") {
 				WritePair("param", settings);

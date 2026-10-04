@@ -112,6 +112,7 @@ value-de=y
 		Assert.Empty(row.GetErrors(nameof(LanguageRow.NativeName)));
 		row.Code = "fr";
 		row.NativeName = "Français";
+		Assert.False(row.HasErrors); //the name in the default's language may stay blank
 		row.EnglishName = "French";
 		Assert.False(row.HasErrors);
 		Assert.True(manager.OkCommand.CanExecute(null));

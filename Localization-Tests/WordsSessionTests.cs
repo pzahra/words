@@ -205,6 +205,24 @@ value-fr=Ouvrir
 	}
 
 	[Fact]
+	public void Labels_WriteAnExonymOnlyWhereOneWasGiven() {
+		var session = Load("value-en=English\nvalue-fr=Français\ncomment-fr=French\n\n[k]\nvalue=x\n");
+		LanguageEntry en = session.Languages.Find("en")!;
+		string saved = Save(session, session.Files[0]);
+
+		Assert.Equal("", en.EnglishName);
+		Assert.Equal("English", en.DisplayName);
+		Assert.DoesNotContain("comment-en", saved);
+		Assert.Contains("comment-fr=French", saved);
+		//a later file's exonym fills in where the union had none; one already there stands
+		session.Load(new StringReader("value-en=English\ncomment-en=Inglese\nvalue-fr=Francese\ncomment-fr=Francese\n\n[x]\nvalue=X\n"), "Extra");
+		Assert.Equal("Inglese", en.EnglishName);
+		Assert.Equal("French", session.Languages.Find("fr")!.EnglishName);
+		//an empty session's language has no exonym to write either
+		Assert.Equal("", LanguageTable.Default().EnglishName);
+	}
+
+	[Fact]
 	public void Unload_TakesTheKeysAndPrunesLanguagesNobodyHasLeft() {
 		var session = Load(Main);
 		WordsFile extra = session.Load(new StringReader("value-en=English\nvalue-de=Deutsch\n\n[x]\nvalue=X\nvalue-de=Ix\n"), "Extra");

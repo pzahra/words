@@ -8,7 +8,7 @@ namespace WordsEdit.ViewModels;
 /// <summary>One language a file can supply to the merge.</summary>
 public class MergeLanguageRow(MergeFileRow file, LanguageEntry language) : ViewModelBase {
 	public string Code => language.Code;
-	public string Name => language.EnglishName;
+	public string Name => language.DisplayName;
 
 	/// <summary>Chosen: the merged file takes this language from <see cref="file"/>, and from no other.</summary>
 	public bool IsSelected {

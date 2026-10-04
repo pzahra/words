@@ -307,7 +307,8 @@ language, and a file can say which one.
 **The declaration.** A keyless `value=!xx` in the top-of-file language section
 names the default's language. The top-of-file `value-xx=` lines are the
 languages' own names (endonyms) and `comment-xx=` lines their names in the
-default's language (exonyms), English unless the declaration says otherwise. To
+default's language (exonyms), English unless the declaration says otherwise.
+An exonym is optional, and Wordsmith writes one only where it was given. To
 the parser the declaration is just a label of the default, as `value-xx=` labels
 language `xx`. The `!` is what keeps it off `GetLanguages()`, as for any
 `!Label`, so a runtime that predates it lists nothing new. The language it names

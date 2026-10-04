@@ -44,7 +44,11 @@ A session holds one or more files. Each file contributes:
   support more languages than the host app offers. The editor must show these
   as intentional, never as errors, and never strip the `!`. The labels are
   each language's own name (`value-xx`, the endonym) and its name in the
-  default's language (`comment-xx`, the exonym).
+  default's language (`comment-xx`, the exonym). The exonym is optional: a
+  file writes `comment-xx` only where one was given, by the file or the
+  manager, never a copy of the endonym. Lists name a language by its exonym,
+  or by its endonym without one. An import names languages by their culture,
+  with the English names only where the default is English or undeclared.
 - The **default's language**, from a keyless `value=!xx` leading that table
   (the runtime spec's *The default's language*): what the default is written
   in. Where the default speaks the selected language, its own code or, for a
@@ -303,7 +307,9 @@ shifts its entries; the order follows the rows; every file's table follows.
 One row may be the default's language: a tick in the pane sets it and moves
 it from the row that had it, a mark beside the code shows it in the list, and
 the field for the names written in the default's language is headed by it
-("Name in English"), or "English Language Name" while no row is ticked. On OK
+("Name in English"), or "English Language Name" while no row is ticked. That
+field may stay blank (the file then writes no `comment-xx`); the code and the
+endonym may not. On OK
 every file declares it (a file that declared none gains it only when the
 choice changed), a recode carries it along and a removal takes it.
 The table's `Rename` can also absorb a language into one that already holds
@@ -862,3 +868,57 @@ run is already folded into the run's last text, and a run undone back to
 its start leaves no entry. The window's routing (`DocumentUndo`) would ask
 the focused box whether it can undo before handing the command to the
 document.
+
+## A command line for tools
+
+A build step, a script or a coding agent that needs to change one entry
+should not have to open the editor, and should not have to hand-edit a
+format with continuation and escaping rules either. Saving through Wordsmith
+normalizes the whole file (Round-trip guarantees), which is fine for a file
+Wordsmith already wrote and noisy for one written by hand. The command line
+changes the entry it is asked to change and leaves every other byte alone.
+
+**Verbs.** One file per call; a field is named as in the file (`value`,
+`value-fr`, `context-fr`, `stale-fr`); a value is an argument, or `-` for
+stdin, so a multi-line value needs no shell quoting:
+
+- `get <file> <key> [field]` prints a field's value, unescaped, or the whole
+  block when no field is named.
+- `set <file> <key> <field> <value>` sets one field, adding the key, or the
+  field, where it is missing. `--stale [text]` marks the language's entry
+  stale with it, so the review filter surfaces a machine-written value.
+- `remove <file> <key> [field]` drops one field, or the whole key.
+- `list <file> [prefix]` prints the keys; `--missing xx` only those where
+  `xx` misses its words, by the editor's rule (Badges: an entry the default
+  speaks for misses nothing).
+
+A key is the file's own, without the session's file-label prefix. Values go
+to stdout and gripes to stderr. The exit code is 0 for done, 1 when the key
+or field is not there, 2 for a bad call or a file that does not parse.
+
+**Surgical edits.** The file is parsed, and the one field's lines (its
+declaration and its continuations) are replaced with what `IniWriter` writes
+for that one pair: escaping and folding as Save would, in the file's own line
+ending, encoding and BOM. Nothing else moves. A new field goes after the last
+field of its block. A new key goes after the end of the header chain holding
+its nearest sibling, as a full header: inserting one between a base and its
+`[.child]` headers would re-base them. A removed key whose header bases
+`[.child]` headers keeps that header bare, which reloads as an empty key (the
+tradeoff the writer already makes). After the edit the result is parsed again
+and compared with the model before it: anything but the asked-for change
+refuses the write, and the file is written to a temporary file and moved over
+the original only once that passes.
+
+**Where it lives.** The patcher in Authoring, tested headless. It needs
+positions the parser does not report today: the line where each declaration
+starts, an additive member of `IWordsParserConsumer` so existing consumers do
+not change. The command line itself is a thin console project over it. The
+root `CommandLine.cs`, an unused argument parser from the original import, is
+the candidate for its arguments, or for deletion. The agent skill
+(`SKILL.md`) then tells agents to use it rather than edit `words.ini` by hand.
+
+Undecided: how it ships (beside Wordsmith on GitHub Releases, or as a .NET
+tool package, `dotnet words set …`, which would need its own tag and
+version), and whether Wordsmith's Save later patches just the fields that
+changed in the same way, which would answer the hand-written-formatting
+question for the editor too.

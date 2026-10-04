@@ -103,14 +103,21 @@ namespace PatTech.Localization.Authoring {
 	public class LanguageEntry : ViewModelBase {
 		public string Code { get; set => ChangeProperty(ref field, value); }
 		/// <summary>From Value</summary>
-		public string NativeName { get; set => ChangeProperty(ref field, value); }
-		/// <summary>From Comment</summary>
-		public string EnglishName { get; set => ChangeProperty(ref field, value); }
+		public string NativeName { get; set => Rename(ref field, value); }
+		/// <summary>From Comment: the name in the default's language, empty when none was given (and none is written).</summary>
+		public string EnglishName { get; set => Rename(ref field, value); } = "";
+		/// <summary>The name to show: <see cref="EnglishName"/>, or <see cref="NativeName"/> without one.</summary>
+		public string DisplayName => EnglishName != "" ? EnglishName : NativeName;
+
+		private void Rename(ref string field, string value, [System.Runtime.CompilerServices.CallerMemberName] string property = "") {
+			if (ChangeProperty(ref field, value, property)) {
+				AffectProperty(nameof(DisplayName));
+			}
+		}
 
 		public LanguageEntry(string code, string nativeName) {
 			Code = code;
 			NativeName = nativeName;
-			EnglishName = nativeName;
 		}
 
 		/// <summary>
@@ -121,7 +128,6 @@ namespace PatTech.Localization.Authoring {
 		public LanguageEntry(string code) {
 			Code = code;
 			NativeName = "!" + code;
-			EnglishName = "!" + code;
 		}
 
 		public bool IsPlaceholder => NativeName == $"!{Code}";

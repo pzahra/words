@@ -38,7 +38,7 @@ public sealed class SettingsTarget(string label, string path) {
 /// <summary>One language of the file and the settings file it names, if any.</summary>
 public class LanguageSettingRow(LanguageEntry language, string path, Action changed) : ViewModelBase {
 	public string Code => language.Code;
-	public string Name => language.EnglishName;
+	public string Name => language.DisplayName;
 	/// <summary>Relative to the dictionary, or empty for none.</summary>
 	public string Path { get; set => _ = ChangeProperty(ref field, value) && Run(changed); } = path;
 

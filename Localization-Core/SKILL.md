@@ -223,5 +223,5 @@ redirected.
 - Declare the language the defaults are written in with a keyless top-of-file
   `value=!xx` (the `!` keeps it off `GetLanguages()`). Fallbacks to the default
   are then no missing words in `xx` (and its regional variants, for a bare
-  code): `.Debug()` and Wordsmith stop flagging them. `comment-xx=` labels are
-  the languages' names in that language.
+  code): `.Debug()` and Wordsmith stop flagging them. `comment-xx=` labels,
+  optional, are the languages' names in that language.

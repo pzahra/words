@@ -57,13 +57,16 @@ namespace PatTech.Localization.Authoring.Codecs {
 		}
 
 		/// <summary>
-		///     The language a code declares: its culture's native and English names
-		///     when the platform knows it, the code itself when it does not.
+		///     The language a code declares: its culture's native name when the
+		///     platform knows it, the code itself when it does not. The English name
+		///     comes along only where the default is English (or undeclared), since
+		///     exonyms are named in the default's language.
 		/// </summary>
 		public static LanguageEntry Declare(LoadedWords loaded, string code) {
 			try {
 				CultureInfo culture = CultureInfo.GetCultureInfo(code, predefinedOnly: true);
-				return loaded.Declare(code, culture.NativeName, culture.EnglishName);
+				bool english = WordsParser.DefaultSpeaks("en", loaded.DefaultLanguage ?? "en");
+				return loaded.Declare(code, culture.NativeName, english ? culture.EnglishName : null);
 			}
 			catch (CultureNotFoundException) {
 				return loaded.Declare(code, code);

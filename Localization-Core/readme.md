@@ -120,8 +120,9 @@ The keyless `value=!en` up top says which language your defaults are written
 in. English falling back to English defaults isn't a missing translation, so
 `.Debug()` leaves those alone, and so does Wordsmith's missing view. Regional
 variants come along too: an `en` default covers `en-AU`. An `en-AU` default
-covers only itself, so `en-US` still gets told what it's missing. Each
-`comment-xx=` label is that language's name in the default's language.
+covers only itself, so `en-US` still gets told what it's missing. A
+`comment-xx=` label, if you give one, is that language's name in the default's
+language.
 
 Relaunch is the default. `Words.Known` is process-wide and, out of the box,
 nothing that already read it — `LazyWords`, strings a view model composed and

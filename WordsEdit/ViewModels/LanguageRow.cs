@@ -59,7 +59,7 @@ public sealed class LanguageRow : DataViewModelBase {
 	internal void DefaultMoved() => AffectProperty(nameof(IsDefault));
 
 	/// <summary>The row as a session entry.</summary>
-	public LanguageEntry ToEntry() => new(Code, NativeName) { EnglishName = EnglishName };
+	public LanguageEntry ToEntry() => new(Code, NativeName) { EnglishName = EnglishName.Trim() == "" ? "" : EnglishName };
 
 	//the red text keeps to the fields that have been typed in
 	public override IEnumerable GetErrors(string? propertyName)
@@ -88,14 +88,17 @@ public sealed class LanguageRow : DataViewModelBase {
 		else if (others.Any(other => other.Code == Code)) {
 			SetError(Words.Known["language.exists"], nameof(Code));
 		}
-		CheckName(NativeName, nameof(NativeName), others.Select(other => other.NativeName));
-		CheckName(EnglishName, nameof(EnglishName), others.Select(other => other.EnglishName));
+		CheckName(NativeName, nameof(NativeName), others.Select(other => other.NativeName), required: true);
+		CheckName(EnglishName, nameof(EnglishName), others.Select(other => other.EnglishName), required: false);
 		AffectProperty(nameof(HasErrors));
 	}
 
-	private void CheckName(string value, string property, IEnumerable<string> taken) {
+	//the exonym may stay blank: the file then writes no comment- label for it
+	private void CheckName(string value, string property, IEnumerable<string> taken, bool required) {
 		if (string.IsNullOrWhiteSpace(value)) {
-			SetError(Words.Known["language.required"], property);
+			if (required) {
+				SetError(Words.Known["language.required"], property);
+			}
 		}
 		else if (taken.Contains(value)) {
 			SetError(Words.Known["language.exists"], property);

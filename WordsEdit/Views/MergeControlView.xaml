@@ -91,7 +91,7 @@
             <TextBlock Text="{l:Words merge.file}" VerticalAlignment="Center" Margin="0 0 5 0"/>
             <ComboBox ItemsSource="{Binding Files}" SelectedItem="{Binding SplitFile}" DisplayMemberPath="Label" MinWidth="160" Margin="0 0 10 0"/>
             <TextBlock Text="{l:Words merge.language}" VerticalAlignment="Center" Margin="0 0 5 0"/>
-            <ComboBox ItemsSource="{Binding SplitLanguages}" SelectedItem="{Binding SplitLanguage}" DisplayMemberPath="EnglishName" MinWidth="160"/>
+            <ComboBox ItemsSource="{Binding SplitLanguages}" SelectedItem="{Binding SplitLanguage}" DisplayMemberPath="DisplayName" MinWidth="160"/>
         </DockPanel>
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 10 0 0">

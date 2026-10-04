@@ -144,6 +144,7 @@ context-fr=untranslated, with a note
 			Assert.Equal(["de", "fr"], file.Languages); //the set's order: by code
 			Assert.Equal("en", file.DefaultLanguage); //the source text is the default
 			Assert.Equal("français", session.Languages.Find("fr")!.NativeName);
+			Assert.Equal("French", session.Languages.Find("fr")!.EnglishName); //an English source: names in English
 			Assert.Equal(["Strings.greeting", "Strings.$unit", "Strings.menu.file", "Strings.frozen"], session.Keys.Keys);
 
 			WordsKey greeting = session.Keys["Strings.greeting"];
@@ -173,6 +174,26 @@ context-fr=untranslated, with a note
 			Assert.Contains(file.Errors, error => error.StartsWith("Strings.it.xlf: XLIFF 2.0 is not supported"));
 			Assert.Contains(file.Errors, error => error.Contains("translate=\"no\" on 'frozen' ignored"));
 			Assert.Contains(file.Errors, error => error.Contains("without an id"));
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
+	public void Read_FromASourceInAnotherLanguage_GivesNoEnglishNames() {
+		string folder = Folder();
+		try {
+			File.WriteAllText(Path.Combine(folder, "Strings.de.xlf"), German.Replace("source-language=\"en\"", "source-language=\"it\""));
+			var codec = new XliffCodec();
+			var session = new WordsSession();
+
+			WordsFile file = session.Import(codec, codec.Discover(Path.Combine(folder, "Strings.de.xlf")));
+
+			Assert.Equal("it", file.DefaultLanguage);
+			LanguageEntry de = session.Languages.Find("de")!;
+			Assert.Equal("Deutsch", de.NativeName);
+			Assert.Equal("", de.EnglishName); //"German" is no name in Italian
 		}
 		finally {
 			Directory.Delete(folder, recursive: true);
