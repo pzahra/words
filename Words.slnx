@@ -15,6 +15,7 @@
   <Folder Name="/Editor/">
     <Project Path="WordsEdit/WordsEdit.csproj" />
     <Project Path="WordsEdit.Tests/WordsEdit.Tests.csproj" />
+    <Project Path="WordsCli/WordsCli.csproj" />
   </Folder>
   <Folder Name="/Rider Plugin/">
     <!--

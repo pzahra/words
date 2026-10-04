@@ -131,6 +131,13 @@ namespace PatTech.Localization {
 		/// </summary>
 		/// <param name="text">The comment text, without the leading <c>;</c>.</param>
 		void VisitComment(string text) { }
+		/// <summary>
+		/// The parser is about to read line <paramref name="number"/>: every visit until
+		/// the next call comes from that line. For tools that edit a file in place.
+		/// Ignored unless overridden.
+		/// </summary>
+		/// <param name="number">The line's number, from 1 at the start of the reader <see cref="WordsParser.Load(TextReader)"/> was given.</param>
+		void VisitLine(int number) { }
 	}
 
 	/// <summary>
@@ -247,7 +254,9 @@ namespace PatTech.Localization {
 			string baseBlockKey = "";
 			string currentBlockKey = "";
 			FieldKey? target = null;
+			int number = 0;
 			while (reader.ReadLine() is string line) {
+				consumer.VisitLine(++number);
 				if (TryReadLine(ref target, line, first: false)) {
 					continue;
 				}

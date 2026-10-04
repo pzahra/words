@@ -25,7 +25,7 @@ public enum FormRow {
 /// </summary>
 public sealed class FormPane(Func<string> language, Func<IReadOnlyDictionary<string, string>?> forms, Func<string> plain) : ViewModelBase {
 	/// <summary>The plain value's row: the <c>one</c> form.</summary>
-	public const string Plain = "one";
+	public const string Plain = MissingWords.Plain;
 
 	/// <summary>The form the pane shows; <see cref="Plain"/> for the plain value.</summary>
 	public string Form {
@@ -86,20 +86,6 @@ public sealed class FormPane(Func<string> language, Func<IReadOnlyDictionary<str
 		}
 		forms[category] = text;
 		return true;
-	}
-
-	/// <summary>
-	///     True when a key with forms misses words in <paramref name="language"/>:
-	///     a category it counts by that is not optional and has no form (SPEC:
-	///     Plural forms → Badges). A language with one category misses none.
-	/// </summary>
-	public static bool Misses(string language, IReadOnlyDictionary<string, string> forms)
-		=> PluralRules.Categories(language).Any(category => Requires(language, category) && forms.GetValueOrDefault(category, "") == "");
-
-	/// <summary>A form a plural key wants in <paramref name="language"/>: one it counts by, beside the plain value, and not optional.</summary>
-	public static bool Requires(string language, string category) {
-		var categories = PluralRules.Categories(language);
-		return categories.Count > 1 && category != Plain && categories.Contains(category) && !PluralRules.Optional(language).ContainsKey(category);
 	}
 }
 

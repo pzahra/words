@@ -41,6 +41,8 @@
     <ProjectReference Include="..\Localization-Ava\Localization-Ava.csproj" />
     <!-- the samples' framework-free half: the cards' How cuts real files, and runs here with the rest -->
     <ProjectReference Include="..\Sample-Shared\Sample-Shared.csproj" />
+    <!-- the command line's calls, run in process -->
+    <ProjectReference Include="..\WordsCli\WordsCli.csproj" />
   </ItemGroup>
 
 </Project>

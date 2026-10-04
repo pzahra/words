@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>PatTech.Localization.Cli</RootNamespace>
+    <!-- the command is words; it ships beside Wordsmith, at its version -->
+    <AssemblyName>words</AssemblyName>
+    <Version>$(WordsmithVersion)</Version>
+    <IsPackable>false</IsPackable>
+    <!-- nothing here formats for a culture, and a bare Linux box has no ICU to find -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <!-- a release is one self-contained file per platform (release-editor.yml), trimmed:
+       the trimmer keeps none of Core's reflection, so it has nothing to warn about -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <PublishSingleFile>true</PublishSingleFile>
+    <PublishTrimmed Condition="'$(SelfContained)' == 'true'">true</PublishTrimmed>
+    <EnableCompressionInSingleFile Condition="'$(SelfContained)' == 'true'">true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Localization-Authoring\Localization-Authoring.csproj" />
+    <ProjectReference Include="..\Localization-Core\Localization-Core.csproj" />
+  </ItemGroup>
+
+</Project>

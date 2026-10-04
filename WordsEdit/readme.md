@@ -4,7 +4,8 @@ The editor for your Words. Because translators deserve better than Notepad.
 
 Wordsmith is a WPF app that opens one or more `words.ini` files and lays the
 keys out as a tree, so humans can edit the values without ever learning the
-INI escape rules.
+INI escape rules. Scripts and coding agents get [`words`](../WordsCli/readme.md),
+the command line that ships beside it.
 
 ## What it does
 

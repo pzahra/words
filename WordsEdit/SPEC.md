@@ -853,7 +853,8 @@ the value. The default misses a form too: a plural key wants each category
 the default's language counts by, bar the optional ones, in every language's
 view, since a key a translation made plural still needs its source's plural.
 Which categories a language counts by is the runtime's table, which follows
-current CLDR.
+current CLDR. The rule itself is Authoring's `MissingWords`, which the tree's
+badges and the command line's `list --missing` both read.
 
 **Everything else.** The previews render the selected form. A value that
 selects (`{0#word}`) previews with the Test Parameters samples, so changing
@@ -888,17 +889,143 @@ does not count by, any form in a language with one; a word that is no
 category is dropped, with a gripe (Round-trip guarantees). Copies, a recode, a
 split and a merge carry the forms; the preview providers answer `key#few` as
 the runtime flattens it, so a dictionary over them selects; resx and XLIFF
-list the forms as lost. The editor follows, as above. All three are built. The
-command line comes after the authoring step, so it edits forms like any other
-field from its first build. Each is its own commit.
+list the forms as lost. The editor follows, as above. All three are built,
+each its own commit. The command line came after the authoring step, so it
+edits forms like any other field from its first build.
+
+## A command line for tools
+
+A build step, a script or a coding agent that needs to change one entry
+should not have to open the editor, and should not have to hand-edit a
+format with continuation and escaping rules either. Saving through Wordsmith
+normalizes the whole file (Round-trip guarantees), which is fine for a file
+Wordsmith already wrote and noisy for one written by hand. `words`, the
+command line, changes the entry it is asked to change and leaves every other
+byte alone.
+
+**Calls.** One file per call; a field is named as in the file (`value`,
+`value-fr`, `value-mt#few`, `context-fr`, `comment-fr`, `stale-fr`,
+`param-count`), plural forms included (*Plural forms*, above); a value is an
+argument, or `-` for stdin with its last line break dropped, so a multi-line
+value needs no shell quoting:
+
+- `get <file> <key> [field]` prints a field's value, unescaped, or the whole
+  block as Save writes it, under a full header, when no field is named.
+- `set <file> <key> <field> <value>` sets one field, adding the key, or the
+  field, where it is missing. `--stale [text]` marks the language's entry
+  stale with it (the default's mark keeps no words), so the review filter
+  surfaces a machine-written value. Options go anywhere after the call:
+  `--stale` takes the next argument as its words only once the value is in,
+  and `--stale=text` always does.
+- `remove <file> <key> [field]` drops one field, every declaration of it, or
+  the whole key.
+- `list <file> [prefix]` prints the keys in the order their blocks first
+  appear, leaving out a bare group header as the editor drops it; the prefix
+  is plain text, so `menu.` lists a group. `--missing xx` lists only those
+  where `xx` misses its words, by the badges' rule (*Plural forms*, Badges): no
+  words, or on a plural key a form the language requires. A language the file
+  does not declare, or one its default speaks, misses nothing, and a line on
+  stderr says which.
+- `--version` and `--help`.
+
+A key is the file's own, without the session's file-label prefix. Values go
+to stdout and gripes to stderr: the reader's gripes the edit adds (a field in
+an undeclared language, a form the language never reads), and a note when a
+field declared twice is made one. The exit code is 0 for done, 1 when the
+key or field is not there, 2 for a bad call, a file that does not parse or is
+neither UTF-8 nor UTF-16 text, or a refused edit. Redirected streams speak
+UTF-8 with `\n`; a console keeps its own.
+
+**Surgical edits.** `IniPatcher` reads the file's bytes (UTF-8 with or
+without a BOM, UTF-16 with one) and parses them, noting where each header and
+field sits. The one field's lines (its declaration and its continuations) are
+replaced with what `IniWriter` writes for that one pair: escaping and folding
+as Save would, in the file's own line ending; every other line keeps its own
+break, and a file that ended without one still does. A field already holding
+the text is not touched. A field declared more than once keeps its first
+place and loses the others. A new field goes after the last field of its
+block, or under its header when it has none. A new key goes after the end of
+the header chain holding its nearest sibling — the key sharing the most
+leading segments, the last of them — as a full header: after the chain's last
+header or field line, so the comments above the next block stay with it,
+since inserting one between a base and its `[.child]` headers would re-base
+them. With no sibling it goes after the last chain. A removed key whose
+header bases `[.child]` headers keeps that header bare, which reloads as a
+group (the tradeoff the writer already makes); a removal leaves no doubled
+blank line, and the comments above a removed block stand where they are, as
+in the tree. After the edit the result is parsed again and compared with the
+model before it, the asked-for change applied: every key's fields, the
+language table, the settings references and the comments in order. Anything
+else refuses the write, naming what would have changed. The file is written
+to a temporary sibling and moved over the original only once that passes; a
+link is followed to its file, and a Unix file keeps its mode.
+
+**Where it lives.** The patcher and `WordsField` — a field's name, parsed,
+read and written on the model — are in Authoring, tested headless. The parser
+reports where it is through `IWordsParserConsumer.VisitLine`, a member with a
+default body, so existing consumers do not change. The command line itself,
+`WordsCli`, is a thin console project over it on plain `net10.0`, with
+invariant globalization: it runs wherever .NET does, references Authoring and
+Core and never the editor, and Authoring stays free of anything Windows-only.
+The unused argument parser from the original import is gone.
+
+**How it ships.** With the editor, at its version (`WordsmithVersion`): each
+`editor/` release carries Wordsmith for Windows and the command line for
+Windows, Linux and macOS (x64, and Arm64 for macOS), each a self-contained,
+compressed single file, so nothing needs .NET installed. They are built and
+packed on a Linux runner: Windows's as a zip, the others as `.tar.gz`, which
+keeps the executable bit a zip made on Windows would lose. The SDK signs the
+macOS builds ad hoc, which Apple Silicon requires to run them at all; they
+are not notarized, so macOS quarantines a download until it is cleared
+(`xattr -d com.apple.quarantine`), and the release notes say so. They are
+trimmed, from about 37 MB to 11. Core's reflection — enum descriptions, the
+markdown constants read from JSON, named format arguments read off an object
+— is nowhere the command line reaches, so the trimmer keeps none of it and
+warns about nothing; every platform's build is the same code as the Windows
+one, which runs every call trimmed as it does untrimmed. Trimming is the
+command line's own setting: passed on the command line it would reach Core's
+build too, whose trim analyzer flags those patterns whether reached or not.
+
+**The agent skill.** The packaged `SKILL.md` tells agents the tools exist and
+where to get them: Wordsmith for a person editing on Windows, the command line
+for an agent or a script on any platform, both from the editor's GitHub
+Releases. An agent checks whether the command line is installed (`words
+--version`), uses it for any change to a `words.ini` when it is, marks the
+translations it writes stale, and edits by hand, keeping the format's
+continuation and escaping rules, only when it is not.
+
+**Tests.** Headless: a changed field replaces its lines and nothing else; a
+new field lands after its block's last, and a group's under its header with
+the chain intact; a new key lands after its sibling's chain as a full header,
+a lone one after the last block and before the trailer, and one in a file with
+no blocks at its end; the pair is written as the writer writes it, continued
+and folded, and reads back; a BOM, CRLF and a missing final break survive,
+each line of a mixed file keeps its own break, and UTF-16 stays UTF-16; text
+that is not UTF-8 does not open; the text a field already holds leaves its
+hand-written lines; a field declared twice keeps its first place; only the
+gripes an edit adds are reported; an edit that would spill into a continued
+last line is refused and changes nothing; a removal drops a field with its
+continuations, a block with one blank line, the last block with none left
+behind, a reopened key everywhere, and keeps bare a header that bases
+children; the parser numbers its visits. The command, in process: each call's
+output and exit code, a dash read from stdin, `--stale` with words, without
+and before the value, gripes passed on, a refused edit leaving the file, and
+`list` with a prefix and `--missing` by the badges' rule.
 
 ---
 
 # Planned upgrades
 
 Not built yet. Each section here is the shape the feature takes when it is.
-The next release is *Plural forms*, built above, and *A command line for
-tools*, complete.
+The next release carries *Plural forms* and *A command line for tools*, both
+built above.
+
+## Save as a patch
+
+Undecided: whether Wordsmith's Save patches just the fields that changed, the
+way the command line does, which would answer the hand-written-formatting
+question for the editor too. The patcher could do it field by field today;
+what it cannot do yet is move a key, which the tree does by drag.
 
 ## Import and export, next
 
@@ -1002,74 +1129,3 @@ run is already folded into the run's last text, and a run undone back to
 its start leaves no entry. The window's routing (`DocumentUndo`) would ask
 the focused box whether it can undo before handing the command to the
 document.
-
-## A command line for tools
-
-A build step, a script or a coding agent that needs to change one entry
-should not have to open the editor, and should not have to hand-edit a
-format with continuation and escaping rules either. Saving through Wordsmith
-normalizes the whole file (Round-trip guarantees), which is fine for a file
-Wordsmith already wrote and noisy for one written by hand. The command line
-changes the entry it is asked to change and leaves every other byte alone.
-
-**Verbs.** One file per call; a field is named as in the file (`value`,
-`value-fr`, `value-mt#few`, `context-fr`, `stale-fr`), plural forms included
-(*Plural forms*, above); a value is an argument, or `-` for stdin, so a
-multi-line value needs no shell quoting:
-
-- `get <file> <key> [field]` prints a field's value, unescaped, or the whole
-  block when no field is named.
-- `set <file> <key> <field> <value>` sets one field, adding the key, or the
-  field, where it is missing. `--stale [text]` marks the language's entry
-  stale with it, so the review filter surfaces a machine-written value.
-- `remove <file> <key> [field]` drops one field, or the whole key.
-- `list <file> [prefix]` prints the keys; `--missing xx` only those where
-  `xx` misses its words, by the editor's rule (Badges: an entry the default
-  speaks for misses nothing).
-
-A key is the file's own, without the session's file-label prefix. Values go
-to stdout and gripes to stderr. The exit code is 0 for done, 1 when the key
-or field is not there, 2 for a bad call or a file that does not parse.
-
-**Surgical edits.** The file is parsed, and the one field's lines (its
-declaration and its continuations) are replaced with what `IniWriter` writes
-for that one pair: escaping and folding as Save would, in the file's own line
-ending, encoding and BOM. Nothing else moves. A new field goes after the last
-field of its block. A new key goes after the end of the header chain holding
-its nearest sibling, as a full header: inserting one between a base and its
-`[.child]` headers would re-base them. A removed key whose header bases
-`[.child]` headers keeps that header bare, which reloads as an empty key (the
-tradeoff the writer already makes). After the edit the result is parsed again
-and compared with the model before it: anything but the asked-for change
-refuses the write, and the file is written to a temporary file and moved over
-the original only once that passes.
-
-**Where it lives.** The patcher in Authoring, tested headless. It needs
-positions the parser does not report today: the line where each declaration
-starts, an additive member of `IWordsParserConsumer` so existing consumers do
-not change. The command line itself is a thin console project over it, on
-plain `net10.0`: it runs wherever .NET does, so it references Authoring and
-Core and never the editor, and Authoring stays free of anything
-Windows-only. The root `CommandLine.cs`, an unused argument parser from the
-original import, is the candidate for its arguments, or for deletion.
-
-**How it ships.** With the editor, at its version (`WordsmithVersion`): each
-`editor/` release carries Wordsmith for Windows and the command line for
-Windows, Linux and macOS (x64, and Arm64 for macOS), each a self-contained
-single file, so nothing needs .NET installed. The Linux and macOS builds are
-packed as `.tar.gz` on a Linux runner, which keeps the executable bit a zip
-made on Windows would lose. They are unsigned, so macOS quarantines a download
-until it is cleared (`xattr -d com.apple.quarantine`), and the release notes
-say so.
-
-**The agent skill.** The packaged `SKILL.md` tells agents the tools exist and
-where to get them: Wordsmith for a person editing on Windows, the command line
-for an agent or a script on any platform, both from the editor's GitHub
-Releases. An agent checks whether the command line is installed (`words
---version`), uses it for any change to a `words.ini` when it is, and edits by
-hand, keeping the format's continuation and escaping rules, only when it is
-not.
-
-Undecided: the executable's name (`words`, proposed), and whether
-Wordsmith's Save later patches just the fields that changed in the same way,
-which would answer the hand-written-formatting question for the editor too.

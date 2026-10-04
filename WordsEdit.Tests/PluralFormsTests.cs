@@ -407,9 +407,9 @@ public class PluralFormsTests {
 		Assert.Equal(3, FormNumbers.Sample("mt", "few"));
 		Assert.Equal(1_000_000, FormNumbers.Sample("fr", "many"));
 		Assert.Null(FormNumbers.Sample("ru", "other")); //fractions only
-		Assert.True(FormPane.Misses("mt", new Dictionary<string, string> { ["other"] = "x" }));
-		Assert.False(FormPane.Misses("mt", new Dictionary<string, string> { ["few"] = "x", ["many"] = "x" })); //the sample's Maltese: other reads the plain word
-		Assert.False(FormPane.Misses("ja", new Dictionary<string, string>()));
-		Assert.False(FormPane.Misses("fr", new Dictionary<string, string> { ["other"] = "x" })); //exact millions read other
+		Assert.True(MissingWords.Misses("mt", new Dictionary<string, string> { ["other"] = "x" }));
+		Assert.False(MissingWords.Misses("mt", new Dictionary<string, string> { ["few"] = "x", ["many"] = "x" })); //the sample's Maltese: other reads the plain word
+		Assert.False(MissingWords.Misses("ja", new Dictionary<string, string>()));
+		Assert.False(MissingWords.Misses("fr", new Dictionary<string, string> { ["other"] = "x" })); //exact millions read other
 	}
 }

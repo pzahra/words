@@ -1,6 +1,6 @@
 ---
 name: pattech-words
-description: Work with the PatTech Words localization library — the words.ini format, Words.Known lookups, the markdown dialect, WPF/Avalonia XAML integration, image schemes, and format parameters. Use when adding or changing user-facing strings, localizing text, editing words.ini files, or rendering Words in XAML/AXAML/console.
+description: Work with the PatTech Words localization library — the words.ini format, Words.Known lookups, the markdown dialect, WPF/Avalonia XAML integration, image schemes, and format parameters. Use when adding or changing user-facing strings, localizing text, editing words.ini files (through the `words` command line when it is installed), or rendering Words in XAML/AXAML/console.
 ---
 
 # Words (PatTech.Localization)
@@ -72,6 +72,49 @@ that is how a later `Load` overlays an earlier one, not a continuation.
 
 Only `value` fields become lookup entries; the key is the block name.
 Language resolution per key: exact (`en-GB`) → family (`en`) → default.
+
+## Editing words.ini: the tools
+
+Each Wordsmith release (https://github.com/pzahra/words/releases, the
+`editor/` tags) carries two tools:
+
+- **Wordsmith**, the Windows editor, for a person editing by hand.
+- **`words`**, the command line, for an agent or a script on any platform
+  (Windows, Linux, macOS; one self-contained file, nothing to install). It
+  changes the one field it is asked to and leaves every other byte of the file
+  alone; each edit is read back, and refused if anything else would change.
+
+Check for it with `words --version`. When it is installed, make every change to
+a words.ini through it rather than by hand:
+
+```sh
+words get    words.ini menu.file value-it            # a field's value, unescaped
+words get    words.ini menu.file                     # the key's whole block
+words set    words.ini menu.file value-it "Archivio" # sets a field, adding it or the key
+words set    words.ini files value-mt#few - <<'EOF'
+fajls
+EOF
+# ^ a value from stdin (its last line break dropped): multi-line, no quoting
+words set    words.ini menu.file value-it "Archivio" --stale "machine translated"
+words remove words.ini menu.file comment-it          # one field, or the whole key
+words list   words.ini menu.                         # keys under a prefix, in file order
+words list   words.ini --missing it                  # keys Italian still misses
+```
+
+Fields are named as in the file (`value`, `value-fr`, `value-mt#few`,
+`context-fr`, `comment-fr`, `stale-fr`, `param-name`); a key is its full dotted
+name, whatever `[.child]` header the file wrote it under. Exit codes: 0 done,
+1 the key or field is not there, 2 a bad call or a file that does not parse.
+Read stderr: a field in a language the file does not declare, or a form the
+language never reads, is griped about as it is written. Mark the translations
+you write `--stale`, so the person reviewing in Wordsmith finds them.
+`--missing xx` follows Wordsmith's badges: no words in `xx`, or a plural key
+missing a form `xx` counts by; a language the default speaks misses nothing.
+
+Without the tool, edit by hand and keep the format's rules: a literal `\`, `_`
+or `'` is written doubled, a trailing `\` continues a value on the next line
+keeping the line break and a trailing `_` without it, and a new block never
+goes between a base and its `[.child]` headers, which would re-base them.
 
 ## Load once, look up anywhere
 

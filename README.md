@@ -23,6 +23,7 @@ There is even a compiler warning for the day you inevitably try to sneak a raw
 | [Localization-Ava](Localization-Ava/readme.md)         | Puts Words in the AXAML. Ships as `PatTech.Localization.Avalonia`.                                                                                                                                                  |
 | [LocalizationAnalyzer](LocalizationAnalyzer/readme.md) | The Words police. Provides `[Localized]` and warns (PTL001) when an unlocalized string is handed to something that wanted Words. Ships as `PatTech.Localization.Analyzer`, and comes along automatically with Core. |
 | [WordsEdit](WordsEdit/readme.md)                       | Wordsmith, the WPF editor for `words.ini` files. For when the translators would rather not hand-edit an INI file.                                                                                                   |
+| [WordsCli](WordsCli/readme.md)                         | `words`, the command line: changes one field of a `words.ini` and leaves every other byte alone. For scripts, build steps and coding agents, on Windows, Linux and macOS. Ships with Wordsmith.                       |
 | Sample-Wpf, Sample-Ava                                 | Twin tours of Words in the XAML and AXAML respectively, from the same words: a page per topic — markdown, references, links, image schemes, format parameters, enums, live switching, diagnostics — each demo labelled with what it uses, its markup and its words shown under "How it's made", cut from the real files. A language dropdown switches the app in place, and a dot marks the topics you haven't visited yet. |
 | [Sample-Shared](Sample-Shared/SPEC.md)                 | What the twins share: the words, the topic list, the view models, and the config that remembers your language, theme and visits.                                                                                   |
 | Sample-Console                                         | Words in the terminal: `dotnet run --project Sample-Console` shows the markdown rendered with ANSI styling, clickable links, emoji, and a deliberate missing key griping to the logger.                             |
@@ -63,7 +64,9 @@ constants, references, parameters, multiline values — see the
 Working with coding agents? Set `<WordsAgentSkill>true</WordsAgentSkill>` in a
 project that references Words and the next build drops an agent skill into
 `.claude/skills/pattech-words/`, teaching them the whole API — see the
-[Core readme](Localization-Core/readme.md#teach-your-agents).
+[Core readme](Localization-Core/readme.md#teach-your-agents). It also tells
+them about [`words`](WordsCli/readme.md), so they change your `words.ini`
+one field at a time instead of improvising the escape rules.
 
 ## Why its own format?
 
@@ -97,8 +100,8 @@ dotnet build Words.slnx
 dotnet test Words.slnx
 ```
 
-That builds the libraries, the analyzer, Wordsmith, and the samples, then runs
-the editor tests (xUnit) and the analyzer tests (MSTest).
+That builds the libraries, the analyzer, Wordsmith, the command line, and the
+samples, then runs the editor tests (xUnit) and the analyzer tests (MSTest).
 
 The libraries and samples consume the analyzer as the NuGet package
 `PatTech.Localization.Analyzer`. If you change the analyzer, `dotnet pack`

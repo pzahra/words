@@ -1,12 +1,14 @@
-# Builds Wordsmith and publishes it as a GitHub Release when an editor/ tag is
-# pushed. No nuget.org involvement, so no OIDC — just the built-in token, with
-# permission to create the release.
+# Builds Wordsmith and the words command line and publishes them as a GitHub
+# Release when an editor/ tag is pushed. No nuget.org involvement, so no OIDC —
+# just the built-in token, with permission to create the release.
 #
-#   editor/X.Y.Z  -> a GitHub Release holding a self-contained win-x64 build
+#   editor/X.Y.Z  -> a GitHub Release holding a self-contained win-x64 Wordsmith,
+#                    and words, one self-contained file, for win-x64, linux-x64,
+#                    osx-x64 and osx-arm64
 #
-# The editor's assembly version comes from WordsmithVersion in Versions.props;
-# keep it in step with the tag. Wordsmith references the analyzer package, so its
-# AnalyzerVersion must already be on nuget.org before this runs.
+# Both take their version from WordsmithVersion in Versions.props; keep it in
+# step with the tag. They reference the analyzer package, so its AnalyzerVersion
+# must already be on nuget.org before this runs.
 name: release-editor
 
 on:
@@ -18,18 +20,16 @@ permissions:
   contents: write        # to create the release
 
 jobs:
-  release:
+  wordsmith:
     runs-on: windows-latest      # Wordsmith is WPF (net10.0-windows)
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0         # every tag, to find the previous editor/ one
 
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
-      # editor/1.1.0 -> 1.1.0, for the archive name and release title
+      # editor/1.1.0 -> 1.1.0, for the archive name
       - name: Version from tag
         id: ver
         shell: pwsh
@@ -42,18 +42,76 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path publish/* -DestinationPath "Wordsmith-${{ steps.ver.outputs.value }}-win-x64.zip"
 
-      # The tag already exists (it triggered this run), so this attaches the build
-      # to a release for it and auto-writes notes from the commits since the
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wordsmith
+          path: Wordsmith-*.zip
+
+  # Linux, so the tarballs keep the executable bit a zip made on Windows would
+  # lose. The SDK signs the macOS builds ad hoc, which Apple Silicon requires to
+  # run them at all; they are not notarized, so a download is quarantined.
+  words:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Publish words
+        run: |
+          for rid in win-x64 linux-x64 osx-x64 osx-arm64; do
+            dotnet publish WordsCli/WordsCli.csproj -c Release -r "$rid" --self-contained true -o "out/$rid"
+          done
+
+      # the executable alone in each: the pdbs and docs beside it stay behind
+      - name: Pack each platform
+        run: |
+          version="${GITHUB_REF_NAME##*/}"
+          mkdir dist
+          (cd out/win-x64 && zip -9 "../../dist/words-$version-win-x64.zip" words.exe)
+          for rid in linux-x64 osx-x64 osx-arm64; do
+            chmod +x "out/$rid/words"
+            tar -czf "dist/words-$version-$rid.tar.gz" -C "out/$rid" words
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: words
+          path: dist/*
+
+  release:
+    needs: [wordsmith, words]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0         # every tag, to find the previous editor/ one
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      # The tag already exists (it triggered this run), so this attaches the builds
+      # to a release for it, and auto-writes notes from the commits since the
       # previous editor/ tag: the samples' api/ releases share the page, and the
-      # notes would otherwise start at whichever release came last. Wordsmith's
-      # release is the one marked Latest.
+      # notes would otherwise start at whichever release came last. The note on
+      # the command line goes above them. Wordsmith's release is the one marked Latest.
       - name: Create GitHub Release
-        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tags = @(git tag --list 'editor/*' --sort=v:refname)
-          $i = [array]::IndexOf($tags, '${{ github.ref_name }}')
-          $since = if ($i -gt 0) { @('--notes-start-tag', $tags[$i - 1]) } else { @() }
-          gh release create '${{ github.ref_name }}' 'Wordsmith-${{ steps.ver.outputs.value }}-win-x64.zip' --title 'Wordsmith ${{ steps.ver.outputs.value }}' --generate-notes --latest @since
-          if ($LASTEXITCODE -ne 0) { throw "Release failed" }
+          version="${GITHUB_REF_NAME##*/}"
+          cat > notes.md <<'EOF'
+          **Wordsmith** is the Windows editor: unzip and run `Wordsmith.exe`.
+
+          **words** is the command line, for scripts, build steps and coding agents on any platform: one self-contained file, nothing to install. Unpack it somewhere on your `PATH` and run `words --help`.
+
+          The macOS builds are signed ad hoc, not notarized, so macOS quarantines a download. Clear it once: `xattr -d com.apple.quarantine words`.
+          EOF
+          since=()
+          previous=$(git tag --list 'editor/*' --sort=v:refname | grep -F -x -B1 "$GITHUB_REF_NAME" | head -n -1)
+          if [ -n "$previous" ]; then since=(--notes-start-tag "$previous"); fi
+          gh release create "$GITHUB_REF_NAME" dist/* --title "Wordsmith $version" --notes-file notes.md --generate-notes --latest "${since[@]}"
