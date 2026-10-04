@@ -39,6 +39,24 @@ stale=marks the value as needing re-translation (gripes to the builder's logger)
 [.sub]
 value=really `group.key.sub`
 
+[file]
+value=file
+value#other=files
+value-mt=fajl
+value-mt#two=fajls
+value-mt#few=fajls
+value-mt#other=fajl
+; ^ plural forms: the CLDR category after the language. The plain value is the
+;   `one` form; add the others the language uses (English: other; Maltese: two,
+;   few, many, other; PluralRules.Categories("xx") lists them). A missing form
+;   reads `other`, and a missing `other` is the default's, so write it whenever
+;   it differs. `#` is reserved for forms.
+
+[files.count]
+value={0} {0#file}
+; ^ `{0#file}` splices the form of `file` that argument 0's count picks, without
+;   printing the count: "1 file", "2 files". Named works too: {Count#file}.
+
 [$unit]
 value=m2·K/W
 ; a `[$constant]` holds a NON-TRANSLATABLE string such as an SI unit or a
@@ -73,6 +91,11 @@ Formatting: `Words.Known.Format("key", args)` works like `string.Format`;
 `Words.Known.FormatParams("key", x)` picks by what `x` is — an array is
 positional, any other object is named, `null` is the text as is (the rule the
 XAML inlines and converters use).
+Counts pick plural forms: a `{0#key}` selector resolves in every formatting call
+(`Format`, `FormatByName`, `FormatParams`, the XAML inlines and converters), and
+`Words.Known["file", n]` returns the key's own form for `n`. A missing form
+falls to the key's `other` form, then its plain value; a fraction picks `other`.
+Never write `n == 1 ? "file" : "files"` — that is English's rule in code.
 Numbers and dates in parameters format with the thread's `CurrentCulture`,
 which `Digest` sets to the language; `.UseSystemNumbers()` before `Digest`
 keeps the system's regional format (`Words.SystemCulture`) with the words

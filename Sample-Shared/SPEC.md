@@ -57,7 +57,9 @@ embedded asset — `avares://Sample-Ava/Assets/` or
 `pack://application:,,,/Sample-Wpf;component/Assets/`. Values reference them —
 `Words for {$framework}`, `![Speech bubbles]({$embedded}bubbles.png)` — so the image schemes
 are the only words that differ, and they differ in one place. A new topic's
-words go in once.
+words go in once. It speaks English and Italian throughout, and Maltese on the
+Format parameters page alone, for its plural forms; picked from the menu,
+Maltese reads the English default everywhere else.
 
 ## The config
 
@@ -88,7 +90,7 @@ template, Avalonia through its view locator.
 | References | one key inside another (`{>key}`); constants (`{$constant}`, from `framework.ini`); dot-relative blocks and references; a loop, cut at `# ∞ #` |
 | Hyperlinks | tooltips, autolinks and app commands (`RegisterGlobalNavigateHandler`), coloured by the theme (`WordsLinkBrush`); the app's report of them (`Params`) |
 | Images | every scheme, `staticres:` beside `dynres:` under the theme toggle |
-| Format parameters | positional, as a child binding; named, read off an object; numbers and dates in the language's culture, with `UseSystemNumbers` |
+| Format parameters | positional, as a child binding; plural forms the same count picks (`{0#key}`, `value#other`), sharing its slider; named, read off an object; numbers and dates in the language's culture, with `UseSystemNumbers` |
 | Enums | a `[Words]` enum in a picker (`WordsEnumDescription`); its tooltip, subtitle and description; a `[Flags]` value joined and listed |
 | Live switching | a bound key the view model picks; a converted binding; a kept string beside one recomposed through `IKnowWords` |
 | Diagnostics | the fallback brands (`Debug`); the log of what `Words.Logger` heard |

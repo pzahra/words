@@ -19,7 +19,13 @@ namespace PatTech.Localization {
 		public string this[string key] => GetValue(key);
 
 		/// <inheritdoc/>
+		public string this[string key, decimal count] => Words.RenderCount(this, key, count);
+
+		/// <inheritdoc/>
 		public IWordsProvider Provider { get; } = provider;
+
+		/// <summary>The selected language: the UI culture this dictionary was built with.</summary>
+		public CultureInfo UICulture => setUICulture ?? setCulture;
 
 		/// <summary>
 		/// Sets the current thread's culture and UI culture, and the process-wide

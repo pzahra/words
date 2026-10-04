@@ -204,6 +204,32 @@ Use the formatter `Words.Known.Format` as you would `String.Format`, but
 you can also use `Words.Known.FormatByName` to access properties as
 named parameters.
 
+Counting things? `count == 1 ? "file" : "files"` is English's rule, hard-coded,
+and Maltese has five opinions about it. Give the key a form for each count its
+language tells apart, the category after the language, and let the count pick:
+
+``` INI
+[file]
+value=file
+value#other=files
+value-mt=fajl
+value-mt#two=fajls
+value-mt#few=fajls
+value-mt#other=fajl
+
+[files.count]
+value={0} {0#file}
+```
+
+`Words.Known.Format("files.count", 2)` reads "2 files", and "2 fajls" in
+Maltese, which is back to "20 fajl" by twenty. `{0#file}` splices in whichever
+form of `file` the count picks, without printing the count, and
+`Words.Known["file", n]` hands you the form on its own. The rules are Unicode
+CLDR's current ones (`PluralRules`), so French counts zero as singular and a
+million as `many`. A form a translation lacks falls to its `other` — Maltese's
+`many`, eleven to nineteen, reads "fajl" that way — then to its plain value. An
+`other` it lacks is the default's, which is why Maltese writes its own.
+
 An argument is substituted into the value and then rendered as markdown along
 with it, so an argument can carry markdown of its own — a dynamic
 `[link](appcmd:open?id=42)`, say. That is by design and deliberately not

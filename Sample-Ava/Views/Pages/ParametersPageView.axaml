@@ -17,6 +17,13 @@
     </c:DemoCard>
     <!-- /card -->
 
+    <!-- card: parameters.plural -->
+    <c:DemoCard Key="parameters.plural" Uses="{}{0#key}, value#other, WordsInline">
+      <!-- the count from the slider above: {0#.message} puts in the form it picks -->
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="parameters.plural.demo"><Binding Path="Unread"/></l:WordsInline></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+
     <!-- card: parameters.named -->
     <c:DemoCard Key="parameters.named" Uses="WordsInline, Params">
       <TextBlock TextWrapping="Wrap"><l:WordsInline Key="parameters.named.demo" Params="{Binding Profile}"/></TextBlock>

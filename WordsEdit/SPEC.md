@@ -772,7 +772,7 @@ complete.
 ## Plural forms
 
 The runtime spec's *Plural forms* gives a key a form per CLDR category beside
-its plain value (`value-ru#few=слова`). The editor shows one form at a time in
+its plain value (`value-mt#few=Kelmiet`). The editor shows one form at a time in
 each value box, and a selector in each pane picks which.
 
 **The selector.** The baseline pane's header toolbar and the translation
@@ -784,7 +784,7 @@ instead: on the plain value it is bare. On any other form it wears the
 category as a badge, the way the filter button wears its count, and the
 pane's title names it ("Translation · few"), so typing into `few` never looks
 like typing into the plain value. Each row reads the category and the numbers
-it takes in that language ("few: 2–4, 22–24, 32–34…"), since the names alone
+it takes in that language ("few: 0, 3–10, 103–110…"), since the names alone
 say little to a translator, and marks the forms that have words. The plain
 row is captioned as the language's `one`. The selector is a `ChoiceItem` like
 the two languages: a submenu of ticked rows in the View menu, and the popup on
@@ -794,8 +794,9 @@ row.
 **What is offered.** The baseline offers the default's language's categories
 (English while the file declares none), and the translation offers the
 selected language's. Each offers what CLDR's table gives the language and an
-integer reaches, while fractions wait: Russian's `other` takes only fractions,
-so it is not offered yet. A form the key already has outside those stays
+integer reaches, while fractions wait: Maltese offers `two`, `few`, `many` and
+`other` beside its plain value, but Polish's `other` takes only fractions, so
+it is not offered yet. A form the key already has outside those stays
 offered, marked as one the language does not use (and griped on load), so
 nothing written is out of reach. A language with a single category, such as
 Japanese, has nothing to pick, and its button greys.
@@ -811,14 +812,15 @@ lacks the picked category. Otherwise a new key's default could be typed into
 `other` by mistake.
 
 **The two follow.** Translating a form means reading the source for the same
-numbers, and two languages' categories rarely line up: Russian `few` (2–4) is
-English `other`. Picking a form in the translation pane moves the baseline's
+numbers, and two languages' categories rarely line up: Maltese `few` (3–10)
+is English `other`, and so is Maltese `other` (20 up). Picking a form in the translation pane moves the baseline's
 selector to the form that the pick's first number takes in the default's
 language. The baseline's own pick moves nothing else.
 
-**Empty forms.** An empty form's box hints its language's plain value,
-greyed, the way the translation box hints the default: what that count reads
-as until the form has words of its own. Clearing a form removes it, and a key
+**Empty forms.** An empty form's box hints, greyed, what that count reads as
+until the form has words of its own, the way the translation box hints the
+default: the `other` form, or the plain value without one (the runtime spec's
+*Which form a count reads*). Clearing a form removes it, and a key
 whose last form goes is plural no more.
 
 **Badges.** A plural key misses words in a language that uses a category and
@@ -838,13 +840,13 @@ with it. Stale stays one per entry and one per key, as do the notes. XLIFF and
 resx have no slot for a form, so an export lists the forms as lost
 (`WordsFeatures.PluralForms`), the way it lists the default's language.
 
-**Tests.** A plural key's selectors offer English `other` and Russian `few`
-and `many`, each with its numbers. The badge shows a missing Russian form, and
-none where the default speaks the language. Typing into a form writes
-`value-ru#few` and undoes. Picking Russian `few` moves the baseline to
-`other`. A key that is not plural greys the translation's selector and shows
-the plain value. A form the language does not use stays reachable, with a
-gripe.
+**Tests.** A plural key's selectors offer English `other` and Maltese `two`,
+`few`, `many` and `other`, each with its numbers. The badge shows a missing
+Maltese form, and none where the default speaks the language. Typing into a
+form writes `value-mt#few` and undoes. Picking Maltese `few` moves the
+baseline to `other`. A key that is not plural greys the translation's selector
+and shows the plain value. A form the language does not use stays reachable,
+with a gripe.
 
 **Order.** The runtime comes first, proven in the samples: the grammar, the
 CLDR integer table, the digest, the `{n#key}` selector and the count indexer.
@@ -967,7 +969,7 @@ Wordsmith already wrote and noisy for one written by hand. The command line
 changes the entry it is asked to change and leaves every other byte alone.
 
 **Verbs.** One file per call; a field is named as in the file (`value`,
-`value-fr`, `value-ru#few`, `context-fr`, `stale-fr`), plural forms included
+`value-fr`, `value-mt#few`, `context-fr`, `stale-fr`), plural forms included
 (*Plural forms*, above); a value is an argument, or `-` for stdin, so a
 multi-line value needs no shell quoting:
 

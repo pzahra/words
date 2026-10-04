@@ -36,6 +36,25 @@ namespace PatTech.Localization {
 		string this[string key] { get; }
 
 		/// <summary>
+		/// Returns <paramref name="key"/>'s own form for <paramref name="count"/>, rendered
+		/// like any value: the plural form CLDR's rule for <see cref="UICulture"/> picks
+		/// (SPEC: Plural forms), its <c>other</c> form when it has none for that count,
+		/// and its plain value when it has neither — so <c>Words.Known["word", 2]</c> is
+		/// "Words" where <c>Words.Known["word"]</c> is "Word". A missing key renders as
+		/// <c>#key#</c>, as for the indexer.
+		/// </summary>
+		/// <param name="key">The key to look up.</param>
+		/// <param name="count">The count to pick the form by; a fractional one picks <c>other</c>.</param>
+		[Localized]
+		string this[string key, decimal count] => Words.RenderCount(this, key, count);
+
+		/// <summary>
+		/// The language this dictionary speaks, which picks a count's plural form. A
+		/// dictionary that does not say speaks the thread's UI culture.
+		/// </summary>
+		CultureInfo UICulture => CultureInfo.CurrentUICulture;
+
+		/// <summary>
 		/// Checks whether <paramref name="key"/> exists in the underlying <see cref="Provider"/>.
 		/// </summary>
 		/// <param name="key">The key to look up.</param>
@@ -72,6 +91,10 @@ namespace PatTech.Localization {
 				RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 		private static readonly Regex rxUnescape = new(
 				@"(?<1>[\\'""{])\1|\{[$>](?<2>[^}]+)\}",
+				RegexOptions.Compiled | RegexOptions.ExplicitCapture);
+		//{0#word} or {Count#word}; a {{ pair is matched only to be left for string.Format
+		private static readonly Regex rxSelector = new(
+				@"\{\{|\{(?<1>\d+|(?=[_a-zA-Z])\w+)#(?<2>[^{}#\s]+)\}",
 				RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 
 		/// <summary>
@@ -120,22 +143,42 @@ namespace PatTech.Localization {
 		/// </summary>
 		public static WordsBuilder Builder() => WordsBuilder.Create();
 
-		/// <inheritdoc cref="RenderKey(IWordsProvider, string, object[])"/>
+		/// <summary>
+		/// <see cref="RenderKey(IWordsProvider, string, object[])"/> in this dictionary's
+		/// language, so <paramref name="args"/> also select plural forms (<c>{0#word}</c>)
+		/// as <see cref="Format(IWords, IFormatProvider?, string, object?[])"/> does.
+		/// </summary>
+		/// <param name="words">The dictionary to resolve keys against.</param>
+		/// <param name="key">The key to look up.</param>
+		/// <param name="args">Optional arguments for the selectors and <see cref="string.Format(string, object[])"/>; <see langword="null"/> or empty skips both.</param>
 		[return: NotNull, Localized]
 		public static string RenderKey(
 				[DisallowNull] this IWords words,
 				[DisallowNull] string key,
 				[AllowNull] object[] args = null) {
-			return RenderKey(words.Provider, key, args);
+			ArgumentNullException.ThrowIfNull(words);
+			return args?.Length > 0 ? words.Format(key, args) : RenderKey(words.Provider, key);
 		}
-		/// <inheritdoc cref="RenderText(IWordsProvider, string, string, object[])"/>
+		/// <summary>
+		/// <see cref="RenderText(IWordsProvider, string, string, object[])"/> in this
+		/// dictionary's language, so <paramref name="args"/> also select plural forms.
+		/// </summary>
+		/// <param name="words">The dictionary to resolve references against.</param>
+		/// <param name="text">The template text to render.</param>
+		/// <param name="baseKey">Resolves relative references and selectors: <c>{&gt;.sub}</c> becomes <c>baseKey.sub</c>.</param>
+		/// <param name="args">Optional arguments for the selectors and <see cref="string.Format(string, object[])"/>; <see langword="null"/> or empty skips both.</param>
 		[return: NotNull, Localized]
 		public static string RenderText(
 				[DisallowNull] this IWords words,
 				[DisallowNull] string text,
 				[AllowNull] string baseKey = null,
 				[AllowNull] object[] args = null) {
-			return RenderText(words.Provider, text, baseKey, args);
+			ArgumentNullException.ThrowIfNull(words);
+			if (!(args?.Length > 0)) {
+				return RenderText(words.Provider, text, baseKey);
+			}
+			var template = RenderText(words.Provider, text, baseKey);
+			return string.Format(SelectForms(words, template, baseKey ?? "", Positional(args)), args);
 		}
 
 		/// <summary>
@@ -146,7 +189,7 @@ namespace PatTech.Localization {
 		/// </summary>
 		/// <param name="wordsProvider">The dictionary to resolve keys against.</param>
 		/// <param name="key">The key to look up. Keys starting with <c>$</c> are constants and are returned verbatim, without further expansion.</param>
-		/// <param name="args">Optional arguments applied with <see cref="string.Format(string, object[])"/> after rendering; <see langword="null"/> or empty skips formatting entirely.</param>
+		/// <param name="args">Optional arguments applied with <see cref="string.Format(string, object[])"/> after rendering; <see langword="null"/> or empty skips formatting entirely. A provider has no language to select plural forms in, so a <c>{0#word}</c> selector needs the <see cref="IWords"/> overload.</param>
 		/// <returns>The rendered text; never <see langword="null"/>.</returns>
 		[return: NotNull, Localized]
 		public static string RenderKey(
@@ -172,7 +215,7 @@ namespace PatTech.Localization {
 		/// <param name="wordsProvider">The dictionary to resolve references against.</param>
 		/// <param name="text">The template text to render.</param>
 		/// <param name="baseKey">Resolves relative references: <c>{&gt;.sub}</c> becomes <c>baseKey.sub</c>. If <see langword="null"/> or empty, the leading dot is simply dropped.</param>
-		/// <param name="args">Optional arguments applied with <see cref="string.Format(string, object[])"/> after rendering; <see langword="null"/> or empty skips formatting entirely.</param>
+		/// <param name="args">Optional arguments applied with <see cref="string.Format(string, object[])"/> after rendering; <see langword="null"/> or empty skips formatting entirely. A <c>{0#word}</c> selector needs the <see cref="IWords"/> overload.</param>
 		/// <returns>The rendered text; never <see langword="null"/>.</returns>
 		[return: NotNull, Localized]
 		public static string RenderText(
@@ -271,6 +314,142 @@ namespace PatTech.Localization {
 			return result.ToString();
 		}
 
+		[return: Localized]
+		internal static string RenderCount(IWords words, string key, decimal count) {
+			ArgumentNullException.ThrowIfNull(key);
+			string language = words.UICulture.Name;
+			return words[FormKey(words.Provider, language, key, PluralRules.Select(language, count))];
+		}
+
+		//the entry a count reads (SPEC: Plural forms): key#form, else key#other, else the
+		//plain value, which is the one form; a language with one category has only that
+		private static string FormKey(IWordsProvider provider, string language, string key, string form) {
+			if (form != "one" && PluralRules.Categories(language).Count > 1) {
+				if (provider.ContainsKey($"{key}#{form}")) {
+					return $"{key}#{form}";
+				}
+				if (provider.ContainsKey($"{key}#other")) {
+					return $"{key}#other";
+				}
+			}
+			return key;
+		}
+
+		//each {n#key} in template becomes the form its argument selects, rendered, and
+		//selected through in turn: a form may select too. key's own forms are out of
+		//reach of its template, as a key is of its own references
+		[return: Localized]
+		private static string SelectForms(IWords words, string template, string key, Func<string, object?> argument) {
+			if (!template.Contains('#')) {
+				return template;
+			}
+			var path = new Stack<string>();
+			path.Push(key);
+			return SelectForms(words, template, key, argument, path);
+		}
+		[return: Localized]
+		private static string SelectForms(IWords words, string template, string baseKey, Func<string, object?> argument, Stack<string> path) {
+			return rxSelector.Replace(template, match => {
+				if (!match.Groups[2].Success) {
+					return match.Value;
+				}
+				string key = match.Groups[2].Value;
+				if (key.StartsWith('.')) {
+					key = baseKey == "" ? key[1..] : baseKey + key;
+				}
+				if (path.Contains(key)) {
+					Logger.Warn($"WORDS:CIRC:`{key}` <- `{string.Join("` <- `", path)}`");
+					return "# ∞ #";
+				}
+				string language = words.UICulture.Name;
+				string form = FormKey(words.Provider, language, key, Category(language, argument(match.Groups[1].Value)));
+				path.Push(key);
+				try {
+					return SelectForms(words, words[form], key, argument, path);
+				}
+				finally {
+					path.Pop();
+				}
+			});
+		}
+
+		//the form an argument picks: a count by CLDR's rule; null, a value not there yet,
+		//picks other quietly, and anything else picks other with a warning
+		private static string Category(string language, object? value) {
+			if (TryCount(value, out decimal count)) {
+				return PluralRules.Select(language, count);
+			}
+			if (value is not null) {
+				Logger.Warn($"WORDS:COUNT:`{value}`");
+			}
+			return "other";
+		}
+		private static bool TryCount(object? value, out decimal count) {
+			switch (value) {
+				case sbyte or byte or short or ushort or int or uint or long or ulong or decimal:
+					count = Convert.ToDecimal(value, CultureInfo.InvariantCulture);
+					return true;
+				case double d when double.IsFinite(d) && Math.Abs(d) < 7.9e28:
+					count = (decimal)d;
+					return true;
+				case float f when float.IsFinite(f) && Math.Abs(f) < 7.9e28f:
+					count = (decimal)f;
+					return true;
+				default:
+					count = 0;
+					return false;
+			}
+		}
+
+		//a selector's argument by number, where string.Format finds it; a name is none
+		//of the positional arguments, and picks other with a warning
+		private static Func<string, object?> Positional(object?[]? args) => name => {
+			if (!char.IsDigit(name[0])) {
+				Logger.Warn($"WORDS:FIELD:`{name}`");
+				return null;
+			}
+			if (!int.TryParse(name, NumberStyles.None, CultureInfo.InvariantCulture, out int index) || index >= (args?.Length ?? 0)) {
+				throw new FormatException($"{{{name}#…}}: index (zero based) must be less than the size of the argument list.");
+			}
+			return args![index];
+		};
+		//by name, a public field or property of value, as FormatByName reads it; by number,
+		//a positional argument, and the one past them value itself (PreFormatByName's slot)
+		private static Func<string, object?> Named(object? value, object?[]? args) {
+			var positional = Positional(args);
+			int count = args?.Length ?? 0;
+			return name => {
+				if (char.IsDigit(name[0])) {
+					return int.TryParse(name, NumberStyles.None, CultureInfo.InvariantCulture, out int index) && index == count
+						? value
+						: positional(name);
+				}
+				if (TryMember(value, name, out var found)) {
+					return found;
+				}
+				Logger.Warn($"WORDS:FIELD:`{name}`");
+				return null;
+			};
+		}
+
+		//a public field or property by name; a null item has every member, as null
+		private static bool TryMember(object? item, string name, out object? found) {
+			found = null;
+			if (item is null) {
+				return true;
+			}
+			var type = item.GetType();
+			if (type.GetField(name) is FieldInfo field) {
+				found = field.GetValue(item);
+				return true;
+			}
+			if (type.GetProperty(name) is PropertyInfo property) {
+				found = property.GetValue(item);
+				return true;
+			}
+			return false;
+		}
+
 		/// <summary>
 		/// Retrieves and renders the value of <paramref name="key"/> with silent failure.
 		/// </summary>
@@ -296,7 +475,11 @@ namespace PatTech.Localization {
 		/// Looks up <paramref name="key"/> and applies <paramref name="args"/> to its
 		/// <c>{0}</c>-style placeholders, exactly like
 		/// <see cref="string.Format(IFormatProvider, string, object[])"/> but with a
-		/// words key instead of a format string.
+		/// words key instead of a format string. First each plural selector,
+		/// <c>{0#word}</c>, is replaced by the form of <c>word</c> its argument's count
+		/// picks (<see cref="IWords.this[string, decimal]"/>), so <c>{0} {0#word}</c>
+		/// reads "1 Word" and "2 Words"; the argument itself prints only where a
+		/// <c>{0}</c> puts it.
 		/// </summary>
 		/// <param name="known">The dictionary to read.</param>
 		/// <param name="provider">Culture-specific formatting, or <see langword="null"/> for the current culture.</param>
@@ -304,18 +487,19 @@ namespace PatTech.Localization {
 		/// <param name="args">The values to format into the template.</param>
 		[return: Localized]
 		public static string Format(this IWords known, IFormatProvider? provider, string key, params object?[] args)
-			=> string.Format(provider, known[key], args);
+			=> string.Format(provider, SelectForms(known, known[key], key, Positional(args)), args);
 
 		/// <inheritdoc cref="FormatByName(IWords, IFormatProvider?, string, object?, object?[])"/>
 		[return: Localized]
 		public static string FormatByName(this IWords known, string key, object? value, params object?[] args)
-			=> FormatByName(known[key], value, args);
+			=> FormatByName(known, null, key, value, args);
 		/// <summary>
 		/// Looks up <paramref name="key"/> and formats it with named placeholders:
 		/// <c>{PropertyName}</c> tags are filled from public fields and properties of
 		/// <paramref name="value"/>, while numbered <c>{0}</c>-style tags still refer to
 		/// <paramref name="args"/>. See <see cref="PreFormatByName(string, object?, object?[])"/>
-		/// for the placeholder rules.
+		/// for the placeholder rules. A plural selector names its count either way:
+		/// <c>{Count#word}</c> or <c>{0#word}</c>.
 		/// </summary>
 		/// <param name="known">The dictionary to read.</param>
 		/// <param name="provider">Culture-specific formatting, or <see langword="null"/> for the current culture.</param>
@@ -324,7 +508,7 @@ namespace PatTech.Localization {
 		/// <param name="args">Additional positional arguments.</param>
 		[return: Localized]
 		public static string FormatByName(this IWords known, IFormatProvider? provider, string key, object? value, params object?[] args)
-			=> FormatByName(provider, known[key], value, args);
+			=> FormatByName(provider, SelectForms(known, known[key], key, Named(value, args)), value, args);
 
 		/// <summary>
 		/// Looks up <paramref name="key"/> and fills its placeholders from whatever
@@ -332,7 +516,8 @@ namespace PatTech.Localization {
 		/// share: an array supplies positional <c>{0}</c>-style arguments, any other object
 		/// supplies <c>{Name}</c> placeholders read off its public fields and properties
 		/// (<see cref="FormatByName(IFormatProvider?, string, object?, object?[])"/>), and
-		/// <see langword="null"/> means no arguments at all — the text comes back as it is.
+		/// <see langword="null"/> means no arguments at all — the text comes back as it is,
+		/// plural selectors and all. Either kind of argument selects plural forms.
 		/// </summary>
 		/// <param name="known">The dictionary to read.</param>
 		/// <param name="key">The key of the format template.</param>
@@ -346,11 +531,13 @@ namespace PatTech.Localization {
 				case null:
 					return template;
 				case object[] args:
-					return string.Format(provider, template, args);
-				case Array array:
-					return string.Format(provider, template, array.Cast<object?>().ToArray());
+					return string.Format(provider, SelectForms(known, template, key, Positional(args)), args);
+				case Array array: {
+					var args = array.Cast<object?>().ToArray();
+					return string.Format(provider, SelectForms(known, template, key, Positional(args)), args);
+				}
 				default:
-					return FormatByName(provider, template, @params);
+					return FormatByName(provider, SelectForms(known, template, key, Named(@params, null)), @params);
 			}
 		}
 
@@ -379,7 +566,7 @@ namespace PatTech.Localization {
 				case string key:
 					// typed: a bare null would pick the dictionary overload, which refuses it
 					return value is null
-						? FormatByName(provider, known[key], (object?)null)
+						? known.FormatByName(provider, key, (object?)null)
 						: known.FormatParams(key, value, provider);
 				default: {
 					var text = Truncate(parameter.ToString());
@@ -408,19 +595,13 @@ namespace PatTech.Localization {
 		/// <param name="args">Additional positional arguments, addressed by the template's numbered tags.</param>
 		/// <returns>A numbered format string and the matching argument array, ready for <see cref="string.Format(string, object[])"/>.</returns>
 		public static (string FormatString, object?[] FormatArgs) PreFormatByName(string template, object? value, params object?[] args) {
-			var type = value?.GetType() ?? typeof(void);
-			return PreFormatByName(template, value, name => valueOf(value, name, type), args);
-			static object? valueOf(object? item, string key, Type itemType) {
-				if (item is null) { return null; }
-				if (itemType.GetField(key) is FieldInfo k) {
-					return k.GetValue(item);
+			return PreFormatByName(template, value, name => {
+				if (TryMember(value, name, out var found)) {
+					return found;
 				}
-				if (itemType.GetProperty(key) is PropertyInfo p) {
-					return p.GetValue(item);
-				}
-				Logger.Warn($"WORDS:FIELD:`{key}`");
-				return $"#{key}#";
-			}
+				Logger.Warn($"WORDS:FIELD:`{name}`");
+				return $"#{name}#";
+			}, args);
 		}
 		/// <summary>
 		/// <see cref="PreFormatByName(string, object?, object?[])"/> with the named
@@ -474,11 +655,11 @@ namespace PatTech.Localization {
 		/// <param name="args">The values to format into the template.</param>
 		[return: Localized]
 		public static string FormatKnown(IFormatProvider? provider, string key, params object?[] args)
-			=> string.Format(provider, Known[key], args);
+			=> Known.Format(provider, key, args);
 
 		/// <inheritdoc cref="FormatKnownByName(IFormatProvider?, string, object?, object?[])"/>
 		public static string FormatKnownByName(string key, object? value, params object?[] args)
-			=> FormatByName(Known[key], value, args);
+			=> Known.FormatByName(null, key, value, args);
 		/// <summary>
 		/// <see cref="FormatByName(IWords, IFormatProvider?, string, object?, object?[])"/>
 		/// against the process-wide <see cref="Known"/> dictionary.
@@ -488,7 +669,7 @@ namespace PatTech.Localization {
 		/// <param name="value">The object whose members are read by name.</param>
 		/// <param name="args">Additional positional arguments.</param>
 		public static string FormatKnownByName(IFormatProvider? provider, string key, object? value, params object?[] args)
-			=> FormatByName(provider, Known[key], value, args);
+			=> Known.FormatByName(provider, key, value, args);
 
 		/// <inheritdoc cref="FormatByName(IFormatProvider?, string, object?, object?[])"/>
 		public static string FormatByName(string template, object? value, params object?[] args)

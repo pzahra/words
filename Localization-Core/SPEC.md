@@ -328,27 +328,26 @@ Family fallbacks keep their 🕮.
 brands `de`, and lists exactly its three languages. An `en-AU` default brands
 `en-US`. `DefaultSpeaks` covers the matrix, case included.
 
----
-
-# Planned upgrades
-
-Not built. Each section here is the shape the feature takes when it is.
-
 ## Plural forms
 
 Pick the word for a count in the dictionary, not in code. The app that writes
-`count == 1 ? "file" : "files"` has encoded English's rule: Russian puts 1, 21
-and 31 in one form, 2 to 4 in another and 5 to 20 in a third; Arabic has six
-forms; French counts zero as singular. The translator who knows the rule cannot
+`count == 1 ? "file" : "files"` has encoded English's rule: Maltese gives 2 a
+form of its own, puts 3 to 10 in the plural and goes back to the singular from
+11; Arabic has six forms; French counts zero as singular. The translator who knows the rule cannot
 reach the code that applies it, so the choice moves into the value, where the
 translator is.
 
 **The forms.** A key's plural forms are variants of its value, marked with the
 category after the language: `value-en#other=Words`, or `value#other` for the
 default. The plain value is the `one` form, implied — every key already has it,
-and it is what `{>word}` and the indexer render — so a category with no form of
-its own falls to the plain value, and a language with one form writes only that.
-Comment, context and stale stay one per key.
+and it is what `{>word}` and the indexer render — and a language with one form
+writes only that. Comment, context and stale stay one per key. To the runtime a
+form is an entry beside its key's value, keyed `word#other`, so it digests per
+language with the same exact → family → default resolution, and `Debug` brands
+a form that fell back as it brands a value. The mark is the forms' alone: a block
+whose name holds a `#` is warned about (`WP:HASH`), and so is a form that is none
+(`WP:FORM`) — one on a label, `#one` (the plain value is that form), or a
+category CLDR does not have — which is left out.
 
 ```ini
 [word]
@@ -356,9 +355,10 @@ value=Word
 value#other=Words
 value-it=Parola
 value-it#other=Parole
-value-ru=слово
-value-ru#few=слова
-value-ru#many=слов
+value-mt=Kelma
+value-mt#two=Kelmtejn
+value-mt#few=Kelmiet
+value-mt#other=Kelma
 ```
 
 The categories are Unicode CLDR's six — zero, one, two, few, many, other — and
@@ -366,8 +366,28 @@ which numbers fall in which is CLDR's rule for the language, carried as a table
 in Core since .NET exposes none; the integer rules cover nearly every real call,
 so fractions may wait. The table follows the current CLDR release, newer forms
 included: French, Italian and Spanish use `many` for exact millions ("un milione
-di file"), which older tables lack. An English file writes `other` and nothing more, and a
-Russian translator adds `few` and `many` without a line of code changing.
+di file"), which older tables lack. An English file writes `other` and nothing
+more, and a Maltese translator adds `two`, `few` and `other`, leaving `many` to
+read `other`, without a line of code changing.
+`PluralRules.Select(language, n)` names a count's category and
+`PluralRules.Categories(language)` the ones a whole number reaches, so Russian's
+`other`, which takes only fractions, is not among them. A region the table does
+not know falls to its language (`pt-BR` is `pt`; `pt-PT` has its own rule), a
+language it does not know has only `other`, as CLDR's root does, and the
+invariant culture counts as English. Until fractions come, a number with a
+fractional part is `other`; the sign is ignored, and a whole value counts as
+whole whatever its scale.
+
+**Which form a count reads.** The category's form, else the key's `other` form,
+else its plain value. `other` is the form a language always has for "more", so
+it stands in for a category a translation lacks: Italian without its `many`
+reads "1.000.000 messaggi", not "messaggio". Each step looks in the flattened
+dictionary, which holds the language's own forms and, where it lacks them, its
+family's and then the default's, branded under `Debug`, as for values — so a
+language whose `other` is its plain word, as Maltese's is, writes it, or reads
+the default's. A
+language with one category, such as Japanese, speaks only its plain value: the
+default's `other` flattens into it and is never what a count reads.
 
 **The selector.** A third reference beside `{$constant}` and `{>key}`, with the
 same mark as the forms: `{0#word}` names a parameter and a key. The parameter is
@@ -379,38 +399,64 @@ is relative to the block as `{>.sub}` is; and a missing key renders `#word#` as
 ever. A selector is a reference, and the circular cut applies: a key does not
 select among its own forms. A sentence that changes shape as a whole keeps its
 forms in a sub-key and selects there, or is read whole through the count indexer
-below.
+below. A numbered selector past the arguments throws a `FormatException`, as
+`{3}` would. A name no member answers, or a name in a positional call, warns
+and picks `other`; `null`, a bound value not there yet, picks `other` quietly;
+any other value that is no number picks `other` and warns (`WORDS:COUNT`).
 
-**Where it resolves.** The forms are entries of the dictionary like values:
-digested per language with the same exact → family → default resolution, and
-rendered through the same reference expansion, so a form may itself carry a
-`{>key}` or a `{0}`. The selector resolves in the `Format` family, which holds
-the arguments, before `string.Format` sees the template: each `{n#key}` is
-replaced by the form its argument selects, then formatting proceeds. The indexer
-leaves a selector in place — it has no argument to select with — so a plural
-template reached through `Words.Known[key]` and the caller's own `string.Format`
-throws, which is the right signal: that template wanted `Words.Format`. A
-non-numeric argument selects `other` and warns.
+**Where it resolves.** The selector resolves in the `Format` family, which holds
+the arguments — `Format`, `FormatByName`, `FormatParams`, `ConvertValue`,
+`FormatKnown`, and the `IWords` overloads of `RenderKey` and `RenderText` given
+arguments — before `string.Format` sees the template: each `{n#key}` is replaced
+by the form its argument selects, rendered, so a form may itself carry a
+`{>key}` or a `{0}`, and selected through in turn, so a form may select too. A
+`{{` pair is left for `string.Format`. On the named path `{0}` is the object
+itself, as `PreFormatByName` slots it, so a converter's bound count selects with
+`{0#word}`. The indexer leaves a selector in place — it has no argument to select
+with — so a plural template reached through `Words.Known[key]` and the caller's
+own `string.Format` throws, which is the right signal: that template wanted
+`Words.Format`. The provider-level `RenderKey` leaves it too: a provider has no
+language to select in.
 
 **The count indexer.** A caller holding a key and a number needs neither
 `Format` nor a selector: `Words.Known[key, n]` is the lookup with a count, and
 returns the key's own form for `n`, rendered as any value is —
-`Words.Known["word", 1]` is "Word", `Words.Known["word", 2]` is "Words". It is a
-member of `IWords` with a default implementation, so a dictionary of one's own
-needs nothing.
+`Words.Known["word", 1]` is "Word", `Words.Known["word", 2]` is "Words". It takes
+a `decimal`, which every integer converts to (a `double` needs a cast). It is a
+member of `IWords` with a default implementation, and so is `IWords.UICulture`,
+the language that picks: a dictionary of one's own speaks the thread's UI
+culture, and needs nothing; `CulturedWords` speaks the one it was built with.
 
 **What changes.** The pair grammar admits `#form` after the language, and the
-form travels with the field type, so a consumer that knows `value` learns
-`value#other` the same way: Core to digest it, the authoring side to round-trip
-it. Wordsmith shows one form at a time, picked in each pane from the categories
-CLDR gives the language, so a Russian translator picks among `few` and `many`
-and an English one has `other` (the editor spec's *Plural forms*). Nothing else
-moves: a file with no `#` forms parses, digests and renders byte for byte as
-today.
+form travels with the field type, lowercased (`value#other`), so a consumer that
+knows `value` learns `value#other` the same way: Core digests it, the authoring
+side round-trips it. A runtime from before skips every `#` line, so a file with
+forms still loads there with its plain values. Wordsmith shows one form at a
+time, picked in each pane from the categories CLDR gives the language, so a
+Maltese translator picks among `two`, `few`, `many` and `other` and an English
+one has `other` (the editor spec's *Plural forms*). Nothing else moves: a file
+with no `#` forms parses, digests and renders byte for byte as before. The
+samples show it on the Format parameters page, the positional card's count
+picking its words in English, Italian and Maltese, which speaks on that page
+alone.
 
-**Tests.** A headless test digests a file with English and a four-form language,
-formats a counted key at 1, 2, 5, 11, 21, 22, 25 and 101 under each, and reads
-the expected forms; a category without a form falls to the plain value; a named
-selector picks the same form as a numbered one; a key selecting its own forms
-renders the circular mark; the indexer returns the template with the selector
-intact, and the count indexer returns the key's own form for the count.
+**Tests.** A headless test digests a file with English, Russian, French and
+Japanese, formats a counted key at 1, 2, 5, 11, 21, 22, 25 and 101 under English
+and Russian, and reads the expected forms. A category without a form falls to
+`other`, then to the plain value; a form the language lacks is the default's,
+branded; Japanese reads only its plain value; a named selector picks the same
+form as a numbered one; a key selecting its own forms renders the circular mark;
+forms refer, format and select in turn, and a `{{` pair stays; every formatting
+path selects; the indexer returns the template with the selector intact, and the
+count indexer returns the key's own form for the count. The table's spot checks
+follow current CLDR, and each rule's categories are what whole numbers reach.
+The parser lowercases a form, continues it and warns about forms that are none.
+Checked once against the ICU that Windows ships (CLDR 35): the table agrees
+except where CLDR has changed since.
+
+---
+
+# Planned upgrades
+
+Not built. Each section here is the shape the feature takes when it is. None is
+waiting.

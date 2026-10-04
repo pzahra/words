@@ -33,8 +33,9 @@ namespace PatTech.Localization {
 		/// </summary>
 		public readonly string BlockKey;
 		/// <summary>
-		/// The field name before any language suffix: <c>"value"</c>, <c>"comment"</c>,
-		/// <c>"context"</c>, <c>"stale"</c>, and so on.
+		/// The field name without its language suffix: <c>"value"</c>, <c>"comment"</c>,
+		/// <c>"context"</c>, <c>"stale"</c>, and so on. A plural form travels with it,
+		/// lowercased: <c>value-ru#few</c> is the field type <c>"value#few"</c> in <c>"ru"</c>.
 		/// </summary>
 		public readonly string FieldType;
 		/// <summary>
@@ -134,8 +135,9 @@ namespace PatTech.Localization {
 
 	/// <summary>
 	/// A line-based parser for the <c>words.ini</c> format: <c>[block]</c> headers
-	/// (including dot-relative <c>[.sub]</c> inheritance), <c>field-lang=text</c> pairs
-	/// with <c>=</c> or <c>:</c>, line continuations via trailing <c>\</c> (keep newline)
+	/// (including dot-relative <c>[.sub]</c> inheritance), <c>field-lang#form=text</c> pairs
+	/// with <c>=</c> or <c>:</c> (the language and the plural form both optional),
+	/// line continuations via trailing <c>\</c> (keep newline)
 	/// or <c>_</c> (same line), and comment lines starting with <c>;</c> — reported via
 	/// <see cref="IWordsParserConsumer.VisitComment(string)"/> so authoring tools can
 	/// round-trip them. Blank lines are skipped. It holds no state of its own beyond the
@@ -216,7 +218,7 @@ namespace PatTech.Localization {
 			@"^\[(?<1>[^]]+)\]",
 			RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 		static readonly Regex rxPair = new(
-			@"^(?<key>\w+)(-(?<lang>\w+(?:-\w+)?))?\s*[:=]\s*(?<text>.*)",
+			@"^(?<key>\w+)(-(?<lang>\w+(?:-\w+)?))?(?<form>#\w+)?\s*[:=]\s*(?<text>.*)",
 			RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 		static readonly Regex rxIsContinuedLine = new(
 			@"^([\\_].|[^\\_])*[\\_]$",
@@ -269,7 +271,7 @@ namespace PatTech.Localization {
 				else if (rxPair.TryMatch(line, out var pair)) {
 					string lang = NormalizeLanguageCasing(pair.Groups["lang"].Value);
 					var text = pair.Groups["text"].Value;
-					var fieldKey = pair.Groups["key"].Value;
+					var fieldKey = pair.Groups["key"].Value + pair.Groups["form"].Value.ToLowerInvariant();
 					target = new FieldKey(currentBlockKey, fieldKey, lang);
 					var lineRead = TryReadLine(ref target, text, first: true);
 					if (!lineRead) {

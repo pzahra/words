@@ -3,13 +3,13 @@ using PatTech.Localization;
 namespace Sample_Shared.ViewModels;
 
 /// <summary>
-///     Format parameters: a count for the positional placeholder, an object for the
-///     named ones, and a number and a date for the culture card, whose box flips the
-///     live builder's UseSystemNumbers.
+///     Format parameters: a count for the positional placeholder, which the plural
+///     card picks its forms by too, an object for the named ones, and a number and a
+///     date for the culture card, whose box flips the live builder's UseSystemNumbers.
 /// </summary>
 public class ParametersPageViewModel(SampleConfig config, Action relocalize) : PageViewModel(SampleTopics.Parameters, config) {
 	private double unread = 3;
-	/// <summary>The positional argument, bound as the inline's child.</summary>
+	/// <summary>The positional argument, bound as the inline's child, on both the positional card and the plural one.</summary>
 	public double Unread {
 		get => unread;
 		set => ChangeProperty(ref unread, value);

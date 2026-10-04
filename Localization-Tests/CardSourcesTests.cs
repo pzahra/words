@@ -133,6 +133,35 @@ public class CardSourcesTests {
 	}
 
 	[Fact]
+	public void Words_ASelectorsKeyComes_AndAContinuedFormHoldsAHeaderLikeLine() {
+		const string ini = """
+			value-en=English
+
+			[count]
+			value={0} {0#thing}
+			value#other={0} things in _
+			[not.a.header]
+
+			[thing]
+			value=thing
+			value#other=things
+			""";
+
+		var words = Assert.Single(new CardSources([], [new("sample.ini", ini)]).How("count", null)).Text;
+
+		Assert.Equal("""
+			[count]
+			value={0} {0#thing}
+			value#other={0} things in _
+			[not.a.header]
+
+			[thing]
+			value=thing
+			value#other=things
+			""", words);
+	}
+
+	[Fact]
 	public void TheRealWords_CutTheCodeCardWhole() {
 		var sources = new CardSources([], [SampleWords.ReadShared()]);
 
