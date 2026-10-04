@@ -74,9 +74,19 @@ the translation industry's handoff file, almost always converted to something
 else before an app runs off it; resx works at runtime but ties you to XML and
 the .NET tooling, one file per culture. So Words keeps a lean, hand-editable,
 diffable file it feeds off as-is — and it carries things neither of those
-models: cross-file references and constants, typed format parameters, and a
-markdown dialect. Meeting translators on *their* formats is a separate job, for
-import and export (planned) to handle; it needn't be the format the app runs on.
+models: cross-file references and constants, typed format parameters, a
+markdown dialect, and plural forms.
+
+Plural forms make the case on their own. Neither resx nor XLIFF has a slot for
+one, so the app that wants "1 file" and "2 files" ends up writing
+`count == 1 ? "file" : "files"`: English's rule, compiled in, where no
+translator can reach it. Maltese has five forms; Polish says 22 one way and 25
+another. In `words.ini` the forms live in the value. Wordsmith lists each form
+with the counts it takes, so nobody has to know what CLDR means by "few" to
+fill it in. The translator knows the rule; now the code doesn't have to.
+
+Meeting translators on *their* formats is a separate job, which import and
+export handle; it needn't be the format the app runs on.
 
 ## Building
 

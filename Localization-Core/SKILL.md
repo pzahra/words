@@ -49,7 +49,8 @@ value-mt#few=fajls
 ;   few, many, other; PluralRules.Categories("xx") lists them). A missing form
 ;   reads `other`, then the language's own plain value, never the default's
 ;   forms; an optional one reads its stand-in first (PluralRules.Optional("xx"):
-;   Maltese two reads few, many reads other). `#` is reserved for forms.
+;   Maltese two reads few, many reads other, other reads the plain value). `#`
+;   is reserved for forms.
 
 [files.count]
 value={0} {0#file}

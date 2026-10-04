@@ -140,6 +140,18 @@ public class TreeViewModel : ViewModelBase {
 	public bool IsPlural => SelectedKey is { } key && IsPluralKey(key);
 	private static bool IsPluralKey(WordsKey key) => key.Forms.HasWords() || key.Entries.Values.Any(entry => entry.Forms.HasWords());
 
+	/// <summary>A baseline row the badge counts as missing: bold, as the tree shows a gap.</summary>
+	public bool DefaultMisses(string category) => SelectedKey is { IsConstant: false } key
+		&& Missing(category, DefaultRulesLanguage, key.DefaultValue, key.Forms, formsWanted: IsPluralKey(key));
+	/// <summary>A translation row the badge counts as missing, where the selected language wants words.</summary>
+	public bool EntryMisses(string category) => SelectedKey is { IsConstant: false } key && SelectedEntry is { } entry
+		&& Wants(SelectedFile, SelectedLanguage.Code)
+		&& Missing(category, SelectedLanguage.Code, entry.Value, entry.Forms, formsWanted: IsPluralKey(key) && entry.Value.Trim() != "");
+
+	//the plain value empty, or on a plural key a form the language requires empty
+	private static bool Missing(string category, string language, string plain, IReadOnlyDictionary<string, string> forms, bool formsWanted)
+		=> category == FormPane.Plain ? plain.Trim() == "" : formsWanted && FormPane.Requires(language, category) && forms.GetValueOrDefault(category, "") == "";
+
 	/// <summary>The baseline's selector: how a key becomes plural, so live on any key.</summary>
 	public bool DefaultFormsEnabled => SelectedKey is not null && DefaultForms.AnyToPick;
 	/// <summary>The translation's: live on a plural key, where the language has forms to pick.</summary>
@@ -632,7 +644,6 @@ public class TreeViewModel : ViewModelBase {
 		//file registers that language (listed or !-hidden), reads emphasized; a file
 		//that never declared the language has no gap to show, nor one whose default
 		//speaks it, since its empty entries fall back to the default (SPEC: Badges)
-		bool wanting = file is not null && file.Languages.Contains(code) && !WordsParser.DefaultSpeaks(file.DefaultLanguage, code);
 		//a plural key also wants every form its languages count by, bar the optional ones;
 		//a language with no words of its own misses its value, and the default's forms
 		//stand in until it has some (SPEC: Plural forms → Badges)
@@ -641,8 +652,13 @@ public class TreeViewModel : ViewModelBase {
 		string value = entry?.Value.Trim() ?? "";
 		node.EmptyValue = !key.IsConstant
 			&& (key.DefaultValue.Trim() == "" || (plural && FormPane.Misses(file?.DefaultLanguage ?? "en", key.Forms))
-				|| (wanting && (value == "" || (plural && FormPane.Misses(code, entry!.Forms)))));
+				|| (Wants(file, code) && (value == "" || (plural && FormPane.Misses(code, entry!.Forms)))));
 	}
+
+	//a language the file registers (listed or !-hidden) wants words; one the file never
+	//declared has no gap to show, nor one its default speaks, whose empty entries fall back
+	private static bool Wants(WordsFile? file, string code)
+		=> file is not null && file.Languages.Contains(code) && !WordsParser.DefaultSpeaks(file.DefaultLanguage, code);
 
 	//only a leaf directly under a file may become a constant (SPEC: baseline pane)
 	public static void UpdateCanBeConstant(KeyNode fileNode) {

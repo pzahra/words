@@ -65,6 +65,7 @@ public sealed class FormPane(Func<string> language, Func<IReadOnlyDictionary<str
 		FormRow.Plain when PluralRules.Categories(Language).Count < 2 => Words.Known["forms.plain-only"],
 		FormRow.Plain => Words.Known.Format("forms.plain", FormNumbers.Describe(Language, category)),
 		FormRow.Live => Words.Known.Format("forms.live", category, FormNumbers.Describe(Language, category)),
+		FormRow.Optional when PluralRules.Optional(Language)[category] == Plain => Words.Known.Format("forms.optional-plain", category, FormNumbers.Describe(Language, category)),
 		FormRow.Optional => Words.Known.Format("forms.optional", category, FormNumbers.Describe(Language, category), PluralRules.Optional(Language)[category]),
 		_ => Words.Known.Format("forms.unused", category),
 	};
@@ -92,11 +93,13 @@ public sealed class FormPane(Func<string> language, Func<IReadOnlyDictionary<str
 	///     a category it counts by that is not optional and has no form (SPEC:
 	///     Plural forms → Badges). A language with one category misses none.
 	/// </summary>
-	public static bool Misses(string language, IReadOnlyDictionary<string, string> forms) {
+	public static bool Misses(string language, IReadOnlyDictionary<string, string> forms)
+		=> PluralRules.Categories(language).Any(category => Requires(language, category) && forms.GetValueOrDefault(category, "") == "");
+
+	/// <summary>A form a plural key wants in <paramref name="language"/>: one it counts by, beside the plain value, and not optional.</summary>
+	public static bool Requires(string language, string category) {
 		var categories = PluralRules.Categories(language);
-		var optional = PluralRules.Optional(language);
-		return categories.Count > 1 && categories.Any(category => category != Plain && !optional.ContainsKey(category)
-			&& forms.GetValueOrDefault(category, "") == "");
+		return categories.Count > 1 && category != Plain && categories.Contains(category) && !PluralRules.Optional(language).ContainsKey(category);
 	}
 }
 

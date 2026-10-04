@@ -49,10 +49,11 @@ namespace PatTech.Localization {
 		/// The categories a translation into <paramref name="languageCode"/> may leave
 		/// out, each with the category a missing form reads instead: the ones that
 		/// usually read like another. Maltese <c>two</c> reads <c>few</c>, since only a
-		/// handful of its words keep a dual, and its <c>many</c> reads <c>other</c>;
-		/// Hebrew <c>two</c> reads <c>other</c>; the exact millions of French, Italian,
-		/// Spanish, Portuguese and Catalan read <c>other</c>. Words' own table, not
-		/// CLDR's; empty for most languages.
+		/// handful of its words keep a dual, its <c>many</c> reads <c>other</c>, and its
+		/// <c>other</c> reads <c>one</c>, the plain value: from 11 up a Maltese count
+		/// takes the singular. Hebrew <c>two</c> reads <c>other</c>; the exact millions
+		/// of French, Italian, Spanish, Portuguese and Catalan read <c>other</c>. Words'
+		/// own table, not CLDR's; empty for most languages.
 		/// </summary>
 		/// <param name="languageCode">A language, as for <see cref="Select"/>.</param>
 		public static IReadOnlyDictionary<string, string> Optional(string languageCode) {
@@ -80,7 +81,7 @@ namespace PatTech.Localization {
 		private static readonly Dictionary<string, string> None = [];
 
 		private static readonly Dictionary<string, IReadOnlyDictionary<string, string>> optional = Table<IReadOnlyDictionary<string, string>>(
-			(new Dictionary<string, string> { ["two"] = "few", ["many"] = "other" }, "mt"),
+			(new Dictionary<string, string> { ["two"] = "few", ["many"] = "other", ["other"] = "one" }, "mt"),
 			(new Dictionary<string, string> { ["two"] = "other" }, "he iw"),
 			(new Dictionary<string, string> { ["many"] = "other" }, "ca es fr it lld pt scn vec"));
 

@@ -79,8 +79,9 @@ public class PluralFormsTests {
 		Assert.Equal(["zero", "two", "few", "many"], baseline.Options.Where(option => option.IsGreyed).Select(option => (string)option.Value));
 		Assert.All(baseline.Options.Where(option => option.IsGreyed), option => Assert.False(option.IsEnabled));
 		Assert.Equal("zero: no count reads it here", baseline.Options[0].Label);
-		//the words it has are marked: the plain value and other
-		Assert.Equal(["one", "other"], baseline.Options.Where(option => option.IsMarked).Select(option => (string)option.Value));
+		//the words it has wear a dot: the plain value and other; English wants nothing more
+		Assert.Equal(["one", "other"], baseline.Options.Where(option => option.HasWords).Select(option => (string)option.Value));
+		Assert.DoesNotContain(baseline.Options, option => option.IsMissing);
 		//Maltese counts by five, two and many optional, each saying what it reads
 		ChoiceItem translation = ChoiceOf(vm, "menu.translation-form");
 		Assert.Equal(PluralRules.Names, translation.Options.Select(option => (string)option.Value));
@@ -90,9 +91,12 @@ public class PluralFormsTests {
 		Assert.StartsWith("many: 11–19, 111–119", translation.Options[4].Label);
 		Assert.EndsWith("— reads other", translation.Options[4].Label);
 		Assert.StartsWith("other: 20–102, 120–202", translation.Options[5].Label);
+		Assert.EndsWith("— reads the plain value", translation.Options[5].Label); //from 11 up, the singular
 		Assert.All(translation.Options, option => FakeDialogs.Rendered(option.Label));
 		Assert.Equal(FormRow.Optional, vm.Tree.TranslationForms.Row("two"));
 		Assert.Equal(FormRow.Live, vm.Tree.TranslationForms.Row("few"));
+		//what the badge misses is bold, as the tree shows it: Maltese few
+		Assert.Equal(["few"], translation.Options.Where(option => option.IsMissing).Select(option => (string)option.Value));
 	}
 
 	[Fact]
@@ -105,6 +109,11 @@ public class PluralFormsTests {
 		vm.Tree.EntryText = "fajls";
 		Assert.False(node.EmptyValue); //two and many read few and other
 		Assert.Equal("fajls", vm.Tree.SelectedEntry!.Forms["few"]);
+		//nor does Maltese other, which reads the plain word, the singular from 11 up
+		vm.Tree.PickTranslationForm("other");
+		vm.Tree.EntryText = "";
+		Assert.False(node.EmptyValue);
+		Assert.DoesNotContain(ChoiceOf(vm, "menu.translation-form").Options, option => option.IsMissing);
 		//none where the default speaks the language
 		Select(vm, "word", "en");
 		Assert.False(node.EmptyValue);
@@ -244,7 +253,8 @@ public class PluralFormsTests {
 		ChoiceItem baseline = ChoiceOf(vm, "menu.default-form");
 		Choice few = baseline.Options.Single(option => (string)option.Value == "few");
 		Assert.True(few.IsGreyed);
-		Assert.True(few.IsMarked);
+		Assert.True(few.HasWords);
+		Assert.False(few.IsMissing);
 		Assert.True(few.IsEnabled);
 		few.IsChecked = true;
 		Assert.Equal("stray", vm.Tree.DefaultText);
@@ -343,6 +353,50 @@ public class PluralFormsTests {
 	}
 
 	[Fact]
+	public void APreviewCountsByTheLanguageDotNetDoesNotKnow() {
+		//Cebuano is the invariant culture to .NET; its translation still selects by Cebuano's rule
+		var vm = Load("""
+			value=!en
+			value-ceb=Cebuano
+
+			[word]
+			value=file
+			value#other=files
+			value-ceb=file
+			value-ceb#other=mga file
+
+			[count]
+			value={0} {0#word}
+			value-ceb={0} {0#word}
+			param-0=Integer:5
+
+			""");
+		vm.ShowDefaultPreview = true;
+		vm.ShowLocalizationPreview = true;
+		Select(vm, "count", "ceb");
+		Assert.Equal("5 files", vm.DefaultPreview.Text);
+		Assert.Equal("5 file", vm.TranslationPreview.Text); //Cebuano's one takes 5
+	}
+
+	[Fact]
+	public void TestParametersSelectAsThePreviewDoes() {
+		var dialogs = new FakeDialogs();
+		var vm = new MainWindowViewModel(dialogs);
+		vm.LoadFile(new StringReader(Ini), "Example");
+		Select(vm, "count");
+		TestParametersViewModel? dialog = null;
+		dialogs.OnShow = shown => {
+			dialog = (TestParametersViewModel)shown;
+			Assert.Equal("4 files", dialog.Result);
+			Assert.False(dialog.IsError);
+			dialog.Parameters[0].Value = "1"; //the sample picks the form
+			Assert.Equal("1 file", dialog.Result);
+		};
+		vm.TestParametersCommand.Execute(null);
+		Assert.NotNull(dialog);
+	}
+
+	[Fact]
 	public void TheNumbersACategoryTakes() {
 		Assert.Equal("0, 2…", FormNumbers.Describe("en", "other"));
 		Assert.Equal("1", FormNumbers.Describe("en", "one"));
@@ -354,7 +408,7 @@ public class PluralFormsTests {
 		Assert.Equal(1_000_000, FormNumbers.Sample("fr", "many"));
 		Assert.Null(FormNumbers.Sample("ru", "other")); //fractions only
 		Assert.True(FormPane.Misses("mt", new Dictionary<string, string> { ["other"] = "x" }));
-		Assert.False(FormPane.Misses("mt", new Dictionary<string, string> { ["few"] = "x", ["other"] = "x" }));
+		Assert.False(FormPane.Misses("mt", new Dictionary<string, string> { ["few"] = "x", ["many"] = "x" })); //the sample's Maltese: other reads the plain word
 		Assert.False(FormPane.Misses("ja", new Dictionary<string, string>()));
 		Assert.False(FormPane.Misses("fr", new Dictionary<string, string> { ["other"] = "x" })); //exact millions read other
 	}

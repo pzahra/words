@@ -77,13 +77,14 @@ public sealed class ToggleItem : CommandItem {
 
 /// <summary>What a <see cref="ChoiceItem"/>'s options say beyond their names, and how the row shows on a toolbar.</summary>
 /// <param name="CanPick">Whether an option can be picked; every one when absent.</param>
-/// <param name="Marked">Whether an option is marked: a plural form with words.</param>
+/// <param name="Filled">Whether an option has words: a plural form, marked with a dot.</param>
+/// <param name="Missing">Whether an option wants words, in bold as the tree shows a gap.</param>
 /// <param name="Greyed">Whether an option reads greyed while it can still be picked.</param>
 /// <param name="Enabled">Whether the choice applies now; always when absent.</param>
 /// <param name="Badge">What the toolbar button wears; nothing when absent or null.</param>
 /// <param name="Popup">A popup button of ticked rows on a toolbar, rather than a combo box.</param>
-public sealed record ChoiceLook(Func<object, bool>? CanPick = null, Func<object, bool>? Marked = null, Func<object, bool>? Greyed = null,
-	Func<bool>? Enabled = null, Func<string?>? Badge = null, bool Popup = false);
+public sealed record ChoiceLook(Func<object, bool>? CanPick = null, Func<object, bool>? Filled = null, Func<object, bool>? Missing = null,
+	Func<object, bool>? Greyed = null, Func<bool>? Enabled = null, Func<string?>? Badge = null, bool Popup = false);
 
 /// <summary>
 ///     A pick among options — the translation language, Wordsmith's own, a
@@ -150,7 +151,8 @@ public sealed class ChoiceItem : MenuRow {
 	internal string LabelOf(object value) => label(value);
 	internal bool IsCurrent(object value) => Equals(value, current());
 	internal bool CanPick(object value) => look.CanPick?.Invoke(value) ?? true;
-	internal bool IsMarked(object value) => look.Marked?.Invoke(value) ?? false;
+	internal bool IsFilled(object value) => look.Filled?.Invoke(value) ?? false;
+	internal bool IsMissing(object value) => look.Missing?.Invoke(value) ?? false;
 	internal bool IsGreyed(object value) => look.Greyed?.Invoke(value) ?? false;
 
 	/// <summary>The owner's options, their names or its pick changed: the rows follow.</summary>
@@ -189,8 +191,10 @@ public sealed class Choice(ChoiceItem owner, object value) : ViewModelBase {
 	}
 	/// <summary>Whether it can be picked: an empty plural form no count reads cannot.</summary>
 	public bool IsEnabled => owner.CanPick(Value);
-	/// <summary>A plural form with words.</summary>
-	public bool IsMarked => owner.IsMarked(Value);
+	/// <summary>A plural form with words: a dot beside it.</summary>
+	public bool HasWords => owner.IsFilled(Value);
+	/// <summary>A plural form the badge counts as missing: bold, as the tree shows a gap.</summary>
+	public bool IsMissing => owner.IsMissing(Value);
 	/// <summary>Greyed, though it may still be picked: a form the language does not count by.</summary>
 	public bool IsGreyed => owner.IsGreyed(Value);
 
@@ -198,7 +202,8 @@ public sealed class Choice(ChoiceItem owner, object value) : ViewModelBase {
 		AffectProperty(nameof(IsChecked));
 		AffectProperty(nameof(Label));
 		AffectProperty(nameof(IsEnabled));
-		AffectProperty(nameof(IsMarked));
+		AffectProperty(nameof(HasWords));
+		AffectProperty(nameof(IsMissing));
 		AffectProperty(nameof(IsGreyed));
 	}
 }
@@ -287,9 +292,11 @@ public sealed class CommandTable {
 			() => vm.UiLanguages, pair => pair.Value, () => vm.UiLanguages.FirstOrDefault(pair => pair.Key == vm.UiLanguage), pair => vm.UiLanguage = pair.Key);
 		//each value pane's plural form (SPEC: Plural forms): CLDR's six rows, a popup on the pane's header
 		ChoiceItem defaultForm = ChoiceItem.Of(Words.Known["menu.default-form"], PackIconKind.Counter,
-			() => PluralRules.Names, tree.DefaultForms.Label, () => tree.DefaultForms.Form, tree.PickDefaultForm, Forms(tree.DefaultForms, () => tree.DefaultFormsEnabled));
+			() => PluralRules.Names, tree.DefaultForms.Label, () => tree.DefaultForms.Form, tree.PickDefaultForm,
+			Forms(tree.DefaultForms, () => tree.DefaultFormsEnabled, tree.DefaultMisses));
 		ChoiceItem translationForm = ChoiceItem.Of(Words.Known["menu.translation-form"], PackIconKind.Counter,
-			() => PluralRules.Names, tree.TranslationForms.Label, () => tree.TranslationForms.Form, tree.PickTranslationForm, Forms(tree.TranslationForms, () => tree.TranslationFormsEnabled));
+			() => PluralRules.Names, tree.TranslationForms.Label, () => tree.TranslationForms.Form, tree.PickTranslationForm,
+			Forms(tree.TranslationForms, () => tree.TranslationFormsEnabled, tree.EntryMisses));
 		//Tools
 		var languages = new CommandItem(Words.Known["menu.languages"], PackIconKind.Translate, vm.ManageLanguagesCommand);
 		var settings = new CommandItem(Words.Known["menu.settings"], PackIconKind.Cog, vm.SettingsCommand);
@@ -326,10 +333,12 @@ public sealed class CommandTable {
 
 	private static KeyGesture Ctrl(Key key) => new(key, ModifierKeys.Control);
 
-	//a form selector's rows: marked with words, greyed where the language does not count by them
-	private static ChoiceLook Forms(FormPane pane, Func<bool> enabled) => new(
+	//a form selector's rows: a dot with words, bold where the badge wants them, greyed where the
+	//language does not count by them
+	private static ChoiceLook Forms(FormPane pane, Func<bool> enabled, Func<string, bool> missing) => new(
 		CanPick: category => pane.CanPick((string)category),
-		Marked: category => pane.HasWords((string)category),
+		Filled: category => pane.HasWords((string)category),
+		Missing: category => missing((string)category),
 		Greyed: category => pane.Row((string)category) == FormRow.Unused,
 		Enabled: enabled,
 		Badge: () => pane.Badge,

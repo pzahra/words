@@ -724,15 +724,12 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		List<string> gripes = [];
 		string text;
 		using (Gripes.Listen(gripes)) {
-			IWordsProvider provider = Session.Provider(Tree.FileLabels, languageCode);
-			if (!forms.IsPlain) {
-				provider = new FormAsKey(provider, key.BlockKey, Words.FormKey(provider, forms.Language, key.BlockKey, forms.Form));
-			}
+			IWordsProvider provider = PaneProvider(key, languageCode, forms);
 			text = Words.RenderKey(provider, key.BlockKey);
 			if (key.Parameters.Count != 0) {
 				CultureInfo culture = WordsOperations.CultureFor(cultureCode);
 				try {
-					text = WordsOperations.FormatSample(new CulturedWords(provider, culture), key, culture);
+					text = WordsOperations.FormatSample(new CulturedWords(provider, culture) { Language = forms.Language }, key, culture);
 				}
 				catch (Exception ex) when (ex is FormatException or OverflowException) {
 					gripes.Insert(0, ex.Message);
@@ -740,6 +737,23 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			}
 		}
 		pane.Show(text, settings, gripes.Concat(settings.Errors), Gripes);
+	}
+
+	//the words a pane reads: every loaded file in tree order, the pane's form read as the key
+	private IWordsProvider PaneProvider(WordsKey key, string? languageCode, FormPane forms) {
+		IWordsProvider provider = Session.Provider(Tree.FileLabels, languageCode);
+		return forms.IsPlain ? provider : new FormAsKey(provider, key.BlockKey, Words.FormKey(provider, forms.Language, key.BlockKey, forms.Form));
+	}
+
+	/// <summary>
+	///     The default as the baseline pane shows it, formatted with the key's
+	///     samples the way the default preview formats it, selectors and all: Test
+	///     Parameters' result. Throws <see cref="FormatException"/> or
+	///     <see cref="OverflowException"/> where a sample will not format.
+	/// </summary>
+	internal string FormatDefaultSample(WordsKey key) {
+		CultureInfo culture = WordsOperations.CultureFor(Session.FileOfKey(key.BlockKey)?.DefaultLanguage);
+		return WordsOperations.FormatSample(new CulturedWords(PaneProvider(key, null, Tree.DefaultForms), culture) { Language = Tree.DefaultForms.Language }, key, culture);
 	}
 
 	//a provider whose key reads as one of its entries: the form a pane shows

@@ -257,7 +257,8 @@ namespace PatTech.Localization {
 		public IWords ToWords(string languageCode) {
 			var uiCulture = CultureInfo.CreateSpecificCulture(languageCode);
 			var culture = _useSystemNumbers ? Words.SystemCulture : uiCulture;
-			return new CulturedWords(Flatten(languageCode), culture, uiCulture);
+			//the code picks the plural forms: the culture may be the invariant one for a language .NET does not know
+			return new CulturedWords(Flatten(languageCode), culture, uiCulture) { Language = languageCode };
 		}
 
 		/// <summary>

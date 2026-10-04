@@ -27,6 +27,15 @@ namespace PatTech.Localization {
 		/// <summary>The selected language: the UI culture this dictionary was built with.</summary>
 		public CultureInfo UICulture => setUICulture ?? setCulture;
 
+		private readonly string? language;
+		/// <summary>
+		/// The language whose plural rules pick a count's form: the code the dictionary was
+		/// built for, which <see cref="UICulture"/> cannot always carry — .NET turns codes it
+		/// does not know, such as <c>ceb</c> or <c>iw</c>, into the invariant culture. Without
+		/// one, <see cref="UICulture"/>'s name.
+		/// </summary>
+		public string Language { get => language ?? UICulture.Name; init => language = value; }
+
 		/// <summary>
 		/// Sets the current thread's culture and UI culture, and the process-wide
 		/// defaults for future threads, to the cultures this dictionary was built with.

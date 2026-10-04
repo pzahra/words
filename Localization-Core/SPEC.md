@@ -399,7 +399,9 @@ the editor's hints and previews.
 translation may leave them out. `PluralRules.Optional(language)` names them,
 each with the category a missing one reads. Maltese `two` reads `few`, since
 only a handful of its words keep a dual, most of them time (*jumejn*,
-*sentejn*), and its `many`, 11 to 19, reads `other`, the same singular noun.
+*sentejn*), its `many`, 11 to 19, reads `other`, and its `other`, 20 up,
+reads `one`, the plain value: from 11 up a Maltese count takes the singular.
+`other` reads nothing but the plain value, where every form ends up anyway.
 Hebrew `two` reads `other`, its dual kept by time words too. The exact
 millions of French, Italian, Spanish, Portuguese and Catalan, and of Ladin,
 Sicilian and Venetian, which share the rule, read `other`: the difference is a
@@ -445,9 +447,13 @@ language to select in.
 returns the key's own form for `n`, rendered as any value is —
 `Words.Known["word", 1]` is "Word", `Words.Known["word", 2]` is "Words". It takes
 a `decimal`, which every integer converts to (a `double` needs a cast). It is a
-member of `IWords` with a default implementation, and so is `IWords.UICulture`,
-the language that picks: a dictionary of one's own speaks the thread's UI
-culture, and needs nothing; `CulturedWords` speaks the one it was built with.
+member of `IWords` with a default implementation, and so is `IWords.Language`,
+the code whose rules pick, which goes by `IWords.UICulture`'s name: a
+dictionary of one's own speaks the thread's UI culture, and needs nothing.
+`CulturedWords` keeps the code it was built for, since .NET turns a code it
+does not know into the invariant culture, which counts as English: Cebuano,
+Ladin and the legacy `iw` and `tl` are among the table's languages it does not
+know, and they still count by their own rules.
 
 **What changes.** The pair grammar admits `#form` after the language, and the
 form travels with the field type, lowercased (`value#other`), so a consumer that

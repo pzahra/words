@@ -71,8 +71,7 @@ public class TestParametersViewModel : DialogViewModel {
 	//the default, references expanded, formatted the way the default preview does it
 	private void Refresh() {
 		try {
-			string text = Words.RenderKey(Parent.Session.Provider(Parent.Tree.FileLabels), key.BlockKey);
-			Result = WordsOperations.FormatSample(key, text);
+			Result = Parent.FormatDefaultSample(key);
 			IsError = false;
 		}
 		catch (Exception ex) when (ex is FormatException or OverflowException) {

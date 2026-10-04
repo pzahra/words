@@ -37,7 +37,7 @@ namespace PatTech.Localization {
 
 		/// <summary>
 		/// Returns <paramref name="key"/>'s own form for <paramref name="count"/>, rendered
-		/// like any value: the plural form CLDR's rule for <see cref="UICulture"/> picks
+		/// like any value: the plural form CLDR's rule for <see cref="Language"/> picks
 		/// (SPEC: Plural forms), its <c>other</c> form when it has none for that count,
 		/// and its plain value when it has neither — so <c>Words.Known["word", 2]</c> is
 		/// "Words" where <c>Words.Known["word"]</c> is "Word". A missing key renders as
@@ -49,10 +49,18 @@ namespace PatTech.Localization {
 		string this[string key, decimal count] => Words.RenderCount(this, key, count);
 
 		/// <summary>
-		/// The language this dictionary speaks, which picks a count's plural form. A
-		/// dictionary that does not say speaks the thread's UI culture.
+		/// The language this dictionary speaks, as a culture. A dictionary that does
+		/// not say speaks the thread's UI culture.
 		/// </summary>
 		CultureInfo UICulture => CultureInfo.CurrentUICulture;
+
+		/// <summary>
+		/// The language whose plural rules pick a count's form (<see cref="PluralRules"/>):
+		/// the code the dictionary was built for, which .NET may know only as the
+		/// invariant culture — Cebuano, Ladin, the legacy <c>iw</c> and <c>tl</c>. A
+		/// dictionary that does not say goes by <see cref="UICulture"/>'s name.
+		/// </summary>
+		string Language => UICulture.Name;
 
 		/// <summary>
 		/// Checks whether <paramref name="key"/> exists in the underlying <see cref="Provider"/>.
@@ -317,7 +325,7 @@ namespace PatTech.Localization {
 		[return: Localized]
 		internal static string RenderCount(IWords words, string key, decimal count) {
 			ArgumentNullException.ThrowIfNull(key);
-			string language = words.UICulture.Name;
+			string language = words.Language;
 			return words[FormKey(words.Provider, language, key, PluralRules.Select(language, count))];
 		}
 
@@ -378,7 +386,7 @@ namespace PatTech.Localization {
 					Logger.Warn($"WORDS:CIRC:`{key}` <- `{string.Join("` <- `", path)}`");
 					return "# ∞ #";
 				}
-				string language = words.UICulture.Name;
+				string language = words.Language;
 				string form = FormKey(words.Provider, language, key, Category(language, argument(match.Groups[1].Value)));
 				path.Push(key);
 				try {

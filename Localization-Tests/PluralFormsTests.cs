@@ -1,3 +1,4 @@
+using System.Globalization;
 using Xunit;
 
 namespace PatTech.Localization.Tests;
@@ -268,7 +269,7 @@ public class PluralFormsTests {
 
 	[Fact]
 	public void OptionalCategories_ReadLikeAnother_ByLanguage() {
-		Assert.Equal(new Dictionary<string, string> { ["two"] = "few", ["many"] = "other" }, PluralRules.Optional("mt"));
+		Assert.Equal(new Dictionary<string, string> { ["two"] = "few", ["many"] = "other", ["other"] = "one" }, PluralRules.Optional("mt"));
 		Assert.Equal(new Dictionary<string, string> { ["two"] = "other" }, PluralRules.Optional("he"));
 		Assert.Equal(new Dictionary<string, string> { ["many"] = "other" }, PluralRules.Optional("pt-PT"));
 		Assert.Empty(PluralRules.Optional("en"));
@@ -295,7 +296,7 @@ public class PluralFormsTests {
 		Assert.All(PluralRules.Optional(language), pair => {
 			Assert.Contains(pair.Key, categories);
 			Assert.Contains(pair.Value, categories);
-			Assert.NotEqual("other", pair.Key);
+			Assert.True(pair.Key != "other" || pair.Value == "one", "other may only read the plain value, where else every form ends up");
 		});
 	}
 
@@ -303,7 +304,7 @@ public class PluralFormsTests {
 	[InlineData(1, "1 fajl")]
 	[InlineData(2, "2 fajls")]  //two reads few
 	[InlineData(5, "5 fajls")]
-	[InlineData(11, "11 fajl")] //many reads other, and Maltese's other is its plain value
+	[InlineData(11, "11 fajl")] //many reads other, and Maltese's other reads its plain value
 	[InlineData(20, "20 fajl")]
 	public void AMissingOptionalForm_ReadsTheFormItStandsFor(int count, string expected) {
 		var maltese = WordsBuilder.Create().LoadString(
@@ -327,6 +328,30 @@ public class PluralFormsTests {
 
 		Assert.Equal(ru.Format("files", 5), ru.FormatByName("named", new { Count = 5 }));
 		Assert.Equal("22 слова", ru.FormatParams("named", new { Count = 22 }));
+	}
+
+	[Fact]
+	public void ALanguageDotNetDoesNotKnow_StillCountsByItsOwnRule() {
+		//.NET turns ceb and iw into the invariant culture, which counts as English; the
+		//dictionary keeps the code it was built for, and the code picks
+		var builder = WordsBuilder.Create().LoadString(
+			"value=!en\nvalue-ceb=Cebuano\nvalue-iw=Ivrit\n\n" +
+			"[file]\nvalue=file\nvalue#other=files\nvalue-ceb=file\nvalue-ceb#other=mga file\nvalue-iw=kovetz\nvalue-iw#two=kvatzim shnayim\nvalue-iw#other=kvatzim\n\n" +
+			"[files]\nvalue={0} {0#file}\n");
+
+		var cebuano = builder.ToWords("ceb");
+		Assert.Equal("", cebuano.UICulture.Name);
+		Assert.Equal("ceb", cebuano.Language);
+		Assert.Equal("5 file", cebuano.Format("files", 5));   //Cebuano's one takes 5, where English's other would
+		Assert.Equal("4 mga file", cebuano.Format("files", 4));
+		Assert.Equal("kvatzim shnayim", builder.ToWords("iw")["file", 2]); //a dual, by Hebrew's legacy code
+	}
+
+	[Fact]
+	public void ADictionaryThatDoesNotSay_CountsByItsCulture() {
+		Assert.Equal("mt", new CulturedWords(WordsProvider.Empty(), CultureInfo.GetCultureInfo("mt")).Language);
+		Assert.Equal("", new CulturedWords(WordsProvider.Empty(), CultureInfo.InvariantCulture).Language);
+		Assert.Equal(CultureInfo.CurrentUICulture.Name, ((IWords)new EchoWords()).Language);
 	}
 
 	[Fact]

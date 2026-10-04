@@ -181,7 +181,8 @@ flags — constant (only a leaf directly under a file), and needs-review
   simulating a host app loading multiple dictionaries. The Test Parameters
   window is a table of name, type and sample with a trash on each row and a +
   under them, and shows the formatted result as the samples are edited — or
-  why they will not format; its edits land in the key as they are made, and
+  why they will not format — formatted as the default preview formats it,
+  plural selectors included; its edits land in the key as they are made, and
   Close only closes.
 - **Stale-all-languages**: one action for "I changed the default, every
   translation needs another look".
@@ -790,8 +791,10 @@ category as a badge, the way the filter button wears its count, and the
 pane's title names it ("Translation · few"), so typing into `few` never looks
 like typing into the plain value. Each row reads the category and the numbers
 it takes in that language ("few: 0, 3–10, 103–110…"), since the names alone
-say little to a translator, and marks the forms that have words. The plain
-row is captioned as the language's `one`. The selector is a `ChoiceItem` like
+say little to a translator. A dot marks the forms that have words, and a form
+the badge counts as missing reads bold, as a key wanting words does in the
+tree, so the rows say what the badge is about. The plain row is captioned as
+the language's `one`. The selector is a `ChoiceItem` like
 the two languages: a submenu of ticked rows in the View menu, and the popup on
 the toolbar. That is a second toolbar template for a choice, not a new kind of
 row. The popup stays open while rows are picked, as the filters' does, and
@@ -804,10 +807,10 @@ the default's language's (English while the file declares none), the
 translation's the selected language's. A row the language counts by is live,
 with its numbers, while fractions wait; an optional one (the runtime spec's
 *Optional categories*) is live too, and says what it reads while empty ("two:
-2 — reads few"). A row the language does not count by is greyed: English's
+2 — reads few", Maltese `other` the plain value). A row the language does not count by is greyed: English's
 `zero`, `two`, `few` and `many`, Polish's `other`, which only fractions take,
 and every row but the plain value in Japanese. A greyed row that has words
-anyway, written by hand and griped on load, is marked and stays pickable, so
+anyway, written by hand and griped on load, wears its dot and stays pickable, so
 it can be read and cleared; an empty greyed row cannot be picked, so nothing
 new is written where no count reads it. A language with a single category and
 no stray forms has nothing to pick, and its button greys.
@@ -842,7 +845,7 @@ is plural no more.
 **Badges.** A plural key misses words in a language that has its own value
 for the key and no form for a category it counts by, on top of the empty
 value (Badges). Optional categories never count, since they read another
-form: Maltese leaves out `two` and `many`, and the exact millions of French,
+form: Maltese leaves out `two`, `many` and `other`, and the exact millions of French,
 Italian and Spanish read `other` without a gap. A language with no words of
 its own for the key misses its value, as ever, and the default's forms stand
 in until it has some; a language the default speaks misses nothing, as for
@@ -854,7 +857,8 @@ current CLDR.
 
 **Everything else.** The previews render the selected form. A value that
 selects (`{0#word}`) previews with the Test Parameters samples, so changing
-the sample changes the form spliced in. A `FieldEdit` carries the form beside
+the sample changes the form spliced in, in the previews and in the dialog's
+own result alike. A `FieldEdit` carries the form beside
 its field, so typing into a form undoes as any field does (Undo: Fields). The
 search reads every form. A recode, a split or a merge carries an entry's forms
 with it. Stale stays one per entry and one per key, as do the notes. XLIFF and
@@ -864,12 +868,14 @@ resx have no slot for a form, so an export lists the forms as lost
 **Tests.** A plural key's selectors list all six rows: English `other` live
 and its `zero`, `two`, `few` and `many` greyed; Maltese `two`, `few`, `many`
 and `other` live, each with its numbers, `two` and `many` saying what they
-read. The badge shows a missing Maltese `few`, not a missing `two` or `many`,
+read, and `other` the plain value. The badge shows a missing Maltese `few`,
+bold in the rows, not a missing `two`, `many` or `other`,
 and none where the default speaks the language. Typing into a form writes
 `value-mt#few` and undoes. Picking Maltese `few` moves the baseline to
 `other`. A key that is not plural greys the translation's selector and shows
-the plain value. A form the language does not use stays reachable, marked,
-with a gripe, and an empty greyed row cannot be picked.
+the plain value. A form the language does not use stays reachable, with its
+dot and a gripe, and an empty greyed row cannot be picked. Test Parameters
+selects as the preview does.
 
 **Order.** The runtime comes first, proven in the samples: the grammar, the
 CLDR integer table, the digest, the `{n#key}` selector and the count indexer,
