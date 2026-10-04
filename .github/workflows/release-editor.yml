@@ -22,6 +22,8 @@ jobs:
     runs-on: windows-latest      # Wordsmith is WPF (net10.0-windows)
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0         # every tag, to find the previous editor/ one
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -41,12 +43,17 @@ jobs:
         run: Compress-Archive -Path publish/* -DestinationPath "Wordsmith-${{ steps.ver.outputs.value }}-win-x64.zip"
 
       # The tag already exists (it triggered this run), so this attaches the build
-      # to a release for it and auto-writes notes from the commits since the last.
+      # to a release for it and auto-writes notes from the commits since the
+      # previous editor/ tag: the samples' api/ releases share the page, and the
+      # notes would otherwise start at whichever release came last. Wordsmith's
+      # release is the one marked Latest.
       - name: Create GitHub Release
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >
-          gh release create "${{ github.ref_name }}"
-          "Wordsmith-${{ steps.ver.outputs.value }}-win-x64.zip"
-          --title "Wordsmith ${{ steps.ver.outputs.value }}"
-          --generate-notes
+        run: |
+          $tags = @(git tag --list 'editor/*' --sort=v:refname)
+          $i = [array]::IndexOf($tags, '${{ github.ref_name }}')
+          $since = if ($i -gt 0) { @('--notes-start-tag', $tags[$i - 1]) } else { @() }
+          gh release create '${{ github.ref_name }}' 'Wordsmith-${{ steps.ver.outputs.value }}-win-x64.zip' --title 'Wordsmith ${{ steps.ver.outputs.value }}' --generate-notes --latest @since
+          if ($LASTEXITCODE -ne 0) { throw "Release failed" }
