@@ -46,7 +46,11 @@ A session holds one or more files. Each file contributes:
   each language's own name (`value-xx`, the endonym) and its name in the
   default's language (`comment-xx`, the exonym). The exonym is optional: a
   file writes `comment-xx` only where one was given, by the file or the
-  manager, never a copy of the endonym. Lists name a language by its exonym,
+  manager, never a copy of the endonym. The labels are each file's own
+  (`WordsFile.Labels`): a library beside its host keeps its `!`, and one
+  file's exonym is never written into another. A manager's relabel reaches
+  every file with what it changed — the `!`, the endonym, the exonym — and
+  leaves the rest of each file's label alone. Lists name a language by its exonym,
   or by its endonym without one. An import names languages by their culture,
   with the English names only where the default is English or undeclared.
 - The **default's language**, from a keyless `value=!xx` leading that table
@@ -306,7 +310,9 @@ from a **project settings file** instead of the pre-loaded set:
   tables of whichever of those files is picked, with the rules' gripes shown
   as they are typed. Settings are the editor's to read and write, so it
   rewrites a settings file as two plain tables: comments in a hand-written
-  one do not survive the dialog.
+  one do not survive the dialog. On OK the tables are written first; one
+  that will not write is told, and the dialog stays open with its edits so
+  OK can be tried again, the slots unchanged until it is.
 
 ## Languages
 
@@ -317,9 +323,15 @@ checked against the rules and the other rows, a field flagged once it has
 been typed in (a session's row from the start), OK greyed while any row is
 wrong — and drag reorders. Nothing reaches the session until OK; Cancel or
 Escape forgets it all. On OK the copy is applied: a removal (confirmed at the
-trash) deletes the language's entries from every key; an addition backfills
-an empty entry on every key; a relabelling may re-code a language, which
-shifts its entries; the order follows the rows; every file's table follows.
+trash) deletes the language's entries from every key, and its settings
+reference (`param-xx`) from every file; an addition backfills an empty entry
+on every key; a relabelling may re-code a language, which shifts its entries
+and carries each file's label and settings reference along, a swap's through
+its throwaway code too; the order follows the rows; every file's table
+follows. A new row that takes a removed language's code replaces it: the old
+language parks on a throwaway code, the new one comes in, and the old one
+goes, words and all — so even the only language can be replaced. Whatever the
+table refuses is told after OK, never skipped in silence.
 One row may be the default's language: a tick in the pane sets it and moves
 it from the row that had it, a mark beside the code shows it in the list, and
 the field for the names written in the default's language is headed by it
@@ -328,7 +340,8 @@ field may stay blank (the file then writes no `comment-xx`); the code and the
 endonym may not. A code is checked by the runtime's grammar (its *Language
 codes*): `ceb`, `es-419` and `zh-Hans-CN` all pass. It is saved cased by kind,
 so `en-us` beside `en-US` is a code taken twice. On OK
-every file declares it (a file that declared none gains it only when the
+every file that declares a default's language declares the ticked one, files
+that disagreed included (a file that declared none gains it only when the
 choice changed), a recode carries it along and a removal takes it.
 The table's `Rename` can also absorb a language into one that already holds
 the code (where both hold a value the target's is kept, the source value is
@@ -346,10 +359,15 @@ The translator round trip in bulk: pick a base file plus a language→file map,
 and produce one merged file taking each language's entries from its source.
 The merged result is written to disk and loaded into the session. Merging
 requires the files to agree on their key sets. The first file ticked is the
-base until another is chosen; unticking the base passes it on. Split, the
+base until another is chosen; unticking the base passes it on. Each file
+offers only the languages it declares: the union's others are empty
+backfill, and taking one would empty the base's words for it, so the session
+refuses a source that does not declare its language. Each language is
+labelled as the file it comes from labels it. Split, the
 other direction, shares the dialog: one file and one of its declared
 languages, written on their own — that language's entries with the defaults
-for reference — and loaded, ready to be worked on separately and merged back.
+for reference, its label and settings reference as the file has them — and
+loaded, ready to be worked on separately and merged back.
 
 ## Saving
 
@@ -397,9 +415,15 @@ key caps, not words: `[images]`, `shellexec`, `F2`.
 **The window.** The same config file remembers the main window as it last
 closed — its normal size, and whether it was maximized — and the next run
 opens it so, cut to the screen's work area and no smaller than its minimum
-(`EditorConfig.Window`, a `WindowPlace`). A close the save question cancels
+(`EditorConfig.Window`, a `WindowPlace`). A window closed from the taskbar
+remembers the state it would come back to, so maximized, then minimized, then
+closed opens maximized. A close the save question cancels
 is no close; a language restart remembers the window before the new editor
-reads it. Where the window sits is still the system's choice.
+reads it, and tells the new editor its language on the command line too.
+Where the window sits is still the system's choice. A setting changes its own
+line of the config and leaves the rest, comments included; a config that
+will not read or write (locked, read-only) costs the settings, never a close
+or a restart.
 
 ## Import and export
 
@@ -594,7 +618,8 @@ filter popup's button and the forms' are the same toggle, and a click that
 closes either popup on its own button does not reopen it (`PopupToggle`).
 Every toolbar gives back the room
 the theme keeps for its overflow button until it does overflow
-(`ToolBarOverflow`, set by one implicit toolbar style).
+(`ToolBarOverflow`, set by one implicit toolbar style); turned off, a
+toolbar has the theme's room back.
 Back, Forward, Undo and Redo are rows like any other (Navigation, Undo).
 
 **Tests.** Every command the view model and the tree expose is in the menu
@@ -714,8 +739,8 @@ whatever was waiting to be redone.
   dropped back on each key and the language back in its place, a recode
   onto a free code by recoding back, exact since the entries moved whole, a
   change of the default's language by giving each file the one it had —
-  and then every file's table, and its default's language, is put back
-  whole. A recode onto a code already in the table merges two languages'
+  and then every file's table — its codes, labels, settings references and
+  default's language — is put back whole. A recode onto a code already in the table merges two languages'
   entries and has no tidy inverse; the manager never asks for one (no two
   rows share a code), but a commit that makes one clears the stack instead
   — the last resort for any document-wide action that cannot keep a

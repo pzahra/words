@@ -342,6 +342,93 @@ value-de=y
 	}
 
 	[Fact]
+	public void Merge_OffersOnlyTheLanguagesEachFileDeclares() {
+		// the union's other languages are empty backfill: picking one as a source
+		// would empty the base's words for it
+		var vm = new MainWindowViewModel(new FakeDialogs());
+		vm.LoadFile(new StringReader("value-en=English\nvalue-fr=Français\n\n[a]\nvalue=1\nvalue-fr=un\n"), "Base");
+		vm.LoadFile(new StringReader("value-en=English\n\n[a]\nvalue-en=one\n"), "English");
+
+		var merge = new MergeControlViewModel(vm);
+
+		Assert.Equal(["en", "fr"], merge.Files[0].Languages.Select(language => language.Code));
+		Assert.Equal(["en"], merge.Files[1].Languages.Select(language => language.Code));
+		merge.SplitFile = merge.Files[1];
+		Assert.Equal(["en"], merge.SplitLanguages.Select(language => language.Code));
+	}
+
+	[Fact]
+	public void LanguageManager_OnOkEveryFileThatDeclaresADefaultsLanguageDeclaresTheTickedOne() {
+		var (vm, _) = Load();
+		vm.LoadFile(new StringReader("value=!en\nvalue-en=English\n\n[a]\nvalue=1\n"), "One");
+		vm.LoadFile(new StringReader("value=!de\nvalue-en=English\nvalue-de=Deutsch\n\n[b]\nvalue=2\n"), "Two");
+		var manager = new LanguageManagerViewModel(vm);
+		Assert.Equal("en", manager.DefaultRow!.Code); //the first file that says
+
+		manager.OkCommand.Execute(null);
+
+		Assert.Equal("en", vm.Session.FileOf("One")!.DefaultLanguage);
+		Assert.Equal("en", vm.Session.FileOf("Two")!.DefaultLanguage);
+		Assert.Null(vm.Session.FileOf("Example")!.DefaultLanguage); //the choice did not move: a file declaring none gains none
+		vm.UndoCommand.Execute(null);
+		Assert.Equal("de", vm.Session.FileOf("Two")!.DefaultLanguage);
+	}
+
+	[Fact]
+	public void LanguageManager_ANewRowTakingTheOnlyLanguagesCodeReplacesIt() {
+		var dialogs = new FakeDialogs();
+		var vm = new MainWindowViewModel(dialogs);
+		vm.LoadFile(new StringReader("value-en=English\n\n[k]\nvalue=x\nvalue-en=ex\n"), "Example");
+		var manager = new LanguageManagerViewModel(vm);
+		LanguageRow old = manager.Rows.Single();
+		manager.AddCommand.Execute(null);
+		manager.Selected!.Code = "en";
+		manager.Selected.NativeName = "English (new)";
+		dialogs.ConfirmAnswer = true;
+		old.RemoveCommand.Execute(null);
+		Assert.True(manager.OkCommand.CanExecute(null));
+
+		manager.OkCommand.Execute(null);
+
+		Assert.Empty(dialogs.Notices);
+		Assert.Equal(["en"], vm.Session.Languages.Known.Select(language => language.Code));
+		Assert.Equal("English (new)", vm.Session.Languages.Find("en")!.NativeName);
+		Assert.Equal("", vm.Session.Keys["Example.k"].Entries["en"].Value); //the removed language's words went with it
+		Assert.True(vm.IsDirty);
+		Assert.Contains("value-en=English (new)", Saved(vm));
+		vm.UndoCommand.Execute(null);
+		Assert.Equal("English", vm.Session.Languages.Find("en")!.NativeName);
+		Assert.Equal("ex", vm.Session.Keys["Example.k"].Entries["en"].Value);
+		Assert.Contains("value-en=English\n", Saved(vm).ReplaceLineEndings("\n"));
+	}
+
+	private static string Saved(MainWindowViewModel vm) {
+		var writer = new StringWriter();
+		vm.Session.Save(vm.Session.Files[0], vm.Tree.NodeOf(vm.Session.Files[0]), writer);
+		return writer.ToString();
+	}
+
+	[Fact]
+	public void LanguageManager_ARecodeOrASwapCarriesTheSettingsReferences() {
+		var vm = new MainWindowViewModel(new FakeDialogs());
+		vm.LoadFile(new StringReader("value-en=English\nvalue-de=Deutsch\nparam-en=english.ini\nparam-de=german.ini\n\n[k]\nvalue=x\n"), "Example");
+		WordsFile file = vm.Session.Files[0];
+		var manager = new LanguageManagerViewModel(vm);
+		LanguageRow english = manager.Rows.Single(row => row.Code == "en"), german = manager.Rows.Single(row => row.Code == "de");
+		english.Code = "de";
+		german.Code = "en";
+
+		manager.OkCommand.Execute(null);
+
+		Assert.Equal("german.ini", file.LanguageSettings["en"]);
+		Assert.Equal("english.ini", file.LanguageSettings["de"]);
+		Assert.Equal(2, file.LanguageSettings.Count); //nothing left on the throwaway code
+		vm.UndoCommand.Execute(null);
+		Assert.Equal("english.ini", file.LanguageSettings["en"]);
+		Assert.Equal("german.ini", file.LanguageSettings["de"]);
+	}
+
+	[Fact]
 	public void TryClose_CleanGoes_DirtyAsks() {
 		var (vm, dialogs) = Load();
 		Assert.True(vm.TryClose());
@@ -452,6 +539,46 @@ value-de=y
 			Assert.Contains("param-de=de/wordsmith.ini", saved.ToString());
 		}
 		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
+	public void Settings_AFailedWriteKeepsTheDialogAndItsEditsForAnotherTry() {
+		string folder = Path.Combine(Path.GetTempPath(), $"WordsEditSettingsLocked-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		string settingsPath = Path.Combine(folder, "wordsmith.ini");
+		try {
+			File.WriteAllText(settingsPath, "[images]\nshot=old\nshot-decode=/^shot:(\\w+)$//$1.png\n");
+			File.SetAttributes(settingsPath, FileAttributes.ReadOnly);
+			var dialogs = new FakeDialogs();
+			var vm = new MainWindowViewModel(dialogs);
+			vm.LoadFile(new StringReader("value-en=English\nparam=wordsmith.ini\n\n[k]\nvalue=x\n"), Path.Combine(folder, "strings.ini"));
+			WordsFile file = vm.Session.Files[0];
+			var settings = new SettingsViewModel(vm, file);
+			bool closed = false;
+			settings.CloseRequested += () => closed = true;
+			settings.Document!.Images[0].Folder = "new";
+			settings.Languages.Single().Path = "english.ini";
+
+			settings.OkayCommand.Execute(null);
+
+			Assert.False(closed);
+			Assert.Single(dialogs.Notices);
+			Assert.Equal("new", settings.Document.Images[0].Folder); //the edit is still there
+			Assert.Empty(file.LanguageSettings); //and the slots wait for it
+
+			File.SetAttributes(settingsPath, FileAttributes.Normal);
+			settings.OkayCommand.Execute(null);
+
+			Assert.True(closed);
+			Assert.Equal("new", Assert.Single(ProjectSettings.Load(settingsPath).Images).Folder);
+			Assert.Equal("english.ini", file.LanguageSettings["en"]);
+		}
+		finally {
+			if (File.Exists(settingsPath)) {
+				File.SetAttributes(settingsPath, FileAttributes.Normal);
+			}
 			Directory.Delete(folder, recursive: true);
 		}
 	}

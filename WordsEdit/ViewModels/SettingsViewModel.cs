@@ -108,6 +108,13 @@ public class SettingsDocument : ViewModelBase {
 
 	private void RowEdited(object? sender, PropertyChangedEventArgs e) => Edited();
 
+	/// <summary>Writes the rows to <see cref="Path"/>; once there, they are no longer an edit. I/O failures propagate.</summary>
+	public void Save() {
+		Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path) ?? "");
+		ToSettings().Save(Path);
+		IsEdited = false;
+	}
+
 	private void Edited() {
 		IsEdited = true;
 		Errors = ToSettings().Errors;
@@ -163,7 +170,7 @@ public class SettingsViewModel : DialogViewModel {
 		Parent = parent;
 		File = file;
 		SettingsFile = file.Settings;
-		Languages = [.. parent.Session.Languages.For(file).Select(language => new LanguageSettingRow(language, file.LanguageSettings.GetValueOrDefault(language.Code, ""), () => RefreshTargets()))];
+		Languages = [.. parent.Session.Languages.Declared(file).Select(language => new LanguageSettingRow(language, file.LanguageSettings.GetValueOrDefault(language.Code, ""), () => RefreshTargets()))];
 		OkayCommand = new DelegateCommand(DoOkay);
 		CancelCommand = new DelegateCommand(Close);
 		RefreshTargets();
@@ -203,6 +210,23 @@ public class SettingsViewModel : DialogViewModel {
 	}
 
 	private void DoOkay() {
+		//the tables go to their own files first, touched ones only; a file that will
+		//not write is told and the rest still save, and the dialog stays open with
+		//its edits so OK can be tried again. The slots wait for that, so a Cancel
+		//after a failed OK leaves them as they were
+		bool written = true;
+		foreach (SettingsDocument document in documents.Values.Where(document => document.IsEdited)) {
+			try {
+				document.Save();
+			}
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+				Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", document.Path, ex.Message));
+				written = false;
+			}
+		}
+		if (!written) {
+			return;
+		}
 		//the slots are the dictionary's own and travel with it; the window's
 		//Perform compares them before and after, and dirties on a change
 		File.Settings = SettingsFile.Trim();
@@ -215,17 +239,6 @@ public class SettingsViewModel : DialogViewModel {
 				else {
 					File.LanguageSettings[language.Code] = path;
 				}
-			}
-		}
-		//the tables go to their own files, touched ones only; a file that will
-		//not write is told and the rest still save
-		foreach (SettingsDocument document in documents.Values.Where(document => document.IsEdited)) {
-			try {
-				Directory.CreateDirectory(Path.GetDirectoryName(document.Path) ?? "");
-				document.ToSettings().Save(document.Path);
-			}
-			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-				Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", document.Path, ex.Message));
 			}
 		}
 		Close();

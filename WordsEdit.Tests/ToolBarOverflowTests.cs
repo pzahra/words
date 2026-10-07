@@ -44,6 +44,32 @@ public class ToolBarOverflowTests {
 		});
 	}
 
+	[Fact]
+	public void TurnedOffAToolBarHasTheThemesRoomBack() {
+		NavigationTests.RunSta(() => {
+			var theme = new ResourceDictionary();
+			theme.MergedDictionaries.Add(new BundledTheme { BaseTheme = BaseTheme.Light, PrimaryColor = MaterialDesignColors.PrimaryColor.Blue, SecondaryColor = MaterialDesignColors.SecondaryColor.DeepOrange });
+			theme.MergedDictionaries.Add((ResourceDictionary)Application.LoadComponent(new Uri("/MaterialDesignThemes.Wpf;component/Themes/MaterialDesign2.Defaults.xaml", UriKind.Relative)));
+			var bar = new ToolBar { Items = { new Button { Width = 40 } } };
+			var host = new Grid { Resources = theme, Children = { bar } };
+			Lay(host, 1000);
+			var overflow = (FrameworkElement)bar.Template.FindName("OverflowGrid", bar);
+			var panel = (FrameworkElement)bar.Template.FindName("MainPanelBorder", bar);
+			Thickness themes = panel.Margin;
+			ToolBarOverflow.SetCollapse(bar, true);
+			bar.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+			Lay(host, 1000);
+			Assert.Equal(Visibility.Collapsed, overflow.Visibility);
+
+			ToolBarOverflow.SetCollapse(bar, false);
+			bar.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent)); //no handler left to collapse it again
+			Lay(host, 1000);
+
+			Assert.NotEqual(Visibility.Collapsed, overflow.Visibility);
+			Assert.Equal(themes, panel.Margin);
+		});
+	}
+
 	private static void Lay(FrameworkElement host, double width) {
 		host.Measure(new Size(width, 60));
 		host.Arrange(new Rect(0, 0, width, 60));

@@ -326,7 +326,13 @@ namespace PatTech.Localization.Authoring {
 		/// <param name="outPath">Where the merged file is written (and loaded from).</param>
 		/// <param name="conflicts">Key suffixes the involved files disagree on.</param>
 		/// <exception cref="InvalidOperationException"><paramref name="baseTree"/> does not cover exactly the base file's keys.</exception>
+		/// <exception cref="ArgumentException">A source does not declare the language mapped to it: its entries are only backfill, and would empty the base's.</exception>
 		public WordsFile? Merge(WordsFile baseFile, IReadOnlyDictionary<string, WordsFile> languageSources, IKeyTreeNode baseTree, string outPath, out HashSet<string> conflicts) {
+			foreach (var (code, source) in languageSources) {
+				if (!source.Languages.Contains(code)) {
+					throw new ArgumentException($"'{source.Label}' does not declare '{code}'", nameof(languageSources));
+				}
+			}
 			//the writer walks the tree, so one that misses a key would merge without it
 			EnsureTreeCovers(baseFile, baseTree);
 			string outLabel = UniqueLabel(System.IO.Path.GetFileNameWithoutExtension(outPath));
@@ -335,11 +341,13 @@ namespace PatTech.Localization.Authoring {
 			if (merged is null) {
 				return null;
 			}
-			List<LanguageEntry> languages = [.. Languages.For(baseFile).Select(language => language.Code)
-				.Concat(languageSources.Keys)
-				.Distinct()
-				.Select(Languages.Find)
-				.OfType<LanguageEntry>()];
+			//each language labelled as the file it comes from labels it: the base's own, else its source's
+			List<LanguageEntry> languages = [.. Languages.For(baseFile)];
+			foreach (var (code, source) in languageSources) {
+				if (languages.All(language => language.Code != code) && Languages.For(source).FirstOrDefault(language => language.Code == code) is { } label) {
+					languages.Add(label);
+				}
+			}
 			IniWriter.WriteFile(KeyTree.Relabel(baseTree, outLabel), outPath, merged, languages,
 				preamble: baseFile.Preamble, settings: baseFile.Settings, languageSettings: baseFile.LanguageSettings, newLine: baseFile.NewLine, defaultLanguage: baseFile.DefaultLanguage, encoding: baseFile.Encoding);
 			return Load(outPath);
@@ -349,17 +357,20 @@ namespace PatTech.Localization.Authoring {
 		///     The inverse of <see cref="Merge"/>: writes <paramref name="languageCode"/>'s
 		///     entries from <paramref name="source"/> into their own file at
 		///     <paramref name="outPath"/> — unlocalised fields kept for reference, that
-		///     one language declared, the source's shape, preamble, default's language and settings
-		///     references — and loads it. Exactly what <see cref="Merge"/> consumes back.
+		///     one language declared as the source labels it, the source's shape,
+		///     preamble, default's language, settings reference and that language's
+		///     own — and loads it. Exactly what <see cref="Merge"/> consumes back.
 		/// </summary>
 		/// <exception cref="InvalidOperationException"><paramref name="sourceTree"/> does not cover exactly the source's keys.</exception>
 		public WordsFile Split(WordsFile source, string languageCode, IKeyTreeNode sourceTree, string outPath) {
 			EnsureTreeCovers(source, sourceTree);
 			string outLabel = UniqueLabel(System.IO.Path.GetFileNameWithoutExtension(outPath));
 			var split = WordsOperations.Split(keys, source.Label, languageCode, outLabel);
-			List<LanguageEntry> languages = Languages.Find(languageCode) is { } language ? [language] : [];
+			//the language as the source labels it, and only its own settings reference
+			List<LanguageEntry> languages = (Languages.For(source).FirstOrDefault(language => language.Code == languageCode) ?? Languages.Find(languageCode)) is { } label ? [label] : [];
+			Dictionary<string, string> languageSettings = source.LanguageSettings.TryGetValue(languageCode, out string? path) ? new() { [languageCode] = path } : [];
 			IniWriter.WriteFile(KeyTree.Relabel(sourceTree, outLabel), outPath, split, languages,
-				preamble: source.Preamble, settings: source.Settings, languageSettings: source.LanguageSettings, newLine: source.NewLine, defaultLanguage: source.DefaultLanguage, encoding: source.Encoding);
+				preamble: source.Preamble, settings: source.Settings, languageSettings: languageSettings, newLine: source.NewLine, defaultLanguage: source.DefaultLanguage, encoding: source.Encoding);
 			return Load(outPath);
 		}
 

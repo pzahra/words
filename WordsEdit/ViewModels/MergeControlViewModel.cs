@@ -88,7 +88,7 @@ public class MergeControlViewModel : DialogViewModel {
 		get;
 		set {
 			if (ChangeProperty(ref field, value)) {
-				SplitLanguages = value is null ? [] : Parent.Session.Languages.For(value.File);
+				SplitLanguages = value is null ? [] : Parent.Session.Languages.Declared(value.File);
 				SplitLanguage = SplitLanguages.FirstOrDefault();
 			}
 		}
@@ -103,7 +103,11 @@ public class MergeControlViewModel : DialogViewModel {
 		MergeCommand = new DelegateCommand(DoMerge);
 		SplitCommand = new DelegateCommand(DoSplit, () => SplitFile is not null && SplitLanguage is not null);
 		CancelCommand = new DelegateCommand(Close);
-		Files = [.. parent.Tree.KeyNodes.Select(node => new MergeFileRow(this, node, parent.Tree.FileOf(node), parent.Tree.KnownLanguages))];
+		//a file supplies only the languages it declares: the union's others are empty backfill
+		Files = [.. parent.Tree.KeyNodes.Select(node => {
+			WordsFile file = parent.Tree.FileOf(node);
+			return new MergeFileRow(this, node, file, parent.Session.Languages.Declared(file));
+		})];
 	}
 
 	/// <summary>Language code → the file it comes from, as chosen.</summary>

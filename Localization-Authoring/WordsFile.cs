@@ -26,10 +26,19 @@ namespace PatTech.Localization.Authoring {
 		public string Trailer { get; }
 		/// <summary>
 		///     The file's own language table: the codes it declares, in its order.
-		///     Saving writes exactly these (with the session's current labels), so a
+		///     Saving writes exactly these (with their <see cref="Labels"/>), so a
 		///     main file never absorbs a library's extras.
 		/// </summary>
 		public List<string> Languages { get; }
+		/// <summary>
+		///     The file's own labels for the codes it declares, as it wrote them: the
+		///     endonym with its <c>!</c> where the file declares the language unlisted,
+		///     and the exonym only where the file or a manager gave one. A manager's
+		///     relabel reaches every file with what it changed
+		///     (<see cref="LanguageTable.Rename"/>); a code without a label here
+		///     takes the session's.
+		/// </summary>
+		public Dictionary<string, LanguageEntry> Labels { get; }
 		/// <summary>
 		///     The language the default is written in, declared by <c>value=!xx</c>
 		///     atop the file, or <see langword="null"/>. Where the default speaks a
@@ -82,6 +91,12 @@ namespace PatTech.Localization.Authoring {
 			Preamble = loaded.Preamble;
 			Trailer = loaded.Trailer;
 			Languages = [.. loaded.DeclaredLanguages];
+			Labels = [];
+			foreach (string code in Languages) {
+				if (loaded.KnownLanguages.TryGetValue(code, out LanguageEntry? written)) {
+					Labels[code] = new LanguageEntry(written);
+				}
+			}
 			DefaultLanguage = loaded.DefaultLanguage;
 			Settings = loaded.Settings;
 			LanguageSettings = new(loaded.LanguageSettings);

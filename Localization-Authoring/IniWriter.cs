@@ -125,6 +125,8 @@ namespace PatTech.Localization.Authoring {
 		///     <paramref name="fileName"/>, then atomically replaces the destination
 		///     — so a failure partway leaves the original file untouched.
 		/// </summary>
+		/// <param name="fileName">The file to replace, or to create.</param>
+		/// <param name="write">Writes the whole of the new text.</param>
 		/// <param name="encoding">
 		///     The file's encoding, BOM and all; UTF-8 without a BOM when
 		///     <see langword="null"/>. Text it can't encode, such as a lone

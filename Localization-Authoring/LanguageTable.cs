@@ -47,10 +47,17 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		/// <summary>
-		///     The file's own table: its declared codes, in its order, carrying the
-		///     session's current labels. A file declaring nothing writes no table.
+		///     The file's own table, as it writes it: its declared codes, in its
+		///     order, carrying its own labels (<see cref="WordsFile.Labels"/>) — a
+		///     library's <c>!</c>, and an exonym only where it has one — or the
+		///     session's for a code it has no label for. A file declaring nothing
+		///     writes no table.
 		/// </summary>
 		public IReadOnlyList<LanguageEntry> For(WordsFile file)
+			=> [.. file.Languages.Select(code => file.Labels.GetValueOrDefault(code) ?? Find(code)).OfType<LanguageEntry>()];
+
+		/// <summary>The session's entries for the codes <paramref name="file"/> declares, in its order: what a list of its languages shows.</summary>
+		public IReadOnlyList<LanguageEntry> Declared(WordsFile file)
 			=> [.. file.Languages.Select(Find).OfType<LanguageEntry>()];
 
 		//a freshly parsed file's languages join the union: the first file's table
@@ -103,6 +110,7 @@ namespace PatTech.Localization.Authoring {
 			foreach (WordsFile file in session.Files) {
 				if (!file.Languages.Contains(language.Code)) {
 					file.Languages.Add(language.Code);
+					file.Labels[language.Code] = new LanguageEntry(language);
 				}
 			}
 			Backfill();
@@ -111,8 +119,8 @@ namespace PatTech.Localization.Authoring {
 
 		/// <summary>
 		///     Removes a language and its entries from every key and every file's
-		///     table, and as any file's default language. The last language stays: a
-		///     session always has one.
+		///     table, labels and settings references, and as any file's default
+		///     language. The last language stays: a session always has one.
 		/// </summary>
 		public bool Remove(string code) {
 			LanguageEntry? known = Find(code);
@@ -122,6 +130,8 @@ namespace PatTech.Localization.Authoring {
 			Known.Remove(known);
 			foreach (WordsFile file in session.Files) {
 				file.Languages.Remove(code);
+				file.Labels.Remove(code);
+				file.LanguageSettings.Remove(code);
 				if (file.DefaultLanguage == code) {
 					file.DefaultLanguage = null;
 				}
@@ -136,28 +146,44 @@ namespace PatTech.Localization.Authoring {
 		///     Replaces the language at <paramref name="code"/> with
 		///     <paramref name="replacement"/>. A changed code re-codes the entries
 		///     (<see cref="WordsOperations.Shift"/>: the target's values win, displaced
-		///     ones park in context, stale-marked) and every file's table, and default
-		///     language, follows. Re-coding onto a language that already exists absorbs
-		///     into it. Returns the entry now standing for the language.
+		///     ones park in context, stale-marked) and every file's table, labels,
+		///     settings reference and default language follow. Re-coding onto a
+		///     language that already exists absorbs into it, and a file declaring both
+		///     keeps the target's label and reference. Each file's label takes what
+		///     the replacement changes — the <c>!</c>, the endonym, the exonym — and
+		///     keeps what it leaves alone. Returns the entry now standing for the language.
 		/// </summary>
 		public LanguageEntry Rename(string code, LanguageEntry replacement) {
 			LanguageEntry edited = Find(code) ?? throw new ArgumentException($"no language '{code}'", nameof(code));
 			if (replacement.Code != code) {
 				WordsOperations.Shift(session.Keys.Values, code, replacement.Code);
-				foreach (WordsFile file in session.Files) {
-					if (file.DefaultLanguage == code) {
-						file.DefaultLanguage = replacement.Code;
+			}
+			foreach (WordsFile file in session.Files) {
+				if (file.DefaultLanguage == code) {
+					file.DefaultLanguage = replacement.Code;
+				}
+				int i = file.Languages.IndexOf(code);
+				if (i < 0) {
+					continue;
+				}
+				LanguageEntry label = Relabeled(file.Labels.GetValueOrDefault(code) ?? edited, edited, replacement);
+				if (replacement.Code == code) {
+					file.Labels[code] = label;
+					continue;
+				}
+				file.Labels.Remove(code);
+				bool hasSettings = file.LanguageSettings.Remove(code, out string? path);
+				if (file.Languages.Contains(replacement.Code)) {
+					file.Languages.RemoveAt(i);
+					if (hasSettings) {
+						file.LanguageSettings.TryAdd(replacement.Code, path!);
 					}
-					int i = file.Languages.IndexOf(code);
-					if (i < 0) {
-						continue;
-					}
-					if (file.Languages.Contains(replacement.Code)) {
-						file.Languages.RemoveAt(i);
-					}
-					else {
-						file.Languages[i] = replacement.Code;
-					}
+					continue;
+				}
+				file.Languages[i] = replacement.Code;
+				file.Labels[replacement.Code] = label;
+				if (hasSettings) {
+					file.LanguageSettings[replacement.Code] = path!;
 				}
 			}
 			LanguageEntry? absorbedInto = Known.FirstOrDefault(known => known.Code == replacement.Code && known != edited);
@@ -169,6 +195,18 @@ namespace PatTech.Localization.Authoring {
 			Known[Known.IndexOf(edited)] = replacement;
 			Backfill();
 			return replacement;
+		}
+
+		//a file's label after a relabel from before to after: what the relabel changed
+		//reaches the file, and what it left alone stays the file's own — a library
+		//keeps its !, a file without an exonym gains none from a recode
+		private static LanguageEntry Relabeled(LanguageEntry own, LanguageEntry before, LanguageEntry after) {
+			static bool Unlisted(LanguageEntry label) => label.NativeName.StartsWith('!');
+			static string Bare(LanguageEntry label) => label.NativeName.TrimStart('!');
+			bool unlisted = Unlisted(after) != Unlisted(before) ? Unlisted(after) : Unlisted(own);
+			string name = Bare(after) != Bare(before) ? Bare(after) : Bare(own);
+			string exonym = after.EnglishName != before.EnglishName ? after.EnglishName : own.EnglishName;
+			return new LanguageEntry(after.Code, (unlisted ? "!" : "") + name) { EnglishName = exonym };
 		}
 
 		/// <summary>

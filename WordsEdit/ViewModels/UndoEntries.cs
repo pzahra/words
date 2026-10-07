@@ -320,8 +320,32 @@ public sealed class FileSettingsEdit(string file, FileSettingsEdit.Slots before,
 public sealed class LanguagesEdit : UndoEntry {
 	private readonly WordsSession session;
 	private readonly List<(Action Undo, Action Redo)> steps = [];
-	private readonly Dictionary<WordsFile, (string[] Codes, string? Default)> tablesBefore;
-	private Dictionary<WordsFile, (string[] Codes, string? Default)> tablesAfter = [];
+	private readonly Dictionary<WordsFile, FileTable> tablesBefore;
+	private Dictionary<WordsFile, FileTable> tablesAfter = [];
+
+	//what a file's table is: its codes, its labels, its settings references and its
+	//default's language, copied so later edits leave the copy alone
+	private sealed record FileTable(string[] Codes, (string Code, LanguageEntry Label)[] Labels, (string Code, string Path)[] Settings, string? Default) {
+		public static FileTable Of(WordsFile file) => new(
+			[.. file.Languages],
+			[.. file.Labels.Select(pair => (pair.Key, new LanguageEntry(pair.Value)))],
+			[.. file.LanguageSettings.Select(pair => (pair.Key, pair.Value))],
+			file.DefaultLanguage);
+
+		public void PutBack(WordsFile file) {
+			file.Languages.Clear();
+			file.Languages.AddRange(Codes);
+			file.Labels.Clear();
+			foreach (var (code, label) in Labels) {
+				file.Labels[code] = new LanguageEntry(label);
+			}
+			file.LanguageSettings.Clear();
+			foreach (var (code, path) in Settings) {
+				file.LanguageSettings[code] = path;
+			}
+			file.DefaultLanguage = Default;
+		}
+	}
 
 	public LanguagesEdit(WordsSession session) {
 		this.session = session;
@@ -386,28 +410,37 @@ public sealed class LanguagesEdit : UndoEntry {
 	}
 
 	/// <summary>
-	///     Declares the language the default is written in, in every file
-	///     (<see cref="LanguageTable.DefaultLanguage"/>); nothing happens when the
-	///     session already says so.
+	///     Declares the language the default is written in (SPEC: Languages): every
+	///     file that declares one declares <paramref name="code"/>, and a file that
+	///     declares none gains it only when the session's choice
+	///     (<see cref="LanguageTable.DefaultLanguage"/>) moved. Nothing happens when
+	///     the files already say so.
 	/// </summary>
 	public void Declare(string? code) {
-		string? before = Table.DefaultLanguage;
-		if (before == code) {
+		bool moved = Table.DefaultLanguage != code;
+		Dictionary<WordsFile, string?> each = session.Files
+			.Where(file => moved || file.DefaultLanguage is not null)
+			.ToDictionary(file => file, file => file.DefaultLanguage);
+		if (each.Values.All(declared => declared == code)) {
 			return;
 		}
-		Dictionary<WordsFile, string?> each = session.Files.ToDictionary(file => file, file => file.DefaultLanguage);
-		Table.DefaultLanguage = code;
+		void DeclareEach() {
+			foreach (WordsFile file in each.Keys) {
+				file.DefaultLanguage = code;
+			}
+		}
+		DeclareEach();
 		steps.Add((() => {
 			foreach (var (file, declared) in each) {
 				file.DefaultLanguage = declared;
 			}
-		}, () => Table.DefaultLanguage = code));
+		}, DeclareEach));
 	}
 
 	/// <summary>The commit is done: every file's table as it now stands is what a redo puts back.</summary>
 	internal void Close() => tablesAfter = Tables();
 
-	private Dictionary<WordsFile, (string[] Codes, string? Default)> Tables() => session.Files.ToDictionary(file => file, file => (file.Languages.ToArray(), file.DefaultLanguage));
+	private Dictionary<WordsFile, FileTable> Tables() => session.Files.ToDictionary(file => file, FileTable.Of);
 
 	public override NodeRef? Site(bool undoing) => null;
 
@@ -422,10 +455,8 @@ public sealed class LanguagesEdit : UndoEntry {
 				redo();
 			}
 		}
-		foreach (var (file, (codes, defaultLanguage)) in undoing ? tablesBefore : tablesAfter) {
-			file.Languages.Clear();
-			file.Languages.AddRange(codes);
-			file.DefaultLanguage = defaultLanguage;
+		foreach (var (file, table) in undoing ? tablesBefore : tablesAfter) {
+			table.PutBack(file);
 		}
 		return null;
 	}

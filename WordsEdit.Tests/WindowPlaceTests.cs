@@ -44,6 +44,42 @@ public class WindowPlaceTests {
 	}
 
 	[Fact]
+	public void TheConfigKeepsItsCommentsAndOneThatWontWriteCostsOnlyTheSetting() {
+		string configured = EditorConfig.Path;
+		EditorConfig.Path = Path.Combine(Path.GetTempPath(), $"wordsmith-{Guid.NewGuid():N}", "config.ini");
+		try {
+			Directory.CreateDirectory(Path.GetDirectoryName(EditorConfig.Path)!);
+			File.WriteAllLines(EditorConfig.Path, ["; Wordsmith's own", "language=it", "not a setting", "window-width=900"]);
+
+			EditorConfig.Language = "fr";
+			EditorConfig.Window = null;
+			Assert.Equal(["; Wordsmith's own", "language=fr", "not a setting"], File.ReadAllLines(EditorConfig.Path));
+
+			File.SetAttributes(EditorConfig.Path, FileAttributes.ReadOnly);
+			EditorConfig.Language = "de"; //the close this runs on still closes
+			EditorConfig.Window = new WindowPlace(900, 500, Maximized: false);
+			Assert.Equal("fr", EditorConfig.Language);
+		}
+		finally {
+			if (File.Exists(EditorConfig.Path)) {
+				File.SetAttributes(EditorConfig.Path, FileAttributes.Normal);
+				Directory.Delete(Path.GetDirectoryName(EditorConfig.Path)!, recursive: true);
+			}
+			EditorConfig.Path = configured;
+		}
+	}
+
+	[Fact]
+	public void AWindowMinimizedFromMaximizedIsRememberedMaximized() {
+		NavigationTests.RunSta(() => {
+			var window = new Window { Width = 500, Height = 350, WindowState = WindowState.Minimized };
+
+			Assert.True(WindowPlace.Of(window, wasMaximized: true).Maximized);
+			Assert.False(WindowPlace.Of(window).Maximized);
+		});
+	}
+
+	[Fact]
 	public void APlaceIsCutToFitBetweenTheWindowsMinimumAndTheRoom() {
 		var place = new WindowPlace(3000, 300, Maximized: true);
 

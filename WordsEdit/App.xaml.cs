@@ -34,9 +34,10 @@ public partial class App : Application {
 		viewModel.ExitRequested += window.Close;
 		//the window opens as it last closed; a close the save question cancelled is no close
 		EditorConfig.Window?.ApplyTo(window);
+		Func<WindowPlace> place = WindowPlace.Track(window);
 		window.Closing += (_, e) => {
 			if (!e.Cancel) {
-				EditorConfig.Window = WindowPlace.Of(window);
+				EditorConfig.Window = place();
 			}
 		};
 		window.Show();
@@ -45,13 +46,15 @@ public partial class App : Application {
 	//{l:Words} resolves when a window loads, so a change of language is a new
 	//process: unsaved changes are asked about first, the choice is saved, and
 	//the same files are opened again. The window has had its question answered
-	//and retires without asking twice, before the new process reads its place
+	//and retires without asking twice, before the new process reads its place.
+	//The new process is told the language too, in case the config won't keep it
 	private void Restart(MainWindowViewModel viewModel, string languageCode) {
 		if (!viewModel.TryClose() || Environment.ProcessPath is not { } exe) {
 			return;
 		}
 		EditorConfig.Language = languageCode;
 		var start = new ProcessStartInfo(exe) { UseShellExecute = false };
+		start.ArgumentList.Add(EditorWords.LanguageSwitch + languageCode);
 		foreach (WordsFile file in viewModel.Session.Files) {
 			start.ArgumentList.Add(file.Path);
 		}

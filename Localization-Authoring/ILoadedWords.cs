@@ -1,7 +1,7 @@
 namespace PatTech.Localization.Authoring {
 	/// <summary>
 	///     The neutral document surface one file loads into — what
-	///     <see cref="WordsSession.Load(ILoadedWords, string, string?)"/> absorbs: the keys,
+	///     <see cref="WordsSession.Load(ILoadedWords, string, string?, System.Text.Encoding?)"/> absorbs: the keys,
 	///     the languages they know and the ones the file declares, the comment
 	///     runs, the settings references and the gripes. The ini parser fills it
 	///     (<see cref="WordsParserToLocalizationProvider"/>); an

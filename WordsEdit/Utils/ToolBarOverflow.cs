@@ -18,9 +18,32 @@ public static class ToolBarOverflow {
 	public static bool GetCollapse(DependencyObject element) => (bool)element.GetValue(CollapseProperty);
 	public static void SetCollapse(DependencyObject element, bool value) => element.SetValue(CollapseProperty, value);
 
+	//one handler, taken off before it goes on, so setting it again never stacks
+	//another; turned off, the parts go back to the theme's
 	private static void CollapseChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) {
-		if (d is ToolBar bar && (bool)e.NewValue) {
-			bar.Loaded += (_, _) => Collapse(bar);
+		if (d is not ToolBar bar) {
+			return;
+		}
+		bar.Loaded -= OnLoaded;
+		if ((bool)e.NewValue) {
+			bar.Loaded += OnLoaded;
+			if (bar.IsLoaded) {
+				Collapse(bar);
+			}
+		}
+		else {
+			Restore(bar);
+		}
+	}
+
+	private static void OnLoaded(object sender, RoutedEventArgs e) => Collapse((ToolBar)sender);
+
+	private static void Restore(ToolBar bar) {
+		if (bar.Template?.FindName("OverflowGrid", bar) is FrameworkElement overflow) {
+			BindingOperations.ClearBinding(overflow, UIElement.VisibilityProperty);
+		}
+		if (bar.Template?.FindName("MainPanelBorder", bar) is FrameworkElement panel) {
+			BindingOperations.ClearBinding(panel, FrameworkElement.MarginProperty);
 		}
 	}
 

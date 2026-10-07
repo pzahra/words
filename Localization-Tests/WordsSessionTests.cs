@@ -322,6 +322,63 @@ value-fr=Ouvrir
 		Assert.Equal("", LanguageTable.Default().EnglishName);
 	}
 
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void Labels_AreEachFilesOwn_ALibraryKeepsItsBangAndNoExonymLeaks(bool libraryFirst) {
+		// whichever loads first, each file writes the labels it was read with: the
+		// library its !, the host its exonym, neither the other's
+		const string host = "value-en=English\nvalue-fr=Français\ncomment-fr=French\n\n[k]\nvalue=x\n\n";
+		const string library = "value-en=!English\nvalue-fr=!Français\n\n[j]\nvalue=y\n\n";
+		var session = new WordsSession();
+		WordsFile hostFile, libraryFile;
+		if (libraryFirst) {
+			libraryFile = session.Load(new StringReader(library), "Lib");
+			hostFile = session.Load(new StringReader(host), "Host");
+		}
+		else {
+			hostFile = session.Load(new StringReader(host), "Host");
+			libraryFile = session.Load(new StringReader(library), "Lib");
+		}
+
+		Assert.Equal(host, Save(session, hostFile).ReplaceLineEndings("\n"));
+		Assert.Equal(library, Save(session, libraryFile).ReplaceLineEndings("\n"));
+	}
+
+	[Fact]
+	public void Labels_ARelabelReachesEveryFileWithWhatItChanged() {
+		var session = Load("value-en=English\nvalue-fr=Français\ncomment-fr=French\n\n[k]\nvalue=x\n");
+		WordsFile library = session.Load(new StringReader("value-en=!English\nvalue-fr=!Français\n\n[j]\nvalue=y\n"), "Lib");
+
+		//a new endonym: each file keeps its own !
+		session.Languages.Rename("en", new LanguageEntry("en", "British"));
+		//a new exonym: every file takes it, the library too
+		session.Languages.Rename("fr", new LanguageEntry("fr", "Français") { EnglishName = "French (France)" });
+
+		string main = Save(session, session.Files[0]), lib = Save(session, library);
+		Assert.Contains("value-en=British", main);
+		Assert.Contains("value-en=!British", lib);
+		Assert.Contains("comment-fr=French (France)", main);
+		Assert.Contains("comment-fr=French (France)", lib);
+		Assert.Contains("value-fr=!Français", lib);
+	}
+
+	[Fact]
+	public void Languages_ARecodeCarriesTheSettingsReference_AndARemovalTakesIt() {
+		var session = Load("value-en=English\nvalue-it=Italiano\nparam-en=english-settings.ini\nparam-it=italian-settings.ini\n\n[k]\nvalue=x\n");
+		WordsFile file = session.Files[0];
+
+		session.Languages.Rename("en", new LanguageEntry("de", "Deutsch"));
+		session.Languages.Remove("it");
+
+		Assert.Equal(new Dictionary<string, string> { ["de"] = "english-settings.ini" }, file.LanguageSettings);
+		Assert.NotNull(file.SettingsPath("de"));
+		string saved = Save(session, file);
+		Assert.Contains("param-de=english-settings.ini", saved);
+		Assert.DoesNotContain("param-en", saved);
+		Assert.DoesNotContain("param-it", saved);
+	}
+
 	[Fact]
 	public void Unload_TakesTheKeysAndPrunesLanguagesNobodyHasLeft() {
 		var session = Load(Main);
@@ -581,6 +638,37 @@ value-fr=Bonjour
 			Assert.Equal("Ouvrir", session.Keys["Back.menu.file.open"].Entries["fr"].Value);
 			Assert.Equal("en", merged.DefaultLanguage);
 			Assert.DoesNotContain('\r', File.ReadAllText(Path.Combine(folder, "Back.ini")));
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
+	public void Merge_RefusesASourceThatDoesNotDeclareItsLanguage_AndSplitWritesItsOwnLabel() {
+		string folder = Path.Combine(Path.GetTempPath(), $"WordsSessionSources-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		try {
+			var session = new WordsSession();
+			WordsFile basis = session.Load(new StringReader(Main), Path.Combine(folder, "Main.ini"));
+			WordsFile english = session.Load(new StringReader("value-en=English\n\n[greeting]\nvalue=Hello\n\n[menu.file]\nvalue=File\n\n[menu.file.open]\nvalue=Open\n"), Path.Combine(folder, "English.ini"));
+			string merged = Path.Combine(folder, "Merged.ini");
+
+			//its French entries are backfill: taking them would empty the base's
+			Assert.Throws<ArgumentException>(() => session.Merge(basis, new Dictionary<string, WordsFile> { ["fr"] = english }, KeyTree.Build(session, basis), merged, out _));
+			Assert.False(File.Exists(merged));
+
+			//a split takes the language as its file labels it, and only its settings reference
+			WordsFile library = session.Load(new StringReader("value-fr=!Français\nparam=all.ini\nparam-fr=french.ini\n\n[greeting]\nvalue-fr=Salut\n"), Path.Combine(folder, "Lib.ini"));
+			session.Load(new StringReader("value-de=Deutsch\nparam-de=german.ini\n\n[x]\nvalue=X\n"), Path.Combine(folder, "Other.ini"));
+			session.Languages.Rename("fr", new LanguageEntry("fr", "Français") { EnglishName = "French" });
+			library.LanguageSettings["de"] = "german.ini"; //a stray reference the split leaves behind
+			WordsFile split = session.Split(library, "fr", KeyTree.Build(session, library), Path.Combine(folder, "Lib.fr.ini"));
+			string text = File.ReadAllText(split.Path);
+			Assert.Contains("value-fr=!Français", text);
+			Assert.Contains("param-fr=french.ini", text);
+			Assert.DoesNotContain("param-de", text);
+			Assert.Empty(split.Errors);
 		}
 		finally {
 			Directory.Delete(folder, recursive: true);
