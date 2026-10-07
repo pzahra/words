@@ -16,9 +16,11 @@ namespace PatTech.Localization {
 	/// <param name="setUICulture">The UI culture applied by <see cref="SetCulture"/>; <see langword="null"/> to use <paramref name="setCulture"/> for both.</param>
 	public class CulturedWords(IWordsProvider provider, CultureInfo setCulture, CultureInfo? setUICulture = null) : IWords {
 		/// <inheritdoc/>
+		[Localized]
 		public string this[string key] => GetValue(key);
 
 		/// <inheritdoc/>
+		[Localized]
 		public string this[string key, decimal count] => Words.RenderCount(this, key, count);
 
 		/// <inheritdoc/>
@@ -50,6 +52,7 @@ namespace PatTech.Localization {
 		/// <c>#key#</c> and warns via <see cref="Words.Logger"/>.
 		/// </summary>
 		/// <exception cref="ArgumentNullException"><paramref name="key"/> is <see langword="null"/>.</exception>
+		[return: Localized]
 		public string GetValue(string key) {
 			ArgumentNullException.ThrowIfNull(key);
 

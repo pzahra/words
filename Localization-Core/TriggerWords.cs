@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Threading;
 
 namespace PatTech.Localization {
 	/// <summary>
@@ -24,10 +25,14 @@ namespace PatTech.Localization {
 		/// <summary>
 		/// Registers the trigger with the live registry for the calling thread and returns it;
 		/// off, it is returned unregistered and never pulses. Call it on the thread whose
-		/// bindings listen.
+		/// bindings listen. The one trigger serves every thread, so a call from a thread
+		/// with no synchronization context (a pool thread, a service at startup) leaves it
+		/// where a UI thread registered it.
 		/// </summary>
 		public static TriggerWords Watch() {
-			Words.Watch(Instance);
+			if (SynchronizationContext.Current is not null || !Words.IsWatched(Instance)) {
+				Words.Watch(Instance);
+			}
 			return Instance;
 		}
 

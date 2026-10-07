@@ -139,7 +139,8 @@ var menu = builder.GetLanguages();         // code/label pairs for a language me
 
 Formatting: `Words.Known.Format("key", args)` works like `string.Format`;
 `Words.Known.FormatByName("key", obj)` fills `{PropertyName}` /
-`{PropertyName:format}` tags from `obj`'s public fields and properties;
+`{PropertyName:format}` tags from `obj`'s public fields and properties, or from
+its values by name when `obj` is a dictionary;
 `Words.Known.FormatParams("key", x)` picks by what `x` is — an array is
 positional, any other object is named, `null` is the text as is (the rule the
 XAML inlines and converters use).
@@ -147,7 +148,8 @@ Counts pick plural forms: a `{0#key}` selector resolves in every formatting call
 (`Format`, `FormatByName`, `FormatParams`, the XAML inlines and converters), and
 `Words.Known["file", n]` returns the key's own form for `n`. A missing form
 falls to the key's `other` form, then its plain value, both from the language
-that has the key's words; a fraction picks `other`.
+that has the key's words; a fraction picks `other`. A selector or `{>.sub}`
+resolves against the key whose text it is in, a form's text being its key's.
 Never write `n == 1 ? "file" : "files"` — that is English's rule in code.
 Numbers and dates in parameters format with the thread's `CurrentCulture`,
 which `Digest` sets to the language; `.UseSystemNumbers()` before `Digest`

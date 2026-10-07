@@ -120,11 +120,21 @@ namespace PatTech.Localization {
 
 		/// <summary>
 		/// The language the default is written in, as a top-of-file <c>value=!xx</c>
-		/// declares it (the <c>!</c> keeps it off <see cref="GetLanguages"/>), or
-		/// <see langword="null"/> when no file declares one; the last file loaded wins.
+		/// declares it (the <c>!</c> keeps it off <see cref="GetLanguages"/>), trimmed and
+		/// cased as a <see cref="LanguageCode"/>, or <see langword="null"/> when no file
+		/// declares one. The last file loaded wins, and a keyless <c>value=</c> without
+		/// the <c>!</c> in a later file is a label of the default, not a declaration, so
+		/// it clears one.
 		/// </summary>
-		public string? DefaultLanguage
-			=> _builder.Languages.GetValueOrDefault("")?.GetValueOrDefault("", "") is { Length: > 1 } label && label[0] == '!' ? label[1..] : null;
+		public string? DefaultLanguage {
+			get {
+				if (_builder.Languages.GetValueOrDefault("")?.GetValueOrDefault("", "") is not { Length: > 1 } label || label[0] != '!') {
+					return null;
+				}
+				string code = label[1..].Trim();
+				return code == "" ? null : LanguageCode.TryParse(code, out var spoken) ? spoken.ToString() : code;
+			}
+		}
 
 		/// <summary>
 		/// Brands values that fell back to another language, so missing translations

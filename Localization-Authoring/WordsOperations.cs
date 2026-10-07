@@ -264,7 +264,7 @@ namespace PatTech.Localization.Authoring {
 		///     Try the key's sample parameters on <paramref name="text"/> (its
 		///     rendered value) exactly the way a host app formats it: numbered
 		///     parameters (<c>0</c>, <c>1</c>…) fill the positional slots, the rest go
-		///     by name through <see cref="Words.FormatByName(IFormatProvider?, string, IReadOnlyDictionary{string, object?}, object?[])"/>.
+		///     by name through <see cref="Words.FormatByName(IFormatProvider?, string, object?, object?[])"/>, which reads a dictionary by name.
 		///     A sample that doesn't parse as its declared type throws
 		///     <see cref="FormatException"/>, as does a template
 		///     <see cref="string.Format(string, object[])"/> rejects — the same

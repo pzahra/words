@@ -54,10 +54,15 @@ public class LiveWpfTests {
 		"xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" " +
 		"xmlns:l=\"https://github.com/pzahra/words\"";
 
-	/// <summary>WPF elements insist on an STA thread; xunit runs MTA. Bridge the gap.</summary>
+	/// <summary>
+	///     WPF elements insist on an STA thread; xunit runs MTA. Bridge the gap, with a
+	///     synchronization context, as a WPF UI thread has, so the one trigger homes here
+	///     and not on the thread of a test before (<see cref="TriggerWords.Watch"/>).
+	/// </summary>
 	private static void RunSta(Action action) {
 		ExceptionDispatchInfo? error = null;
 		var thread = new Thread(() => {
+			SynchronizationContext.SetSynchronizationContext(new InlineContext());
 			try { action(); }
 			catch (Exception e) { error = ExceptionDispatchInfo.Capture(e); }
 		});
@@ -65,6 +70,13 @@ public class LiveWpfTests {
 		thread.Start();
 		thread.Join();
 		error?.Throw();
+	}
+
+	//a test's thread is gone when the next test switches, and a dispatcher's context would
+	//queue a refresh to it for good: this one runs it at once, as the registry runs a
+	//refresh for a thread with no context
+	private sealed class InlineContext : SynchronizationContext {
+		public override void Post(SendOrPostCallback d, object? state) => d(state);
 	}
 
 	private static TextBlock Parse(string attributes) => (TextBlock)XamlReader.Parse($"<TextBlock {Xmlns} {attributes}/>");

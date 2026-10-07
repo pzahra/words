@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace PatTech.Localization {
 	/// <summary>
@@ -13,7 +14,7 @@ namespace PatTech.Localization {
 	/// </summary>
 	public static class PluralRules {
 		/// <summary>CLDR's six categories, in CLDR's order.</summary>
-		public static IReadOnlyList<string> Names { get; } = ["zero", "one", "two", "few", "many", "other"];
+		public static IReadOnlyList<string> Names { get; } = Array.AsReadOnly<string>(["zero", "one", "two", "few", "many", "other"]);
 
 		/// <summary>
 		/// The category <paramref name="number"/> falls in for <paramref name="languageCode"/>:
@@ -63,7 +64,11 @@ namespace PatTech.Localization {
 
 		private const decimal Large = 1_000_000_000_000m;
 
-		private sealed record Rule(Func<long, string> Select, string[] Categories);
+		private sealed class Rule(Func<long, string> select, string[] categories) {
+			public Func<long, string> Select { get; } = select;
+			//read-only: every caller of Categories shares it
+			public IReadOnlyList<string> Categories { get; } = Array.AsReadOnly(categories);
+		}
 
 		private static Rule Find(string languageCode)
 			=> languageCode == "" ? One : Lookup(rules, languageCode) ?? Other;
@@ -82,12 +87,12 @@ namespace PatTech.Localization {
 			return null;
 		}
 
-		private static readonly Dictionary<string, string> None = [];
+		private static readonly IReadOnlyDictionary<string, string> None = ReadOnlyDictionary<string, string>.Empty;
 
 		private static readonly Dictionary<string, IReadOnlyDictionary<string, string>> optional = Table<IReadOnlyDictionary<string, string>>(
-			(new Dictionary<string, string> { ["two"] = "few", ["many"] = "other", ["other"] = "one" }, "mt"),
-			(new Dictionary<string, string> { ["two"] = "other" }, "he iw"),
-			(new Dictionary<string, string> { ["many"] = "other" }, "ca es fr it lld pt scn vec"));
+			(new Dictionary<string, string> { ["two"] = "few", ["many"] = "other", ["other"] = "one" }.AsReadOnly(), "mt"),
+			(new Dictionary<string, string> { ["two"] = "other" }.AsReadOnly(), "he iw"),
+			(new Dictionary<string, string> { ["many"] = "other" }.AsReadOnly(), "ca es fr it lld pt scn vec"));
 
 		private static bool Million(long i) => i != 0 && i % 1_000_000 == 0;
 
@@ -116,6 +121,8 @@ namespace PatTech.Localization {
 			: i % 10 is >= 2 and <= 4 && i % 100 is not (>= 12 and <= 14) ? "few" : "many", ["one", "few", "many"]);
 		private static readonly Rule Lithuanian = new(i => i % 100 is >= 11 and <= 19 ? "other"
 			: i % 10 == 1 ? "one" : i % 10 >= 2 ? "few" : "other", ["one", "few", "other"]);
+		private static readonly Rule Samogitian = new(i => i % 10 == 1 && i % 100 != 11 ? "one" : i == 2 ? "two"
+			: i % 10 >= 2 && i % 100 is not (>= 11 and <= 19) ? "few" : "other", ["one", "two", "few", "other"]);
 		private static readonly Rule Breton = new(i => i % 10 == 1 && i % 100 is not (11 or 71 or 91) ? "one"
 			: i % 10 == 2 && i % 100 is not (12 or 72 or 92) ? "two"
 			: i % 10 is 3 or 4 or 9 && i % 100 is not ((>= 10 and <= 19) or (>= 70 and <= 79) or (>= 90 and <= 99)) ? "few"
@@ -139,7 +146,7 @@ namespace PatTech.Localization {
 
 		private static readonly Dictionary<string, Rule> rules = Table(
 			(Other, "bm bo dz hnj id ig ii in ja jbo jv jw kde kea km ko lkt lo ms my nqo osa sah ses sg su th to tpi vi wo yo yue zh"),
-			(ZeroOne, "ak am as bho bn csw doi fa ff gu guw hi hy kab kn ln mg nso pa pcm si ti wa zu"),
+			(ZeroOne, "ak am as bho bn csw doi fa ff gu guw hi hy kab kn kok ln mg nso pa pcm si ti wa zu"),
 			(One, "af an asa ast az bal bem bez bg brx ce cgg chr ckb da de dv ee el en eo et eu fi fo fur fy gl gsw ha haw hu ia ie io jgo ji jmc "
 				+ "ka kaj kcg kk kkj kl ks ksb ku ky lb lg lij mas mgo ml mn mr nah nb nd ne nl nn nnh no nr ny nyn om or os pap ps rm rof rwk "
 				+ "saq sc sd sdh seh sn so sq ss ssy st sv sw syr ta te teo tig tk tn tr ts ug ur uz ve vo vun wae xh xog yi"),
@@ -149,7 +156,7 @@ namespace PatTech.Localization {
 			(Filipino, "ceb fil tl"),
 			(Tamazight, "tzm"),
 			(Latvian, "lv prg"),
-			(ZeroOneOther, "ksh lag"),
+			(ZeroOneOther, "blo cv ksh lag"),
 			(OneTwo, "he iu iw naq sat se sma smi smj smn sms"),
 			(Tachelhit, "shi"),
 			(Romanian, "mo ro"),
@@ -160,6 +167,7 @@ namespace PatTech.Localization {
 			(Polish, "pl"),
 			(Russian, "be ru uk"),
 			(Lithuanian, "lt"),
+			(Samogitian, "sgs"),
 			(Breton, "br"),
 			(Maltese, "mt"),
 			(Irish, "ga"),

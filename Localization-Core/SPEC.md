@@ -147,7 +147,12 @@ only where it exists. This is display-only: the hoisted converters are one-way
 whole process, carrying no text, only the pulse — a `Pulse` count that raises
 `PropertyChanged` on every swap. The extension registers it
 (`TriggerWords.Watch()`) when it builds a live multi-binding; off, it never
-pulses. An app can give its own multi-bindings the same leg.
+pulses. An app can give its own multi-bindings the same leg. Being one, it has
+one home: a `Watch()` from a thread with no synchronization context (a pool
+thread, a service at startup) leaves it where a UI thread put it. A WPF app
+with a second UI thread, such as a splash screen or a tool window on its own
+Dispatcher, still moves it with that thread's `Watch()`; one trigger per
+synchronization context waits until somebody needs it.
 
 **Rendering controls.** A control that renders Words itself rather than handing a
 string to a property — `WordsInline`, on both frameworks — implements
@@ -470,12 +475,15 @@ more, and a Maltese translator adds `few`, and `two` for a word that keeps a
 dual, as *kelma* does, without a line of code changing.
 `PluralRules.Select(language, n)` names a count's category and
 `PluralRules.Categories(language)` the ones a whole number reaches, so Russian's
-`other`, which takes only fractions, is not among them. A region the table does
-not know falls to its language (`pt-BR` is `pt`; `pt-PT` has its own rule), a
-language it does not know has only `other`, as CLDR's root does, and the
-invariant culture counts as English. Until fractions come, a number with a
-fractional part is `other`; the sign is ignored, and a whole value counts as
-whole whatever its scale.
+`other`, which takes only fractions, is not among them. A code the table does
+not know falls back through its shorter codes (*Language codes*: `pt-BR` is
+`pt`; `pt-PT` has its own rule), a language it does not know has only `other`,
+as CLDR's root does, and the invariant culture counts as English. Until fractions
+come, a number with a fractional part is `other`, a `float` or `double` included
+where a `decimal` would round it whole (`1.0000001f`); the sign is ignored, and a
+whole value counts as whole whatever its scale or type, `Int128` and
+`BigInteger` among them, keeping the low digits a rule reads past `decimal`'s
+range. The tables come back read-only.
 
 **Which form a count reads.** The category's form, else, for an optional
 category, the form it reads instead (below), else the key's `other` form, else
@@ -489,7 +497,10 @@ not change with the count, writes `value-fil=file` alone and reads "4 file",
 where the default's `other` would read "4 files", in English; Maltese leaves
 out `#other`, its plain word. A key with no words in the language takes a
 shorter code's, or the default's, forms included, branded under `Debug` as values
-are. A language with one category, such as Japanese, speaks only its plain
+are. The unit is the forms': a translation that writes forms and no plain value
+reads its plain value from the level below, branded, like any missing word, so
+its count of 1 shows what is missing rather than a form in its place (owner's
+call, 2026-10-07). A language with one category, such as Japanese, speaks only its plain
 value, its own or the one it falls back to. `Words.FormKey(provider, language,
 key, form)` names the entry a count in a form reads, for a tool that shows it:
 the editor's hints and previews.
@@ -530,14 +541,38 @@ the arguments — `Format`, `FormatByName`, `FormatParams`, `ConvertValue`,
 `FormatKnown`, and the `IWords` overloads of `RenderKey` and `RenderText` given
 arguments — before `string.Format` sees the template: each `{n#key}` is replaced
 by the form its argument selects, rendered, so a form may itself carry a
-`{>key}` or a `{0}`, and selected through in turn, so a form may select too. A
-`{{` pair is left for `string.Format`. On the named path `{0}` is the object
-itself, as `PreFormatByName` slots it, so a converter's bound count selects with
-`{0#word}`; `FormatByName` takes the names as a dictionary too, as
-`PreFormatByName` does, so a tool holding samples by name selects as an app
-would. The indexer leaves a selector in place — it has no argument to select
-with — so a plural template reached through `Words.Known[key]` and the caller's
-own `string.Format` throws, which is the right signal: that template wanted
+`{>key}` or a `{0}`, and selected through in turn, so a form may select too.
+
+References and selectors expand in one pass over the key's words, each against
+the key whose text it was written in. A referenced key's own `{>.sub}` and
+`{0#.n}` are that key's, and relatives chain: under `[a]`, `{>.b}` reads `a.b`,
+whose `{>.c}` reads `a.b.c`. A form's text is its key's, so `word#other`'s
+`{>.sub}` is `word.sub`, whether a selector, the count indexer or a
+`{>word#other}` reached it. What a reference brings in is never scanned again.
+One recursion path runs through it all: a reference is circular when its key is
+being rendered, and a selector when any of its key's words are, plain or a form.
+So a key that selects its own forms renders the circular mark wherever it is
+referred to, while a form may still refer to its key's plain value
+(`value#other={>item}s`). The selector's first cut, never released, expanded
+references first and selected after, so a referenced key's selectors picked
+from the outer key.
+
+An escaped pair collapses in the same pass, so `{{0#word}` is a brace and text,
+no selector; `string.Format` then wants its own `{{`, as for `{{>key}`. A
+`{{{{` pair still reaches `string.Format` as `{{`. The `Format` family renders the
+key from `Provider`, as `RenderKey` does; an `IWords` of one's own whose indexer
+dresses words up is read through only for a key its provider lacks.
+
+On the named path `{0}` is the object itself, as `PreFormatByName` slots it, so a
+converter's bound count selects with `{0#word}`. A dictionary given as the value
+supplies its values by name, never its own members, so `{Count}` reads the
+entry and not the dictionary's `Count`, and a tool holding samples by name
+selects as an app would. There is no dictionary overload, so a bare `null`
+fills every name with nothing, as in 1.4.0.
+
+The indexer leaves a selector in place — it has no argument to select with — so
+a plural template reached through `Words.Known[key]` and the caller's own
+`string.Format` throws, which is the right signal: that template wanted
 `Words.Format`. The provider-level `RenderKey` leaves it too: a provider has no
 language to select in.
 
@@ -583,7 +618,18 @@ follow current CLDR, and each rule's categories are what whole numbers reach;
 an optional category, and the one it reads, are both its language's.
 The parser lowercases a form, continues it and warns about forms that are none.
 Checked once against the ICU that Windows ships (CLDR 35): the table agrees
-except where CLDR has changed since.
+except where CLDR has changed since. Where things resolve: a form's relative
+reference, chained twice, through a selector, the count indexer and a
+`{>word#other}`; a referenced key's selector picks from its own sub-key; a key
+referring to one that selects its own forms renders the circular mark, while a
+form may refer to its plain value; an escaped selector is none. `FormatByName`
+fills a `null` with nothing on every path and reads a dictionary, of any value
+type, by its values; `RenderKey` with arguments reads the provider as it does
+without; every number type counts, a float's fraction is `other`; the runtime's
+default language is trimmed and cased; `blo`, `cv`, `kok` and `sgs` count by
+CLDR 48; the tables refuse to be changed; `CulturedWords`' indexers are
+`[Localized]`; a pool thread's `TriggerWords.Watch()` leaves the trigger on its
+UI thread.
 
 ---
 

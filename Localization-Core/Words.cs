@@ -1,11 +1,13 @@
 ﻿using PatTech.Utils;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
+using System.Numerics;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -97,13 +99,15 @@ namespace PatTech.Localization {
 		private static readonly Regex rxFormatTag = new(
 				@"\{[\s-[\r\n]]*(?<1>(?=[_a-zA-Z])\w+)[\s-[\r\n]]*(:[\s-[\r\n]]*(?<2>[^\r\n}]*(?<!\s))[\s-[\r\n]]*)?\}",
 				RegexOptions.Compiled | RegexOptions.ExplicitCapture);
-		private static readonly Regex rxUnescape = new(
-				@"(?<1>[\\'""{])\1|\{[$>](?<2>[^}]+)\}",
+		//an escaped pair, a {$constant} or {>key} reference, or a {0#word} / {Count#word}
+		//selector, in one pass, so each resolves against the key it was written in
+		private static readonly Regex rxRender = new(
+				@"(?<1>[\\'""{])\1|\{[$>](?<2>[^}]+)\}|\{(?<3>\d+|(?=[_a-zA-Z])\w+)#(?<4>[^{}#\s]+)\}",
 				RegexOptions.Compiled | RegexOptions.ExplicitCapture);
-		//{0#word} or {Count#word}; a {{ pair is matched only to be left for string.Format
-		private static readonly Regex rxSelector = new(
-				@"\{\{|\{(?<1>\d+|(?=[_a-zA-Z])\w+)#(?<2>[^{}#\s]+)\}",
-				RegexOptions.Compiled | RegexOptions.ExplicitCapture);
+
+		//what a selector picks a form with: the language whose rules count, and the
+		//arguments, by number or name
+		private sealed record Selecting(string Language, Func<string, object?> Argument);
 
 		/// <summary>
 		/// The process-wide dictionary, installed once at startup — usually by
@@ -182,11 +186,16 @@ namespace PatTech.Localization {
 				[AllowNull] string baseKey = null,
 				[AllowNull] object[] args = null) {
 			ArgumentNullException.ThrowIfNull(words);
+			ArgumentNullException.ThrowIfNull(text);
 			if (!(args?.Length > 0)) {
 				return RenderText(words.Provider, text, baseKey);
 			}
-			var template = RenderText(words.Provider, text, baseKey);
-			return string.Format(SelectForms(words, template, baseKey ?? "", Positional(args)), args);
+			//the text is baseKey's, so its forms are out of reach of its selectors
+			var path = new Stack<string>();
+			if (!string.IsNullOrEmpty(baseKey)) {
+				path.Push(baseKey);
+			}
+			return string.Format(RenderTextCore(words.Provider, text, baseKey, path, new(words.Language, Positional(args))), args);
 		}
 
 		/// <summary>
@@ -207,7 +216,7 @@ namespace PatTech.Localization {
 			ArgumentNullException.ThrowIfNull(wordsProvider);
 			ArgumentNullException.ThrowIfNull(key);
 
-			var renderedText = RenderKeyCore(wordsProvider, key, null);
+			var renderedText = RenderKeyCore(wordsProvider, key, key, null, null);
 			if (args?.Length > 0) {
 				renderedText = string.Format(renderedText, args: args);
 			}
@@ -234,52 +243,60 @@ namespace PatTech.Localization {
 			ArgumentNullException.ThrowIfNull(wordsProvider);
 			ArgumentNullException.ThrowIfNull(text);
 
-			var renderedText = RenderTextCore(wordsProvider, text, baseKey, null);
+			var renderedText = RenderTextCore(wordsProvider, text, baseKey, null, null);
 			if (args?.Length > 0) {
 				renderedText = string.Format(renderedText, args: args);
 			}
 			return renderedText;
 		}
 
+		//entry's words, rendered against baseKey: the entry itself, or for a form
+		//(word#other) the key it is a form of, so a form's {>.sub} is the key's sub.
+		//path holds the entries being rendered, for the circular cut
 		[return: NotNull, Localized]
 		private static string RenderKeyCore(
 				[DisallowNull] IWordsProvider wordsProvider,
-				[DisallowNull] string key,
-				[AllowNull] Stack<string> path) {
-			if (path?.Contains(key) == true) {
+				[DisallowNull] string entry,
+				string baseKey,
+				[AllowNull] Stack<string> path,
+				Selecting? selecting) {
+			if (path?.Contains(entry) == true) {
 				var trail = string.Join("` <- `", path);
-				Logger.Warn($"WORDS:CIRC:`{key}` <- `{trail}`");
+				Logger.Warn($"WORDS:CIRC:`{entry}` <- `{trail}`");
 				return $"# ∞ #";
 			}
-			if (key.StartsWith('$')) {
-				if (wordsProvider.TryGetValue(key, out var constant)) {
+			if (entry.StartsWith('$')) {
+				if (wordsProvider.TryGetValue(entry, out var constant)) {
 					return constant;
 				}
 				else {
-					Logger.Warn($"WORDS:CONST:`{key}`");
-					return $"#{key}#";
+					Logger.Warn($"WORDS:CONST:`{entry}`");
+					return $"#{entry}#";
 				}
 			}
-			if (!wordsProvider.TryGetValue(key, out var value)) {
-				Logger.Warn($"WORDS:KEY:`{key}`");
-				return $"#{key}#";
+			if (!wordsProvider.TryGetValue(entry, out var value)) {
+				Logger.Warn($"WORDS:KEY:`{entry}`");
+				return $"#{entry}#";
 			}
 			path ??= new Stack<string>();
-			path.Push(key);
+			path.Push(entry);
 			try {
-				return RenderTextCore(wordsProvider, value, key, path);
+				return RenderTextCore(wordsProvider, value, baseKey, path, selecting);
 			}
 			finally {
 				path.Pop();
 			}
 		}
+		//text's escapes, references and, when selecting, selectors, in one pass: what a
+		//reference brings in was rendered against its own key, and is not scanned again
 		[return: Localized]
 		private static string RenderTextCore(
 				IWordsProvider wordsProvider,
 				string text,
 				string? baseKey,
-				Stack<string>? path) {
-			if (!rxUnescape.TryMatch(text, out var match)) {
+				Stack<string>? path,
+				Selecting? selecting) {
+			if (!rxRender.TryMatch(text, out var match)) {
 				return text;
 			}
 
@@ -288,29 +305,30 @@ namespace PatTech.Localization {
 			while (match.Success) {
 				result.Append(text, start, match.Index - start);
 
-				if (match.Groups[1].Length == 1) {
+				if (match.Groups[1].Success) {
 					result.Append(match.Groups[1].Value);
 				}
-				else {
+				else if (match.Groups[2].Success) {
 					var key = match.Groups[2].Value;
 					switch (match.Value[1]) {
 						case '$':
-							result.Append(RenderKeyCore(wordsProvider, "$" + key, path));
+							result.Append(RenderKeyCore(wordsProvider, "$" + key, "$" + key, path, selecting));
 							break;
 						case '>':
-							if (key.StartsWith('.')) {
-								if (string.IsNullOrEmpty(baseKey)) {
-									key = key[1..];
-								}
-								else {
-									key = baseKey + key;
-								}
-							}
-							result.Append(RenderKeyCore(wordsProvider, key, path));
+							key = Relative(key, baseKey);
+							//a form's entry, word#other, renders against its key, as a selected one does
+							result.Append(RenderKeyCore(wordsProvider, key, key.IndexOf('#') is > 0 and var mark ? key[..mark] : key, path, selecting));
 							break;
 						default:
 							throw new InvalidOperationException($"unexpected symbol: '{match.Value[1]}'");
 					}
+				}
+				else if (selecting is null) {
+					//a provider has no language to select in: the selector stays
+					result.Append(match.Value);
+				}
+				else {
+					result.Append(Select(wordsProvider, match.Groups[3].Value, Relative(match.Groups[4].Value, baseKey), path, selecting));
 				}
 
 				start = match.Index + match.Length;
@@ -322,11 +340,36 @@ namespace PatTech.Localization {
 			return result.ToString();
 		}
 
+		//.sub under baseKey; with no base the dot is dropped
+		private static string Relative(string key, string? baseKey)
+			=> !key.StartsWith('.') ? key : string.IsNullOrEmpty(baseKey) ? key[1..] : baseKey + key;
+
+		//the form of key its argument selects, rendered against key and selected through
+		//in turn: a key whose words are being rendered, plain or a form, is out of reach
+		//of its own selectors, as a key is of its own references
+		[return: Localized]
+		private static string Select(IWordsProvider provider, string argument, string key, Stack<string>? path, Selecting selecting) {
+			path ??= new Stack<string>();
+			if (path.Any(entry => entry == key || entry.StartsWith(key + "#", StringComparison.Ordinal))) {
+				Logger.Warn($"WORDS:CIRC:`{key}` <- `{string.Join("` <- `", path)}`");
+				return "# ∞ #";
+			}
+			string form = FormKey(provider, selecting.Language, key, Category(selecting.Language, selecting.Argument(argument)));
+			return RenderKeyCore(provider, form, key, path, selecting);
+		}
+
+		//entry's words from the provider, rendered against key, so each reference and
+		//selector resolves against the key it was written in; an entry the provider
+		//lacks reads through the indexer, as an IWords of one's own may answer it
+		[return: Localized]
+		private static string Template(IWords words, string entry, string key, Selecting? selecting)
+			=> words.Provider.ContainsKey(entry) ? RenderKeyCore(words.Provider, entry, key, null, selecting) : words[entry];
+
 		[return: Localized]
 		internal static string RenderCount(IWords words, string key, decimal count) {
 			ArgumentNullException.ThrowIfNull(key);
 			string language = words.Language;
-			return words[FormKey(words.Provider, language, key, PluralRules.Select(language, count))];
+			return Template(words, FormKey(words.Provider, language, key, PluralRules.Select(language, count)), key, null);
 		}
 
 		/// <summary>
@@ -360,69 +403,57 @@ namespace PatTech.Localization {
 			return key;
 		}
 
-		//each {n#key} in template becomes the form its argument selects, rendered, and
-		//selected through in turn: a form may select too. key's own forms are out of
-		//reach of its template, as a key is of its own references
-		[return: Localized]
-		private static string SelectForms(IWords words, string template, string key, Func<string, object?> argument) {
-			if (!template.Contains('#')) {
-				return template;
-			}
-			var path = new Stack<string>();
-			path.Push(key);
-			return SelectForms(words, template, key, argument, path);
-		}
-		[return: Localized]
-		private static string SelectForms(IWords words, string template, string baseKey, Func<string, object?> argument, Stack<string> path) {
-			return rxSelector.Replace(template, match => {
-				if (!match.Groups[2].Success) {
-					return match.Value;
-				}
-				string key = match.Groups[2].Value;
-				if (key.StartsWith('.')) {
-					key = baseKey == "" ? key[1..] : baseKey + key;
-				}
-				if (path.Contains(key)) {
-					Logger.Warn($"WORDS:CIRC:`{key}` <- `{string.Join("` <- `", path)}`");
-					return "# ∞ #";
-				}
-				string language = words.Language;
-				string form = FormKey(words.Provider, language, key, Category(language, argument(match.Groups[1].Value)));
-				path.Push(key);
-				try {
-					return SelectForms(words, words[form], key, argument, path);
-				}
-				finally {
-					path.Pop();
-				}
-			});
-		}
-
 		//the form an argument picks: a count by CLDR's rule; null, a value not there yet,
 		//picks other quietly, and anything else picks other with a warning
 		private static string Category(string language, object? value) {
-			if (TryCount(value, out decimal count)) {
-				return PluralRules.Select(language, count);
+			if (TryCount(value, out decimal count, out bool fraction)) {
+				return fraction ? "other" : PluralRules.Select(language, count);
 			}
 			if (value is not null) {
 				Logger.Warn($"WORDS:COUNT:`{value}`");
 			}
 			return "other";
 		}
-		private static bool TryCount(object? value, out decimal count) {
+		//any number as a count. A floating-point fraction says so before a decimal could
+		//round it whole (1.0000001f); a whole number past decimal's range keeps the low
+		//digits a rule reads, as PluralRules.Select keeps them past 10^12
+		private static bool TryCount(object? value, out decimal count, out bool fraction) {
+			fraction = false;
 			switch (value) {
 				case sbyte or byte or short or ushort or int or uint or long or ulong or decimal:
 					count = Convert.ToDecimal(value, CultureInfo.InvariantCulture);
 					return true;
-				case double d when double.IsFinite(d) && Math.Abs(d) < 7.9e28:
-					count = (decimal)d;
+				case nint n:
+					count = n;
 					return true;
-				case float f when float.IsFinite(f) && Math.Abs(f) < 7.9e28f:
-					count = (decimal)f;
+				case nuint n:
+					count = n;
+					return true;
+				case Int128 n:
+					count = Whole(n);
+					return true;
+				case UInt128 n:
+					count = Whole(n);
+					return true;
+				case BigInteger n:
+					count = Whole(n);
+					return true;
+				case Half h:
+					return TryCount((double)h, out count, out fraction);
+				case float f:
+					return TryCount((double)f, out count, out fraction);
+				case double d when double.IsFinite(d):
+					fraction = d != Math.Truncate(d);
+					count = fraction ? 0 : Math.Abs(d) < 7.9e28 ? (decimal)d : (decimal)(Math.Abs(d) % 1e12) + 1_000_000_000_000m;
 					return true;
 				default:
 					count = 0;
 					return false;
+			}
+
+			static decimal Whole(BigInteger n) {
+				n = BigInteger.Abs(n);
+				return n <= (BigInteger)decimal.MaxValue ? (decimal)n : (decimal)(n % 1_000_000_000_000) + 1_000_000_000_000m;
 			}
 		}
 
@@ -457,30 +488,24 @@ namespace PatTech.Localization {
 			};
 		}
 
-		//by name, a value of the dictionary; by number, a positional argument, and the one
-		//past them nothing, as the dictionary's PreFormatByName slots it
-		private static Func<string, object?> Named(IReadOnlyDictionary<string, object?> values, object?[]? args) {
-			var positional = Positional(args);
-			int count = args?.Length ?? 0;
-			return name => {
-				if (char.IsDigit(name[0])) {
-					return int.TryParse(name, NumberStyles.None, CultureInfo.InvariantCulture, out int index) && index == count
-						? null
-						: positional(name);
-				}
-				if (values.TryGetValue(name, out var found)) {
-					return found;
-				}
-				Logger.Warn($"WORDS:FIELD:`{name}`");
-				return null;
-			};
-		}
-
-		//a public field or property by name; a null item has every member, as null
+		//a dictionary's value by name, else a public field or property; a null item has
+		//every member, as null. A dictionary answers with its values alone, so a
+		//{Count} reads the entry and never the dictionary's own Count
 		private static bool TryMember(object? item, string name, out object? found) {
 			found = null;
-			if (item is null) {
-				return true;
+			switch (item) {
+				case null:
+					return true;
+				case IReadOnlyDictionary<string, object?> values:
+					return values.TryGetValue(name, out found);
+				case IDictionary<string, object?> values:
+					return values.TryGetValue(name, out found);
+				case IDictionary values:
+					if (values.Contains(name)) {
+						found = values[name];
+						return true;
+					}
+					return false;
 			}
 			var type = item.GetType();
 			if (type.GetField(name) is FieldInfo field) {
@@ -531,7 +556,7 @@ namespace PatTech.Localization {
 		/// <param name="args">The values to format into the template.</param>
 		[return: Localized]
 		public static string Format(this IWords known, IFormatProvider? provider, string key, params object?[] args)
-			=> string.Format(provider, SelectForms(known, known[key], key, Positional(args)), args);
+			=> string.Format(provider, Template(known, key, key, new(known.Language, Positional(args))), args);
 
 		/// <inheritdoc cref="FormatByName(IWords, IFormatProvider?, string, object?, object?[])"/>
 		[return: Localized]
@@ -540,35 +565,21 @@ namespace PatTech.Localization {
 		/// <summary>
 		/// Looks up <paramref name="key"/> and formats it with named placeholders:
 		/// <c>{PropertyName}</c> tags are filled from public fields and properties of
-		/// <paramref name="value"/>, while numbered <c>{0}</c>-style tags still refer to
-		/// <paramref name="args"/>. See <see cref="PreFormatByName(string, object?, object?[])"/>
+		/// <paramref name="value"/>, or from its values by name when it is a dictionary
+		/// (for callers that assemble the names at runtime, such as an authoring tool
+		/// trying out sample parameters), while numbered <c>{0}</c>-style tags still refer
+		/// to <paramref name="args"/>. See <see cref="PreFormatByName(string, object?, object?[])"/>
 		/// for the placeholder rules. A plural selector names its count either way:
 		/// <c>{Count#word}</c> or <c>{0#word}</c>.
 		/// </summary>
 		/// <param name="known">The dictionary to read.</param>
 		/// <param name="provider">Culture-specific formatting, or <see langword="null"/> for the current culture.</param>
 		/// <param name="key">The key of the format template.</param>
-		/// <param name="value">The object whose members are read by name.</param>
+		/// <param name="value">The object whose members, or the dictionary whose values, are read by name; <see langword="null"/> fills every name with nothing.</param>
 		/// <param name="args">Additional positional arguments.</param>
 		[return: Localized]
 		public static string FormatByName(this IWords known, IFormatProvider? provider, string key, object? value, params object?[] args)
-			=> FormatByName(provider, SelectForms(known, known[key], key, Named(value, args)), value, args);
-		/// <summary>
-		/// <see cref="FormatByName(IWords, IFormatProvider?, string, object?, object?[])"/>
-		/// with the named values supplied by a dictionary instead of an object's members —
-		/// for callers that assemble them at runtime, such as an authoring tool trying out
-		/// sample parameters. A plural selector names its count either way.
-		/// </summary>
-		/// <param name="known">The dictionary to read.</param>
-		/// <param name="provider">Culture-specific formatting, or <see langword="null"/> for the current culture.</param>
-		/// <param name="key">The key of the format template.</param>
-		/// <param name="values">The named values, by the name the template uses.</param>
-		/// <param name="args">Additional positional arguments.</param>
-		[return: Localized]
-		public static string FormatByName(this IWords known, IFormatProvider? provider, string key, IReadOnlyDictionary<string, object?> values, params object?[] args) {
-			ArgumentNullException.ThrowIfNull(values);
-			return FormatByName(provider, SelectForms(known, known[key], key, Named(values, args)), values, args);
-		}
+			=> FormatByName(provider, Template(known, key, key, new(known.Language, Named(value, args))), value, args);
 
 		/// <summary>
 		/// Looks up <paramref name="key"/> and fills its placeholders from whatever
@@ -586,18 +597,15 @@ namespace PatTech.Localization {
 		[return: Localized]
 		public static string FormatParams(this IWords known, string key, object? @params, IFormatProvider? provider = null) {
 			ArgumentNullException.ThrowIfNull(known);
-			var template = known[key];
 			switch (@params) {
 				case null:
-					return template;
+					return known[key];
 				case object[] args:
-					return string.Format(provider, SelectForms(known, template, key, Positional(args)), args);
-				case Array array: {
-					var args = array.Cast<object?>().ToArray();
-					return string.Format(provider, SelectForms(known, template, key, Positional(args)), args);
-				}
+					return known.Format(provider, key, args);
+				case Array array:
+					return known.Format(provider, key, array.Cast<object?>().ToArray());
 				default:
-					return FormatByName(provider, SelectForms(known, template, key, Named(@params, null)), @params);
+					return known.FormatByName(provider, key, @params);
 			}
 		}
 
@@ -624,9 +632,8 @@ namespace PatTech.Localization {
 					logger.Warn("WORDS: ConverterParameter not specified.");
 					return $"#{Truncate(value?.ToString())}#";
 				case string key:
-					// typed: a bare null would pick the dictionary overload, which refuses it
 					return value is null
-						? known.FormatByName(provider, key, (object?)null)
+						? known.FormatByName(provider, key, null)
 						: known.FormatParams(key, value, provider);
 				default: {
 					var text = Truncate(parameter.ToString());
@@ -740,27 +747,10 @@ namespace PatTech.Localization {
 		/// </summary>
 		/// <param name="provider">Culture-specific formatting, or <see langword="null"/> for the current culture.</param>
 		/// <param name="template">The format template containing <c>{Name}</c> or <c>{Name:format}</c> tags.</param>
-		/// <param name="value">The object whose public fields and properties are read by name.</param>
+		/// <param name="value">The object whose public fields and properties, or the dictionary whose values, are read by name.</param>
 		/// <param name="args">Additional positional arguments, addressed by the template's numbered tags.</param>
 		public static string FormatByName(IFormatProvider? provider, string template, object? value, params object?[] args) {
 			var (formatString, formatArgs) = PreFormatByName(template, value, args);
-			return string.Format(provider, formatString, formatArgs);
-		}
-
-		/// <inheritdoc cref="FormatByName(IFormatProvider?, string, IReadOnlyDictionary{string, object?}, object?[])"/>
-		public static string FormatByName(string template, IReadOnlyDictionary<string, object?> values, params object?[] args)
-			=> FormatByName(provider: null, template, values, args);
-		/// <summary>
-		/// Formats a raw template string with named placeholders filled from a
-		/// dictionary, no dictionary lookup and no reflection involved.
-		/// See <see cref="PreFormatByName(string, IReadOnlyDictionary{string, object?}, object?[])"/>.
-		/// </summary>
-		/// <param name="provider">Culture-specific formatting, or <see langword="null"/> for the current culture.</param>
-		/// <param name="template">The format template containing <c>{Name}</c> or <c>{Name:format}</c> tags.</param>
-		/// <param name="values">The named values, by the name the template uses.</param>
-		/// <param name="args">Additional positional arguments, addressed by the template's numbered tags.</param>
-		public static string FormatByName(IFormatProvider? provider, string template, IReadOnlyDictionary<string, object?> values, params object?[] args) {
-			var (formatString, formatArgs) = PreFormatByName(template, values, args);
 			return string.Format(provider, formatString, formatArgs);
 		}
 	}

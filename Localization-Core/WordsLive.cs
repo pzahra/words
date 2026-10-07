@@ -74,6 +74,9 @@ namespace PatTech.Localization {
 			}
 		}
 
+		//whether watcher is registered, on any thread
+		internal static bool IsWatched(IKnowWords watcher) => watchers.TryGetValue(watcher, out _);
+
 		//Known was assigned in live mode: refresh a snapshot of the registry (a refresh
 		//may register new watchers), each watcher on the thread it registered on
 		private static void RefreshWatchers() {
