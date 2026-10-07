@@ -1,4 +1,6 @@
 using PatTech.Localization.Authoring;
+using PatTech.Localization.Authoring.Codecs;
+using System.Text;
 using Xunit;
 
 namespace PatTech.Localization.Tests;
@@ -120,6 +122,104 @@ value-fr=Ouvrir
 		finally {
 			Directory.Delete(folder, recursive: true);
 		}
+	}
+
+	[Theory]
+	[InlineData("utf-8")]
+	[InlineData("utf-8 BOM")]
+	[InlineData("utf-16")]
+	[InlineData("utf-16BE")]
+	[InlineData("utf-32")]
+	public void Save_KeepsTheFilesEncoding_BomAndAll(string name) {
+		Encoding encoding = name switch {
+			"utf-8" => new UTF8Encoding(false),
+			"utf-8 BOM" => new UTF8Encoding(true),
+			"utf-16" => new UnicodeEncoding(bigEndian: false, byteOrderMark: true),
+			"utf-16BE" => new UnicodeEncoding(bigEndian: true, byteOrderMark: true),
+			_ => new UTF32Encoding(bigEndian: false, byteOrderMark: true),
+		};
+		string folder = Path.Combine(Path.GetTempPath(), $"WordsSessionEncoding-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		try {
+			string path = Path.Combine(folder, "Main.ini");
+			byte[] bytes = [.. encoding.GetPreamble(), .. encoding.GetBytes(Main)];
+			File.WriteAllBytes(path, bytes);
+			var session = new WordsSession();
+			WordsFile file = session.Load(path);
+
+			session.Save(file, KeyTree.Build(session, file));
+
+			Assert.Equal(bytes, File.ReadAllBytes(path));
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
+	public void Save_RefusesTextItsEncodingCannotHold_AndLeavesTheFile() {
+		// a lone surrogate has no UTF-8: the encoder throws rather than write a
+		// replacement character, and the file on disk stays as it was
+		string folder = Path.Combine(Path.GetTempPath(), $"WordsSessionEncoding-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		try {
+			string path = Path.Combine(folder, "Main.ini");
+			File.WriteAllText(path, Main);
+			var session = new WordsSession();
+			WordsFile file = session.Load(path);
+			session.Keys["Main.greeting"].DefaultValue = "Hello \uD83D";
+
+			Assert.Throws<EncoderFallbackException>(() => session.Save(file, KeyTree.Build(session, file)));
+
+			Assert.Equal(Main, File.ReadAllText(path));
+			Assert.Empty(Directory.GetFiles(folder, "*.tmp"));
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
+	public void Import_OfAnIniIsLoadingIt_LineBreakAndEncodingKept() {
+		// the line break the system doesn't use, and a BOM: both come back on Save
+		string newLine = Environment.NewLine == "\n" ? "\r\n" : "\n";
+		string folder = Path.Combine(Path.GetTempPath(), $"WordsSessionImport-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		try {
+			string path = Path.Combine(folder, "Main.ini");
+			var encoding = new UTF8Encoding(true);
+			byte[] bytes = [.. encoding.GetPreamble(), .. encoding.GetBytes(Main.ReplaceLineEndings(newLine))];
+			File.WriteAllBytes(path, bytes);
+			var session = new WordsSession();
+
+			WordsFile file = session.Import(new IniCodec(), [path]);
+			session.Save(file, KeyTree.Build(session, file));
+
+			Assert.Equal(newLine, file.NewLine);
+			Assert.Equal(bytes, File.ReadAllBytes(path));
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
+	public void Load_CopiesTheDocumentsKeys_SoItLoadsTwiceIntact() {
+		// the store's keys are its own: loading one document as two files gives
+		// each its keys, and leaves the document as it was read
+		var loaded = new WordsParserToLocalizationProvider();
+		new WordsParser(loaded).Load(new StringReader(Main));
+		var session = new WordsSession();
+
+		WordsFile one = session.Load(loaded, "One.ini");
+		WordsFile two = session.Load(loaded, "Two.ini");
+		session.Keys["One.greeting"].DefaultValue = "Hi";
+
+		Assert.Equal(3, session.KeysOf(one).Count());
+		Assert.Equal(3, session.KeysOf(two).Count());
+		Assert.Equal("Hello", session.Keys["Two.greeting"].DefaultValue);
+		Assert.Equal("greeting", loaded.WordKeys["greeting"].BlockKey);
+		Assert.Equal("Hello", loaded.WordKeys["greeting"].DefaultValue);
 	}
 
 	[Fact]
@@ -481,6 +581,32 @@ value-fr=Bonjour
 			Assert.Equal("Ouvrir", session.Keys["Back.menu.file.open"].Entries["fr"].Value);
 			Assert.Equal("en", merged.DefaultLanguage);
 			Assert.DoesNotContain('\r', File.ReadAllText(Path.Combine(folder, "Back.ini")));
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
+	public void MergeAndSplit_RefuseATreeMissingSomeOfTheFilesKeys() {
+		// as Save does: the writer walks the tree, so a short one would write a
+		// file with fewer keys, over an existing one
+		string folder = Path.Combine(Path.GetTempPath(), $"WordsSessionCover-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		try {
+			var session = new WordsSession();
+			WordsFile source = session.Load(new StringReader(Main), Path.Combine(folder, "Main.ini"));
+			WordsFile french = session.Load(new StringReader("value-fr=Français\n\n[greeting]\nvalue-fr=Salut\n"), Path.Combine(folder, "French.ini"));
+			var partial = KeyTree.Build(source.Label, session.KeysOf(source).Take(1), source.BlockComments);
+			string merged = Path.Combine(folder, "Merged.ini"), split = Path.Combine(folder, "Split.ini");
+			File.WriteAllText(merged, "ORIGINAL");
+
+			Assert.Throws<InvalidOperationException>(() => session.Merge(source, new Dictionary<string, WordsFile> { ["fr"] = french }, partial, merged, out _));
+			Assert.Throws<InvalidOperationException>(() => session.Split(source, "fr", partial, split));
+
+			Assert.Equal("ORIGINAL", File.ReadAllText(merged));
+			Assert.False(File.Exists(split));
+			Assert.Equal(2, session.Files.Count);
 		}
 		finally {
 			Directory.Delete(folder, recursive: true);

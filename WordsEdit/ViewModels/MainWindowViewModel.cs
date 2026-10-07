@@ -197,8 +197,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	public void LoadFile(string fileName) {
 		try {
-			using var reader = File.OpenText(fileName);
-			LoadFile(reader, fileName);
+			Tree.Present(Session.Load(fileName));
 		}
 		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
 			Dialogs.Tell(Words.Known.Format("file.load-failed", fileName, ex.Message));
@@ -299,7 +298,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			try {
 				Session.Save(file, Tree.NodeOf(file));
 			}
-			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.EncoderFallbackException) {
 				Dialogs.Tell(Words.Known.Format("file.save-failed", file.Path, ex.Message));
 				allSaved = false;
 			}

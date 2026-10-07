@@ -66,11 +66,19 @@ namespace PatTech.Localization.Authoring {
 		///     file read without one, or imported.
 		/// </summary>
 		public string NewLine { get; }
+		/// <summary>
+		///     The encoding the file was read in, BOM and all, which saving keeps
+		///     like <see cref="NewLine"/>: UTF-8, -16 or -32 by its BOM, UTF-8
+		///     without one. Text it can't encode makes Save throw
+		///     <see cref="System.Text.EncoderFallbackException"/>.
+		/// </summary>
+		public System.Text.Encoding Encoding { get; }
 
-		internal WordsFile(string path, string label, ILoadedWords loaded, string newLine) {
+		internal WordsFile(string path, string label, ILoadedWords loaded, string newLine, System.Text.Encoding encoding) {
 			Path = path;
 			Label = label;
 			NewLine = newLine;
+			Encoding = encoding;
 			Preamble = loaded.Preamble;
 			Trailer = loaded.Trailer;
 			Languages = [.. loaded.DeclaredLanguages];

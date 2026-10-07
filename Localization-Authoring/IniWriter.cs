@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace PatTech.Localization.Authoring {
@@ -105,23 +106,36 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>A strategy that never cuts: only parent→child chains compress.</summary>
 		public static ICutStrategy NeverCuts { get; } = new ChainOnly();
 
-		/// <summary>Writes a file atomically, with <paramref name="newLine"/> for its line breaks, or the system's.</summary>
-		public static void WriteFile(IKeyTreeNode fileNode, string fileName, IReadOnlyDictionary<string, WordsKey> allKeys, IReadOnlyCollection<LanguageEntry> languages, ICutStrategy? cutStrategy = null, string preamble = "", string trailer = "", string settings = "", IReadOnlyDictionary<string, string>? languageSettings = null, string? newLine = null, string? defaultLanguage = null)
+		//a StreamWriter's own default: no BOM, and text it can't encode throws
+		internal static readonly Encoding Utf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
+		/// <summary>
+		///     Writes a file atomically, with <paramref name="newLine"/> for its line
+		///     breaks, or the system's, in <paramref name="encoding"/>, or UTF-8
+		///     without a BOM.
+		/// </summary>
+		public static void WriteFile(IKeyTreeNode fileNode, string fileName, IReadOnlyDictionary<string, WordsKey> allKeys, IReadOnlyCollection<LanguageEntry> languages, ICutStrategy? cutStrategy = null, string preamble = "", string trailer = "", string settings = "", IReadOnlyDictionary<string, string>? languageSettings = null, string? newLine = null, string? defaultLanguage = null, Encoding? encoding = null)
 			=> WriteAtomic(fileName, stream => {
 				stream.NewLine = newLine ?? stream.NewLine;
 				WriteFile(fileNode, stream, allKeys, languages, cutStrategy, preamble, trailer, settings, languageSettings, defaultLanguage);
-			});
+			}, encoding);
 
 		/// <summary>
 		///     Runs <paramref name="write"/> against a temp sibling of
 		///     <paramref name="fileName"/>, then atomically replaces the destination
 		///     — so a failure partway leaves the original file untouched.
 		/// </summary>
-		public static void WriteAtomic(string fileName, Action<TextWriter> write) {
+		/// <param name="encoding">
+		///     The file's encoding, BOM and all; UTF-8 without a BOM when
+		///     <see langword="null"/>. Text it can't encode, such as a lone
+		///     surrogate, throws <see cref="EncoderFallbackException"/> and leaves
+		///     the original alone.
+		/// </param>
+		public static void WriteAtomic(string fileName, Action<TextWriter> write, Encoding? encoding = null) {
 			string full = Path.GetFullPath(fileName);
 			string temp = Path.Combine(Path.GetDirectoryName(full) ?? ".", $".{Path.GetFileName(full)}.{Guid.NewGuid():N}.tmp");
 			try {
-				using (var stream = new StreamWriter(temp)) {
+				using (var stream = new StreamWriter(temp, append: false, encoding ?? Utf8)) {
 					write(stream);
 				}
 				File.Move(temp, full, overwrite: true);
@@ -229,15 +243,77 @@ namespace PatTech.Localization.Authoring {
 
 		public void WritePair(string key, string value) {
 			value = value.Replace("\\", "\\\\");
-			value = Regex.Replace(value, @"\r\n?|\n\r?", "\\" + writer.NewLine);
+			value = Regex.Replace(value, @"\r\n|\r|\n", "\\" + writer.NewLine);
 			value = Regex.Replace(value, @"['_]", m => string.Concat(m.ValueSpan, m.ValueSpan));
-			value = Regex.Replace(value, @"(.{80}(?=.{40})\S*)(?<![\\'])(?=\W+\w)", "$1_" + writer.NewLine);
+			value = Fold(value, writer.NewLine);
 			writer.Write(key);
 			writer.Write('=');
 			if (Regex.IsMatch(value, @"^\s")) {
 				writer.WriteLine('_');
 			}
 			writer.WriteLine(value);
+		}
+
+		private static readonly Regex rxWord = new(@"\w+"), rxSpace = new(@"\s+");
+
+		/// <summary>
+		///     Folds an escaped value's long lines with a <c>_</c> continuation:
+		///     from a point with 120 or more characters left on its line, at the
+		///     last break the run of non-space reaching its 80th character offers —
+		///     before non-word characters that a word follows, never after a
+		///     <c>\</c> or <c>'</c> (half an escape) or between a surrogate pair —
+		///     then on from the fold, or from the next character when there's none.
+		/// </summary>
+		/// <remarks>
+		///     The regex <c>(.{80}(?=.{40})\S*)(?&lt;![\\'\uD800-\uDBFF])(?=\W+\w)</c>
+		///     replaced with <c>$1_</c> and a line break, in one forward scan: the
+		///     regex backtracks through the rest of a value with no break to fold
+		///     at, so a long URL or base64 run took seconds.
+		/// </remarks>
+		internal static string Fold(string value, string newLine) {
+			int n = value.Length;
+			if (n < 120) {
+				return value;
+			}
+			// the regex engine's own \w and \s, so the classes match it exactly
+			var word = new bool[n];
+			foreach (var match in rxWord.EnumerateMatches(value)) {
+				word.AsSpan(match.Index, match.Length).Fill(true);
+			}
+			var space = new bool[n];
+			foreach (var match in rxSpace.EnumerateMatches(value)) {
+				space.AsSpan(match.Index, match.Length).Fill(true);
+			}
+			// right to left: the next line break, word character and space at or after each index
+			var nextBreak = new int[n + 1];
+			var nextWord = new int[n + 1];
+			var runEnd = new int[n + 1];
+			nextBreak[n] = nextWord[n] = runEnd[n] = n;
+			for (int i = n - 1; i >= 0; i--) {
+				nextBreak[i] = value[i] == '\n' ? i : nextBreak[i + 1];
+				nextWord[i] = word[i] ? i : nextWord[i + 1];
+				runEnd[i] = space[i] ? i : runEnd[i + 1];
+			}
+			// left to right: the last fold point at or before each index
+			var lastPoint = new int[n + 1];
+			lastPoint[0] = -1;
+			for (int i = 1; i <= n; i++) {
+				bool point = i < n && !word[i] && nextWord[i] < n
+					&& value[i - 1] is not ('\\' or '\'') && !char.IsHighSurrogate(value[i - 1]);
+				lastPoint[i] = point ? i : lastPoint[i - 1];
+			}
+			StringBuilder? folded = null;
+			int written = 0;
+			for (int from = 0; from + 120 <= n;) {
+				int fold = nextBreak[from] >= from + 120 ? lastPoint[runEnd[from + 80]] : -1;
+				if (fold < from + 80) {
+					from++;
+					continue;
+				}
+				(folded ??= new(n + 16)).Append(value, written, fold - written).Append('_').Append(newLine);
+				written = from = fold;
+			}
+			return folded is null ? value : folded.Append(value, written, n - written).ToString();
 		}
 
 		public void WriteLine() => writer.WriteLine();

@@ -1,5 +1,8 @@
 using PatTech.Localization;
 using PatTech.Localization.Authoring;
+using System.Diagnostics;
+using System.Text;
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace PatTech.Localization.Tests;
@@ -497,6 +500,91 @@ public class IniWriterTests {
 
 		Assert.Contains(";don't double me", ini);
 		Assert.DoesNotContain("don''t double me", ini);
+	}
+
+	private static string WrittenPair(string value, string newLine = "\n") {
+		var output = new StringWriter { NewLine = newLine };
+		using var writer = new IniWriter(output);
+		writer.WritePair("k", value);
+		return output.ToString();
+	}
+
+	//the fold regex the forward scan replaces, with the surrogate guard it lacked
+	private const string FoldRegex = @"(.{80}(?=.{40})\S*)(?<![\\'\uD800-\uDBFF])(?=\W+\w)";
+
+	//WritePair as it was, folding with fold
+	private static string WrittenByRegex(string value, string newLine, string fold = FoldRegex) {
+		value = value.Replace("\\", "\\\\");
+		value = Regex.Replace(value, @"\r\n|\r|\n", "\\" + newLine);
+		value = Regex.Replace(value, @"['_]", m => m.Value + m.Value);
+		value = Regex.Replace(value, fold, "$1_" + newLine);
+		return "k=" + (Regex.IsMatch(value, @"^\s") ? "_" + newLine : "") + value + newLine;
+	}
+
+	[Fact]
+	public void IniWriter_FoldMatchesTheRegexItReplaced() {
+		// random values, mostly word characters, some spaceless (the regex's slow
+		// case), with every character the fold weighs: escapes, both halves of an
+		// emoji and a CJK Ext-B character, a no-break space, each line break
+		string[] marks = ["_", ".", "-", "\\", "'", "😀", "𠀀", "é", "7", " ", "\t"];
+		string[] breaks = ["\n", "\r\n", "\r"];
+		var random = new Random(20261007);
+		int folded = 0, guarded = 0;
+		for (int i = 0; i < 4000; i++) {
+			double spaces = random.Next(3) * 0.06, marked = random.Next(4) * 0.05, broken = random.Next(2) * 0.004;
+			var value = new StringBuilder();
+			for (int length = random.Next(400); value.Length < length;) {
+				double roll = random.NextDouble();
+				value.Append(roll < spaces ? " "
+					: roll < spaces + marked ? marks[random.Next(marks.Length)]
+					: roll < spaces + marked + broken ? breaks[random.Next(breaks.Length)]
+					: ((char)('a' + random.Next(26))).ToString());
+			}
+			string newLine = i % 2 == 0 ? "\n" : "\r\n";
+
+			string expected = WrittenByRegex(value.ToString(), newLine);
+			string written = WrittenPair(value.ToString(), newLine);
+
+			Assert.True(expected == written, $"value {i}: {value}");
+			folded += expected != WrittenByRegex(value.ToString(), newLine, fold: "(?!)") ? 1 : 0;
+			guarded += expected != WrittenByRegex(value.ToString(), newLine, fold: FoldRegex.Replace(@"\uD800-\uDBFF", "")) ? 1 : 0;
+		}
+		//the cases worth the fuzz came up: plenty of folds, and a few between halves
+		Assert.True(folded > 1000, $"{folded} folded");
+		Assert.True(guarded > 0, $"{guarded} guarded");
+	}
+
+	[Fact]
+	public void IniWriter_FoldNeverSplitsASurrogatePair() {
+		// an emoji at column 80, with 40 more to go: the regex folded between its
+		// halves, and a strict UTF-8 encoder (Save's) threw on the stranded one
+		var value = new string('a', 80) + "😀" + new string('b', 39);
+
+		string written = WrittenPair(value);
+
+		Assert.Contains("😀", written);
+		new UTF8Encoding(false, throwOnInvalidBytes: true).GetBytes(written); //throws on a stranded half
+		var tree = new FakeNode("F", new FakeNode("F.k"));
+		Assert.Equal(value, Reload(Write(tree, new() { ["F.k"] = new WordsKey("F.k") { DefaultValue = value } }))["k"].DefaultValue);
+	}
+
+	[Fact]
+	public void IniWriter_FoldsALongUnbrokenRunInOnePass() {
+		// a base64 image or a long URL: no fold point anywhere sent the regex back
+		// through the rest of the value from every character, seconds at 15,000
+		var run = new string('x', 300_000);
+		var clock = Stopwatch.StartNew();
+
+		string written = WrittenPair(run + " end");
+
+		Assert.True(clock.Elapsed < TimeSpan.FromSeconds(5), $"took {clock.Elapsed}");
+		Assert.Equal($"k={run}_\n end\n", written); //the one break there is
+	}
+
+	[Fact]
+	public void IniWriter_ALineFeedThenACarriageReturnAreTwoBreaks() {
+		Assert.Equal("k=a\\\n\\\nb\n", WrittenPair("a\n\rb"));
+		Assert.Equal("k=a\\\nb\n", WrittenPair("a\r\nb"));
 	}
 
 	[Fact]

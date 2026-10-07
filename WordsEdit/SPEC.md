@@ -98,8 +98,12 @@ key (last wins, a repeated `value=` also warns); and the languageless
 `stale=`, kept as a review flag with no stored text. A bare `[group]` header
 reloads as an empty key (below).
 
-Canonicalized by the writer (`IniWriter`): line wrapping (a value line of
-120 characters or more folds at a word break past 80, while 40 or more remain),
+Canonicalized by the writer (`IniWriter`): line wrapping (from any point with
+120 or more characters left on its value line, the writer folds at the last
+word break the run of non-space through its 80th character offers — before
+non-word characters a word follows, never after a `\` or `'` or inside a
+surrogate pair — and goes on from the fold, or from the next character when
+the run offers none; one forward scan, so a long URL costs what a sentence does),
 escaping (`__`, `''`, leading-whitespace `_` marker), newline continuations,
 field order (a plural form follows its plain value, the forms in CLDR's order:
 zero, one, two, few, many, other), and block headers — a block extending the
@@ -352,10 +356,14 @@ for reference — and loaded, ready to be worked on separately and merged back.
 Save rewrites every loaded file through `WordsSession.Save` — `IniWriter.WriteFile`
 with the file's own language table, preamble and settings references, in the
 order its tree node walks — and with its own line break, `\n` or `\r\n`, the
-first one it was read with (the system's for an imported file), so a file
-round-trips byte for byte whichever its checkout gave it; merge and split write
-with their source's. A file that cannot be written is reported and the
-others still save. The editor tracks dirtiness; the window title names the
+first one it was read with (the system's for an imported file), and its own
+encoding: UTF-8, UTF-16 or UTF-32 by its BOM, BOM kept, and UTF-8 without one
+when it had none (or was imported). So a file round-trips byte for byte
+whichever its checkout or editor gave it; merge and split write with their
+source's. The encoder refuses what it can't encode, such as a lone surrogate,
+rather than writing a replacement character. A file that cannot be written,
+for either reason, is reported, left as it was on disk, and the others still
+save. Merge and split check the tree covers the file's keys, as Save does. The editor tracks dirtiness; the window title names the
 loaded files and stars while dirty, and closing with unsaved changes prompts.
 Reset returns to the empty session (one default `en` language).
 
@@ -428,9 +436,12 @@ loader and the main view model.
 `LoadedWords` is for filling by hand — so an importer produces that surface and
 flows through the exact pipeline the ini loader does: label disambiguation
 (`strings`, `strings-2`), empty-key dropping, language backfill,
-reload-in-place. `WordsSession.Import` is `Read` then `Load` at the native path
+reload-in-place. The store takes copies of the document's keys, so the
+caller's document stays as read and loading it twice gives two files their
+own. `WordsSession.Import` is `Read` then `Load` at the native path
 the importer names: the pick with the ini extension for a one-file format, the
 stem's — `Strings.ini` beside `Strings.*.resx` — for one file per culture.
+Importing an ini is loading it, line break and encoding kept.
 Importers inherit the whole of loading for free, and are tested the same way.
 On the way out, an `ExportSource` — the file, its tree and the session, refused
 on the same terms as Save — is what `Plan` and `Write` take: its keys in tree

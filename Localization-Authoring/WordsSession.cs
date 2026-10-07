@@ -1,3 +1,6 @@
+using PatTech.Localization.Authoring.Codecs;
+using System.Text;
+
 namespace PatTech.Localization.Authoring {
 	/// <summary>
 	///     The document an authoring session holds: every loaded file
@@ -45,25 +48,47 @@ namespace PatTech.Localization.Authoring {
 			return FileOf(dot < 0 ? blockKey : blockKey[..dot]);
 		}
 
-		/// <summary>Reads and <see cref="Load(TextReader, string)">loads</see> the file at <paramref name="path"/>. I/O failures propagate.</summary>
-		public WordsFile Load(string path) {
-			using var reader = File.OpenText(path);
-			return Load(reader, path);
+		/// <summary>
+		///     Reads and <see cref="Load(TextReader, string, Encoding?)">loads</see> the
+		///     file at <paramref name="path"/>, keeping its line break and encoding for
+		///     Save. I/O failures propagate.
+		/// </summary>
+		public WordsFile Load(string path) => Load(path, path);
+
+		//reads source and loads it as path; a StreamReader decodes it as File.OpenText
+		//does, and the BOM it went by is the one Save writes back
+		private WordsFile Load(string source, string path) {
+			byte[] bytes = File.ReadAllBytes(source);
+			using var reader = new StreamReader(new MemoryStream(bytes));
+			return Load(reader, path, EncodingOf(bytes));
 		}
 
+		//a StreamReader's BOMs (UTF-32 LE first: its BOM starts with UTF-16 LE's),
+		//else UTF-8 without one; each throws on text it can't encode, where a
+		//replacement character would quietly lose a word
+		internal static Encoding EncodingOf(ReadOnlySpan<byte> bytes) => bytes switch {
+			[0xFF, 0xFE, 0, 0, ..] => new UTF32Encoding(bigEndian: false, byteOrderMark: true, throwOnInvalidCharacters: true),
+			[0, 0, 0xFE, 0xFF, ..] => new UTF32Encoding(bigEndian: true, byteOrderMark: true, throwOnInvalidCharacters: true),
+			[0xEF, 0xBB, 0xBF, ..] => new UTF8Encoding(encoderShouldEmitUTF8Identifier: true, throwOnInvalidBytes: true),
+			[0xFF, 0xFE, ..] => new UnicodeEncoding(bigEndian: false, byteOrderMark: true, throwOnInvalidBytes: true),
+			[0xFE, 0xFF, ..] => new UnicodeEncoding(bigEndian: true, byteOrderMark: true, throwOnInvalidBytes: true),
+			_ => IniWriter.Utf8,
+		};
+
 		/// <summary>
-		///     Loads one ini file: the parser reads it and <see cref="Load(ILoadedWords, string, string?)"/>
+		///     Loads one ini file: the parser reads it and <see cref="Load(ILoadedWords, string, string?, Encoding?)"/>
 		///     takes it from there. Bad content never throws; the parser's gripes land
 		///     in <see cref="WordsFile.Errors"/>.
 		/// </summary>
 		/// <param name="reader">The file's text.</param>
 		/// <param name="path">Where it came from — the file's identity and its save target.</param>
-		public WordsFile Load(TextReader reader, string path) {
+		/// <param name="encoding">The encoding Save writes it in; <see langword="null"/> for UTF-8 without a BOM.</param>
+		public WordsFile Load(TextReader reader, string path, Encoding? encoding = null) {
 			//read whole first: the parser's lines lose their breaks, and saving keeps the file's
 			string text = reader.ReadToEnd();
 			var loaded = new WordsParserToLocalizationProvider();
 			new WordsParser(loaded).Load(new StringReader(text));
-			return Load(loaded, path, NewLineOf(text));
+			return Load(loaded, path, NewLineOf(text), encoding);
 		}
 
 		//the first line break decides; a file with none takes the system's
@@ -78,12 +103,15 @@ namespace PatTech.Localization.Authoring {
 		///     of it — and the result loads as a native file, the one the importer
 		///     <see cref="IWordsImporter.NativePath">names</see>, so Save writes ini and
 		///     the foreign files are never written back. Through the ini importer this
-		///     is <see cref="Load(string)"/>.
+		///     is <see cref="Load(string)"/>, line break and encoding kept.
 		/// </summary>
 		/// <exception cref="ArgumentException">No paths.</exception>
 		public WordsFile Import(IWordsImporter importer, IReadOnlyList<string> paths, FormatOptions? options = null) {
 			if (paths.Count == 0) {
 				throw new ArgumentException("nothing to import", nameof(paths));
+			}
+			if (importer is IniCodec && paths.Count == 1) {
+				return Load(paths[0], importer.NativePath(paths));
 			}
 			return Load(importer.Read(paths, options), importer.NativePath(paths));
 		}
@@ -101,17 +129,20 @@ namespace PatTech.Localization.Authoring {
 		/// <param name="loaded">The file, read into the document surface.</param>
 		/// <param name="path">Where it came from — the file's identity and its save target.</param>
 		/// <param name="newLine">The line break the file was written with, which saving keeps; <see langword="null"/> for the system's.</param>
-		public WordsFile Load(ILoadedWords loaded, string path, string? newLine = null) {
+		/// <param name="encoding">The encoding the file was written in, which saving keeps; <see langword="null"/> for UTF-8 without a BOM.</param>
+		public WordsFile Load(ILoadedWords loaded, string path, string? newLine = null, Encoding? encoding = null) {
 			WordsFile? previous = FileAt(path);
 			int position = previous is null ? files.Count : files.IndexOf(previous);
 			string label = previous?.Label ?? UniqueLabel(System.IO.Path.GetFileNameWithoutExtension(path));
 			if (previous is not null) {
 				Unload(previous, prune: false);
 			}
-			var file = new WordsFile(path, label, loaded, newLine ?? Environment.NewLine);
+			var file = new WordsFile(path, label, loaded, newLine ?? Environment.NewLine, encoding ?? IniWriter.Utf8);
 			files.Insert(position, file);
-			foreach (WordsKey key in loaded.WordKeys.Values) {
-				key.BlockKey = $"{label}.{key.BlockKey}";
+			foreach (WordsKey read in loaded.WordKeys.Values) {
+				//a copy: the caller's document stays as read, so loading it twice
+				//gives each file keys of its own
+				var key = new WordsKey(read) { BlockKey = $"{label}.{read.BlockKey}" };
 				if (!key.IsEmpty()) {
 					keys.Add(key.BlockKey, key);
 				}
@@ -167,13 +198,15 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>
 		///     Writes <paramref name="file"/> to its <see cref="WordsFile.Path"/>:
 		///     its own language table, preamble and settings references, and its
-		///     keys in the order <paramref name="tree"/> walks them. Atomic — a
-		///     failure leaves the file on disk untouched. I/O failures propagate.
+		///     keys in the order <paramref name="tree"/> walks them, in its line break
+		///     and encoding. Atomic — a failure leaves the file on disk untouched. I/O
+		///     failures propagate, and so does <see cref="EncoderFallbackException"/>
+		///     for text the encoding can't hold, such as a lone surrogate.
 		/// </summary>
 		/// <param name="file">The file to write.</param>
 		/// <param name="tree">The file's node: the walk decides block order, comments write themselves in place.</param>
 		public void Save(WordsFile file, IKeyTreeNode tree)
-			=> IniWriter.WriteAtomic(file.Path, writer => Save(file, tree, writer));
+			=> IniWriter.WriteAtomic(file.Path, writer => Save(file, tree, writer), file.Encoding);
 
 		/// <summary>
 		///     <see cref="Save(WordsFile, IKeyTreeNode)"/> to a writer instead of the
@@ -292,7 +325,10 @@ namespace PatTech.Localization.Authoring {
 		/// <param name="baseTree">The base file's node; the merged file keeps its shape and comments.</param>
 		/// <param name="outPath">Where the merged file is written (and loaded from).</param>
 		/// <param name="conflicts">Key suffixes the involved files disagree on.</param>
+		/// <exception cref="InvalidOperationException"><paramref name="baseTree"/> does not cover exactly the base file's keys.</exception>
 		public WordsFile? Merge(WordsFile baseFile, IReadOnlyDictionary<string, WordsFile> languageSources, IKeyTreeNode baseTree, string outPath, out HashSet<string> conflicts) {
+			//the writer walks the tree, so one that misses a key would merge without it
+			EnsureTreeCovers(baseFile, baseTree);
 			string outLabel = UniqueLabel(System.IO.Path.GetFileNameWithoutExtension(outPath));
 			var sources = languageSources.ToDictionary(pair => pair.Key, pair => pair.Value.Label);
 			var merged = WordsOperations.Merge(keys, baseFile.Label, sources, outLabel, out conflicts);
@@ -305,7 +341,7 @@ namespace PatTech.Localization.Authoring {
 				.Select(Languages.Find)
 				.OfType<LanguageEntry>()];
 			IniWriter.WriteFile(KeyTree.Relabel(baseTree, outLabel), outPath, merged, languages,
-				preamble: baseFile.Preamble, settings: baseFile.Settings, languageSettings: baseFile.LanguageSettings, newLine: baseFile.NewLine, defaultLanguage: baseFile.DefaultLanguage);
+				preamble: baseFile.Preamble, settings: baseFile.Settings, languageSettings: baseFile.LanguageSettings, newLine: baseFile.NewLine, defaultLanguage: baseFile.DefaultLanguage, encoding: baseFile.Encoding);
 			return Load(outPath);
 		}
 
@@ -316,12 +352,14 @@ namespace PatTech.Localization.Authoring {
 		///     one language declared, the source's shape, preamble, default's language and settings
 		///     references — and loads it. Exactly what <see cref="Merge"/> consumes back.
 		/// </summary>
+		/// <exception cref="InvalidOperationException"><paramref name="sourceTree"/> does not cover exactly the source's keys.</exception>
 		public WordsFile Split(WordsFile source, string languageCode, IKeyTreeNode sourceTree, string outPath) {
+			EnsureTreeCovers(source, sourceTree);
 			string outLabel = UniqueLabel(System.IO.Path.GetFileNameWithoutExtension(outPath));
 			var split = WordsOperations.Split(keys, source.Label, languageCode, outLabel);
 			List<LanguageEntry> languages = Languages.Find(languageCode) is { } language ? [language] : [];
 			IniWriter.WriteFile(KeyTree.Relabel(sourceTree, outLabel), outPath, split, languages,
-				preamble: source.Preamble, settings: source.Settings, languageSettings: source.LanguageSettings, newLine: source.NewLine, defaultLanguage: source.DefaultLanguage);
+				preamble: source.Preamble, settings: source.Settings, languageSettings: source.LanguageSettings, newLine: source.NewLine, defaultLanguage: source.DefaultLanguage, encoding: source.Encoding);
 			return Load(outPath);
 		}
 

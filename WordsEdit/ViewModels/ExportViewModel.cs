@@ -122,7 +122,7 @@ public class ExportViewModel : DialogViewModel {
 				//each file atomic: a failure partway leaves what was there
 				IniWriter.WriteAtomic(row.Path, writer => Format.Format.Write(source, row.Unit, writer, gripes));
 			}
-			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.EncoderFallbackException) {
 				Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", row.Path, ex.Message));
 				Replan(); //the files written so far now exist
 				return;

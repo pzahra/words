@@ -179,7 +179,7 @@ public class MergeControlViewModel : DialogViewModel {
 			//trip SPEC guarantees, not the session union
 			merged = Parent.Session.Merge(baseFile.File, Sources, baseFile.Node, mergedFileName, out _);
 		}
-		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.EncoderFallbackException) {
 			Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", mergedFileName, ex.Message));
 			return;
 		}
@@ -205,7 +205,7 @@ public class MergeControlViewModel : DialogViewModel {
 			//shape, preamble and settings references: what Merge takes back
 			split = Parent.Session.Split(file.File, language.Code, file.Node, splitFileName);
 		}
-		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.EncoderFallbackException) {
 			Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", splitFileName, ex.Message));
 			return;
 		}

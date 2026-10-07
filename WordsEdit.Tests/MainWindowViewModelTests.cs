@@ -440,6 +440,36 @@ value=w
 	}
 
 	[Fact]
+	public void MainWindowViewModel_SaveTellsWhatTheEncodingCannotHold_AndSavesTheOtherFiles() {
+		// a lone surrogate has no UTF-8: that file is told about and left as it
+		// was, the next one still saves, and the window stays dirty
+		var path = Path.Combine(Path.GetTempPath(), $"WordsEditSaveEncoding-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(path);
+		string bad = Path.Combine(path, "Bad.ini"), good = Path.Combine(path, "Good.ini");
+		try {
+			File.WriteAllText(bad, "value-en=English\n\n[k]\nvalue=x\n");
+			File.WriteAllText(good, "value-en=English\n\n[k]\nvalue=y\n");
+			var dialogs = new FakeDialogs();
+			var vm = new MainWindowViewModel(dialogs);
+			vm.LoadFile(bad);
+			vm.LoadFile(good);
+			vm.Session.Keys["Bad.k"].DefaultValue = "broken \uD83D";
+			vm.Session.Keys["Good.k"].DefaultValue = "fine";
+			vm.IsDirty = true;
+
+			vm.Save();
+
+			Assert.Contains(bad, Assert.Single(dialogs.Notices));
+			Assert.Equal("value-en=English\n\n[k]\nvalue=x\n", File.ReadAllText(bad));
+			Assert.Contains("value=fine", File.ReadAllText(good));
+			Assert.True(vm.IsDirty);
+		}
+		finally {
+			Directory.Delete(path, recursive: true);
+		}
+	}
+
+	[Fact]
 	public void MainWindowViewModel_ReloadReplacesTheNodeInPlace() {
 		var path = Path.Combine(Path.GetTempPath(), $"WordsEditReload-{Guid.NewGuid():N}");
 		Directory.CreateDirectory(path);
