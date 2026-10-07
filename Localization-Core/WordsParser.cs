@@ -39,8 +39,9 @@ namespace PatTech.Localization {
 		/// </summary>
 		public readonly string FieldType;
 		/// <summary>
-		/// The normalized language suffix, e.g. <c>"en"</c> or <c>"en-GB"</c>;
-		/// the empty string means the language-less default.
+		/// The normalized language suffix, e.g. <c>"en"</c> or <c>"zh-Hant-TW"</c>;
+		/// the empty string means the language-less default. A key's <c>param</c>
+		/// field names a parameter here instead, as written.
 		/// </summary>
 		public readonly string LanguageCode;
 
@@ -138,6 +139,14 @@ namespace PatTech.Localization {
 		/// </summary>
 		/// <param name="number">The line's number, from 1 at the start of the reader <see cref="WordsParser.Load(TextReader)"/> was given.</param>
 		void VisitLine(int number) { }
+		/// <summary>
+		/// A field whose language is no language code (<see cref="Localization.LanguageCode"/>),
+		/// <c>value-english=…</c>, was read past, its continuation lines with it.
+		/// Ignored unless overridden.
+		/// </summary>
+		/// <param name="blockKey">The block it is in, resolved as for <see cref="FieldKey.BlockKey"/>.</param>
+		/// <param name="name">The field's name as written, e.g. <c>value-english</c>.</param>
+		void VisitBadLanguage(string blockKey, string name) { }
 	}
 
 	/// <summary>
@@ -151,10 +160,6 @@ namespace PatTech.Localization {
 	/// current position; results go to the <see cref="IWordsParserConsumer"/> it was built with.
 	/// </summary>
 	public class WordsParser {
-		private static readonly Regex rxLanguageName = new(
-			@"^(?<lang>\w+)(-(?<region>\w+))?$",
-			RegexOptions.Compiled | RegexOptions.ExplicitCapture
-		);
 		private static readonly Regex rxKeySegment = new(@"^\w[\w-]*\z", RegexOptions.Compiled);
 		private static readonly Regex rxKeyName = new(@"^(\$\w[\w-]*|\w[\w-]*(\.\w[\w-]*)*)\z", RegexOptions.Compiled);
 
@@ -173,10 +178,11 @@ namespace PatTech.Localization {
 
 		/// <summary>
 		/// Whether the default, written in <paramref name="defaultLanguage"/>, speaks for
-		/// <paramref name="languageCode"/>: that language itself, or one of its regional
-		/// variants when the default is a bare language. An <c>en</c> default speaks for
-		/// <c>en-AU</c>; an <c>en-AU</c> default speaks for neither <c>en-US</c> nor <c>en</c>.
-		/// Where the default speaks, falling back to it is no missing word.
+		/// <paramref name="languageCode"/>: the default's code is this one, or one it falls
+		/// back to (<see cref="LanguageCode.Chain"/>). An <c>en</c> default speaks for
+		/// <c>en-AU</c>, a <c>zh-Hant</c> one for <c>zh-Hant-TW</c>; an <c>en-AU</c> default
+		/// speaks for neither <c>en-US</c> nor <c>en</c>. Where the default speaks, falling
+		/// back to it is no missing word.
 		/// </summary>
 		/// <param name="defaultLanguage">The language a top-of-file <c>value=!xx</c> declares, or <see langword="null"/> when none is declared.</param>
 		/// <param name="languageCode">The language asked about.</param>
@@ -184,46 +190,40 @@ namespace PatTech.Localization {
 			if (string.IsNullOrEmpty(defaultLanguage) || string.IsNullOrEmpty(languageCode)) {
 				return false;
 			}
-			if (string.Equals(languageCode, defaultLanguage, StringComparison.OrdinalIgnoreCase)) {
-				return true;
+			if (LanguageCode.TryParse(defaultLanguage, out var spoken) && LanguageCode.TryParse(languageCode, out var asked)) {
+				return asked.StartsWith(spoken);
 			}
-			int separator = languageCode.IndexOf('-');
-			return !defaultLanguage.Contains('-') && separator > 0
-				&& string.Equals(languageCode[..separator], defaultLanguage, StringComparison.OrdinalIgnoreCase);
+			return string.Equals(languageCode, defaultLanguage, StringComparison.OrdinalIgnoreCase);
 		}
 
 		/// <summary>
-		/// Normalizes a language identifier to canonical casing: language lowercase,
-		/// region uppercase, e.g. <c>"EN-gb"</c> becomes <c>"en-GB"</c>. The empty
-		/// string (the language-less default) passes through unchanged.
+		/// Normalizes a language code to canonical casing, each subtag by its kind
+		/// (<see cref="LanguageCode"/>): <c>"EN-gb"</c> becomes <c>"en-GB"</c>,
+		/// <c>"sr-latn-rs"</c> becomes <c>"sr-Latn-RS"</c>. The empty string (the
+		/// language-less default) passes through unchanged.
 		/// </summary>
-		/// <param name="languageIdentifier">A language code, optionally with a region, e.g. <c>"en"</c> or <c>"en-GB"</c>.</param>
-		/// <exception cref="ArgumentException"><paramref name="languageIdentifier"/> is not of the form <c>lang</c> or <c>lang-REGION</c>.</exception>
+		/// <param name="languageIdentifier">A language code, e.g. <c>"en"</c>, <c>"en-GB"</c> or <c>"zh-Hans-CN"</c>.</param>
+		/// <exception cref="ArgumentException"><paramref name="languageIdentifier"/> is not of the form <c>language(-Script)?(-REGION)?</c>.</exception>
 		public static string NormalizeLanguageCasing(string languageIdentifier) {
-			// NOTE: I thought about enforcing casing for this, but it would have been
-			// likely a performance hit to keep track of mismatches in exchange for a
-			// harder time for the user.
-
 			ArgumentNullException.ThrowIfNull(languageIdentifier);
 			if (languageIdentifier == "") {
 				return languageIdentifier;
 			}
-			if (!rxLanguageName.TryMatch(languageIdentifier, out var match)) {
-				throw new ArgumentException("not a valid language");
+			if (!LanguageCode.TryParse(languageIdentifier, out var code)) {
+				throw new ArgumentException($"'{languageIdentifier}' is no language code: language(-Script)?(-REGION)?, as en, ceb, es-419, zh-Hans-CN", nameof(languageIdentifier));
 			}
-
-			var language = match.Groups["lang"].Value;
-			var region = match.Groups["region"].Value;
-
-			if (region.Length > 0) {
-				return $"{language.ToLowerInvariant()}-{region.ToUpperInvariant()}";
-			}
-			else {
-				return $"{language.ToLowerInvariant()}";
-			}
+			return code.ToString();
 		}
 
 		private readonly IWordsParserConsumer consumer;
+
+		/// <summary>
+		/// Whether a field's suffix is a language, as in a <c>words.ini</c>, read as a
+		/// <see cref="LanguageCode"/> and normalized; the default. An ini that borrows the
+		/// format for suffixes of its own (a settings file's <c>scheme-decode=</c>) turns it
+		/// off, and gets each as written.
+		/// </summary>
+		public bool LanguageSuffixes { get; init; } = true;
 
 		/// <summary>
 		/// Creates a parser that reports everything it reads to <paramref name="consumer"/>.
@@ -240,7 +240,7 @@ namespace PatTech.Localization {
 			@"^\[(?<1>[^]]+)\]",
 			RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 		static readonly Regex rxPair = new(
-			@"^(?<key>\w+)(-(?<lang>\w+(?:-\w+)?))?(?<form>#\w+)?\s*[:=]\s*(?<text>.*)",
+			@"^(?<key>\w+)(-(?<lang>\w+(?:-\w+)*))?(?<form>#\w+)?\s*[:=]\s*(?<text>.*)",
 			RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 		static readonly Regex rxIsContinuedLine = new(
 			@"^([\\_].|[^\\_])*[\\_]$",
@@ -258,8 +258,10 @@ namespace PatTech.Localization {
 		/// <summary>
 		/// Reads <paramref name="reader"/> to the end, emitting a visit to the consumer
 		/// for each block header, field declaration and continuation line found.
-		/// Unrecognized lines are silently skipped. May be called repeatedly to
-		/// concatenate sources.
+		/// Unrecognized lines are silently skipped; a field whose language is no
+		/// <see cref="LanguageCode"/> is read past with a
+		/// <see cref="IWordsParserConsumer.VisitBadLanguage(string, string)"/>. May be
+		/// called repeatedly to concatenate sources.
 		/// </summary>
 		/// <param name="reader">The <c>words.ini</c> text to parse.</param>
 		/// <returns>This parser, for chaining.</returns>
@@ -269,9 +271,15 @@ namespace PatTech.Localization {
 			string baseBlockKey = "";
 			string currentBlockKey = "";
 			FieldKey? target = null;
+			//a field read past runs on through its continuation lines
+			bool readingPast = false;
 			int number = 0;
 			while (reader.ReadLine() is string line) {
 				consumer.VisitLine(++number);
+				if (readingPast) {
+					readingPast = rxIsContinuedLine.IsMatch(line);
+					continue;
+				}
 				if (TryReadLine(ref target, line, first: false)) {
 					continue;
 				}
@@ -293,9 +301,19 @@ namespace PatTech.Localization {
 					consumer.VisitBlock(baseBlockKey, name);
 				}
 				else if (rxPair.TryMatch(line, out var pair)) {
-					string lang = NormalizeLanguageCasing(pair.Groups["lang"].Value);
+					string field = pair.Groups["key"].Value;
+					string lang = pair.Groups["lang"].Value;
 					var text = pair.Groups["text"].Value;
-					var fieldKey = pair.Groups["key"].Value + pair.Groups["form"].Value.ToLowerInvariant();
+					//a key's param- names a parameter; everywhere else the suffix is a language
+					if (lang != "" && LanguageSuffixes && !(field == "param" && currentBlockKey != "")) {
+						if (!LanguageCode.TryParse(lang, out var code)) {
+							consumer.VisitBadLanguage(currentBlockKey, $"{field}-{lang}{pair.Groups["form"].Value}");
+							readingPast = rxIsContinuedLine.IsMatch(text);
+							continue;
+						}
+						lang = code.ToString();
+					}
+					var fieldKey = field + pair.Groups["form"].Value.ToLowerInvariant();
 					target = new FieldKey(currentBlockKey, fieldKey, lang);
 					var lineRead = TryReadLine(ref target, text, first: true);
 					if (!lineRead) {

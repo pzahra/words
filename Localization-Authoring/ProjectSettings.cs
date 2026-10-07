@@ -201,7 +201,8 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>Reads settings from <paramref name="reader"/>; <paramref name="path"/> is where they live, which folders resolve against.</summary>
 		public static ProjectSettings Load(TextReader reader, string path) {
 			var read = new Reader();
-			new WordsParser(read).Load(reader);
+			//scheme-decode= is no language
+			new WordsParser(read) { LanguageSuffixes = false }.Load(reader);
 			return read.ToSettings(path);
 		}
 
@@ -371,6 +372,7 @@ namespace PatTech.Localization.Authoring {
 
 			public void VisitFieldDeclaration(FieldKey key, string text) {
 				var (_, scheme, suffix) = key;
+				suffix = suffix.ToLowerInvariant();
 				if (block is not ("images" or "hyperlinks")) {
 					errors.Add(block == ""
 						? $"{scheme}: a rule outside any table; put it under [images] or [hyperlinks]"

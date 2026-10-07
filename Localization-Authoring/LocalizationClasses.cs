@@ -275,23 +275,27 @@ namespace PatTech.Localization.Authoring {
 
 	public class LanguageWordsProvider(IReadOnlyDictionary<string, WordsKey> keys, string code, IEnumerable<string> fileNames)
 			: WordsProviderBase(keys, fileNames) {
-		private readonly string? family = code.Contains('-') ? code[..code.IndexOf('-')] : null;
+		//the code, then each shorter one it falls back to, as the runtime flattens them
+		private readonly string[] chain = LanguageCode.TryParse(code, out var parsed) ? [.. parsed.Chain.Select(level => level.ToString())] : [code];
 
-		protected override string Value(WordsKey word)
-			=> First(word.Entries.GetValueOrDefault(code)?.Value, family is null ? null : word.Entries.GetValueOrDefault(family)?.Value, word.DefaultValue);
+		//the language's, else the first shorter code's, else the default's
+		protected override string Value(WordsKey word) {
+			foreach (string level in chain) {
+				if (word.Entries.GetValueOrDefault(level)?.Value is { Length: > 0 } value) {
+					return value;
+				}
+			}
+			return word.DefaultValue;
+		}
 
-		//the forms of the first level with any of the key's words, as the runtime flattens them
+		//the forms of the first level with any of the key's words
 		protected override string Form(WordsKey word, string form) {
-			foreach (WordsEntry? level in (WordsEntry?[])[word.Entries.GetValueOrDefault(code), family is null ? null : word.Entries.GetValueOrDefault(family)]) {
-				if (level is not null && (level.Value != "" || level.Forms.HasWords())) {
-					return level.Forms.GetValueOrDefault(form, "");
+			foreach (string level in chain) {
+				if (word.Entries.GetValueOrDefault(level) is { } entry && (entry.Value != "" || entry.Forms.HasWords())) {
+					return entry.Forms.GetValueOrDefault(form, "");
 				}
 			}
 			return word.Forms.GetValueOrDefault(form, "");
 		}
-
-		//the language's, else its family's, else the default's
-		private static string First(string? language, string? familys, string fallback)
-			=> language is { Length: > 0 } ? language : familys is { Length: > 0 } ? familys : fallback;
 	}
 }

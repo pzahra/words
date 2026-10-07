@@ -135,8 +135,8 @@ public class LanguageManagerViewModel : DialogViewModel {
 			List<LanguageRow> renames = [.. Rows.Where(row => row.Origin is not null && row.IsChanged)];
 			Dictionary<LanguageRow, string> current = renames.ToDictionary(row => row, row => row.Origin!.Code);
 			while (renames.Count > 0) {
-				LanguageRow next = renames.FirstOrDefault(row => row.Code == current[row] || table.Find(row.Code) is null) ?? renames[0];
-				if (next.Code != current[next] && table.Find(next.Code) is { } blocking) {
+				LanguageRow next = renames.FirstOrDefault(row => row.NormalCode == current[row] || table.Find(row.NormalCode) is null) ?? renames[0];
+				if (next.NormalCode != current[next] && table.Find(next.NormalCode) is { } blocking) {
 					LanguageRow blocked = renames.First(row => current[row] == blocking.Code);
 					current[blocked] = $"zz-{Guid.NewGuid():N}";
 					edit.Rename(blocking.Code, new LanguageEntry(current[blocked], blocking.NativeName) { EnglishName = blocking.EnglishName });
@@ -145,20 +145,20 @@ public class LanguageManagerViewModel : DialogViewModel {
 				renames.Remove(next);
 			}
 			AddFree(edit, table, additions);
-			edit.Declare(DefaultRow?.Code);
+			edit.Declare(DefaultRow?.NormalCode);
 			for (int i = 0; i < Rows.Count; i++) {
-				int at = table.Known.ToList().FindIndex(known => known.Code == Rows[i].Code);
+				int at = table.Known.ToList().FindIndex(known => known.Code == Rows[i].NormalCode);
 				if (at >= 0) {
 					edit.Reorder(at, i);
 				}
 			}
 		});
-		Parent.Tree.SelectedLanguage = (Selected is { } selected ? table.Find(selected.Code) : null) ?? table.Known[0];
+		Parent.Tree.SelectedLanguage = (Selected is { } selected ? table.Find(selected.NormalCode) : null) ?? table.Known[0];
 	}
 
 	//adds the rows whose code the table does not hold yet, and drops them from the list
 	private static void AddFree(LanguagesEdit edit, LanguageTable table, List<LanguageRow> additions) {
-		foreach (LanguageRow row in additions.Where(row => table.Find(row.Code) is null).ToList()) {
+		foreach (LanguageRow row in additions.Where(row => table.Find(row.NormalCode) is null).ToList()) {
 			edit.Add(row.ToEntry());
 			additions.Remove(row);
 		}

@@ -51,9 +51,9 @@ A session holds one or more files. Each file contributes:
   with the English names only where the default is English or undeclared.
 - The **default's language**, from a keyless `value=!xx` leading that table
   (the runtime spec's *The default's language*): what the default is written
-  in. Where the default speaks the selected language, its own code or, for a
-  bare code, a regional variant of it, an empty entry falls back to the
-  default and misses nothing (Badges). A file without the line says nothing.
+  in. Where the default speaks the selected language, its own code or one
+  that falls back to it (`en` for `en-AU`, `zh-Hant` for `zh-Hant-TW`), an
+  empty entry falls back to the default and misses nothing (Badges). A file without the line says nothing.
   `value=xx` without the `!` loads as the same declaration with a gripe, and
   saves with the `!`.
 - A **key tree**: dotted block keys (`view.section.key`), prefixed in memory
@@ -321,7 +321,9 @@ it from the row that had it, a mark beside the code shows it in the list, and
 the field for the names written in the default's language is headed by it
 ("Name in English"), or "English Language Name" while no row is ticked. That
 field may stay blank (the file then writes no `comment-xx`); the code and the
-endonym may not. On OK
+endonym may not. A code is checked by the runtime's grammar (its *Language
+codes*): `ceb`, `es-419` and `zh-Hans-CN` all pass. It is saved cased by kind,
+so `en-us` beside `en-US` is a code taken twice. On OK
 every file declares it (a file that declared none gains it only when the
 choice changed), a recode carries it along and a removal takes it.
 The table's `Rename` can also absorb a language into one that already holds
@@ -369,7 +371,10 @@ markdown. English is the default value; other languages are labelled at the
 top of the file and fall back to it. Wordsmith speaks the language saved in
 its own config file (`%LocalAppData%\Wordsmith\config.ini`), the OS language
 when nothing is saved, or whatever `--lang=xx` on the command line says for
-that one run. A submenu under View lists the languages the file labels;
+that one run. Any of them is read as far as it is a code (`ca-ES-valencia`
+is `ca-ES`) and falls back through its shorter codes to English; one that
+starts with no code at all starts in English. A language never stops the
+editor from starting. A submenu under View lists the languages the file labels;
 since `{l:Words}` resolves when a window loads, picking one asks about unsaved
 changes, saves the choice and restarts the editor with the same files open.
 `IDialogs` and every other text-taking seam mark their parameters

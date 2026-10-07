@@ -152,13 +152,10 @@ namespace PatTech.Localization.Cli {
 			string prefix = call.Positionals.Count > 1 ? call.Positionals[1] : "";
 			var keys = patcher.Keys.Where(key => key.BlockKey.StartsWith(prefix, StringComparison.Ordinal));
 			if (call.Missing is { } missing) {
-				string code;
-				try {
-					code = WordsParser.NormalizeLanguageCasing(missing);
+				if (!LanguageCode.TryParse(missing, out var parsed)) {
+					throw new UsageException($"--missing {missing}: {WordsParserToLocalizationProvider.LanguageCodeRule}");
 				}
-				catch (ArgumentException) {
-					throw new UsageException($"--missing {missing}: not a language code");
-				}
+				string code = parsed.ToString();
 				if (!MissingWords.Wants(patcher.Languages, patcher.DefaultLanguage, code)) {
 					error.WriteLine(patcher.Languages.Contains(code)
 						? $"words: the default speaks {code}, so an empty entry reads it and misses nothing"

@@ -75,7 +75,12 @@ that is how a later `Load` overlays an earlier one, not a continuation.
 ```
 
 Only `value` fields become lookup entries; the key is the block name.
-Language resolution per key: exact (`en-GB`) → family (`en`) → default.
+A language code is `language(-Script)?(-REGION)?`: 2–3 letters, a 4-letter
+script, a 2-letter or 3-digit region (`en`, `ceb`, `es-419`, `zh-Hans-CN`),
+cased by kind. A field whose suffix is none (`value-english=`) is skipped with
+`WP:LANG`; a key's `param-name=` is a parameter's name, not a language.
+Language resolution per key drops one subtag at a time: `zh-Hant-TW` →
+`zh-Hant` → `zh` → default, so Traditional never reads Simplified.
 
 ## Editing words.ini: the tools
 
@@ -293,6 +298,6 @@ redirected.
   appears in `GetLanguages()`.
 - Declare the language the defaults are written in with a keyless top-of-file
   `value=!xx` (the `!` keeps it off `GetLanguages()`). Fallbacks to the default
-  are then no missing words in `xx` (and its regional variants, for a bare
-  code): `.Debug()` and Wordsmith stop flagging them. `comment-xx=` labels,
+  are then no missing words in `xx` (and in each longer code that falls back
+  to it, `en-AU` for `en`): `.Debug()` and Wordsmith stop flagging them. `comment-xx=` labels,
   optional, are the languages' names in that language.

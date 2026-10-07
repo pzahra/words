@@ -20,18 +20,18 @@ namespace PatTech.Localization.Authoring.Codecs {
 			return (name, "");
 		}
 
-		/// <summary>True when <paramref name="tail"/> names a culture the platform knows; the canonical code comes back.</summary>
+		/// <summary>True when <paramref name="tail"/> is a language code that names a culture the platform knows; the canonical code comes back.</summary>
 		public static bool TryCulture(string tail, out string code) {
 			code = "";
-			if (tail == "" || !tail.All(c => char.IsLetterOrDigit(c) || c == '-')) {
+			if (!LanguageCode.TryParse(tail, out var parsed)) {
 				return false;
 			}
 			try {
 				CultureInfo.GetCultureInfo(tail, predefinedOnly: true);
-				code = WordsParser.NormalizeLanguageCasing(tail);
+				code = parsed.ToString();
 				return true;
 			}
-			catch (Exception e) when (e is CultureNotFoundException or ArgumentException) {
+			catch (CultureNotFoundException) {
 				return false;
 			}
 		}

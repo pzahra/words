@@ -128,8 +128,8 @@ namespace PatTech.Localization {
 
 		/// <summary>
 		/// Brands values that fell back to another language, so missing translations
-		/// stand out: 🕮 for a family fallback, 📚 for a default fallback. Constants
-		/// (<c>$</c> keys) are language-less and never branded, and neither is the default
+		/// stand out: 🕮 for a shorter code's (<c>en</c> for <c>en-GB</c>), 📚 for the
+		/// default's. Constants (<c>$</c> keys) are language-less and never branded, and neither is the default
 		/// where it speaks the language (<see cref="DefaultLanguage"/>,
 		/// <see cref="WordsParser.DefaultSpeaks"/>). A debugging aid, off by
 		/// default; it applies to every dictionary this builder then produces, so chain
@@ -178,61 +178,51 @@ namespace PatTech.Localization {
 		/// <summary>
 		/// Merges the loaded languages into a single read-only provider for
 		/// <paramref name="languageCode"/>. Per key, the value comes from the exact
-		/// language (e.g. <c>en-GB</c>) first, then its language family (<c>en</c>),
-		/// then the language-less default; a key's plural forms come whole from the
-		/// first of those with any of its words. Passing <c>""</c> returns the raw default
+		/// language (e.g. <c>zh-Hant-TW</c>) first, then each shorter code it falls back
+		/// to (<c>zh-Hant</c>, <c>zh</c>: <see cref="LanguageCode.Chain"/>), then the
+		/// language-less default; a key's plural forms come whole from the first of
+		/// those with any of its words. Passing <c>""</c> returns the raw default
 		/// dictionary directly. Fallbacks are branded when <see cref="Debug"/> is on.
 		/// </summary>
-		/// <param name="languageCode">The language to flatten, e.g. <c>"en"</c> or <c>"en-GB"</c>; casing is normalized for you.</param>
+		/// <param name="languageCode">The language to flatten, e.g. <c>"en"</c> or <c>"en-GB"</c>; casing is normalized for you, and a culture's name that says more than a code (<c>ca-ES-valencia</c>) reads as the code it starts with (<see cref="LanguageCode.TryRead"/>).</param>
 		/// <returns>The flattened provider; an empty provider if nothing was loaded at all.</returns>
+		/// <exception cref="ArgumentException"><paramref name="languageCode"/> does not start with a language code.</exception>
 		public IWordsProvider Flatten(string languageCode) {
 			if (languageCode is "") {
 				//a file can hold no default value at all
 				return _builder.Languages.TryGetValue("", out var defaults) ? defaults : WordsProvider.Empty();
 			}
+			if (!LanguageCode.TryRead(languageCode, out var code)) {
+				throw new ArgumentException($"'{languageCode}' is no language code: language(-Script)?(-REGION)?, as en, ceb, es-419, zh-Hans-CN", nameof(languageCode));
+			}
 
-			languageCode = WordsParser.NormalizeLanguageCasing(languageCode);
-
-			var separator = languageCode.IndexOf('-');
-
-			DictionaryWordsProvider? primary;
-			DictionaryWordsProvider? secondary = null;
 			var fallback = _builder.Languages.GetValueOrDefault("");
 			//where the default speaks the language, falling back to it misses nothing
-			bool brandDefault = _showFallback && !WordsParser.DefaultSpeaks(DefaultLanguage, languageCode);
-			if (separator > 0) {
-				primary = _builder.Languages.GetValueOrDefault(languageCode);
-				secondary = _builder.Languages.GetValueOrDefault(languageCode[..separator]);
-			}
-			else {
-				primary = _builder.Languages.GetValueOrDefault(languageCode);
-			}
+			bool brandDefault = _showFallback && !WordsParser.DefaultSpeaks(DefaultLanguage, code.ToString());
 
-			Dictionary<string, string> words;
+			//the first level found is the language's own; each one after it fell back
+			Dictionary<string, string>? words = null;
 #pragma warning disable IDE0028 // Simplify collection initialization (with unsupported syntax!)
-			if (primary != null) {
-				words = new(primary);
-				if (secondary != null) {
-					patch(words, secondary, "🕮", _showFallback);
+			foreach (var level in code.Chain) {
+				if (_builder.Languages.GetValueOrDefault(level.ToString()) is { } source) {
+					if (words is null) {
+						words = new(source);
+					}
+					else {
+						patch(words, source, "🕮", _showFallback);
+					}
 				}
-				if (fallback != null) {
+			}
+			if (fallback != null) {
+				if (words is null) {
+					words = new(fallback);
+				}
+				else {
 					patch(words, fallback, "📚", brandDefault);
 				}
-			}
-			else if (secondary != null) {
-				words = new(secondary);
-				if (fallback != null) {
-					patch(words, fallback, "📚", brandDefault);
-				}
-			}
-			else if (fallback != null) {
-				words = new(fallback);
-			}
-			else {
-				return WordsProvider.Empty();
 			}
 #pragma warning restore IDE0028 // Simplify collection initialization
-			return new ReadOnlyWordsProvider(words);
+			return words is null ? WordsProvider.Empty() : new ReadOnlyWordsProvider(words);
 
 			static void patch(IDictionary<string, string> target, DictionaryWordsProvider source, string fallbackPrefix, bool showFallbackPrefix) {
 				//a key's forms come from the first level with any of its words (SPEC: Plural
@@ -259,7 +249,8 @@ namespace PatTech.Localization {
 			var uiCulture = CultureInfo.CreateSpecificCulture(languageCode);
 			var culture = _useSystemNumbers ? Words.SystemCulture : uiCulture;
 			//the code picks the plural forms: the culture may be the invariant one for a language .NET does not know
-			return new CulturedWords(Flatten(languageCode), culture, uiCulture) { Language = languageCode };
+			var words = Flatten(languageCode);
+			return new CulturedWords(words, culture, uiCulture) { Language = LanguageCode.TryRead(languageCode, out var code) ? code.ToString() : languageCode };
 		}
 
 		/// <summary>

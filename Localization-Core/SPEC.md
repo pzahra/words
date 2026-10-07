@@ -10,8 +10,8 @@ what the library does today; the last part is what it does not do yet.
 
 `Words.Known` is the process-wide dictionary, built once at startup:
 `WordsBuilder.Create().Load(…).Digest(code)` flattens every loaded source into
-one language (exact → family → default), installs it, and applies its cultures
-to the threads. From then on it is a *snapshot*. A value handed out is a plain
+one language (exact code → each shorter code → default), installs it, and
+applies its cultures to the threads. From then on it is a *snapshot*. A value handed out is a plain
 string the caller owns; `{l:Words key}` resolves once when the XAML is parsed
 ([the extension](../Localization-Wpf/WordsExtension.cs) returns the string and is
 discarded); `LazyWords` caches its lookup on first read. Replacing `Words.Known`
@@ -298,6 +298,66 @@ follows a swap, and on Avalonia follows the theme variant; both converters
 dictionaries hold the two defaults. The console writes the dim sequence, resumes
 bold after it, and writes nothing with ANSI off.
 
+## Language codes
+
+A language code is the BCP 47 subset `language(-Script)?(-REGION)?`: a
+language of 2 or 3 letters, a script of 4 letters, and a region of 2 letters or
+3 digits. That is `en`, `ceb`, `es-419`, `zh-Hans-CN` and `sr-Latn-RS`. Variants
+and extensions wait until somebody asks. Each subtag is cased by its kind, so
+`sr-latn-rs` reads `sr-Latn-RS`, and codes compare in that form. `LanguageCode`
+is the type, and its `TryParse` is the one check behind the parser's fields,
+`NormalizeLanguageCasing`, the authoring reader, the command line, Wordsmith's
+language manager and Wordsmith's startup.
+
+**Falling back.** A code falls back by truncation, one subtag at a time:
+`zh-Hant-TW` reads `zh-Hant`, then `zh`, then the default (`LanguageCode.Chain`).
+`Flatten` takes each key from the first of those with a value; under `Debug` a
+shorter code's words are branded 🕮 and the default's 📚. The plural rules look
+a code up the same chain. A region falls back past its script, never across to a
+sibling, so Traditional never reads Simplified. 1.4.0's family fallback, `en-GB`
+to `en`, is the two-subtag case of this.
+
+**A culture's name.** `Flatten` and `ToWords` also take a culture's name, which
+can say more than a code: `ca-ES-valencia`, `en-US-POSIX`. It reads as the
+longest run of leading subtags that is a code (`LanguageCode.TryRead`), so an
+app that digests `CultureInfo.CurrentUICulture.Name` starts in any locale.
+`IWords.Language` is that code. A name that starts with no code at all is still
+an `ArgumentException`.
+
+**A field that is no code.** A field like `value-english=` is read past, along
+with its continuation lines, and reported through
+`IWordsParserConsumer.VisitBadLanguage`. A runtime warns `WP:LANG`; the
+authoring reader gripes that Save will drop it too. A key's `param-name=` names
+a parameter, not a language, so it is read as written; the top-of-file
+`param-xx=` belongs to language `xx`. An ini that borrows the format for
+suffixes of its own turns `WordsParser.LanguageSuffixes` off, as Wordsmith's
+settings file does for `scheme-decode=`.
+
+**What changes.** Old files stay valid, since everything 1.4.0 wrote is a
+subset of the grammar. A three-part code is new, and a 1.4.0 runtime drops its
+fields. A minor version allows that, and the release notes say so. A
+hand-written code outside the grammar, which 1.4.0 read as written, is now
+skipped. A parameter's name is no longer lowercased, so Wordsmith's `P1`
+survives a reload.
+
+**Tests.**
+- The grammar accepts each subtag kind in any case and cases it, and refuses a
+  subtag too long or too short, subtags out of order, and `_` as a separator.
+  A culture's name reads its leading code.
+- Each code's chain, and the `DefaultSpeaks` matrix with scripts.
+- `Flatten` falls back through three levels, branded, never across scripts, and
+  takes a culture's name; `ToWords("sr-latn-rs")` builds.
+- The plural rules look codes up through the chain.
+- A runtime reads a three-part code and skips `value-english` with its
+  continuation. The authoring reader gripes about it.
+- Parameters are read as written, and a settings file keeps its own suffixes.
+- An XLIFF target of three parts survives a save and a reload, and one that
+  says more reads as its leading code.
+- The command line writes and lists in any code.
+- Wordsmith's manager takes `ceb`, `es-419` and `zh-hans-cn`, refuses `DE`
+  beside `de`, and its startup reads `sr-Latn-RS`, or anything else, without
+  throwing.
+
 ## The default's language
 
 A key's `value=` is the default, the words an app reads when a language has
@@ -315,14 +375,14 @@ language `xx`. The `!` is what keeps it off `GetLanguages()`, as for any
 is usually registered too, so it stays on the menu and keeps its culture. It
 need not be.
 
-**Where the default speaks.** The default speaks its own language and, when it
-is a bare language, that language's regional variants: an `en` default speaks
-for `en` and `en-AU`, while an `en-AU` default speaks for `en-AU` alone, so
-`en-US` and `en` still miss their words (`WordsParser.DefaultSpeaks`). In those
-languages, falling back to the default misses nothing.
-`WordsBuilder.DefaultLanguage` reads the declaration (the last file loaded
-wins), and `Debug()` leaves the default unbranded where it speaks: no 📚.
-Family fallbacks keep their 🕮.
+**Where the default speaks.** The default speaks its own language and every
+code that falls back to it (*Language codes*). An `en` default speaks for `en`
+and `en-AU`, and a `zh-Hant` default for `zh-Hant-TW`. An `en-AU` default
+speaks for `en-AU` alone, so `en-US` and `en` still miss their words
+(`WordsParser.DefaultSpeaks`). In those languages, falling back to the default
+misses nothing. `WordsBuilder.DefaultLanguage` reads the declaration (the last
+file loaded wins), and `Debug()` leaves the default unbranded where it speaks:
+no 📚. Fallbacks to a shorter code keep their 🕮.
 
 **Tests.** A file declaring `en` brands nothing in `en` or `en-AU` and still
 brands `de`, and lists exactly its three languages. An `en-AU` default brands
@@ -422,13 +482,13 @@ category, the form it reads instead (below), else the key's `other` form, else
 its plain value. `other` is the form a language always has for "more", so it
 stands in for a category a translation lacks: Italian without its `many` reads
 "1.000.000 messaggi", not "messaggio". A translation's words are a unit: a
-key's forms come whole from the first of the language, its family and the
-default that has any of the key's words, plain or form, so a translation never
+key's forms come whole from the first of the language, each shorter code and
+the default that has any of the key's words, plain or form, so a translation never
 borrows another level's forms beside its own value. Filipino, whose nouns do
 not change with the count, writes `value-fil=file` alone and reads "4 file",
 where the default's `other` would read "4 files", in English; Maltese leaves
-out `#other`, its plain word. A key with no words in the language takes its
-family's, or the default's, forms included, branded under `Debug` as values
+out `#other`, its plain word. A key with no words in the language takes a
+shorter code's, or the default's, forms included, branded under `Debug` as values
 are. A language with one category, such as Japanese, speaks only its plain
 value, its own or the one it falls back to. `Words.FormKey(provider, language,
 key, form)` names the entry a count in a form reads, for a tool that shows it:
@@ -511,7 +571,7 @@ alone.
 Japanese, formats a counted key at 1, 2, 5, 11, 21, 22, 25 and 101 under English
 and Russian, and reads the expected forms. A category without a form falls to
 `other`, then to the plain value; a translation's own words keep the default's
-forms out, as a family's keep them out of its regions, and a key with no words
+forms out, as a shorter code's keep them out of a longer one, and a key with no words
 in the language takes the default's, branded; a missing optional form reads
 the one it stands for, and a written one reads as any; Japanese reads only its
 plain value; a named selector picks the same

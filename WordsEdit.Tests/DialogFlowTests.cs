@@ -131,6 +131,32 @@ value-de=y
 		Assert.Equal("fr", vm.Tree.SelectedLanguage.Code); //the highlighted row became the tree's language
 	}
 
+	//1.4.0's manager took two letters and one more subtag, so OK never lit for
+	//these, and it told codes apart by case, so en-us beside en-US saved twice
+	[Fact]
+	public void LanguageManager_TakesAnyCode_CasedByKind_AndKnowsOneInAnotherCase() {
+		var (vm, _) = Load();
+		var manager = new LanguageManagerViewModel(vm);
+		foreach (var (typed, name) in ((string, string)[])[("ceb", "Sinugboanon"), ("es-419", "Español"), ("zh-hans-cn", "简体中文")]) {
+			manager.AddCommand.Execute(null);
+			manager.Selected!.Code = typed;
+			manager.Selected.NativeName = name;
+			Assert.False(manager.Selected.HasErrors, typed);
+		}
+		manager.AddCommand.Execute(null);
+		LanguageRow twin = manager.Selected!;
+		twin.Code = "DE";
+		twin.NativeName = "Deutsch (bis)";
+		Assert.True(twin.HasErrors); //de is taken, whatever the case
+		Assert.False(manager.OkCommand.CanExecute(null));
+		twin.Code = "de-at";
+		Assert.False(twin.HasErrors);
+
+		manager.OkCommand.Execute(null);
+
+		Assert.Equal(["en", "de", "ceb", "es-419", "zh-Hans-CN", "de-AT"], vm.Session.Files[0].Languages);
+	}
+
 	[Fact]
 	public void LanguageManager_EditsACopyUntilOk() {
 		var (vm, dialogs) = Load();

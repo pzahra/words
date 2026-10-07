@@ -11,8 +11,8 @@ namespace PatTech.Localization {
 	/// <c>key#form</c> (<c>value-ru#few</c> under <c>[word]</c> is <c>word#few</c> in
 	/// <c>ru</c>), so it flattens like one, though only from the level that owns the
 	/// key's words. <c>comment</c>, <c>context</c> and
-	/// <c>param</c> fields are ignored; <c>stale</c> fields, unknown field types and
-	/// forms that are none are reported to the logger.
+	/// <c>param</c> fields are ignored; <c>stale</c> fields, unknown field types,
+	/// languages that are no code and forms that are none are reported to the logger.
 	/// </summary>
 	/// <param name="logger">Receives warnings about overwritten keys, stale values and unknown fields; <see langword="null"/> discards them.</param>
 	public class WordsParserToWordsProvider(ITakeException? logger = null) : IWordsParserConsumer {
@@ -112,6 +112,17 @@ namespace PatTech.Localization {
 			if (skipping) {
 				logger.Warn(string.Format("WP:NAME:`{0}`", key));
 			}
+		}
+
+		/// <summary>
+		/// A field whose language is no language code is warned about; the parser has
+		/// already read past it.
+		/// </summary>
+		public void VisitBadLanguage(string blockKey, string name) {
+			if (skipping && blockKey != "") {
+				return;
+			}
+			logger.Warn(string.Format("WP:LANG:`{0}.{1}`", blockKey, name));
 		}
 
 		private void Store(string entry, string languageCode, string value) {

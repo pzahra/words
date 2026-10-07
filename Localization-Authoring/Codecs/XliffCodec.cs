@@ -165,19 +165,22 @@ namespace PatTech.Localization.Authoring.Codecs {
 			}
 		}
 
-		//the target language in canonical casing; a code the parser cannot read is
-		//kept as written, with a gripe
+		//the target language in canonical casing; one that says more than a code (a
+		//variant, an extension) reads as the code it starts with, and one that starts
+		//with none is no language, each with a gripe
 		private static string Code(string? raw, string file, List<string> gripes, string attribute = "target-language") {
 			if (string.IsNullOrEmpty(raw)) {
 				return "";
 			}
-			try {
-				return WordsParser.NormalizeLanguageCasing(raw);
+			if (LanguageCode.TryParse(raw, out var code)) {
+				return code.ToString();
 			}
-			catch (ArgumentException) {
-				gripes.Add($"{file}: {attribute} '{raw}' is no lang or lang-REGION code, kept as written");
-				return raw;
+			if (LanguageCode.TryRead(raw, out code)) {
+				gripes.Add($"{file}: {attribute} '{raw}' read as {code}: {WordsParserToLocalizationProvider.LanguageCodeRule}");
+				return code.ToString();
 			}
+			gripes.Add($"{file}: {attribute} '{raw}' ignored: {WordsParserToLocalizationProvider.LanguageCodeRule}");
+			return "";
 		}
 
 		/// <summary>One file per declared language beside <paramref name="target"/>, its stem's (a culture tail on it is dropped).</summary>

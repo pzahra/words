@@ -283,7 +283,10 @@ public class IniPatcherTests {
 	[InlineData("value-FR", "value", "fr", "")]
 	[InlineData("value-pt-br#FEW", "value", "pt-BR", "few")]
 	[InlineData("stale-fr", "stale", "fr", "")]
-	[InlineData("param-Count", "param", "count", "")]
+	[InlineData("value-zh-hans-cn", "value", "zh-Hans-CN", "")]
+	[InlineData("value-es-419#many", "value", "es-419", "many")]
+	[InlineData("context-ceb", "context", "ceb", "")]
+	[InlineData("param-Count", "param", "Count", "")] //a parameter's name, as written
 	public void AFieldIsNamedAsTheFileNamesIt(string name, string type, string language, string form) {
 		Assert.True(WordsField.TryParse(name, out var field, out _));
 		Assert.Equal(new WordsField(type, language, form), field);
@@ -295,6 +298,8 @@ public class IniPatcherTests {
 	[InlineData("value-fr#lots")]
 	[InlineData("param")]
 	[InlineData("value fr")]
+	[InlineData("value-english")]
+	[InlineData("value-en-US-POSIX")]
 	public void WhatIsNoField_SaysWhy(string name) {
 		Assert.False(WordsField.TryParse(name, out _, out string? problem));
 		Assert.Contains(name, problem);

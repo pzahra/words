@@ -89,11 +89,14 @@ namespace PatTech.Localization.Authoring {
 							errors.Add($"value={value} at the top of the file names the default's language: write it value=!{value}, or a runtime lists the default as a language");
 						}
 						string code = value.TrimStart('!').Trim();
-						try {
-							DefaultLanguage = code == "" ? null : WordsParser.NormalizeLanguageCasing(code);
+						if (code == "") {
+							DefaultLanguage = null;
 						}
-						catch (ArgumentException) {
-							errors.Add($"value=!{code} at the top of the file is not a language code");
+						else if (LanguageCode.TryParse(code, out var spoken)) {
+							DefaultLanguage = spoken.ToString();
+						}
+						else {
+							errors.Add($"value=!{code} at the top of the file: {LanguageCodeRule}");
 							DefaultLanguage = code;
 						}
 						break;
@@ -269,6 +272,14 @@ namespace PatTech.Localization.Authoring {
 
 		/// <summary>The key-name grammar in a sentence, for a gripe (runtime SPEC: Key names).</summary>
 		public const string KeyNameRule = "a key is segments of letters, digits, _ and -, joined by dots, and a $constant is one segment";
+		/// <summary>The language-code grammar in a sentence, for a gripe (runtime SPEC: Language codes).</summary>
+		public const string LanguageCodeRule = "a language code is language(-Script)?(-REGION)?, as en, ceb, es-419, zh-Hans-CN";
+
+		//the parser read past it, so it is not here to save
+		void IWordsParserConsumer.VisitBadLanguage(string blockKey, string name) {
+			string where = blockKey == "" ? "at the top of the file" : $"in [{blockKey}]";
+			errors.Add($"{name} {where}: no language code, so a runtime skips it and so does Save: {LanguageCodeRule}");
+		}
 
 		private static string Field(string languageCode, string form)
 			=> languageCode == "" ? $"value#{form}" : $"value-{languageCode}#{form}";

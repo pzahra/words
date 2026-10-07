@@ -60,7 +60,23 @@ public class EditorWordsTests {
 	public void TheMenuEntryIsTheLanguageOrItsFamily() {
 		Assert.Equal("en", EditorWords.MenuCode("en"));
 		Assert.Equal("en", EditorWords.MenuCode("en-GB"));
+		Assert.Equal("en", EditorWords.MenuCode("en-Latn-GB")); //through each shorter code
+		Assert.Equal("it", EditorWords.MenuCode("IT-ch"));
 		Assert.Null(EditorWords.MenuCode("eo"));
+		Assert.Null(EditorWords.MenuCode("english"));
+	}
+
+	//1.4.0 threw on sr-Latn-RS before the window opened, so a Windows in such a
+	//locale could not start Wordsmith at all
+	[Fact]
+	public void AnyCultureTheOsOrTheSettingsName_LoadsWithoutThrowing() {
+		Assert.Equal("sr-Latn-RS", EditorWords.Readable("sr-latn-rs"));
+		Assert.Equal("ca-ES", EditorWords.Readable("ca-ES-valencia"));
+		Assert.Equal(EditorWords.Fallback, EditorWords.Readable("english"));
+		Assert.Equal(EditorWords.Fallback, EditorWords.Readable(""));
+
+		IWords words = EditorWords.Builder().ToWords(EditorWords.Readable("sr-Latn-RS"));
+		Assert.Equal(Words.Known["menu.file"], words["menu.file"]); //the default's words, no translation
 	}
 
 	//the command line for this run, else the saved setting, else the OS

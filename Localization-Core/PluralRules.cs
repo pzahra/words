@@ -21,7 +21,7 @@ namespace PatTech.Localization {
 		/// The sign is ignored, a whole value counts as whole whatever its scale, and a
 		/// fractional one is <c>other</c>.
 		/// </summary>
-		/// <param name="languageCode">A language, e.g. <c>"ru"</c>, <c>"pt-PT"</c> or a culture name; a region the table does not know falls to its language.</param>
+		/// <param name="languageCode">A language, e.g. <c>"ru"</c>, <c>"pt-PT"</c> or a culture name; a code the table does not know falls back to a shorter one, as <see cref="LanguageCode.Chain"/> does.</param>
 		/// <param name="number">The count.</param>
 		public static string Select(string languageCode, decimal number) {
 			ArgumentNullException.ThrowIfNull(languageCode);
@@ -68,14 +68,18 @@ namespace PatTech.Localization {
 		private static Rule Find(string languageCode)
 			=> languageCode == "" ? One : Lookup(rules, languageCode) ?? Other;
 
-		//the language's entry, else its first segment's
+		//the language's entry, else that of each shorter code it falls back to, as
+		//LanguageCode.Chain does: zh-Hant-TW, zh-Hant, zh; a culture's name truncates alike
 		private static T? Lookup<T>(Dictionary<string, T> table, string languageCode) where T : class {
-			string code = languageCode.Replace('_', '-');
-			if (table.TryGetValue(code, out var entry)) {
-				return entry;
+			string? code = languageCode.Replace('_', '-');
+			while (code is { Length: > 0 }) {
+				if (table.TryGetValue(code, out var entry)) {
+					return entry;
+				}
+				int separator = code.LastIndexOf('-');
+				code = separator > 0 ? code[..separator] : null;
 			}
-			int separator = code.IndexOf('-');
-			return separator > 0 && table.TryGetValue(code[..separator], out entry) ? entry : null;
+			return null;
 		}
 
 		private static readonly Dictionary<string, string> None = [];

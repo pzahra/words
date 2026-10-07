@@ -15,7 +15,7 @@ namespace PatTech.Localization.Authoring {
 	/// <param name="Form">The plural category of a <c>value</c> field, or empty for the plain value.</param>
 	public readonly record struct WordsField(string Type, string Language, string Form) {
 		//the parser's pair grammar, without the text
-		private static readonly Regex rxName = new(@"^(?<type>\w+)(-(?<lang>\w+(?:-\w+)?))?(#(?<form>\w+))?$", RegexOptions.ExplicitCapture);
+		private static readonly Regex rxName = new(@"^(?<type>\w+)(-(?<lang>\w+(?:-\w+)*))?(#(?<form>\w+))?\z", RegexOptions.ExplicitCapture);
 
 		/// <summary>The field types a key's block holds.</summary>
 		public static IReadOnlyList<string> Types { get; } = ["value", "context", "comment", "stale", "param"];
@@ -28,11 +28,19 @@ namespace PatTech.Localization.Authoring {
 				return false;
 			}
 			string type = match.Groups["type"].Value;
-			string language = WordsParser.NormalizeLanguageCasing(match.Groups["lang"].Value);
+			string language = match.Groups["lang"].Value;
 			string form = match.Groups["form"].Value.ToLowerInvariant();
 			if (!Types.Contains(type)) {
 				problem = $"'{name}': a key has no {type} field ({string.Join(", ", Types)})";
 				return false;
+			}
+			//a parameter's name is as written, as the parser reads it
+			if (language != "" && type != "param") {
+				if (!LanguageCode.TryParse(language, out var code)) {
+					problem = $"'{name}': {WordsParserToLocalizationProvider.LanguageCodeRule}";
+					return false;
+				}
+				language = code.ToString();
 			}
 			if (form != "" && type != "value") {
 				problem = $"'{name}': only a value has plural forms";

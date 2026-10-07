@@ -44,36 +44,48 @@ public static class EditorWords {
 	}
 
 	/// <summary>
-	///     Loads the words in <paramref name="languageCode"/>: <see cref="Words.Known"/>
-	///     resolves in it and the thread cultures follow. A code no culture answers
-	///     to loads <see cref="Fallback"/> instead.
+	///     Loads the words in <paramref name="languageCode"/>, read as far as it is a
+	///     code (<see cref="Readable"/>): <see cref="Words.Known"/> resolves in it,
+	///     falling back through its shorter codes (<c>sr-Latn-RS</c>, <c>sr-Latn</c>,
+	///     <c>sr</c>) to the default, and the thread cultures follow. One no culture
+	///     answers to loads <see cref="Fallback"/> instead; startup never throws on a code.
 	/// </summary>
 	public static void Load(string languageCode, ITakeException? logger = null, WordsFormats? formats = null) {
 		WordsBuilder builder = Builder(logger, formats);
 		Languages = [.. builder.GetLanguages()];
+		string code = Readable(languageCode);
 		try {
-			builder.Digest(languageCode);
-			Current = languageCode;
+			builder.Digest(code);
+			Current = code;
 		}
-		catch (CultureNotFoundException) {
+		catch (ArgumentException) {
 			builder.Digest(Fallback);
 			Current = Fallback;
 		}
 	}
 
 	/// <summary>
-	///     The menu entry <paramref name="languageCode"/> reads in: its own, else its
-	///     family's (<c>en-GB</c> reads in <c>en</c>), else none.
+	///     The code <paramref name="languageCode"/> loads as: itself, cased by kind,
+	///     or the code a culture's name starts with (<c>ca-ES-valencia</c> loads
+	///     <c>ca-ES</c>), else <see cref="Fallback"/>.
+	/// </summary>
+	public static string Readable(string languageCode)
+		=> LanguageCode.TryRead(languageCode, out var code) ? code.ToString() : Fallback;
+
+	/// <summary>
+	///     The menu entry <paramref name="languageCode"/> reads in: its own, else the
+	///     first of its shorter codes the menu has (<c>en-GB</c> reads in <c>en</c>),
+	///     else none.
 	/// </summary>
 	public static string? MenuCode(string languageCode) {
-		foreach (var language in Languages) {
-			if (string.Equals(language.Key, languageCode, StringComparison.OrdinalIgnoreCase)) {
-				return language.Key;
-			}
+		if (!LanguageCode.TryRead(languageCode, out var code)) {
+			return null;
 		}
-		foreach (var language in Languages) {
-			if (languageCode.StartsWith(language.Key + "-", StringComparison.OrdinalIgnoreCase)) {
-				return language.Key;
+		foreach (var level in code.Chain) {
+			foreach (var language in Languages) {
+				if (string.Equals(language.Key, level.ToString(), StringComparison.OrdinalIgnoreCase)) {
+					return language.Key;
+				}
 			}
 		}
 		return null;
