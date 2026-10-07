@@ -59,14 +59,11 @@ public class TestParametersViewModel : DialogViewModel {
 				parameter.PropertyChanged += OnParameterEdited;
 			}
 		}
-		Parent.MarkDirty();
 		Refresh();
 	}
 
-	private void OnParameterEdited(object? sender, PropertyChangedEventArgs e) {
-		Parent.MarkDirty();
-		Refresh();
-	}
+	//the window's Perform compares the parameters before and after, and dirties on a change
+	private void OnParameterEdited(object? sender, PropertyChangedEventArgs e) => Refresh();
 
 	//the default, references expanded, formatted the way the default preview does it
 	private void Refresh() {

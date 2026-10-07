@@ -445,6 +445,10 @@ internal static class KeptKeys {
 		key.Context = kept.Context;
 		key.Comment = kept.Comment;
 		key.NeedsReview = kept.NeedsReview;
+		key.Forms.Clear();
+		foreach (var (form, text) in kept.Forms) {
+			key.Forms[form] = text;
+		}
 		key.Parameters.Clear();
 		foreach (WordsParameter parameter in kept.Parameters) {
 			key.Parameters.Add(new WordsParameter(parameter));

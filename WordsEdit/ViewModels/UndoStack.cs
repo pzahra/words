@@ -73,22 +73,33 @@ public sealed class UndoStack {
 		run = entry as FieldEdit;
 	}
 
-	/// <summary>A keystroke: it folds into the open run when it edits the same field, and starts an entry otherwise.</summary>
-	public void Type(FieldEdit edit, bool wasDirty) {
+	/// <summary>
+	///     A keystroke: it folds into the open run when it edits the same field,
+	///     and starts an entry otherwise.
+	/// </summary>
+	/// <returns>
+	///     The dirtiness the document goes back to when the keystroke took its run
+	///     back to where it started, leaving nothing to undo; null otherwise.
+	/// </returns>
+	public bool? Type(FieldEdit edit, bool wasDirty) {
 		if (run is null || !run.Absorb(edit)) {
 			Push(edit, wasDirty);
+			return null;
 		}
-		else if (run.ChangesNothing) {
-			//typed and taken back: nothing left to undo
-			done.Pop();
-			run = null;
+		if (!run.ChangesNothing) {
+			return null;
 		}
+		//typed and taken back: nothing left to undo, and the document is as it was
+		done.Pop();
+		bool before = run.DirtyBefore;
+		run = null;
+		return before;
 	}
 
 	/// <summary>The next keystroke starts an entry of its own.</summary>
 	public void EndRun() => run = null;
 
-	/// <summary>Moves the next entry to undo (or redo) across and hands it over to be applied.</summary>
+	/// <summary>Moves the next entry to undo (or redo) across, once it has been applied.</summary>
 	public UndoEntry Take(bool undoing) {
 		run = null;
 		UndoEntry entry = (undoing ? done : undone).Pop();
@@ -99,15 +110,21 @@ public sealed class UndoStack {
 	/// <summary>
 	///     The document was saved: every step away from here dirties it, and the
 	///     two steps that come back to it — redoing the entry just undone, undoing
-	///     the one just redone — leave it clean.
+	///     the one just redone — leave it clean. Saved in part, the disk holds no
+	///     state the history passes through, and every step dirties. Either way
+	///     the typing run ends, so the next keystroke is a step of its own.
 	/// </summary>
-	public void Saved() {
+	/// <param name="partly">Some files were written and some were not.</param>
+	public void Saved(bool partly = false) {
+		run = null;
 		foreach (UndoEntry entry in done.Concat(undone)) {
 			entry.DirtyBefore = true;
 			entry.DirtyAfter = true;
 		}
-		NextUndo?.DirtyAfter = false;
-		NextRedo?.DirtyBefore = false;
+		if (!partly) {
+			NextUndo?.DirtyAfter = false;
+			NextRedo?.DirtyBefore = false;
+		}
 	}
 
 	/// <summary>A boundary: what the entries refer to is gone.</summary>

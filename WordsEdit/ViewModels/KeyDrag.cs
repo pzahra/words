@@ -76,6 +76,10 @@ public class KeyDrag : IDragSource, IDropTarget {
 		if (dragged is OrganizerNode and not CommentNode) {
 			return;
 		}
+		//an undo or redo during the drag may have taken either out of the tree
+		if (!Vm.Tree.KeyNodes.Contains(dragged.Root) || !Vm.Tree.KeyNodes.Contains(target.Root)) {
+			return;
+		}
 		bool center = dropInfo.InsertPosition.HasFlag(RelativeInsertPosition.TargetItemCenter);
 		bool after = dropInfo.InsertPosition.HasFlag(RelativeInsertPosition.AfterTargetItem);
 		if ((target is OrganizerNode && center) || dragged.Contains(target)) {

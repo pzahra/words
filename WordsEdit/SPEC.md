@@ -687,8 +687,8 @@ whatever was waiting to be redone.
   also carries its relabel and any translations it cleared. Stale All
   Languages, on the selected key, is a `KeyEdit` too (`StaleAllEdit`), the
   stamps it replaced kept with it. Adding key information is `KeyAdded`;
-  removing it is `KeyRemoved`, which keeps a copy of the key and puts a copy
-  back. A Test Parameters session is one `ParametersEdit`, the key's
+  removing it is `KeyRemoved`, which keeps a copy of the key, plural forms
+  and all, and puts a copy back. A Test Parameters session is one `ParametersEdit`, the key's
   parameters before and after, made only when they differ.
 - **Structure.** Adding a node or a comment is `NodeAdded`; removing one is
   `NodeRemoved`: the parent, the position, the node itself — its subtree,
@@ -700,7 +700,8 @@ whatever was waiting to be redone.
   undoing one renames back through the session and the node moves back. A
   drop where the node already stood changes nothing and makes no entry; a
   file dragged among files is precedence, not content, and makes none
-  either.
+  either. A drop whose node or target an undo or redo took out of the tree
+  while it was dragged does nothing.
 - **Settings references.** The Settings dialog's change to a file's
   `param=` and `param-xx=` slots is a `FileSettingsEdit`, the slots before
   and after, made only when they differ. The tables themselves are written
@@ -718,23 +719,39 @@ whatever was waiting to be redone.
   entries and has no tidy inverse; the manager never asks for one (no two
   rows share a code), but a commit that makes one clears the stack instead
   — the last resort for any document-wide action that cannot keep a
-  reversible state.
+  reversible state. Undone or redone, a commit checks the panes' form picks
+  again as the commit did: the same key in the same language may count by
+  other rules now, and a pick they lack goes back to the plain value.
 
 **Recording.** Fields report themselves; every other entry is made by its
 command through one door (`Perform`, on the main view model): the command
 makes its change and returns its entry, or nothing when it changed nothing,
 and while it runs the field reports are not typing — a constant clearing its
 translations is not typing. A dialog a command opens belongs to the command,
-so a Test Parameters session or a Settings Okay is one entry. Each entry
-records whether the document was dirty before its action, and undo restores
-`IsDirty` to that; a save moves the marks, so an undo or redo that leaves the
-saved state stars the title and one that comes back to it clears it.
+so a Test Parameters session or a Settings Okay is one entry, and the dialog
+dirties nothing itself: `Perform` stars the title when the entry is made.
+Each entry records whether the document was dirty before its action, and
+undo restores `IsDirty` to that; a save moves the marks, so an undo or redo
+that leaves the saved state stars the title and one that comes back to it
+clears it. A save that writes some files and not others leaves the disk in
+no state the history passes through, so it moves every mark to dirty: each
+undo and redo stars the title until a save gets every file out.
+An entry that throws as it applies stays where it was, and the stack is
+cleared, the title starred: the document may be half changed, and no entry
+can be trusted to step from there. The error goes on.
 
 **Coalescing.** Consecutive edits to the same field of the same node and
 language fold into one entry, the first text before and the last after, so
 undo takes back the typing, not a character. A different field, another
-entry, an undo or a redo, or moving to another node ends the run, and a run
-typed back to where it started leaves no entry at all.
+entry, an undo or a redo, a save, or moving to another node ends the run,
+and a run typed back to where it started leaves no entry at all, and the
+title as the run found it.
+
+**Depth.** The stack is unbounded. An entry holds only what its action
+changed — a field's text before and after, a removed subtree's keys — and
+the boundaries below empty it, so a session's history stays small next to
+its document. A cap would drop the oldest entries from the bottom of the
+stack; nothing has asked for one yet.
 
 **Navigate first.** An undo should not surprise: an entry whose change is
 out of view does not undo yet — it goes there. The node is selected and
@@ -788,7 +805,14 @@ the document before it — every file's saved text and
 every row of the tree — with a clean title, and redoing it the document
 after; the whole run undone is the file as loaded, and redone the last of
 it. A typing run is one entry until another field, another node or an undo
-comes between, and typing back to the start leaves none; a note that raised
+comes between, and typing back to the start leaves none, nor a star where
+there was none; a parameter added and removed in one session is no entry;
+undoing the removal of a key, or of a node above it, puts their plural forms
+back; a save ends the run, and after a save that wrote one file and not
+another every undo and redo stars the title, and Close asks; undoing a
+declaration of the default's language drops a form pick the restored rules
+lack; a drop whose node a redo took away does nothing; an entry that throws
+as it applies clears the stack and stars the title; a note that raised
 the hand undoes both, and undoing the clearing of a note leaves a hand that
 was lowered down. An undo out of view selects the node through a search
 that hides it and switches the language, changing nothing until the second

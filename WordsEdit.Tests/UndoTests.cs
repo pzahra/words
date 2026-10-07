@@ -385,6 +385,172 @@ public class UndoTests {
 	}
 
 	[Fact]
+	public void UndoingARemovalPutsThePluralFormsBack() {
+		var vm = new MainWindowViewModel(new FakeDialogs());
+		vm.LoadFile(new StringReader("value-en=English\n\n[group]\nvalue=group\nvalue#other=groups\n\n[group.item]\nvalue=item\nvalue#other=items\nvalue-en=thing\nvalue-en#other=things\n"), "Ex");
+		string loaded = State(vm);
+
+		vm.Tree.Select(Node(vm, "Ex.group.item"));
+		vm.RemoveKeyCommand.Execute(null);
+		Undo(vm);
+		Assert.Equal(loaded, State(vm));
+
+		vm.Tree.Select(Node(vm, "Ex.group"));
+		vm.RemoveNodeCommand.Execute(null);
+		Undo(vm);
+		Assert.Equal(loaded, State(vm));
+		Assert.Equal("items", vm.Session.Keys["Ex.group.item"].Forms["other"]);
+	}
+
+	[Fact]
+	public void TypingBackToWhereTheRunStartedLeavesNothingAndNoStar() {
+		var (vm, dialogs) = Load();
+		vm.Tree.Select(Node(vm, "Example.main.title"));
+		WordsKey key = vm.Tree.SelectedKey!;
+		string value = key.DefaultValue;
+
+		key.DefaultValue = value + "x";
+		Assert.True(vm.IsDirty);
+		key.DefaultValue = value;
+		Assert.Equal(0, vm.UndoStack.DoneCount);
+		Assert.False(vm.IsDirty);
+
+		//from a starred document, it stays starred: the run found it so
+		vm.ToggleNeedsReviewCommand.Execute(null);
+		key.DefaultValue = value + "x";
+		key.DefaultValue = value;
+		Assert.Equal(1, vm.UndoStack.DoneCount);
+		Assert.True(vm.IsDirty);
+
+		//a parameter added and removed again in the dialog is no change at all
+		(vm, dialogs) = Load();
+		vm.Tree.Select(Node(vm, "Example.view.section-name.key"));
+		dialogs.OnShow = shown => {
+			var parameters = (TestParametersViewModel)shown;
+			parameters.AddParameterCommand.Execute(null);
+			parameters.RemoveParameterCommand.Execute(parameters.Parameters[^1]);
+		};
+		vm.TestParametersCommand.Execute(null);
+		Assert.Equal(0, vm.UndoStack.DoneCount);
+		Assert.False(vm.IsDirty);
+	}
+
+	[Fact]
+	public void ASaveEndsTheRunAndAPartialSaveCleansNoStep() {
+		string folder = Path.Combine(Path.GetTempPath(), $"WordsEditUndoSave-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		try {
+			string a = Path.Combine(folder, "A.ini"), b = Path.Combine(folder, "B.ini");
+			File.WriteAllText(a, "value-en=English\n\n[k]\nvalue=a\n");
+			File.WriteAllText(b, "value-en=English\n\n[k]\nvalue=b\n");
+			var dialogs = new FakeDialogs { SaveAnswer = CloseAnswer.Cancel };
+			var vm = new MainWindowViewModel(dialogs);
+			vm.LoadFile(a);
+			vm.LoadFile(b);
+
+			//type, save, type on: undoing the second keystroke and redoing it is unsaved work
+			vm.Tree.Select(Node(vm, "A.k"));
+			WordsKey key = vm.Tree.SelectedKey!;
+			key.DefaultValue = "a1";
+			vm.Save();
+			key.DefaultValue = "a12";
+			Assert.Equal(2, vm.UndoStack.DoneCount);
+			Undo(vm);
+			Assert.Equal("a1", key.DefaultValue);
+			Assert.False(vm.IsDirty); //back where the save was
+			Redo(vm);
+			Assert.Equal("a12", key.DefaultValue);
+			Assert.True(vm.IsDirty);
+			Assert.False(vm.TryClose()); //it asks, and the test stays
+
+			//A saves and B is locked: undoing both edits is not what either file holds
+			vm.Tree.Select(Node(vm, "B.k"));
+			vm.ToggleNeedsReviewCommand.Execute(null);
+			using (new FileStream(b, FileMode.Open, FileAccess.Read, FileShare.None)) {
+				vm.Save();
+			}
+			Assert.Single(dialogs.Notices);
+			Assert.True(vm.IsDirty);
+			while (vm.UndoStack.DoneCount > 0) {
+				Undo(vm);
+				Assert.True(vm.IsDirty);
+			}
+			Assert.False(vm.TryClose());
+			while (vm.UndoStack.UndoneCount > 0) {
+				Redo(vm);
+				Assert.True(vm.IsDirty);
+			}
+
+			//until a save gets every file out
+			vm.Save();
+			Assert.False(vm.IsDirty);
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
+	public void UndoingTheDefaultsLanguageDropsAPickItsRulesLack() {
+		var vm = new MainWindowViewModel(new FakeDialogs());
+		vm.LoadFile(new StringReader("value-en=English\nvalue-ru=Русский\n\n[word]\nvalue=file\nvalue#other=files\n"), "Ex");
+		var manager = new LanguageManagerViewModel(vm);
+		manager.Rows.Single(row => row.Code == "ru").IsDefault = true;
+		manager.OkCommand.Execute(null);
+		vm.Tree.Select(Node(vm, "Ex.word"));
+		Assert.True(vm.Tree.DefaultForms.CanPick("few")); //Russian counts by it
+		vm.Tree.PickDefaultForm("few");
+
+		Undo(vm);
+
+		Assert.False(vm.Tree.DefaultForms.CanPick("few")); //English does not
+		Assert.Equal(FormPane.Plain, vm.Tree.DefaultForms.Form);
+		vm.Tree.DefaultText = "files!";
+		Assert.Equal("files!", vm.Session.Keys["Ex.word"].DefaultValue);
+		Assert.DoesNotContain("few", vm.Session.Keys["Ex.word"].Forms.Keys);
+	}
+
+	[Fact]
+	public void ADropWhoseNodeARedoTookAwayDoesNothing() {
+		var (vm, _) = Load();
+		vm.Tree.Select(Node(vm, "Example.enum"));
+		vm.RemoveNodeCommand.Execute(null);
+		Undo(vm);
+		KeyNode child = Node(vm, "Example.enum.two"); //picked up…
+		Redo(vm); //…and its group goes again
+		string removed = State(vm);
+		int depth = vm.UndoStack.DoneCount;
+
+		vm.KeyDrag.Drop(new FakeDropInfo(child, Node(vm, "Example.format"), RelativeInsertPosition.TargetItemCenter));
+
+		Assert.Equal(removed, State(vm)); //and it still saves
+		Assert.Equal(depth, vm.UndoStack.DoneCount);
+		Undo(vm);
+		Assert.NotNull(vm.Tree.NodeAt("Example.enum.two"));
+	}
+
+	private sealed class Failing : UndoEntry {
+		public override NodeRef? Site(bool undoing) => null;
+		public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) => throw new InvalidOperationException("half done");
+	}
+
+	[Fact]
+	public void AnEntryThatFailsToApplyClearsTheHistory() {
+		var (vm, _) = Load();
+		vm.Tree.Select(Node(vm, "Example.enum.none"));
+		vm.ToggleNeedsReviewCommand.Execute(null);
+		vm.Perform(() => new Failing());
+		vm.IsDirty = false;
+
+		Assert.Throws<InvalidOperationException>(() => vm.UndoCommand.Execute(null));
+
+		Assert.Equal(0, vm.UndoStack.DoneCount);
+		Assert.Equal(0, vm.UndoStack.UndoneCount);
+		Assert.False(vm.UndoCommand.CanExecute(null));
+		Assert.True(vm.IsDirty);
+	}
+
+	[Fact]
 	public void AMergingRecodeIsABoundary() {
 		var (vm, _) = Load();
 		vm.Tree.Select(Node(vm, "Example.enum.none"));

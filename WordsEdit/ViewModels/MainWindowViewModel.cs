@@ -101,6 +101,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public event Action<DocumentField>? FieldFocusRequested;
 	//above zero while a command or an undo changes the document: the fields' reports are not typing
 	private int quiet;
+	//the dirtiness a keystroke taking its run back returns to, for the tree's Edited
+	//that follows the report
+	private bool? typedBack;
 
 	//how the editor asks and tells: modal windows in the app, a fake in tests
 	public IDialogs Dialogs { get; }
@@ -113,7 +116,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		this.spellCheckers = spellCheckers ?? SpellCheckers.IsInstalled;
 		Tree = new TreeViewModel(Session);
 		Tree.Edited += () => {
-			MarkDirty();
+			//a keystroke that took its run back leaves the document as the run found it
+			IsDirty = typedBack ?? true;
+			typedBack = null;
 			RenderPreviews();
 		};
 		Tree.FieldEdited += OnFieldEdited;
@@ -293,19 +298,23 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	private void DoSave() => Save();
 
 	public override void Save() {
-		bool allSaved = true;
+		int saved = 0;
 		foreach (WordsFile file in Session.Files) {
 			try {
 				Session.Save(file, Tree.NodeOf(file));
+				saved++;
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.EncoderFallbackException) {
 				Dialogs.Tell(Words.Known.Format("file.save-failed", file.Path, ex.Message));
-				allSaved = false;
 			}
 		}
-		if (allSaved) {
+		if (saved == Session.Files.Count) {
 			IsDirty = false;
 			UndoStack.Saved();
+		}
+		else if (saved > 0) {
+			//some files on disk moved on and some didn't: no undo or redo comes back to that
+			UndoStack.Saved(partly: true);
 		}
 	}
 
@@ -631,6 +640,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	//typing: a run of keystrokes in one field is one entry, and a note raises the
 	//key's hand as it is typed
 	private void OnFieldEdited(FieldEdit edit) {
+		typedBack = null;
 		if (quiet > 0) {
 			return;
 		}
@@ -639,7 +649,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			edit.RaisedReview = true;
 			key.NeedsReview = true;
 		}
-		UndoStack.Type(edit, wasDirty);
+		typedBack = UndoStack.Type(edit, wasDirty);
 	}
 
 	//Ctrl+Z and Ctrl+Y (SPEC: Undo → Navigate first): a change out of view is gone
@@ -664,11 +674,25 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			}
 			return;
 		}
+		NodeRef? follow;
+		try {
+			follow = Quietly(() => entry.Apply(Session, Tree, undoing));
+		}
+		catch {
+			//the document may be half changed: no entry can be trusted to step from there
+			UndoStack.Clear();
+			MarkDirty();
+			Commands.Refresh();
+			throw;
+		}
 		UndoStack.Take(undoing);
-		NodeRef? follow = Quietly(() => entry.Apply(Session, Tree, undoing));
 		//the entry may have changed anything the tree reads off the document
 		Tree.FollowLanguage();
 		Tree.FollowSelectedKey();
+		if (entry is LanguagesEdit) {
+			//the same key and language, but the rules or forms a pick stood on may be gone
+			Tree.RevalidateForms();
+		}
 		foreach (KeyNode root in Tree.KeyNodes) {
 			TreeViewModel.UpdateCanBeConstant(root);
 		}

@@ -203,12 +203,9 @@ public class SettingsViewModel : DialogViewModel {
 	}
 
 	private void DoOkay() {
-		//the slots are the dictionary's own and travel with it
-		string settings = SettingsFile.Trim();
-		if (File.Settings != settings) {
-			File.Settings = settings;
-			Parent.MarkDirty();
-		}
+		//the slots are the dictionary's own and travel with it; the window's
+		//Perform compares them before and after, and dirties on a change
+		File.Settings = SettingsFile.Trim();
 		foreach (LanguageSettingRow language in Languages) {
 			string path = language.Path.Trim();
 			if (File.LanguageSettings.GetValueOrDefault(language.Code, "") != path) {
@@ -218,7 +215,6 @@ public class SettingsViewModel : DialogViewModel {
 				else {
 					File.LanguageSettings[language.Code] = path;
 				}
-				Parent.MarkDirty();
 			}
 		}
 		//the tables go to their own files, touched ones only; a file that will
