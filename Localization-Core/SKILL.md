@@ -113,7 +113,9 @@ words list   words.ini --missing it                  # keys Italian still misses
 Fields are named as in the file (`value`, `value-fr`, `value-mt#few`,
 `context-fr`, `comment-fr`, `stale-fr`, `param-name`); a key is its full dotted
 name, whatever `[.child]` header the file wrote it under. Exit codes: 0 done,
-1 the key or field is not there, 2 a bad call or a file that does not parse.
+1 the key or field is not there, 2 a bad call, a file that is missing, can't be
+read or written or does not parse, or an edit refused because it would change
+more than asked; the file is left as it was.
 Read stderr: a field in a language the file does not declare, or a form the
 language never reads, is griped about as it is written. Mark the translations
 you write `--stale`, so the person reviewing in Wordsmith finds them.

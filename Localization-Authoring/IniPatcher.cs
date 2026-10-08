@@ -29,24 +29,28 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		/// <summary>Reads the file at <paramref name="path"/>.</summary>
-		/// <exception cref="InvalidDataException">The file is not UTF-8 or UTF-16 text, or does not parse.</exception>
+		/// <exception cref="InvalidDataException">The file is not UTF-8, UTF-16 or UTF-32 text, or does not parse.</exception>
 		public static IniPatcher Open(string path) => FromBytes(File.ReadAllBytes(path));
 
-		/// <summary>Reads a file's bytes: UTF-8, with or without a BOM, or UTF-16 with one.</summary>
+		/// <summary>
+		///     Reads a file's bytes: UTF-8, with or without a BOM, or UTF-16 or UTF-32
+		///     with one, by the BOMs Wordsmith reads. Text holding a NUL is none:
+		///     UTF-16 without its BOM reads as UTF-8 with a NUL in every other byte.
+		/// </summary>
 		/// <exception cref="InvalidDataException">The bytes are no such text, or do not parse.</exception>
 		public static IniPatcher FromBytes(byte[] bytes) {
-			(Encoding encoding, int bomLength) = bytes switch {
-				[0xEF, 0xBB, 0xBF, ..] => ((Encoding)new UTF8Encoding(false, true), 3),
-				[0xFF, 0xFE, ..] => (new UnicodeEncoding(false, false, true), 2),
-				[0xFE, 0xFF, ..] => (new UnicodeEncoding(true, false, true), 2),
-				_ => (new UTF8Encoding(false, true), 0),
-			};
+			var encoding = WordsSession.EncodingOf(bytes);
+			int bomLength = encoding.Preamble.Length;
+			string name = bomLength == 0 ? "UTF-8" : encoding.WebName;
 			string text;
 			try {
 				text = encoding.GetString(bytes, bomLength, bytes.Length - bomLength);
 			}
 			catch (DecoderFallbackException) {
-				throw new InvalidDataException(bomLength == 0 ? "not UTF-8 text" : $"not {encoding.WebName} text");
+				throw new InvalidDataException($"not {name} text");
+			}
+			if (text.Contains('\0')) {
+				throw new InvalidDataException(bomLength == 0 ? "not UTF-8 text: it holds NULs, as UTF-16 without a BOM does" : $"not {name} text: it holds a NUL");
 			}
 			return new IniPatcher(encoding, bytes[..bomLength], text);
 		}
@@ -116,20 +120,27 @@ namespace PatTech.Localization.Authoring {
 		///     missing. A field already holding the text is left alone; a field declared
 		///     more than once keeps its first place, and its others go. A new field goes
 		///     after the last of its block, a new key after the header chain holding
-		///     its nearest sibling, as a full header.
+		///     its nearest sibling, as a full header. A parameter whose text names no
+		///     type before its first <c>:</c> is written as a String's, behind
+		///     <c>String:</c>, so its words read back whole.
 		/// </summary>
 		/// <returns>The gripes the change adds to the file's.</returns>
-		/// <exception cref="ArgumentException"><paramref name="key"/> is no key name (<see cref="WordsParser.IsKeyName"/>).</exception>
+		/// <exception cref="ArgumentException"><paramref name="key"/> is no key name (<see cref="WordsParser.IsKeyName"/>), or <paramref name="text"/> holds a NUL.</exception>
 		/// <exception cref="IniPatchException">The change would change anything else.</exception>
 		public IReadOnlyList<string> Set(string key, WordsField field, string text) {
 			CheckKey(key);
+			if (text.Contains('\0')) {
+				throw new ArgumentException($"{key}: {field} can't hold a NUL, which would leave the file no text");
+			}
 			text = text.Replace("\r\n", "\n").Replace('\r', '\n');
 			if (field is { Type: "stale", Language: "" }) {
 				text = ""; //the default's stale mark keeps no words
 			}
 			List<string> notes = [];
 			if (field.Type == "param" && text.Split(':', count: 2) is [var type, _] && !WordsParameterType.All.Any(known => known.Name == type)) {
-				notes.Add($"{key}: {field} names no type {type} ({string.Join(", ", WordsParameterType.All.Select(known => known.Name))}), so it reads as a String after the first ':'");
+				//read as written, the words before the first ':' would go as the type
+				text = $"{WordsParameterType.String.Name}:{text}";
+				notes.Add($"{key}: {field} names no type {type} ({string.Join(", ", WordsParameterType.All.Select(known => known.Name))}), so it is written as a String's words: {text}");
 			}
 			var own = Declarations(key, field);
 			if (own.Count == 1 && Find(key) is { } found && field.Read(found) == text) {
@@ -165,20 +176,28 @@ namespace PatTech.Localization.Authoring {
 			})];
 		}
 
-		/// <summary>Drops <paramref name="field"/> of <paramref name="key"/>, every declaration of it.</summary>
+		/// <summary>Drops <paramref name="field"/> of <paramref name="key"/>, every declaration of it, with words or empty.</summary>
 		/// <returns>The gripes the change adds to the file's.</returns>
-		/// <exception cref="KeyNotFoundException">The key has no such field.</exception>
+		/// <exception cref="KeyNotFoundException">The key's blocks declare no such field.</exception>
 		/// <exception cref="IniPatchException">The change would change anything else.</exception>
 		public IReadOnlyList<string> Remove(string key, WordsField field) {
-			if (Find(key) is not { } found || field.Read(found) is null) {
+			var own = Declarations(key, field);
+			if (own.Count == 0) {
 				throw new KeyNotFoundException($"{key} has no {field}");
 			}
 			var edit = new Edit(lines);
-			foreach (var declaration in Declarations(key, field)) {
+			foreach (var declaration in own) {
 				edit.Delete(declaration.Start, declaration.End);
 			}
 			return Commit(Collapse(edit), keys => field.Write(keys[key], null));
 		}
+
+		/// <summary>
+		///     True when a block of <paramref name="key"/> declares
+		///     <paramref name="field"/>, with words or empty: an empty field reads as
+		///     none (<see cref="WordsField.Read"/>), but its line is there to remove.
+		/// </summary>
+		public bool Declares(string key, WordsField field) => Declarations(key, field).Count != 0;
 
 		/// <summary>
 		///     Drops the whole of <paramref name="key"/>: its headers and its fields. A

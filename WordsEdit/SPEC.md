@@ -983,8 +983,14 @@ byte alone.
 **Calls.** One file per call; a field is named as in the file (`value`,
 `value-fr`, `value-mt#few`, `context-fr`, `comment-fr`, `stale-fr`,
 `param-count`), plural forms included (*Plural forms*, above); a value is an
-argument, or `-` for stdin with its last line break dropped, so a multi-line
-value needs no shell quoting:
+argument, or `-` for stdin with its last line break (`\r\n`, `\n` or `\r`)
+dropped, so a multi-line value needs no shell quoting. A redirected stdin is
+UTF-8 exactly: bytes that are no UTF-8 are a bad call, never replacement
+characters, and a leading U+FEFF is the value's own, so `get` piped into `set`
+carries it whole; since a tool writing a BOM puts one there too, a line on
+stderr says it was kept. A `param-` text whose words before the first `:` name
+no type is written behind `String:`, with a note, so it reads back whole
+rather than losing them as an unknown type:
 
 - `get <file> <key> [field]` prints a field's value, unescaped, or the whole
   block as Save writes it, under a full header, when no field is named.
@@ -995,7 +1001,8 @@ value needs no shell quoting:
   `--stale` takes the next argument as its words only once the value is in,
   and `--stale=text` always does.
 - `remove <file> <key> [field]` drops one field, every declaration of it, or
-  the whole key.
+  the whole key. A field is there to drop when the file declares it, with
+  words or empty, though `get` reads an empty one as none, exit 1.
 - `list <file> [prefix]` prints the keys in the order their blocks first
   appear, leaving out a bare group header as the editor drops it; the prefix
   is plain text, so `menu.` lists a group. `--missing xx` lists only those
@@ -1014,13 +1021,19 @@ constant, and without one the children re-base. Values go
 to stdout and gripes to stderr: the reader's gripes the edit adds (a field in
 an undeclared language, a form the language never reads), and a note when a
 field declared twice is made one. The exit code is 0 for done, 1 when the
-key or field is not there, 2 for a bad call, a file that does not parse or is
-neither UTF-8 nor UTF-16 text, or a refused edit. Redirected streams speak
-UTF-8 with `\n`; a console keeps its own.
+key or field is not there, 2 for a bad call, a file that is missing, can't be
+read or written, does not parse or is no text the patcher reads, or a refused
+edit; a file's failure names the file, which the system's own message may not,
+and a missing one is no misuse, so the calls are not shown. Redirected streams
+speak UTF-8 with `\n`; a console keeps its own.
 
-**Surgical edits.** `IniPatcher` reads the file's bytes (UTF-8 with or
-without a BOM, UTF-16 with one) and parses them, noting where each header and
-field sits. The one field's lines (its declaration and its continuations) are
+**Surgical edits.** `IniPatcher` reads the file's bytes by the BOMs
+Wordsmith's Load reads (*Saving*): UTF-8 with or without one,
+UTF-16 or UTF-32 with one, UTF-32 LE's checked first since it starts with
+UTF-16 LE's. Text holding a NUL is refused: UTF-16 without its BOM reads as
+UTF-8 with a NUL in every other byte, and would otherwise be written into. A
+value holding one is refused too, as it would leave the file unreadable. The
+text is parsed, noting where each header and field sits. The one field's lines (its declaration and its continuations) are
 replaced with what `IniWriter` writes for that one pair: escaping and folding
 as Save would, in the file's own line ending; every other line keeps its own
 break, and a file that ended without one still does. A field already holding
@@ -1082,17 +1095,24 @@ the chain intact; a new key lands after its sibling's chain as a full header,
 a lone one after the last block and before the trailer, and one in a file with
 no blocks at its end; the pair is written as the writer writes it, continued
 and folded, and reads back; a BOM, CRLF and a missing final break survive,
-each line of a mixed file keeps its own break, and UTF-16 stays UTF-16; text
-that is not UTF-8 does not open; the text a field already holds leaves its
-hand-written lines; a field declared twice keeps its first place; only the
-gripes an edit adds are reported; an edit that would spill into a continued
-last line is refused and changes nothing; a removal drops a field with its
-continuations, a block with one blank line, the last block with none left
-behind, a reopened key everywhere, and keeps bare a header that bases
+each line of a mixed file keeps its own break, UTF-16 stays UTF-16 and UTF-32
+UTF-32, either way round; text that is not UTF-8 does not open, nor UTF-16
+without its BOM, and no value writes a NUL; the text a field already holds
+leaves its hand-written lines; a field declared twice keeps its first place; a
+parameter of no type keeps its words behind `String:`; only the gripes an edit
+adds are reported; an edit that would spill into a continued last line is
+refused and changes nothing; a removal drops a field with its continuations,
+an empty one included, a block with one blank line, the last block with none
+left behind, a reopened key everywhere, and keeps bare a header that bases
 children; the parser numbers its visits. The command, in process: each call's
-output and exit code, a dash read from stdin, `--stale` with words, without
-and before the value, gripes passed on, a refused edit leaving the file, and
-`list` with a prefix and `--missing` by the badges' rule.
+output and exit code, a dash read from stdin, a lone `\r` its last break, a
+leading U+FEFF kept and said, bytes that are no UTF-8 refused, all through the
+reader the program puts on a pipe; `--stale` with words, without and before
+the value, gripes passed on, a refused edit leaving the file, BOM-less UTF-16
+left alone, a missing or read-only file named without the calls, an empty
+field removed though `get` calls it none, a `[.child]` header before any base
+listed, read and removed but never written, and `list` with a prefix and
+`--missing` by the badges' rule.
 
 ---
 

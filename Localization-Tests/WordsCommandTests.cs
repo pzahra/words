@@ -1,4 +1,5 @@
 using PatTech.Localization.Cli;
+using System.Text;
 using Xunit;
 
 namespace PatTech.Localization.Tests;
@@ -6,8 +7,8 @@ namespace PatTech.Localization.Tests;
 /// <summary>
 ///     The <c>words</c> command, run in process (editor SPEC: A command line for
 ///     tools): the calls, their exit codes, values on the output and gripes on the
-///     error stream, a value from stdin, <c>--stale</c>, and <c>list --missing</c>
-///     by the editor's rule.
+///     error stream, a value from stdin, read as the program reads a pipe,
+///     <c>--stale</c>, and <c>list --missing</c> by the editor's rule.
 /// </summary>
 public sealed class WordsCommandTests : IDisposable {
 	private readonly string path = Path.Combine(Path.GetTempPath(), $"words-{Guid.NewGuid():N}.ini");
@@ -36,10 +37,15 @@ public sealed class WordsCommandTests : IDisposable {
 		"[$brand]",
 		"value=Words");
 
-	private (int Code, string Output, string Error) RunWith(string stdin, params string[] args) {
+	private (int Code, string Output, string Error) RunWith(string stdin, params string[] args) => RunOn(new StringReader(stdin), args);
+
+	//stdin's bytes, through the reader the program puts on a pipe
+	private (int Code, string Output, string Error) RunPiped(byte[] stdin, params string[] args) => RunOn(WordsCommand.Piped(new MemoryStream(stdin)), args);
+
+	private (int Code, string Output, string Error) RunOn(TextReader input, string[] args) {
 		var output = new StringWriter { NewLine = "\n" };
 		var error = new StringWriter { NewLine = "\n" };
-		int code = WordsCommand.Run([.. args.Select(arg => arg == "FILE" ? path : arg)], new StringReader(stdin), output, error);
+		int code = WordsCommand.Run([.. args.Select(arg => arg == "FILE" ? path : arg)], input, output, error);
 		return (code, output.ToString(), error.ToString());
 	}
 
@@ -115,6 +121,70 @@ public sealed class WordsCommandTests : IDisposable {
 	}
 
 	[Fact]
+	public void Set_ReadsALoneCarriageReturn_AsTheLastBreak() {
+		File.WriteAllText(path, Sample);
+
+		Assert.Equal(0, RunWith("first\r", "set", "FILE", "menu.edit", "comment", "-").Code);
+
+		Assert.Equal((0, "first\n", ""), Run("get", "FILE", "menu.edit", "comment"));
+	}
+
+	[Fact]
+	public void Set_KeepsALeadingFeffFromStdin_AsTheValuesOwn_AndSaysSo() {
+		File.WriteAllText(path, Sample);
+
+		var (code, _, error) = RunPiped(Encoding.UTF8.GetBytes("﻿leading\n"), "set", "FILE", "menu.edit", "value-it", "-");
+
+		Assert.Equal(0, code);
+		Assert.Contains("U+FEFF", error);
+		Assert.Equal((0, "﻿leading\n", ""), Run("get", "FILE", "menu.edit", "value-it"));
+	}
+
+	[Fact]
+	public void Set_StdinThatIsNotUtf8_ExitsTwo_AndLeavesTheFile() {
+		File.WriteAllText(path, Sample);
+
+		var (code, _, error) = RunPiped([.. "caf"u8, 0xE9, (byte)'\n'], "set", "FILE", "menu.edit", "value-it", "-");
+
+		Assert.Equal(2, code);
+		Assert.Contains("stdin is not UTF-8 text", error);
+		Assert.Equal(Sample, File.ReadAllText(path));
+	}
+
+	[Fact]
+	public void Set_IntoUtf16WithoutABom_ExitsTwo_AndLeavesTheFile() {
+		byte[] bytes = new UnicodeEncoding(false, false).GetBytes(Sample);
+		File.WriteAllBytes(path, bytes);
+
+		var (code, _, error) = Run("set", "FILE", "menu.edit", "value-it", "Modifica");
+
+		Assert.Equal(2, code);
+		Assert.Contains("NUL", error);
+		Assert.Equal(bytes, File.ReadAllBytes(path));
+	}
+
+	[Fact]
+	public void AFileThatIsMissing_OrCantBeWritten_IsNamed_WithoutTheCalls() {
+		var missing = Run("get", Path.Combine(Path.GetTempPath(), "no-such-words.ini"), "a");
+		Assert.Equal(2, missing.Code);
+		Assert.Contains("no-such-words.ini: no such file", missing.Error);
+		Assert.DoesNotContain("--help", missing.Error);
+
+		File.WriteAllText(path, Sample);
+		File.SetAttributes(path, FileAttributes.ReadOnly);
+		try {
+			var (code, _, error) = Run("set", "FILE", "menu.edit", "value-it", "Modifica");
+
+			Assert.Equal(2, code);
+			Assert.Contains($"{path}: can't be written", error);
+			Assert.Equal(Sample, File.ReadAllText(path));
+		}
+		finally {
+			File.SetAttributes(path, FileAttributes.Normal);
+		}
+	}
+
+	[Fact]
 	public void Set_Stale_MarksTheLanguagesEntry_WithWordsOrWithout() {
 		File.WriteAllText(path, Sample);
 
@@ -167,6 +237,32 @@ public sealed class WordsCommandTests : IDisposable {
 		Assert.Equal(0, Run("remove", "FILE", "menu.edit").Code);
 
 		Assert.Equal(Sample.Replace("value#other=files\n", "").Replace("[menu.edit]\nvalue=Edit\n\n", ""), File.ReadAllText(path));
+	}
+
+	[Fact]
+	public void Remove_DropsAnEmptyField_ThatGetCallsNone() {
+		File.WriteAllText(path, Sample);
+		Run("set", "FILE", "menu.edit", "context-it", "");
+		Assert.Contains("value=Edit\ncontext-it=\n", File.ReadAllText(path));
+		Assert.Equal(1, Run("get", "FILE", "menu.edit", "context-it").Code);
+
+		Assert.Equal((0, "", ""), Run("remove", "FILE", "menu.edit", "context-it"));
+
+		Assert.Equal(Sample, File.ReadAllText(path));
+	}
+
+	[Fact]
+	public void AChildHeaderBeforeAnyBase_IsAKeyNoCallWrites_ButEachReaches() {
+		//[.x] opens the key .x, which a runtime skips, as every call reads it
+		File.WriteAllText(path, Ini("value=!en", "", "[.x]", "value=X", "", "[a]", "value=A"));
+
+		Assert.Equal((0, ".x\na\n", ""), Run("list", "FILE"));
+		Assert.Equal((0, "X\n", ""), Run("get", "FILE", ".x", "value"));
+		Assert.Equal(1, Run("get", "FILE", "x").Code);
+		Assert.Equal(2, Run("set", "FILE", ".x", "value", "Y").Code);
+		Assert.Equal(0, Run("remove", "FILE", ".x").Code);
+
+		Assert.Equal(Ini("value=!en", "", "[a]", "value=A"), File.ReadAllText(path));
 	}
 
 	[Fact]

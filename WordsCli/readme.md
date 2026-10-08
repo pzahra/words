@@ -30,16 +30,20 @@ words list   strings.ini --missing it                # the keys Italian still mi
   segment. `set` writes no other name, since a runtime skips one; `get` and
   `remove` still reach it, so you can clear it out.
 - **Values** are an argument, or `-` for stdin, so a multi-line value needs no
-  shell quoting; the last line break is dropped.
+  shell quoting; the last line break is dropped. Stdin is UTF-8, no guessing:
+  anything else is refused rather than quietly turned into `�`, and a leading
+  U+FEFF is kept as yours, with a word on stderr in case a tool slipped you a
+  BOM.
 - **`--stale`** marks the language's entry stale as well, so a machine-written
   value turns up in Wordsmith's review filter instead of in production.
-- **`--missing xx`** lists what Wordsmith would badge: keys with no words in
-  `xx`, or a plural key missing a form `xx` counts by. A language the default
-  speaks misses nothing, since its empty entries fall back.
+- **`--missing xx`** asks Wordsmith's badge rule about one language: keys with
+  no words in `xx`, or a plural key missing a form `xx` counts by. A language
+  the default speaks misses nothing, since its empty entries fall back. (The
+  badge also flags a default with no words; that is not `xx`'s to miss.)
 
 Values go to stdout and gripes to stderr. The exit code is 0 for done, 1 when
-the key or field is not there, and 2 for a bad call or a file that does not
-parse.
+the key or field is not there, and 2 for a bad call, a file that is missing,
+can't be read or written or does not parse, or an edit `words` refused.
 
 ## Where things go
 

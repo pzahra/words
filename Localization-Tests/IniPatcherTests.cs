@@ -144,6 +144,57 @@ public class IniPatcherTests {
 		Assert.Throws<InvalidDataException>(() => IniPatcher.FromBytes([.. "[a]\nvalue=caf"u8, 0xE9, (byte)'\n']));
 	}
 
+	[Theory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void Set_KeepsUtf32_WhoseBomStartsLikeUtf16s(bool bigEndian) {
+		var utf32 = new UTF32Encoding(bigEndian, byteOrderMark: true);
+		var patcher = IniPatcher.FromBytes([.. utf32.GetPreamble(), .. utf32.GetBytes(Ini("[a]", "value=A"))]);
+
+		patcher.Set("a", F("value"), "Ä");
+
+		Assert.Equal([.. utf32.GetPreamble(), .. utf32.GetBytes(Ini("[a]", "value=Ä"))], patcher.ToBytes());
+	}
+
+	[Fact]
+	public void Utf16WithoutABom_DoesNotOpen() {
+		//every other byte a NUL, which is UTF-8 too
+		var refused = Assert.Throws<InvalidDataException>(() => IniPatcher.FromBytes(new UnicodeEncoding(false, false).GetBytes(Ini("[a]", "value=A"))));
+
+		Assert.Contains("NUL", refused.Message);
+	}
+
+	[Fact]
+	public void Set_RefusesANul_WhichWouldLeaveTheFileNoText() {
+		var patcher = Patch(Menu);
+
+		Assert.Throws<ArgumentException>(() => patcher.Set("about", F("value"), "a\0b"));
+		Assert.Equal(Menu, patcher.Text);
+	}
+
+	[Fact]
+	public void Set_AParameterOfNoType_KeepsItsWordsBehindString() {
+		var patcher = Patch(Ini("[a]", "value=A"));
+
+		var gripes = patcher.Set("a", F("param-u"), "http://x");
+
+		Assert.Equal(Ini("[a]", "value=A", "param-u=String:http://x"), patcher.Text);
+		Assert.Equal("String:http://x", F("param-u").Read(patcher.Find("a")!));
+		Assert.Contains("names no type http", Assert.Single(gripes));
+	}
+
+	[Fact]
+	public void Remove_AnEmptyField_DropsItsLine() {
+		var patcher = Patch(Ini("[a]", "value=A", "context=", "", "[b]", "comment="));
+
+		Assert.True(patcher.Declares("a", F("context")));
+		patcher.Remove("a", F("context"));
+		patcher.Remove("b", F("comment")); //a block of nothing but the empty field, read as a group
+
+		Assert.Equal(Ini("[a]", "value=A", "", "[b]"), patcher.Text);
+		Assert.False(patcher.Declares("a", F("context")));
+	}
+
 	[Fact]
 	public void Set_TheTextAFieldHolds_LeavesItsLinesAsWritten() {
 		var patcher = Patch(Menu);
@@ -249,6 +300,7 @@ public class IniPatcherTests {
 
 		Assert.Throws<KeyNotFoundException>(() => patcher.Remove("menu")); //a group, not a key
 		Assert.Throws<KeyNotFoundException>(() => patcher.Remove("about", F("value-fr")));
+		Assert.Throws<KeyNotFoundException>(() => patcher.Remove("nope", F("value")));
 	}
 
 	[Fact]

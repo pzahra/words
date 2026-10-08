@@ -1,12 +1,14 @@
 using PatTech.Localization.Authoring;
 using System.Reflection;
+using System.Text;
 
 namespace PatTech.Localization.Cli {
 	/// <summary>
 	///     The <c>words</c> command (editor SPEC: A command line for tools): one verb,
 	///     one file per call, over <see cref="IniPatcher"/>. Values go to the output
 	///     and gripes to the error stream; the exit code is 0 for done, 1 when the
-	///     key or field is not there, 2 for a bad call or a file that does not parse.
+	///     key or field is not there, 2 for a bad call, a file that is missing, can't
+	///     be read or written or does not parse, or a refused edit.
 	/// </summary>
 	public static class WordsCommand {
 		public const int Done = 0, NotThere = 1, BadCall = 2;
@@ -23,14 +25,22 @@ namespace PatTech.Localization.Cli {
 			  words --version
 
 			A field is named as in the file: value, value-fr, value-mt#few, context-fr,
-			comment-fr, stale-fr, param-count. A value of - is read from stdin, its last
-			line break dropped. A key is its full dotted name, menu.file-open, whatever
-			[.child] header holds it: segments of letters, digits, _ and -, or a
-			$constant of one segment. set writes no other name.
+			comment-fr, stale-fr, param-count. A value of - is read from stdin as UTF-8,
+			its last line break dropped. A key is its full dotted name, menu.file-open,
+			whatever [.child] header holds it: segments of letters, digits, _ and -, or
+			a $constant of one segment. set writes no other name.
 
-			Exit codes: 0 done, 1 the key or field is not there, 2 a bad call or a file
-			that does not parse.
+			Exit codes: 0 done, 1 the key or field is not there, 2 a bad call, a file
+			that is missing, can't be read or written or does not parse, or an edit
+			refused because it would change more than asked.
 			""";
+
+		/// <summary>
+		///     Reads a redirected stdin as UTF-8 exactly: a leading U+FEFF is the
+		///     value's own, not taken for a BOM, and bytes that are no UTF-8 fail the
+		///     read rather than turn into replacement characters.
+		/// </summary>
+		public static TextReader Piped(Stream stdin) => new StreamReader(stdin, new UTF8Encoding(false, true), detectEncodingFromByteOrderMarks: false);
 
 		/// <summary>Runs one call; <paramref name="args"/> is the command line after the program's name.</summary>
 		/// <returns>The exit code.</returns>
@@ -107,42 +117,58 @@ namespace PatTech.Localization.Cli {
 			string key = call.Positionals[1];
 			var field = Field(call.Positionals[2]);
 			string text = call.Positionals[3];
+			List<string> gripes = [];
 			if (text == "-") {
-				text = input.ReadToEnd();
-				text = text.EndsWith("\r\n", StringComparison.Ordinal) ? text[..^2] : text.EndsWith('\n') ? text[..^1] : text;
+				text = Stdin(input);
+				if (text.StartsWith('﻿')) {
+					gripes.Add("the value from stdin starts with U+FEFF, kept as its own; a tool that writes a BOM may have put it there");
+				}
 			}
-			List<string> gripes = [.. patcher.Set(key, field, text)];
+			gripes.AddRange(patcher.Set(key, field, text));
 			if (call.Stale is { } stale) {
 				if (field.Type is "param" or "stale") {
 					throw new UsageException($"--stale marks a language's entry, and {field} is none");
 				}
 				gripes.AddRange(patcher.Set(key, new WordsField("stale", field.Language, ""), stale));
 			}
-			patcher.Save(call.File);
+			Save(patcher, call.File);
 			Gripe(error, gripes);
 			return Done;
+		}
+
+		//all of stdin but its last line break, \r\n, \n or \r
+		private static string Stdin(TextReader input) {
+			string text;
+			try {
+				text = input.ReadToEnd();
+			}
+			catch (DecoderFallbackException) {
+				throw new InvalidDataException("stdin is not UTF-8 text");
+			}
+			return text.EndsWith("\r\n", StringComparison.Ordinal) ? text[..^2] : text.EndsWith('\n') || text.EndsWith('\r') ? text[..^1] : text;
 		}
 
 		private static int Remove(Call call, TextWriter error) {
 			var patcher = Open(call.File);
 			string key = call.Positionals[1];
-			if (patcher.Find(key) is not { } found) {
-				error.WriteLine($"words: {call.File} has no key {key}");
-				return NotThere;
-			}
 			IReadOnlyList<string> gripes;
 			if (call.Positionals.Count == 2) {
+				if (patcher.Find(key) is null) {
+					error.WriteLine($"words: {call.File} has no key {key}");
+					return NotThere;
+				}
 				gripes = patcher.Remove(key);
 			}
 			else {
+				//an empty field reads as none, but its line is there to drop
 				var field = Field(call.Positionals[2]);
-				if (field.Read(found) is null) {
-					error.WriteLine($"words: {key} has no {field}");
+				if (!patcher.Declares(key, field)) {
+					error.WriteLine(patcher.Find(key) is null ? $"words: {call.File} has no key {key}" : $"words: {key} has no {field}");
 					return NotThere;
 				}
 				gripes = patcher.Remove(key, field);
 			}
-			patcher.Save(call.File);
+			Save(patcher, call.File);
 			Gripe(error, gripes);
 			return Done;
 		}
@@ -169,15 +195,28 @@ namespace PatTech.Localization.Cli {
 			return Done;
 		}
 
+		//a file's failures name the file, which the system's messages may not
 		private static IniPatcher Open(string path) {
 			if (!File.Exists(path)) {
-				throw new UsageException($"{path}: no such file");
+				throw new FileNotFoundException($"{path}: no such file", path);
 			}
 			try {
 				return IniPatcher.Open(path);
 			}
 			catch (InvalidDataException ex) {
 				throw new InvalidDataException($"{path}: {ex.Message}", ex);
+			}
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+				throw new IOException($"{path}: can't be read: {ex.Message}", ex);
+			}
+		}
+
+		private static void Save(IniPatcher patcher, string path) {
+			try {
+				patcher.Save(path);
+			}
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+				throw new IOException($"{path}: can't be written: {ex.Message}", ex);
 			}
 		}
 
