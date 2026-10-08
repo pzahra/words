@@ -31,19 +31,36 @@ It sees through parentheses, `await`, conditionals, and switch expressions, and
 flags only the arms that misbehave — so the one bad branch lights up, not the
 whole statement.
 
+The other side of the lookup is the key. Mark a parameter, property or field
+with `[WordsKey]` and every constant string handed to it must be a key some
+`*words.ini` declares — Words 1.5.0 marks its own, so `Words.Known["main.greetng"]`
+and `Words.FormatKnown("main.greetng", name)` are caught too. Add your ini as
+an AdditionalFile and a typo gets you:
+
+```
+warning PTL002: 'main.greetng' is not a known words key
+```
+
+``` xml
+<AdditionalFiles Include="Assets\words.ini" />
+```
+
+Without a `*words.ini` among the AdditionalFiles, PTL002 stays quiet.
+
 ## Getting it
 
 You usually don't have to. `PatTech.Localization.Core` depends on this package,
-so anything already using Words gets `[Localized]` and rule PTL001 for free. To
-put the attribute on strings in a project that doesn't otherwise use Words,
-reference it directly:
+so anything already using Words gets `[Localized]`, `[WordsKey]` and both rules
+for free. To put the attributes on strings in a project that doesn't otherwise
+use Words, reference it directly:
 
 ``` xml
-<PackageReference Include="PatTech.Localization.Analyzer" Version="1.3.0" />
+<PackageReference Include="PatTech.Localization.Analyzer" Version="1.4.0" />
 ```
 
-It adds the PTL001 analyzer and a small `PatTech.Localization.dll` that defines
-`[Localized]`, and nothing else — no other package dependencies come along.
+It adds the PTL001 and PTL002 analyzers and a small `PatTech.Localization.dll`
+that defines `[Localized]` and `[WordsKey]`, and nothing else — no other package
+dependencies come along.
 
 ## The rest of the suite
 

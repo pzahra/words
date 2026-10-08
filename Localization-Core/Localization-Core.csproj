@@ -30,8 +30,12 @@
   <ItemGroup>
     <!-- PrivateAssets="none" makes this a straight join: the analyzer assets flow
          through the Core package to consumers, instead of NuGet's default
-         exclude="Build,Analyzers" stripping them from the dependency -->
-    <PackageReference Include="PatTech.Localization.Analyzer" Version="$(AnalyzerVersion)" PrivateAssets="none" />
+         exclude="Build,Analyzers" stripping them from the dependency.
+         Pinned by hand, not $(AnalyzerVersion): bumped in a commit of its own once that
+         analyzer version is on nuget.org. CI restores only from nuget.org, so pointing
+         at an unpublished version breaks every build, the analyzer tag's own gated
+         test run included -->
+    <PackageReference Include="PatTech.Localization.Analyzer" Version="1.3.0" PrivateAssets="none" />
   </ItemGroup>
 
 </Project>

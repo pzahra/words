@@ -66,6 +66,7 @@ public class WordsInline : Span, IKnowWords {
 	///     The key of the Words to render. A null or empty key renders nothing;
 	///     an unknown key renders as <c>#key#</c>.
 	/// </summary>
+	[WordsKey]
 	public string? Key {
 		get => GetValue(KeyProperty);
 		set => SetValue(KeyProperty, value);

@@ -8,8 +8,8 @@
 #
 # Both take their version from WordsmithVersion in Versions.props, and the
 # version job fails a tag whose number the props don't carry, before anything
-# is built. They reference the analyzer package, so its AnalyzerVersion must
-# already be on nuget.org before this runs.
+# is built. They reference the analyzer package at a version pinned by hand
+# (WordsEdit.csproj, and Core's), which must already be on nuget.org.
 #
 # Nothing is released unless the test suites pass on the tagged commit: the
 # release job needs the tests job (tests.yml on that same commit) as well as

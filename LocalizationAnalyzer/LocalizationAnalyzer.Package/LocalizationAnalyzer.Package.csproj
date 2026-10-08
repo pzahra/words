@@ -13,7 +13,7 @@
     <Version>$(AnalyzerVersion)</Version>
     <PackageReadmeFile>readme.md</PackageReadmeFile>
     <Title>Words Analyzer</Title>
-    <Description>Provides [Localized], and warns when a [Localized] target is given a string that isn't.</Description>
+    <Description>Provides [Localized] and [WordsKey]. Warns when a [Localized] target is given a string that isn't (PTL001), and when a [WordsKey] target, indexers like Words.Known["key"] included, is given a key that no *words.ini AdditionalFile declares (PTL002).</Description>
     <PackageTags>localization;i18n;analyzers;roslyn;code-analysis</PackageTags>
     <NoPackageAnalysis>true</NoPackageAnalysis>
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);_AddAnalyzersToOutput</TargetsForTfmSpecificContentInPackage>

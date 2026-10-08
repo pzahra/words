@@ -154,14 +154,14 @@ namespace PatTech.Localization {
 			/// </summary>
 			/// <param name="key">The key to look up in <see cref="Words.Known"/>.</param>
 			/// <param name="args">Optional arguments applied to the value's <c>{0}</c>-style placeholders.</param>
-			public static void WriteWords(string key, params object?[] args)
+			public static void WriteWords([WordsKey] string key, params object?[] args)
 				=> Console.Out.Write(RenderForConsole(key, args));
 			/// <summary>
 			/// <see cref="WriteWords(string, object?[])"/>, followed by the line terminator.
 			/// </summary>
 			/// <param name="key">The key to look up in <see cref="Words.Known"/>.</param>
 			/// <param name="args">Optional arguments applied to the value's <c>{0}</c>-style placeholders.</param>
-			public static void WriteWordsLine(string key, params object?[] args)
+			public static void WriteWordsLine([WordsKey] string key, params object?[] args)
 				=> Console.Out.WriteLine(RenderForConsole(key, args));
 		}
 

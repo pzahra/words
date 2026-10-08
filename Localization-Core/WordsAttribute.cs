@@ -14,10 +14,11 @@ namespace PatTech.Localization {
 	/// </summary>
 	/// <param name="key">The base key for the primary text.</param>
 	[AttributeUsage(AttributeTargets.Field, AllowMultiple = false)]
-	public class WordsAttribute(string key) : Attribute {
+	public class WordsAttribute([WordsKey] string key) : Attribute {
 		/// <summary>
 		/// The base key for the primary text.
 		/// </summary>
+		[WordsKey]
 		public string Key { get; } = key;
 	}
 	

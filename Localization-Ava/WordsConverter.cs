@@ -54,6 +54,6 @@ public class WordsConverter(IWords? words = null, ITakeException? logger = null)
 	/// <param name="key">The key identifying the localized string template to use for formatting.</param>
 	/// <param name="culture">The culture information used to format the string and values according to locale-specific conventions.</param>
 	/// <returns>A formatted string with values substituted into the localized template.</returns>
-	public static string? Format(IWords words, object? value, string key, CultureInfo culture)
+	public static string? Format(IWords words, object? value, [WordsKey] string key, CultureInfo culture)
 		=> words.ConvertValue(value, key, culture);
 }

@@ -17,11 +17,11 @@ namespace PatTech.Localization {
 	public class CulturedWords(IWordsProvider provider, CultureInfo setCulture, CultureInfo? setUICulture = null) : IWords {
 		/// <inheritdoc/>
 		[Localized]
-		public string this[string key] => GetValue(key);
+		public string this[[WordsKey] string key] => GetValue(key);
 
 		/// <inheritdoc/>
 		[Localized]
-		public string this[string key, decimal count] => Words.RenderCount(this, key, count);
+		public string this[[WordsKey] string key, decimal count] => Words.RenderCount(this, key, count);
 
 		/// <inheritdoc/>
 		public IWordsProvider Provider { get; } = provider;
@@ -53,7 +53,7 @@ namespace PatTech.Localization {
 		/// </summary>
 		/// <exception cref="ArgumentNullException"><paramref name="key"/> is <see langword="null"/>.</exception>
 		[return: Localized]
-		public string GetValue(string key) {
+		public string GetValue([WordsKey] string key) {
 			ArgumentNullException.ThrowIfNull(key);
 
 			return Words.RenderKey(Provider, key);

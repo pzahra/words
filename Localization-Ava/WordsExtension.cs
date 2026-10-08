@@ -46,6 +46,7 @@ public class WordsExtension : MarkupExtension {
 	///     The key of the Words to provide. Assigning it immediately resolves the value
 	///     from <see cref="Words.Known"/>; unknown keys resolve to <c>#key#</c>.
 	/// </summary>
+	[WordsKey]
 	public string Key {
 		get => _Key;
 		set => this.value = Words.Known[_Key = value];
@@ -65,7 +66,7 @@ public class WordsExtension : MarkupExtension {
 	/// </summary>
 	/// <param name="key">The key of the Words to provide, or an <see cref="IBinding"/> whose value to localize.</param>
 	/// <exception cref="ArgumentNullException"><paramref name="key"/> is <see langword="null"/>.</exception>
-	public WordsExtension(object key) {
+	public WordsExtension([WordsKey] object key) {
 		ArgumentNullException.ThrowIfNull(key);
 		if (key is IBinding binding) {
 			wrapped = binding;

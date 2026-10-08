@@ -27,8 +27,8 @@ and flags only the arms that misbehave.
 
 | Project | What it does |
 |---|---|
-| `LocalizationAnalyzer` | The Roslyn analyzer itself (rule PTL001). |
-| `LocalizationAnalyzer.Package` | Packs the analyzer and the `LocalizedAttribute` into the `PatTech.Localization.Analyzer` NuGet package. |
+| `LocalizationAnalyzer` | The Roslyn analyzers themselves (rules PTL001 and PTL002). |
+| `LocalizationAnalyzer.Package` | Packs the analyzers and the `LocalizedAttribute` and `WordsKeyAttribute` into the `PatTech.Localization.Analyzer` NuGet package. |
 | `LocalizationAnalyzer.Test` | MSTest suite that feeds the analyzer little programs and checks it complains at the right ones. |
 | `LocalizationAnalyzer.Vsix` | Debug harness. F5 launches an experimental Visual Studio (`/rootsuffix Roslyn`) with the analyzer installed, breakpoints and all. It only deploys when built inside Visual Studio, so `dotnet build` stays happy. |
 

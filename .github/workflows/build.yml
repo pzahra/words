@@ -9,10 +9,13 @@
 #
 # Versions come from Versions.props, not the tag — the tag only decides when to
 # publish. Bump the props, commit, then tag that commit; the version job fails a
-# tag whose number the props don't carry, before anything is built. Core/WPF/
-# Avalonia depend on the analyzer at AnalyzerVersion and restore it from
-# nuget.org, so publish an analyzer/ tag before an api/ tag whenever the
-# analyzer version changed.
+# tag whose number the props don't carry, before anything is built.
+#
+# Core/WPF/Avalonia depend on the analyzer at a version pinned by hand in
+# Localization-Core.csproj (the editor and samples pin it too), not at
+# AnalyzerVersion, and restore it from nuget.org only. So when the analyzer
+# changed: tag analyzer/X first; once X is on nuget.org, bump the pinned
+# references to X in a commit of their own; then tag api/ on that commit.
 #
 # Nothing is pushed unless the test suites pass on the tagged commit: publish
 # needs the tests job, which runs tests.yml on that same commit.

@@ -110,17 +110,21 @@ On Linux or macOS, `Localization-Core`, `Localization-Authoring`, `WordsCli`
 and `Sample-Console` build on their own.
 
 The libraries and samples consume the analyzer as the NuGet package
-`PatTech.Localization.Analyzer`. If you change the analyzer, `dotnet pack`
-the `LocalizationAnalyzer.Package` project and push the result to your local
-feed so the rest of the solution picks it up.
+`PatTech.Localization.Analyzer`, at a version each project pins by hand. If
+you change the analyzer, `dotnet pack` the `LocalizationAnalyzer.Package`
+project, push the result to your local feed, and point a project's reference
+at that version to try it there.
 
 ## Versioning
 
 Three things ship on their own schedules, so three numbers live in
 [Versions.props](Versions.props): `ApiVersion` for the Core, WPF and Avalonia
 packages (one API surface, released together), `AnalyzerVersion` for the
-analyzer (also the version the API packages depend on), and `WordsmithVersion`
-for the editor and `words`, the command line that ships beside it. Bump the one
-you changed, commit, and tag that commit (`api/`, `analyzer/` or `editor/`
-and the number); a tag whose number the props don't carry publishes nothing.
-Source Link stamps the commit into every assembly's informational version.
+analyzer package, and `WordsmithVersion` for the editor and `words`, the
+command line that ships beside it. Bump the one you changed, commit, and tag
+that commit (`api/`, `analyzer/` or `editor/` and the number); a tag whose
+number the props don't carry publishes nothing. The API packages, the editor
+and the samples pin the analyzer version they depend on, and CI restores it
+from nuget.org, so a new analyzer is tagged first and the pins bumped in a
+commit of their own once it is published. Source Link stamps the commit into
+every assembly's informational version.

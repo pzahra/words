@@ -8,3 +8,11 @@
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
 PTL001 | PatTech.Localization | Warning | LocalizationAnalyzer
+
+## Release 1.4.0
+
+### New Rules
+
+Rule ID | Category | Severity | Notes
+--------|----------|----------|-------
+PTL002 | PatTech.Localization | Warning | WordsKeyAnalyzer: string passed to a [WordsKey] target must be a declared words key.

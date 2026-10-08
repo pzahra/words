@@ -35,7 +35,7 @@ namespace PatTech.Localization {
 		/// </summary>
 		/// <param name="key">The key to look up, e.g. <c>"group.key"</c> or <c>"$constant"</c>.</param>
 		[Localized]
-		string this[string key] { get; }
+		string this[[WordsKey] string key] { get; }
 
 		/// <summary>
 		/// Returns <paramref name="key"/>'s own form for <paramref name="count"/>, rendered
@@ -48,7 +48,7 @@ namespace PatTech.Localization {
 		/// <param name="key">The key to look up.</param>
 		/// <param name="count">The count to pick the form by; a fractional one picks <c>other</c>.</param>
 		[Localized]
-		string this[string key, decimal count] => Words.RenderCount(this, key, count);
+		string this[[WordsKey] string key, decimal count] => Words.RenderCount(this, key, count);
 
 		/// <summary>
 		/// The language this dictionary speaks, as a culture. A dictionary that does
@@ -166,7 +166,7 @@ namespace PatTech.Localization {
 		[return: NotNull, Localized]
 		public static string RenderKey(
 				[DisallowNull] this IWords words,
-				[DisallowNull] string key,
+				[DisallowNull, WordsKey] string key,
 				[AllowNull] object[] args = null) {
 			ArgumentNullException.ThrowIfNull(words);
 			return args?.Length > 0 ? words.Format(key, args) : RenderKey(words.Provider, key);
@@ -211,7 +211,7 @@ namespace PatTech.Localization {
 		[return: NotNull, Localized]
 		public static string RenderKey(
 				[DisallowNull] IWordsProvider wordsProvider,
-				[DisallowNull] string key,
+				[DisallowNull, WordsKey] string key,
 				[AllowNull] object[] args = null) {
 			ArgumentNullException.ThrowIfNull(wordsProvider);
 			ArgumentNullException.ThrowIfNull(key);
@@ -538,7 +538,7 @@ namespace PatTech.Localization {
 		}
 		/// <inheritdoc cref="Format(IWords, IFormatProvider?, string, object?[])"/>
 		[return: Localized]
-		public static string Format(this IWords known, string key, params object?[] args)
+		public static string Format(this IWords known, [WordsKey] string key, params object?[] args)
 			=> Format(known, null, key, args);
 		/// <summary>
 		/// Looks up <paramref name="key"/> and applies <paramref name="args"/> to its
@@ -555,12 +555,12 @@ namespace PatTech.Localization {
 		/// <param name="key">The key of the format template.</param>
 		/// <param name="args">The values to format into the template.</param>
 		[return: Localized]
-		public static string Format(this IWords known, IFormatProvider? provider, string key, params object?[] args)
+		public static string Format(this IWords known, IFormatProvider? provider, [WordsKey] string key, params object?[] args)
 			=> string.Format(provider, Template(known, key, key, new(known.Language, Positional(args))), args);
 
 		/// <inheritdoc cref="FormatByName(IWords, IFormatProvider?, string, object?, object?[])"/>
 		[return: Localized]
-		public static string FormatByName(this IWords known, string key, object? value, params object?[] args)
+		public static string FormatByName(this IWords known, [WordsKey] string key, object? value, params object?[] args)
 			=> FormatByName(known, null, key, value, args);
 		/// <summary>
 		/// Looks up <paramref name="key"/> and formats it with named placeholders:
@@ -578,7 +578,7 @@ namespace PatTech.Localization {
 		/// <param name="value">The object whose members, or the dictionary whose values, are read by name; <see langword="null"/> fills every name with nothing.</param>
 		/// <param name="args">Additional positional arguments.</param>
 		[return: Localized]
-		public static string FormatByName(this IWords known, IFormatProvider? provider, string key, object? value, params object?[] args)
+		public static string FormatByName(this IWords known, IFormatProvider? provider, [WordsKey] string key, object? value, params object?[] args)
 			=> FormatByName(provider, Template(known, key, key, new(known.Language, Named(value, args))), value, args);
 
 		/// <summary>
@@ -595,7 +595,7 @@ namespace PatTech.Localization {
 		/// <param name="params">An array, a named-value object, or <see langword="null"/>.</param>
 		/// <param name="provider">Culture-specific formatting, or <see langword="null"/> for the current culture.</param>
 		[return: Localized]
-		public static string FormatParams(this IWords known, string key, object? @params, IFormatProvider? provider = null) {
+		public static string FormatParams(this IWords known, [WordsKey] string key, object? @params, IFormatProvider? provider = null) {
 			ArgumentNullException.ThrowIfNull(known);
 			switch (@params) {
 				case null:
@@ -624,7 +624,7 @@ namespace PatTech.Localization {
 		/// <param name="provider">Culture-specific formatting, or <see langword="null"/> for the current culture.</param>
 		/// <param name="logger">Hears about a missing or wrong-typed parameter; <see langword="null"/> discards it.</param>
 		[return: Localized]
-		public static string ConvertValue(this IWords known, object? value, object? parameter, IFormatProvider? provider, ITakeException? logger = null) {
+		public static string ConvertValue(this IWords known, object? value, [WordsKey] object? parameter, IFormatProvider? provider, ITakeException? logger = null) {
 			ArgumentNullException.ThrowIfNull(known);
 			logger ??= ITakeException.Dummy;
 			switch (parameter) {
@@ -711,7 +711,7 @@ namespace PatTech.Localization {
 		}
 		/// <inheritdoc cref="FormatKnown(IFormatProvider?, string, object?[])"/>
 		[return: Localized]
-		public static string FormatKnown(string key, params object?[] args)
+		public static string FormatKnown([WordsKey] string key, params object?[] args)
 			=> FormatKnown(null, key, args);
 		/// <summary>
 		/// <see cref="Format(IWords, IFormatProvider?, string, object?[])"/> against the
@@ -721,11 +721,11 @@ namespace PatTech.Localization {
 		/// <param name="key">The key of the format template.</param>
 		/// <param name="args">The values to format into the template.</param>
 		[return: Localized]
-		public static string FormatKnown(IFormatProvider? provider, string key, params object?[] args)
+		public static string FormatKnown(IFormatProvider? provider, [WordsKey] string key, params object?[] args)
 			=> Known.Format(provider, key, args);
 
 		/// <inheritdoc cref="FormatKnownByName(IFormatProvider?, string, object?, object?[])"/>
-		public static string FormatKnownByName(string key, object? value, params object?[] args)
+		public static string FormatKnownByName([WordsKey] string key, object? value, params object?[] args)
 			=> Known.FormatByName(null, key, value, args);
 		/// <summary>
 		/// <see cref="FormatByName(IWords, IFormatProvider?, string, object?, object?[])"/>
@@ -735,7 +735,7 @@ namespace PatTech.Localization {
 		/// <param name="key">The key of the format template.</param>
 		/// <param name="value">The object whose members are read by name.</param>
 		/// <param name="args">Additional positional arguments.</param>
-		public static string FormatKnownByName(IFormatProvider? provider, string key, object? value, params object?[] args)
+		public static string FormatKnownByName(IFormatProvider? provider, [WordsKey] string key, object? value, params object?[] args)
 			=> Known.FormatByName(provider, key, value, args);
 
 		/// <inheritdoc cref="FormatByName(IFormatProvider?, string, object?, object?[])"/>
@@ -770,7 +770,7 @@ namespace PatTech.Localization {
 		/// Returns <paramref name="key"/> wrapped as <c>#key#</c>, for any key at all.
 		/// </summary>
 		[NotNull, Localized]
-		public string this[[DisallowNull] string key] => $"#{key}#";
+		public string this[[DisallowNull, WordsKey] string key] => $"#{key}#";
 
 		/// <inheritdoc cref="this[string]"/>
 		[return: NotNull, Localized]
@@ -824,7 +824,7 @@ namespace PatTech.Localization {
 		/// </summary>
 		/// <param name="key">The key to share a holder for.</param>
 		/// <exception cref="ArgumentNullException"><paramref name="key"/> is <see langword="null"/>.</exception>
-		public static LazyWords Of(string key) {
+		public static LazyWords Of([WordsKey] string key) {
 			ArgumentNullException.ThrowIfNull(key);
 			lock (shared) {
 				if (shared.TryGetValue(key, out var weak) && weak.TryGetTarget(out var proxy)) {
@@ -842,7 +842,7 @@ namespace PatTech.Localization {
 		/// of <see cref="Value"/>. Cannot be <see langword="null"/>.
 		/// </summary>
 		/// <exception cref="ArgumentNullException">The value assigned is <see langword="null"/>.</exception>
-		[NotNull, DisallowNull]
+		[NotNull, DisallowNull, WordsKey]
 		public string Key {
 			get => _Key;
 			[MemberNotNull(nameof(_Key))]
@@ -904,7 +904,7 @@ namespace PatTech.Localization {
 		/// </summary>
 		/// <param name="key">The key to resolve later.</param>
 		/// <exception cref="ArgumentNullException"><paramref name="key"/> is <see langword="null"/>.</exception>
-		public LazyWords(string key) {
+		public LazyWords([WordsKey] string key) {
 			ArgumentNullException.ThrowIfNull(key);
 
 			Key = key;

@@ -7,8 +7,10 @@
   <PropertyGroup>
     <!-- PatTech.Localization.Core, .WPF and .Avalonia: one API surface, released together -->
     <ApiVersion>1.5.0</ApiVersion>
-    <!-- PatTech.Localization.Analyzer: also the version the API packages depend on -->
-    <AnalyzerVersion>1.3.0</AnalyzerVersion>
+    <!-- PatTech.Localization.Analyzer: the analyzer package's own number. The API
+         packages (and the editor and samples) pin the analyzer version they depend
+         on by hand, so this can move ahead of nuget.org until its tag publishes it -->
+    <AnalyzerVersion>1.4.0</AnalyzerVersion>
     <!-- Wordsmith, the editor, and words, the command line that ships beside it -->
     <WordsmithVersion>1.3.0</WordsmithVersion>
   </PropertyGroup>
