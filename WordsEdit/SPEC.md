@@ -381,7 +381,11 @@ whichever its checkout or editor gave it; merge and split write with their
 source's. The encoder refuses what it can't encode, such as a lone surrogate,
 rather than writing a replacement character. A file that cannot be written,
 for either reason, is reported, left as it was on disk, and the others still
-save. Merge and split check the tree covers the file's keys, as Save does. The editor tracks dirtiness; the window title names the
+save. Each file is written to a temporary sibling and moved over the original,
+so a failure partway leaves it whole; what lands is a new file, so a Windows
+hidden attribute does not carry over, a hard link to the old file keeps the
+old text, and a symbolic link is replaced by the file rather than followed (the
+command line follows it). Merge and split check the tree covers the file's keys, as Save does. The editor tracks dirtiness; the window title names the
 loaded files and stars while dirty, and closing with unsaved changes prompts.
 Reset returns to the empty session (one default `en` language).
 
@@ -1065,7 +1069,9 @@ model before it, the asked-for change applied: every key's fields, the
 language table, the settings references and the comments in order. Anything
 else refuses the write, naming what would have changed. The file is written
 to a temporary sibling and moved over the original only once that passes; a
-link is followed to its file, and a Unix file keeps its mode.
+link is followed to its file, and a Unix file keeps its mode. As with Save,
+what lands is a new file: a Windows hidden attribute does not carry over, and
+a hard link to the old one keeps the old text.
 
 **Where it lives.** The patcher and `WordsField` — a field's name, parsed,
 read and written on the model — are in Authoring, tested headless. The parser
@@ -1131,8 +1137,8 @@ listed, read and removed but never written, and `list` with a prefix and
 # Planned upgrades
 
 Not built yet. Each section here is the shape the feature takes when it is.
-The next release carries *Plural forms* and *A command line for tools*, both
-built above.
+*Plural forms* and *A command line for tools*, planned here once, are built
+above, and shipped with editor 1.3.0 and api 1.5.0.
 
 ## Save as a patch
 

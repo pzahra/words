@@ -92,7 +92,7 @@ namespace PatTech.Localization {
 		private static readonly Dictionary<string, IReadOnlyDictionary<string, string>> optional = Table<IReadOnlyDictionary<string, string>>(
 			(new Dictionary<string, string> { ["two"] = "few", ["many"] = "other", ["other"] = "one" }.AsReadOnly(), "mt"),
 			(new Dictionary<string, string> { ["two"] = "other" }.AsReadOnly(), "he iw"),
-			(new Dictionary<string, string> { ["many"] = "other" }.AsReadOnly(), "ca es fr it lld pt scn vec"));
+			(new Dictionary<string, string> { ["many"] = "other" }.AsReadOnly(), "br ca es fr it lld pt scn vec"));
 
 		private static bool Million(long i) => i != 0 && i % 1_000_000 == 0;
 

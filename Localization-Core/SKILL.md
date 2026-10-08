@@ -70,8 +70,8 @@ value=m2·K/W
 [multi]
 value=a trailing backslash continues on the next line keeping the newline \
 like this; a trailing underscore continues _
-on the same line. Repeating `value=` overwrites (last wins, with a warning) —
-that is how a later `Load` overlays an earlier one, not a continuation.
+on the same line. Repeating `value=` overwrites (last wins, and Wordsmith
+gripes) — that is how a later `Load` overlays an earlier one, not a continuation.
 ```
 
 Only `value` fields become lookup entries; the key is the block name.
@@ -303,5 +303,7 @@ redirected.
 - Declare the language the defaults are written in with a keyless top-of-file
   `value=!xx` (the `!` keeps it off `GetLanguages()`). Fallbacks to the default
   are then no missing words in `xx` (and in each longer code that falls back
-  to it, `en-AU` for `en`): `.Debug()` and Wordsmith stop flagging them. `comment-xx=` labels,
-  optional, are the languages' names in that language.
+  to it, `en-AU` for `en`): `.Debug()` and Wordsmith stop flagging them. A
+  `value-xx=` label is the language's own name for itself; a `comment-xx=`
+  label, optional, is its name in the default's language: in an English
+  file, `value-it=Italiano` beside `comment-it=Italian`.

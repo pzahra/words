@@ -18,6 +18,10 @@ the command line that ships beside it.
   you've been in the tree, like a browser.
 - **Languages** — manage the language list, and see at a glance which keys
   have no value in the language you're looking at.
+- **Plural forms** — "1 file", "2 files", and Maltese's other three: each pane
+  picks a form its language counts by, listed with the counts that take it,
+  so nobody has to know what CLDR means by "few" to fill it in. A form the
+  language needs and lacks is flagged like any missing word.
 - **Stale tracking** — mark a value stale (per language, or all at once) when
   the source text changes, filter the tree down to what still needs
   re-translating, and clear the flag when the translation catches up.

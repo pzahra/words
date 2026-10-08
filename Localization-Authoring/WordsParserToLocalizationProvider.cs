@@ -55,6 +55,7 @@ namespace PatTech.Localization.Authoring {
 		private readonly List<string> declaredLanguages = [];
 		private readonly Dictionary<string, string> blockComments = [];
 		private readonly Dictionary<string, string> languageSettings = [];
+		private readonly HashSet<(string Key, string Type, string Language)> valuesRead = [];
 
 		public WordsParserToLocalizationProvider() { }
 
@@ -134,12 +135,16 @@ namespace PatTech.Localization.Authoring {
 							languageSettings[languageCode] = value;
 						}
 						break;
-					case var form when form.StartsWith("value#", StringComparison.Ordinal):
-						errors.Add($"{Field(languageCode, form[6..])} at the top of the file: a language label has no plural forms, ignored");
+					case var form when form.Contains('#'):
+						errors.Add($"{Named(form, languageCode)} at the top of the file: a language label has no plural forms, ignored");
 						break;
 				}
 			}
 			else {
+				//a value declared again in its key overwrites the first, which Save then drops
+				if (fieldType.StartsWith("value", StringComparison.Ordinal) && !valuesRead.Add((blockKey, fieldType, languageCode))) {
+					errors.Add($"{blockKey}: {Named(fieldType, languageCode)} is declared again, and the last one wins; Save writes only it");
+				}
 				if (languageCode != "" && !knownLanguages.ContainsKey(languageCode) && fieldType != "param") {
 					knownLanguages[languageCode] = new LanguageEntry(languageCode);
 					errors.Add($"language '{languageCode}' has entries but no top-of-file label; declare it with value-{languageCode}= (a !Label declares without listing)");
@@ -283,6 +288,12 @@ namespace PatTech.Localization.Authoring {
 
 		private static string Field(string languageCode, string form)
 			=> languageCode == "" ? $"value#{form}" : $"value-{languageCode}#{form}";
+
+		//a field's name as the file writes it: value-fr#few for the type value#few in fr
+		private static string Named(string fieldType, string languageCode) {
+			int mark = fieldType.IndexOf('#');
+			return languageCode == "" ? fieldType : mark < 0 ? $"{fieldType}-{languageCode}" : $"{fieldType[..mark]}-{languageCode}{fieldType[mark..]}";
+		}
 
 		private static Dictionary<string, string> FormsOf(WordsKey key, string languageCode)
 			=> languageCode == "" ? key.Forms : key.Entries[languageCode].Forms;

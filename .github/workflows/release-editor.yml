@@ -6,9 +6,10 @@
 #                    and words, one self-contained file, for win-x64, linux-x64,
 #                    osx-x64 and osx-arm64
 #
-# Both take their version from WordsmithVersion in Versions.props; keep it in
-# step with the tag. They reference the analyzer package, so its AnalyzerVersion
-# must already be on nuget.org before this runs.
+# Both take their version from WordsmithVersion in Versions.props, and the
+# version job fails a tag whose number the props don't carry, before anything
+# is built. They reference the analyzer package, so its AnalyzerVersion must
+# already be on nuget.org before this runs.
 #
 # Nothing is released unless the test suites pass on the tagged commit: the
 # release job needs the tests job (tests.yml on that same commit) as well as
@@ -23,11 +24,36 @@ on:
 permissions:
   contents: write        # to create the release
 
+# one run per tag at a time, and a re-run never cancels one under way
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  # an unbumped props would build words-1.3.0-* reporting the last release's number
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Versions.props carries the tag's number
+        run: |
+          props=$(dotnet msbuild Versions.props -getProperty:WordsmithVersion | tr -d '\r')
+          if [ "$props" != "${GITHUB_REF_NAME##*/}" ]; then
+            echo "::error::$GITHUB_REF_NAME, but Versions.props has WordsmithVersion $props: bump it, commit, and tag that commit"
+            exit 1
+          fi
+
   tests:
+    needs: version
     uses: ./.github/workflows/tests.yml
 
   wordsmith:
+    needs: version
     runs-on: windows-latest      # Wordsmith is WPF (net10.0-windows)
     steps:
       - uses: actions/checkout@v7
@@ -49,7 +75,7 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path publish/* -DestinationPath "Wordsmith-${{ steps.ver.outputs.value }}-win-x64.zip"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: wordsmith
           path: Wordsmith-*.zip
@@ -58,6 +84,7 @@ jobs:
   # lose. The SDK signs the macOS builds ad hoc, which Apple Silicon requires to
   # run them at all; they are not notarized, so a download is quarantined.
   words:
+    needs: version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -83,7 +110,7 @@ jobs:
             tar -czf "dist/words-$version-$rid.tar.gz" -C "out/$rid" words
           done
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: words
           path: dist/*
@@ -96,20 +123,27 @@ jobs:
         with:
           fetch-depth: 0         # every tag, to find the previous editor/ one
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: dist
           merge-multiple: true
 
       # The tag already exists (it triggered this run), so this attaches the builds
-      # to a release for it, and auto-writes notes from the commits since the
-      # previous editor/ tag: the samples' api/ releases share the page, and the
-      # notes would otherwise start at whichever release came last. The note on
-      # the command line goes above them. Wordsmith's release is the one marked Latest.
+      # to a release for it. GitHub writes the notes: the pull requests merged since
+      # the previous editor/ tag and a link to the full comparison, starting there
+      # because the samples' api/ releases share the page and the notes would
+      # otherwise start at whichever release came last. The note on the command
+      # line goes above them. Wordsmith's release is the one marked Latest.
+      # A re-run finds the release made, and uploads every build over what an
+      # interrupted upload left.
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+            exit
+          fi
           version="${GITHUB_REF_NAME##*/}"
           cat > notes.md <<'EOF'
           **Wordsmith** is the Windows editor: unzip and run `Wordsmith.exe`.

@@ -93,15 +93,21 @@ export handle; it needn't be the format the app runs on.
 
 ## Building
 
-[Words.slnx](Words.slnx) is the solution. Open it in Visual Studio, or:
+[Words.slnx](Words.slnx) is the solution. Open it in Visual Studio, which builds
+the libraries, the analyzer, Wordsmith, the command line, the samples, and the
+analyzer's Visual Studio extension. That needs the Visual Studio SDK, so outside
+Visual Studio build and test the projects one at a time, as CI does (the tests
+are WPF, so on Windows):
 
 ```
-dotnet build Words.slnx
-dotnet test Words.slnx
+dotnet test Localization-Tests/Localization-Tests.csproj
+dotnet test WordsEdit.Tests/WordsEdit.Tests.csproj
+dotnet test LocalizationAnalyzer/LocalizationAnalyzer.Test/LocalizationAnalyzer.Test.csproj
+dotnet test WordsXaml/src/dotnet/WordsXaml.Tests/WordsXaml.Tests.csproj
 ```
 
-That builds the libraries, the analyzer, Wordsmith, the command line, and the
-samples, then runs the editor tests (xUnit) and the analyzer tests (MSTest).
+On Linux or macOS, `Localization-Core`, `Localization-Authoring`, `WordsCli`
+and `Sample-Console` build on their own.
 
 The libraries and samples consume the analyzer as the NuGet package
 `PatTech.Localization.Analyzer`. If you change the analyzer, `dotnet pack`
@@ -114,5 +120,7 @@ Three things ship on their own schedules, so three numbers live in
 [Versions.props](Versions.props): `ApiVersion` for the Core, WPF and Avalonia
 packages (one API surface, released together), `AnalyzerVersion` for the
 analyzer (also the version the API packages depend on), and `WordsmithVersion`
-for the editor. Bump the one you changed, pack, and tag the release afterwards;
+for the editor and `words`, the command line that ships beside it. Bump the one
+you changed, commit, and tag that commit (`api/`, `analyzer/` or `editor/`
+and the number); a tag whose number the props don't carry publishes nothing.
 Source Link stamps the commit into every assembly's informational version.

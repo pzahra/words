@@ -513,9 +513,9 @@ only a handful of its words keep a dual, most of them time (*jumejn*,
 reads `one`, the plain value: from 11 up a Maltese count takes the singular.
 `other` reads nothing but the plain value, where every form ends up anyway.
 Hebrew `two` reads `other`, its dual kept by time words too. The exact
-millions of French, Italian, Spanish, Portuguese and Catalan, and of Ladin,
-Sicilian and Venetian, which share the rule, read `other`: the difference is a
-"de" or a "di". The table is Words' own judgement, not CLDR's, kept beside its
+millions of French, Italian, Spanish, Portuguese and Catalan, of Ladin,
+Sicilian and Venetian, which share the rule, and of Breton, whose `many` is
+the same, read `other`: the difference is a "de" or a "di". The table is Words' own judgement, not CLDR's, kept beside its
 rules. A translator still writes an optional form where a word needs one,
 `value-mt#two=Kelmtejn`, and it reads as any form does. The editor counts only
 the categories that are not optional as missing words. Russian's `other`,

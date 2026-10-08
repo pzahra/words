@@ -272,6 +272,7 @@ public class PluralFormsTests {
 		Assert.Equal(new Dictionary<string, string> { ["two"] = "few", ["many"] = "other", ["other"] = "one" }, PluralRules.Optional("mt"));
 		Assert.Equal(new Dictionary<string, string> { ["two"] = "other" }, PluralRules.Optional("he"));
 		Assert.Equal(new Dictionary<string, string> { ["many"] = "other" }, PluralRules.Optional("pt-PT"));
+		Assert.Equal(new Dictionary<string, string> { ["many"] = "other" }, PluralRules.Optional("br")); //exact millions, as French
 		Assert.Empty(PluralRules.Optional("en"));
 		Assert.Empty(PluralRules.Optional("ar")); //a true dual for every noun
 		Assert.Empty(PluralRules.Optional(""));
@@ -281,6 +282,7 @@ public class PluralFormsTests {
 	[InlineData("mt")]
 	[InlineData("he")]
 	[InlineData("iw")]
+	[InlineData("br")]
 	[InlineData("ca")]
 	[InlineData("es")]
 	[InlineData("fr")]

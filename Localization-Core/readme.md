@@ -14,10 +14,13 @@ local file, or as an embedded resource.
 ``` INI
 ; the language the default values are written in; the ! keeps it off the menu
 value=!en
+; each value-xx= label is a language's own name for itself, and the labels
+; are your list of display languages; a ! declares one without listing it
 value-en=!English (Common)
-comment-en=exclamation mark means it isn't displayed
+; a comment-xx= label is its name in the default's language
+comment-en=English
 value-en-GB=English (Traditional)
-comment-en-GB=you can use this header to create a list of available display languages.
+comment-en-GB=British English
 
 [group.key]
 value=Default fallback value
@@ -47,8 +50,8 @@ value=works because {>main.circle-1}
 comment=The words.ini format supports multiple lines.\
 Use a backslash to break the line, and an underscore to_
  continue the string on the same line without a line break.\
-Repeating a field is not a continuation: the last one wins (a repeated_
- value= also warns), the same way a file loaded on top overrides an earlier one.
+Repeating a field is not a continuation: the last one wins (Wordsmith gripes_
+ about a repeated value=), the same way a file loaded on top overrides an earlier one.
 
 value=first draft
 value=the last value wins
@@ -70,7 +73,7 @@ value=ToString() -> {0}
 comment: Key name inheritance. This actually reads as `format.object`
 [.named]
 value=N{Top:g2}, E{Right:g2}, S{Bottom:g2}, W{Left:g2}
-comment: unlike with String.Format, Words.FormatNamed can take an object_
+comment: unlike with String.Format, Words.FormatByName can take an object_
  and read properties by name.
 
 [enum.none]
@@ -286,3 +289,4 @@ Console.WriteLine(parser.ToInline(Words.Known["main.title"]));
 - **[PatTech.Localization.Avalonia](https://www.nuget.org/packages/PatTech.Localization.Avalonia)** — the same, for Avalonia's AXAML.
 - **[PatTech.Localization.Analyzer](https://www.nuget.org/packages/PatTech.Localization.Analyzer)** — the `[Localized]` attribute and rule PTL001, which flags a localized seam handed a raw string. Core already depends on it, so you have it.
 - **Wordsmith** — the desktop editor for `words.ini` files, published on [GitHub Releases](https://github.com/pzahra/words/releases).
+- **words** — the command line that ships beside it, for scripts, build steps and coding agents on Windows, Linux and macOS: it changes one field of a `words.ini` and leaves every other byte where it was. The agent skill above tells agents to reach for it.

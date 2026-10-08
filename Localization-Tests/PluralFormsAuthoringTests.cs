@@ -63,6 +63,24 @@ value-mt#other=Kelma
 	}
 
 	[Fact]
+	public void Reader_GripesAboutAFormOnAnyLanguageLabel() {
+		var consumer = Read("value=!en\nvalue-fr=Français\ncomment-fr=French\ncomment-fr#other=Frenches\n\n[word]\nvalue=Word\n");
+
+		Assert.Equal("French", consumer.KnownLanguages["fr"].EnglishName);
+		Assert.StartsWith("comment-fr#other at the top of the file: a language label has no plural forms", Assert.Single(consumer.Errors));
+	}
+
+	[Fact]
+	public void Reader_GripesAboutAValueDeclaredAgain_WhoseLastOneWins() {
+		var consumer = Read("value=!en\nvalue-fr=Français\n\n[word]\nvalue=first\nvalue-fr#other=un\nvalue=second\ncontext=a\ncontext=b\n\n[word]\nvalue-fr#other=deux\n");
+
+		Assert.Equal("second", consumer.WordKeys["word"].DefaultValue);
+		Assert.Equal("deux", consumer.WordKeys["word"].Entries["fr"].Forms["other"]);
+		Assert.Equal(["word: value is declared again, and the last one wins; Save writes only it",
+			"word: value-fr#other is declared again, and the last one wins; Save writes only it"], consumer.Errors);
+	}
+
+	[Fact]
 	public void Reader_GripesAboutFormsARuntimeNeverReads_AndDropsWhatIsNoForm() {
 		var consumer = Read(@"value=!en
 value-en=English
