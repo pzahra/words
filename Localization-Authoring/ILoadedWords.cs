@@ -66,8 +66,10 @@ namespace PatTech.Localization.Authoring {
 		IReadOnlyDictionary<string, string> ILoadedWords.LanguageSettings => LanguageSettings;
 		IReadOnlyList<string> ILoadedWords.Errors => Errors;
 
-		//the foreign name each key was made from, so two names made one key are told apart (FileNames.BlockKey)
+		//the foreign unit each key was made from, and the key each unit took, so two
+		//units made one key are told apart and one met again finds its own (FileNames.BlockKey)
 		internal Dictionary<string, string> ForeignNames { get; } = [];
+		internal Dictionary<string, string> ForeignUnits { get; } = [];
 
 		/// <summary>
 		///     Declares a language: it joins the table and the known languages, and

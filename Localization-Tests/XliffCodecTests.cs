@@ -182,6 +182,79 @@ context-fr=untranslated, with a note
 		}
 	}
 
+	//a document of two originals, as a tool gathering several resource files writes one
+	private static string TwoOriginals(string code, string open, string two, string second, string again) => $"""
+		<?xml version="1.0" encoding="utf-8"?>
+		<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+		  <file original="a.resx" source-language="en" target-language="{code}" datatype="resx">
+		    <body>
+		      <trans-unit id="1" resname="menu.open"><source>Open</source><target>{open}</target></trans-unit>
+		      <trans-unit id="2"><source>Two</source><target>{two}</target></trans-unit>
+		    </body>
+		  </file>
+		  <file original="b.resx" source-language="en" target-language="{code}" datatype="resx">
+		    <body>
+		      <trans-unit id="2"><source>Second</source><target>{second}</target></trans-unit>
+		      <trans-unit id="2"><source>Again</source><target>{again}</target></trans-unit>
+		    </body>
+		  </file>
+		</xliff>
+		""";
+
+	[Fact]
+	public void Read_KeysAUnitByItsResname_AndKeepsEachOriginalsIdsApart() {
+		string folder = Folder();
+		try {
+			File.WriteAllText(Path.Combine(folder, "Strings.fr.xlf"), TwoOriginals("fr", "Ouvrir", "Deux", "Seconde", "Encore"));
+			File.WriteAllText(Path.Combine(folder, "Strings.de.xlf"), TwoOriginals("de", "Öffnen", "Zwei", "Zweite", "Nochmal"));
+			var codec = new XliffCodec();
+
+			ILoadedWords loaded = codec.Read(codec.Discover(Path.Combine(folder, "Strings.fr.xlf")));
+
+			Assert.Equal(["menu.open", "2", "2-2"], loaded.WordKeys.Keys);
+			Assert.Equal(("Open", "Ouvrir", "Öffnen"), (loaded.WordKeys["menu.open"].DefaultValue, loaded.WordKeys["menu.open"].Entries["fr"].Value, loaded.WordKeys["menu.open"].Entries["de"].Value));
+			Assert.Equal(("Two", "Deux", "Zwei"), (loaded.WordKeys["2"].DefaultValue, loaded.WordKeys["2"].Entries["fr"].Value, loaded.WordKeys["2"].Entries["de"].Value));
+			//b.resx's 2 is a unit of its own in both files, and its repeat leaves it be
+			Assert.Equal(("Second", "Seconde", "Zweite"), (loaded.WordKeys["2-2"].DefaultValue, loaded.WordKeys["2-2"].Entries["fr"].Value, loaded.WordKeys["2-2"].Entries["de"].Value));
+			Assert.Contains("Strings.fr.xlf: '2' of b.resx would load as '2', which '2' of a.resx already is, so it loads as '2-2'", loaded.Errors);
+			Assert.Contains("Strings.fr.xlf: trans-unit '2' of b.resx came twice for fr, and the first stands", loaded.Errors);
+			Assert.Contains("Strings.de.xlf: trans-unit '2' of b.resx came twice for de, and the first stands", loaded.Errors);
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
+	public void Read_InlineCodes_ReadAsWhatTheyStandFor_AndTheOnesWithNoTextAreGriped() {
+		string folder = Folder();
+		try {
+			string path = Path.Combine(folder, "Inline.fr.xlf");
+			File.WriteAllText(path, """
+				<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+				  <file target-language="fr">
+				    <body>
+				      <trans-unit id="k">
+				        <source>Hello <x id="1" equiv-text="{0}"/>! <ph id="2">{1}</ph> <bpt id="3">&lt;b&gt;</bpt>bold<ept id="3">&lt;/b&gt;</ept> <g id="4">kept</g> <mrk mtype="term">term</mrk><x id="5"/></source>
+				        <target>Bonjour <x id="1" equiv-text="{0}"/> <ph id="2" equiv-text="{1}"/> !</target>
+				      </trans-unit>
+				    </body>
+				  </file>
+				</xliff>
+				""");
+
+			ILoadedWords loaded = new XliffCodec().Read([path]);
+
+			WordsKey key = loaded.WordKeys["k"];
+			Assert.Equal("Hello {0}! {1} <b>bold</b> kept term", key.DefaultValue); //the spaces between codes are text, with no xml:space
+			Assert.Equal("Bonjour {0} {1} !", key.Entries["fr"].Value);
+			Assert.Equal("Inline.fr.xlf: 'k' source: dropped the inline codes <g id=\"4\">, <x id=\"5\"/>, which carry no text", Assert.Single(loaded.Errors));
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
 	[Fact]
 	public void Read_FromASourceInAnotherLanguage_GivesNoEnglishNames() {
 		string folder = Folder();

@@ -167,4 +167,31 @@ public class KeyNameTests {
 			Directory.Delete(folder, recursive: true);
 		}
 	}
+
+	[Fact]
+	public void ANameToldApartByANumber_FindsItsKeyInEveryFileOfTheSet() {
+		string folder = Path.Combine(Path.GetTempPath(), $"KeyNames-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		try {
+			string Resx(string first, string second) => $"""
+				<?xml version="1.0" encoding="utf-8"?>
+				<root>
+				  <data name="a]"><value>{first}</value></data>
+				  <data name="a_"><value>{second}</value></data>
+				</root>
+				""";
+			File.WriteAllText(Path.Combine(folder, "Strings.resx"), Resx("3", "4"));
+			File.WriteAllText(Path.Combine(folder, "Strings.fr.resx"), Resx("trois", "quatre"));
+			var codec = new ResxCodec();
+
+			var loaded = codec.Read(codec.Discover(Path.Combine(folder, "Strings.resx")));
+
+			Assert.Equal(["a_", "a_-2"], loaded.WordKeys.Keys);
+			Assert.Equal(("3", "trois"), (loaded.WordKeys["a_"].DefaultValue, loaded.WordKeys["a_"].Entries["fr"].Value));
+			Assert.Equal(("4", "quatre"), (loaded.WordKeys["a_-2"].DefaultValue, loaded.WordKeys["a_-2"].Entries["fr"].Value));
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
 }

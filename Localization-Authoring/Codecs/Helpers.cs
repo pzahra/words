@@ -46,20 +46,32 @@ namespace PatTech.Localization.Authoring.Codecs {
 		///     A foreign name as a block key: a key's name as it is (runtime SPEC: Key
 		///     names), otherwise each dotted segment made one — what is no letter, digit,
 		///     <c>_</c> or <c>-</c> becomes <c>_</c>, and an empty or dash-led segment
-		///     gains one, so <c>$this.Text</c> loads as <c>_this.Text</c>. Two names made
-		///     one key are told apart with a number, never overwritten. A change is a gripe.
+		///     gains one, so <c>$this.Text</c> loads as <c>_this.Text</c>. Two units made
+		///     one key are told apart with a number, never overwritten, and a unit met
+		///     again in another file of the set comes back to the key it took first. A
+		///     change is a gripe.
 		/// </summary>
-		public static string BlockKey(LoadedWords loaded, string name, string file) {
-			string blockKey = WordsParser.IsKeyName(name) ? name : string.Join('.', name.Split('.').Select(Segment));
-			if (loaded.ForeignNames.TryGetValue(blockKey, out string? other) && other != name) {
-				string taken = blockKey;
-				for (int n = 2; loaded.ForeignNames.ContainsKey(blockKey = $"{taken}-{n}"); n++) { }
-				loaded.Errors.Add($"{file}: '{name}' would load as '{taken}', which '{other}' already is, so it loads as '{blockKey}'");
+		/// <param name="loaded">The words the set loads into.</param>
+		/// <param name="name">The unit's name in its format.</param>
+		/// <param name="file">The file it is read from, for a gripe.</param>
+		/// <param name="unit">What tells the unit from another of the same name, quoted for a gripe; the quoted name when the format has nothing more.</param>
+		public static string BlockKey(LoadedWords loaded, string name, string file, string? unit = null) {
+			unit ??= $"'{name}'";
+			string made = WordsParser.IsKeyName(name) ? name : string.Join('.', name.Split('.').Select(Segment));
+			if (!loaded.ForeignUnits.TryGetValue(unit, out string? blockKey)) {
+				blockKey = made;
+				for (int n = 2; loaded.ForeignNames.ContainsKey(blockKey); n++) {
+					blockKey = $"{made}-{n}";
+				}
+				loaded.ForeignUnits[unit] = blockKey;
+				loaded.ForeignNames[blockKey] = unit;
 			}
-			else if (blockKey != name) {
-				loaded.Errors.Add($"{file}: '{name}' is no words.ini key, loaded as '{blockKey}'");
+			if (blockKey != made) {
+				loaded.Errors.Add($"{file}: {unit} would load as '{made}', which {loaded.ForeignNames[made]} already is, so it loads as '{blockKey}'");
 			}
-			loaded.ForeignNames[blockKey] = name;
+			else if (made != name) {
+				loaded.Errors.Add($"{file}: '{name}' is no words.ini key, loaded as '{made}'");
+			}
 			return blockKey;
 		}
 

@@ -1,3 +1,4 @@
+using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 
@@ -14,7 +15,10 @@ namespace PatTech.Localization.Authoring.Codecs {
 	///     <c>$</c> and is marked <c>translate="no"</c>; parameters ride as Words
 	///     extension elements. Only the freeform comments, the settings references
 	///     and the plural forms have nowhere to go: a form is no unit of its own to
-	///     a translation tool. XLIFF 2.0 is another shape, refused with a gripe.
+	///     a translation tool. XLIFF 2.0 is another shape, refused with a gripe. On
+	///     the way in a unit's key is its <c>resname</c>, else its <c>id</c>, and a
+	///     unit is its <c>file</c>'s <c>original</c> and its <c>id</c>, so two never
+	///     become one key; inline codes read as the text they stand for.
 	/// </summary>
 	public sealed class XliffCodec : IWordsImporter, IWordsExporter {
 		/// <summary>The manifest name of the format's words.</summary>
@@ -64,11 +68,13 @@ namespace PatTech.Localization.Authoring.Codecs {
 		/// <inheritdoc/>
 		public ILoadedWords Read(IReadOnlyList<string> paths, FormatOptions? options = null) {
 			var loaded = new LoadedWords();
+			HashSet<(string Unit, string Code)> read = [];
 			foreach (string path in paths) {
 				string file = Path.GetFileName(path);
 				XDocument document;
 				try {
-					document = XDocument.Load(path);
+					//whitespace between two inline codes is text, xml:space or not
+					document = XDocument.Load(path, LoadOptions.PreserveWhitespace);
 				}
 				catch (XmlException e) {
 					loaded.Errors.Add($"{file}: not well-formed XML, skipped ({e.Message})");
@@ -95,8 +101,10 @@ namespace PatTech.Localization.Authoring.Codecs {
 						FileNames.Declare(loaded, code);
 					}
 					bool targetsIgnored = false;
+					//an id is only its <file>'s own, and the file is its original's
+					string original = (string?)fileElement.Attribute("original") ?? "";
 					foreach (XElement unit in fileElement.Descendants().Where(element => element.Name.LocalName == "trans-unit")) {
-						ReadUnit(loaded, unit, code, file, ref targetsIgnored);
+						ReadUnit(loaded, unit, code, file, original, read, ref targetsIgnored);
 					}
 					if (targetsIgnored) {
 						loaded.Errors.Add($"{file}: targets in a file with no target-language were ignored");
@@ -106,21 +114,29 @@ namespace PatTech.Localization.Authoring.Codecs {
 			return loaded;
 		}
 
-		private static void ReadUnit(LoadedWords loaded, XElement unit, string code, string file, ref bool targetsIgnored) {
-			string id = (string?)unit.Attribute("id") ?? (string?)unit.Attribute("resname") ?? "";
-			if (id == "") {
+		//a unit is its original's id; its key is the resource's name, its id without
+		//one. A unit met again for the same language is a duplicate, and the first stands
+		private static void ReadUnit(LoadedWords loaded, XElement unit, string code, string file, string original, HashSet<(string, string)> read, ref bool targetsIgnored) {
+			string id = (string?)unit.Attribute("id") ?? "";
+			string name = (string?)unit.Attribute("resname") is { Length: > 0 } resname ? resname : id;
+			if (name == "") {
 				loaded.Errors.Add($"{file}: a trans-unit without an id was skipped");
 				return;
 			}
-			WordsKey key = loaded.Key(FileNames.BlockKey(loaded, id, file));
+			string identity = $"'{name}'" + (id != "" && id != name ? $" (id {id})" : "") + (original == "" ? "" : $" of {original}");
+			if (!read.Add((identity, code))) {
+				loaded.Errors.Add($"{file}: trans-unit {identity} came twice{(code == "" ? "" : $" for {code}")}, and the first stands");
+				return;
+			}
+			WordsKey key = loaded.Key(FileNames.BlockKey(loaded, name, file, identity));
 			if ((string?)unit.Attribute("translate") == "no" && !key.IsConstant) {
-				loaded.Errors.Add($"{file}: translate=\"no\" on '{id}' ignored: a Words constant is a $key");
+				loaded.Errors.Add($"{file}: translate=\"no\" on '{name}' ignored: a Words constant is a $key");
 			}
 			if ((string?)unit.Attribute("approved") == "no") {
 				key.NeedsReview = true;
 			}
 			if (XmlText.Child(unit, "source") is { } source) {
-				key.DefaultValue = source.Value;
+				key.DefaultValue = Text(source, file, identity, loaded.Errors);
 			}
 			WordsEntry? entry = code == "" ? null : key.Entries[code];
 			if (XmlText.Child(unit, "target") is { } target) {
@@ -128,7 +144,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 					targetsIgnored = true;
 				}
 				else {
-					entry.Value = target.Value;
+					entry.Value = Text(target, file, identity, loaded.Errors);
 					string state = (string?)target.Attribute("state") ?? "";
 					if ((string?)target.Attribute(Ext + "stale") is { } stale) {
 						entry.Stale = stale;
@@ -158,12 +174,60 @@ namespace PatTech.Localization.Authoring.Codecs {
 				}
 			}
 			foreach (XElement parameter in unit.Elements(Ext + "param")) {
-				string name = (string?)parameter.Attribute("name") ?? "";
-				if (name != "" && !key.Parameters.Any(existing => existing.Key == name)) {
-					key.Parameters.Add(new WordsParameter(name, WordsParameterType.Select((string?)parameter.Attribute("type") ?? "String"), parameter.Value));
+				string named = (string?)parameter.Attribute("name") ?? "";
+				if (named != "" && !key.Parameters.Any(existing => existing.Key == named)) {
+					key.Parameters.Add(new WordsParameter(named, WordsParameterType.Select((string?)parameter.Attribute("type") ?? "String"), parameter.Value));
 				}
 			}
 		}
+
+		//a source's or target's text, its inline codes read as what they stand for: the
+		//native code a ph, bpt, ept or it holds, else the equiv-text it or an x, bx or
+		//ex carries; a mrk is a mark on the text inside it, and a g, or what is no
+		//inline code at all, keeps its text and drops its own codes. What is dropped is a gripe
+		private static string Text(XElement element, string file, string identity, List<string> gripes) {
+			List<string> dropped = [];
+			string text = Inline(element, dropped);
+			if (dropped.Count != 0) {
+				gripes.Add($"{file}: {identity} {element.Name.LocalName}: dropped the inline codes {string.Join(", ", dropped)}, which carry no text");
+			}
+			return text;
+		}
+
+		private static string Inline(XElement element, List<string> dropped) {
+			var text = new StringBuilder();
+			foreach (XNode node in element.Nodes()) {
+				if (node is XText run) {
+					text.Append(run.Value); //CDATA too
+				}
+				else if (node is XElement code) {
+					switch (code.Name.LocalName) {
+						case "ph" or "bpt" or "ept" or "it" when code.Value != "":
+							text.Append(code.Value); //a sub inside is part of the code
+							break;
+						case "ph" or "bpt" or "ept" or "it" or "x" or "bx" or "ex":
+							if ((string?)code.Attribute("equiv-text") is { } equivalent) {
+								text.Append(equivalent);
+							}
+							else {
+								dropped.Add(Tag(code));
+							}
+							break;
+						case "mrk":
+							text.Append(Inline(code, dropped));
+							break;
+						default:
+							text.Append(Inline(code, dropped));
+							dropped.Add(Tag(code));
+							break;
+					}
+				}
+			}
+			return text.ToString();
+		}
+
+		private static string Tag(XElement code)
+			=> $"<{code.Name.LocalName}{(code.Attribute("id") is { } id ? $" id=\"{id.Value}\"" : "")}{(code.IsEmpty ? "/" : "")}>";
 
 		//the target language in canonical casing; one that says more than a code (a
 		//variant, an extension) reads as the code it starts with, and one that starts

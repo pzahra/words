@@ -545,7 +545,17 @@ segment by segment, with a gripe: what is no letter, digit, `_` or `-` becomes
 `_`, and an empty or dash-led segment gains one, so WinForms' `$this.Text`
 loads as `_this.Text`. A name that is already a key's, a `$constant` included,
 loads as it is. Two names made one key are told apart with a number (`a_`,
-`a_-2`) and a gripe, never one overwriting the other.
+`a_-2`) and a gripe, never one overwriting the other, and a name met again in
+another file of the set finds the key it took first. An XLIFF unit's name is
+its `resname`, the resource's own, and its `id` only without one; the unit
+itself is its `<file>`'s `original` and its `id`, since an id is only its
+file's, so two originals' `id="1"` are two keys, numbered, and the same unit in
+each language's file is one. A unit met twice for one language keeps the first,
+with a gripe. Inline codes read as the text they stand for: the native code a
+`ph`, `bpt`, `ept` or `it` holds, else the `equiv-text` it or an `x`, `bx` or
+`ex` carries; a `mrk` keeps the text it marks, and a `g` its text without its
+codes. A code with no text to read is dropped with a gripe, and whitespace
+between codes is text whether or not the unit says `xml:space`.
 
 **Surface.** Import sits beside Open, Export beside Save. Import opens a picker
 filtered by every importer's name and extensions; each pick's extension names
@@ -565,7 +575,9 @@ the registry.
 
 **Tests.** Every importer is tested through `ILoadedWords` the way the ini loader
 is tested through the parser: a fixture in, the document surface out, gripes
-pinned. Every exporter round-trips against itself — import, export, import, and
+pinned — a numbered name finding its key in each file of a set, and XLIFF's
+resname over its id, two originals' ids apart, a repeated unit and the inline
+codes among them. Every exporter round-trips against itself — import, export, import, and
 the fields the format holds are unchanged — and the native fixed point is
 re-checked to prove Save still never touches a foreign writer. The editor's
 tests drive Import and Export through `FakeDialogs`: the native path, the ask,
