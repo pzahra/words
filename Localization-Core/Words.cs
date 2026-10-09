@@ -104,6 +104,10 @@ namespace PatTech.Localization {
 		private static readonly Regex rxRender = new(
 				@"(?<1>[\\'""{])\1|\{[$>](?<2>[^}]+)\}|\{(?<3>\d+|(?=[_a-zA-Z])\w+)#(?<4>[^{}#\s]+)\}",
 				RegexOptions.Compiled | RegexOptions.ExplicitCapture);
+		//a selector in rendered words, past string.Format's {{ pairs
+		private static readonly Regex rxSelector = new(
+				@"\{\{|\{(?<1>\d+|(?=[_a-zA-Z])\w+)#(?<2>[^{}#\s]+)\}",
+				RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 
 		//what a selector picks a form with: the language whose rules count, and the
 		//arguments, by number or name
@@ -177,7 +181,7 @@ namespace PatTech.Localization {
 		/// </summary>
 		/// <param name="words">The dictionary to resolve references against.</param>
 		/// <param name="text">The template text to render.</param>
-		/// <param name="baseKey">Resolves relative references and selectors: <c>{&gt;.sub}</c> becomes <c>baseKey.sub</c>.</param>
+		/// <param name="baseKey">Resolves relative references and selectors: <c>{&gt;.sub}</c> becomes <c>baseKey.sub</c>. The text is not taken for <c>baseKey</c>'s own words, so it may refer to <c>baseKey</c> itself.</param>
 		/// <param name="args">Optional arguments for the selectors and <see cref="string.Format(string, object[])"/>; <see langword="null"/> or empty skips both.</param>
 		[return: NotNull, Localized]
 		public static string RenderText(
@@ -190,12 +194,9 @@ namespace PatTech.Localization {
 			if (!(args?.Length > 0)) {
 				return RenderText(words.Provider, text, baseKey);
 			}
-			//the text is baseKey's, so its forms are out of reach of its selectors
-			var path = new Stack<string>();
-			if (!string.IsNullOrEmpty(baseKey)) {
-				path.Push(baseKey);
-			}
-			return string.Format(RenderTextCore(words.Provider, text, baseKey, path, new(words.Language, Positional(args))), args);
+			//the text is the caller's, not baseKey's words, so it may refer to baseKey and
+			//select its forms, as it may without arguments
+			return string.Format(RenderTextCore(words.Provider, text, baseKey, null, new(words.Language, Positional(args))), args);
 		}
 
 		/// <summary>
@@ -216,7 +217,7 @@ namespace PatTech.Localization {
 			ArgumentNullException.ThrowIfNull(wordsProvider);
 			ArgumentNullException.ThrowIfNull(key);
 
-			var renderedText = RenderKeyCore(wordsProvider, key, key, null, null);
+			var renderedText = RenderKeyCore(wordsProvider, key, null, null);
 			if (args?.Length > 0) {
 				renderedText = string.Format(renderedText, args: args);
 			}
@@ -250,14 +251,12 @@ namespace PatTech.Localization {
 			return renderedText;
 		}
 
-		//entry's words, rendered against baseKey: the entry itself, or for a form
-		//(word#other) the key it is a form of, so a form's {>.sub} is the key's sub.
-		//path holds the entries being rendered, for the circular cut
+		//entry's words, rendered against the key they are words of, however the entry
+		//was reached. path holds the entries being rendered, for the circular cut
 		[return: NotNull, Localized]
 		private static string RenderKeyCore(
 				[DisallowNull] IWordsProvider wordsProvider,
 				[DisallowNull] string entry,
-				string baseKey,
 				[AllowNull] Stack<string> path,
 				Selecting? selecting) {
 			if (path?.Contains(entry) == true) {
@@ -281,12 +280,16 @@ namespace PatTech.Localization {
 			path ??= new Stack<string>();
 			path.Push(entry);
 			try {
-				return RenderTextCore(wordsProvider, value, baseKey, path, selecting);
+				return RenderTextCore(wordsProvider, value, KeyOf(entry), path, selecting);
 			}
 			finally {
 				path.Pop();
 			}
 		}
+
+		//the key an entry is words of: the entry itself, or for a form (word#other) the
+		//key it is a form of, so a form's {>.sub} is its key's sub
+		private static string KeyOf(string entry) => entry.IndexOf('#') is > 0 and var mark ? entry[..mark] : entry;
 		//text's escapes, references and, when selecting, selectors, in one pass: what a
 		//reference brings in was rendered against its own key, and is not scanned again
 		[return: Localized]
@@ -312,12 +315,10 @@ namespace PatTech.Localization {
 					var key = match.Groups[2].Value;
 					switch (match.Value[1]) {
 						case '$':
-							result.Append(RenderKeyCore(wordsProvider, "$" + key, "$" + key, path, selecting));
+							result.Append(RenderKeyCore(wordsProvider, "$" + key, path, selecting));
 							break;
 						case '>':
-							key = Relative(key, baseKey);
-							//a form's entry, word#other, renders against its key, as a selected one does
-							result.Append(RenderKeyCore(wordsProvider, key, key.IndexOf('#') is > 0 and var mark ? key[..mark] : key, path, selecting));
+							result.Append(RenderKeyCore(wordsProvider, Relative(key, baseKey), path, selecting));
 							break;
 						default:
 							throw new InvalidOperationException($"unexpected symbol: '{match.Value[1]}'");
@@ -355,21 +356,29 @@ namespace PatTech.Localization {
 				return "# ∞ #";
 			}
 			string form = FormKey(provider, selecting.Language, key, Category(selecting.Language, selecting.Argument(argument)));
-			return RenderKeyCore(provider, form, key, path, selecting);
+			return RenderKeyCore(provider, form, path, selecting);
 		}
 
-		//entry's words from the provider, rendered against key, so each reference and
-		//selector resolves against the key it was written in; an entry the provider
-		//lacks reads through the indexer, as an IWords of one's own may answer it
+		//entry's words from the provider, so each reference and selector resolves
+		//against the key it was written in; an entry the provider lacks reads through
+		//the indexer, as an IWords of one's own may answer it, and still selects
 		[return: Localized]
-		private static string Template(IWords words, string entry, string key, Selecting? selecting)
-			=> words.Provider.ContainsKey(entry) ? RenderKeyCore(words.Provider, entry, key, null, selecting) : words[entry];
+		private static string Template(IWords words, string entry, Selecting? selecting)
+			=> words.Provider.ContainsKey(entry) ? RenderKeyCore(words.Provider, entry, null, selecting) : Selected(words.Provider, words[entry], KeyOf(entry), selecting);
+
+		//words an indexer handed over are rendered already, so only their selectors are
+		//left, each against key; a {{ pair is string.Format's now, and stays
+		[return: Localized]
+		private static string Selected(IWordsProvider provider, string words, string key, Selecting? selecting)
+			=> selecting is null ? words : rxSelector.Replace(words, match => match.Groups[1].Success
+				? Select(provider, match.Groups[1].Value, Relative(match.Groups[2].Value, key), null, selecting)
+				: match.Value);
 
 		[return: Localized]
 		internal static string RenderCount(IWords words, string key, decimal count) {
 			ArgumentNullException.ThrowIfNull(key);
 			string language = words.Language;
-			return Template(words, FormKey(words.Provider, language, key, PluralRules.Select(language, count)), key, null);
+			return Template(words, FormKey(words.Provider, language, key, PluralRules.Select(language, count)), null);
 		}
 
 		/// <summary>
@@ -556,7 +565,7 @@ namespace PatTech.Localization {
 		/// <param name="args">The values to format into the template.</param>
 		[return: Localized]
 		public static string Format(this IWords known, IFormatProvider? provider, [WordsKey] string key, params object?[] args)
-			=> string.Format(provider, Template(known, key, key, new(known.Language, Positional(args))), args);
+			=> string.Format(provider, Template(known, key, new(known.Language, Positional(args))), args);
 
 		/// <inheritdoc cref="FormatByName(IWords, IFormatProvider?, string, object?, object?[])"/>
 		[return: Localized]
@@ -579,7 +588,7 @@ namespace PatTech.Localization {
 		/// <param name="args">Additional positional arguments.</param>
 		[return: Localized]
 		public static string FormatByName(this IWords known, IFormatProvider? provider, [WordsKey] string key, object? value, params object?[] args)
-			=> FormatByName(provider, Template(known, key, key, new(known.Language, Named(value, args))), value, args);
+			=> FormatByName(provider, Template(known, key, new(known.Language, Named(value, args))), value, args);
 
 		/// <summary>
 		/// Looks up <paramref name="key"/> and fills its placeholders from whatever

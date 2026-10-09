@@ -553,21 +553,26 @@ References and selectors expand in one pass over the key's words, each against
 the key whose text it was written in. A referenced key's own `{>.sub}` and
 `{0#.n}` are that key's, and relatives chain: under `[a]`, `{>.b}` reads `a.b`,
 whose `{>.c}` reads `a.b.c`. A form's text is its key's, so `word#other`'s
-`{>.sub}` is `word.sub`, whether a selector, the count indexer or a
-`{>word#other}` reached it. What a reference brings in is never scanned again.
+`{>.sub}` is `word.sub`, whether a selector, the count indexer, a
+`{>word#other}` or a lookup of `word#other` itself reached it. What a reference
+brings in is never scanned again.
 One recursion path runs through it all: a reference is circular when its key is
 being rendered, and a selector when any of its key's words are, plain or a form.
 So a key that selects its own forms renders the circular mark wherever it is
 referred to, while a form may still refer to its key's plain value
-(`value#other={>item}s`). The selector's first cut, never released, expanded
-references first and selected after, so a referenced key's selectors picked
-from the outer key.
+(`value#other={>item}s`). `RenderText`'s text is the caller's, not its base
+key's words: the base key anchors its relatives and nothing else, so the text
+may refer to that key or select among its forms, given arguments or not. The
+selector's first cut, never released, expanded references first and selected
+after, so a referenced key's selectors picked from the outer key.
 
 An escaped pair collapses in the same pass, so `{{0#word}` is a brace and text,
 no selector; `string.Format` then wants its own `{{`, as for `{{>key}`. A
 `{{{{` pair still reaches `string.Format` as `{{`. The `Format` family renders the
 key from `Provider`, as `RenderKey` does; an `IWords` of one's own whose indexer
-dresses words up is read through only for a key its provider lacks.
+dresses words up is read through only for a key its provider lacks. What it
+answers is rendered already, so only its selectors are left, each resolved
+against that key, and a `{{` in it is `string.Format`'s, and stays.
 
 On the named path `{0}` is the object itself, as `PreFormatByName` slots it, so a
 converter's bound count selects with `{0#word}`. A dictionary given as the value
@@ -628,13 +633,16 @@ an optional category, and the one it reads, are both its language's.
 The parser lowercases a form, continues it and warns about forms that are none.
 Checked once against the ICU that Windows ships (CLDR 35): the table agrees
 except where CLDR has changed since. Where things resolve: a form's relative
-reference, chained twice, through a selector, the count indexer and a
-`{>word#other}`; a referenced key's selector picks from its own sub-key; a key
-referring to one that selects its own forms renders the circular mark, while a
-form may refer to its plain value; an escaped selector is none. `FormatByName`
-fills a `null` with nothing on every path and reads a dictionary, of any value
-type, by its values; `RenderKey` with arguments reads the provider as it does
-without; every number type counts, a float's fraction is `other`; the runtime's
+reference, chained twice, through a selector, the count indexer, a
+`{>word#other}` and a lookup of the form itself; a referenced key's selector
+picks from its own sub-key; a key referring to one that selects its own forms
+renders the circular mark, while a form may refer to its plain value; an
+escaped selector is none; `RenderText` given arguments may refer to its base key
+and select its forms. `FormatByName` fills a `null` with nothing on every path
+and reads a dictionary, of any value type, by its values; `RenderKey` with
+arguments reads the provider as it does without; a template an `IWords` of
+one's own answers still selects, its `{{` left to `string.Format`; every number
+type counts, a float's fraction is `other`; the runtime's
 default language is trimmed and cased; `blo`, `cv`, `kok` and `sgs` count by
 CLDR 48; the tables refuse to be changed; `CulturedWords`' indexers are
 `[Localized]`; a pool thread's `TriggerWords.Watch()` leaves the trigger on its

@@ -93,6 +93,18 @@ public class RenderScopeTests {
 	}
 
 	[Fact]
+	public void AFormLookedUpByItsEntry_ResolvesAgainstItsKey_AsOneReferredToDoes() {
+		var en = In("en");
+
+		//1.5.0's first cut read #sentence#other.place#
+		Assert.Equal("{0} files in the box with a lid", en["sentence#other"]);
+		Assert.Equal("{0} files in the box with a lid", en.RenderKey("sentence#other"));
+		Assert.Equal("{0} files in the box with a lid", Words.RenderKey(en.Provider, "sentence#other"));
+		Assert.Equal("2 files in the box with a lid", en.Format("sentence#other", 2));
+		Assert.Equal("2 files in the box with a lid", en.RenderKey("sentence#other", [2]));
+	}
+
+	[Fact]
 	public void AReferencesSelectors_PickFromTheKeyTheyWereWrittenIn() {
 		var en = In("en");
 
@@ -111,6 +123,21 @@ public class RenderScopeTests {
 		Assert.Contains(logger.Messages, message => message.StartsWith("WORDS:CIRC:`files`"));
 		Assert.Equal("items", en["item", 2]);
 		Assert.Equal("items", en.RenderText("{0#item}", null, [2]));
+	}
+
+	[Fact]
+	public void RenderTexts_TextIsTheCallers_SoItMayReferToItsBaseKey_WithArgumentsAsWithout() {
+		using var globals = new WordsGlobals();
+		var logger = new CaptureLogger();
+		Words.Logger = logger;
+		var en = In("en");
+
+		//1.5.0's first cut took the text for baseKey's own words, given arguments: # ∞ #
+		Assert.Equal("file: 3", en.RenderText("{>file}: {0}", "file", [3]));
+		Assert.Equal("file: 3", en.RenderText("{>file}: 3", "file"));
+		Assert.Equal("2 items", en.RenderText("{>nested}", "relative", [2])); //by way of another key
+		Assert.Equal("3 files", en.RenderText("{0} {0#file}", "file", [3]));   //and its forms
+		Assert.Empty(logger.Messages);
 	}
 
 	[Fact]
@@ -175,6 +202,32 @@ public class RenderScopeTests {
 		Assert.Equal("{0} plain", Words.RenderKey(shouting, "count"));
 		Assert.Equal("5 plain", Words.RenderKey(shouting, "count", [5])); //was 5 PLAIN, through the indexer
 		Assert.Equal("#NONE#", shouting.Format("none", 5));                //a key the provider lacks still reads through it
+	}
+
+	//a dictionary of one's own that answers keys its provider lacks
+	private sealed class Virtual(IWords inner) : IWords {
+		public IWordsProvider Provider => inner.Provider;
+		public string Language => inner.Language;
+		public string this[string key] => key switch {
+			"virtual" => "{0} {0#file}, {0#.n} {{braces}}",
+			"named" => "{Count} {Count#file}",
+			_ => inner[key],
+		};
+		public bool ContainsKey(string key) => inner.ContainsKey(key);
+		public bool TryGetValue(string key, out string value) => inner.TryGetValue(key, out value!);
+		public void SetCulture() { }
+	}
+
+	[Fact]
+	public void WordsAnIndexerOfOnesOwnAnswers_StillSelect() {
+		var words = new Virtual(WordsBuilder.Create().LoadString("[file]\nvalue=file\nvalue#other=files\n\n[virtual.n]\nvalue=item\nvalue#other=items\n").ToWords("en"));
+
+		//1.5.0's first cut handed string.Format the selectors, which threw
+		Assert.Equal("2 files, items {braces}", words.Format("virtual", 2)); //a {{ pair is string.Format's
+		Assert.Equal("1 file, item {braces}", words.Format("virtual", 1));
+		Assert.Equal("2 files, items {braces}", words.FormatParams("virtual", new object[] { 2 }));
+		Assert.Equal("3 files", words.FormatByName("named", new { Count = 3 }));
+		Assert.Equal("{0} {0#file}, {0#.n} {{braces}}", words["virtual"]); //no arguments: as it is
 	}
 
 	public static TheoryData<object, string> Counts => new() {
