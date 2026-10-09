@@ -322,6 +322,18 @@ a code up the same chain. A region falls back past its script, never across to a
 sibling, so Traditional never reads Simplified. 1.4.0's family fallback, `en-GB`
 to `en`, is the two-subtag case of this.
 
+Windows names its Chinese cultures by region alone, `zh-TW` and `zh-CN`, while
+its other languages written in more than one script carry the script
+(`sr-Latn-RS`). So a Chinese region that names no script falls back through the
+one it writes, as CLDR's likely subtags have it: `zh-TW`, `zh-HK` and `zh-MO`
+read `zh-Hant`, then `zh`, and `zh-CN` and `zh-SG` read `zh-Hans`, then `zh`. A
+script the code names comes first, so `zh-Hans-HK` reads `zh-Hans`. Other
+regions, and other languages, fall back by truncation alone, and the rest is
+the file's to name: a language's default script goes under its plain code
+(`pa`, not `pa-Guru`), as BCP 47 advises, and a region another platform names
+without the script it writes (Linux's `pa_PK`, which writes Arabic) gets
+words of its own, `pa-PK`, or the app passes a code with the script.
+
 **A culture's name.** `Flatten` and `ToWords` also take a culture's name, which
 can say more than a code: `ca-ES-valencia`, `en-US-POSIX`. It reads as the
 longest run of leading subtags that is a code (`LanguageCode.TryRead`), so an
@@ -349,9 +361,12 @@ survives a reload.
 - The grammar accepts each subtag kind in any case and cases it, and refuses a
   subtag too long or too short, subtags out of order, and `_` as a separator.
   A culture's name reads its leading code.
-- Each code's chain, and the `DefaultSpeaks` matrix with scripts.
+- Each code's chain, a Chinese region's through its script included, and the
+  `DefaultSpeaks` matrix with scripts.
 - `Flatten` falls back through three levels, branded, never across scripts, and
-  takes a culture's name; `ToWords("sr-latn-rs")` builds.
+  takes a culture's name; it reads `zh-TW` in Traditional and `zh-CN` in
+  Simplified, and `zh-Hans-HK` by the script it names; `ToWords("sr-latn-rs")`
+  builds.
 - The plural rules look codes up through the chain.
 - A runtime reads a three-part code and skips `value-english` with its
   continuation. The authoring reader gripes about it.

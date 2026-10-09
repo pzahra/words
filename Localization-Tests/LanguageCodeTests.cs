@@ -76,7 +76,13 @@ public class LanguageCodeTests {
 
 	[Theory]
 	[InlineData("zh-Hant-TW", new[] { "zh-Hant-TW", "zh-Hant", "zh" })]
-	[InlineData("zh-TW", new[] { "zh-TW", "zh" })]
+	[InlineData("zh-TW", new[] { "zh-TW", "zh-Hant", "zh" })] //a Chinese region, by the script it writes
+	[InlineData("zh-HK", new[] { "zh-HK", "zh-Hant", "zh" })]
+	[InlineData("zh-MO", new[] { "zh-MO", "zh-Hant", "zh" })]
+	[InlineData("zh-CN", new[] { "zh-CN", "zh-Hans", "zh" })]
+	[InlineData("zh-SG", new[] { "zh-SG", "zh-Hans", "zh" })]
+	[InlineData("zh-Hans-HK", new[] { "zh-Hans-HK", "zh-Hans", "zh" })] //the script it names first
+	[InlineData("zh-US", new[] { "zh-US", "zh" })]
 	[InlineData("es-419", new[] { "es-419", "es" })]
 	[InlineData("sr-Latn", new[] { "sr-Latn", "sr" })]
 	[InlineData("en", new[] { "en" })]
@@ -96,6 +102,9 @@ public class LanguageCodeTests {
 	[InlineData("zh-Hant", "zh-Hant-TW", true)]
 	[InlineData("zh-Hans", "zh-Hant-TW", false)] //Traditional never reads Simplified
 	[InlineData("zh-TW", "zh-Hant-TW", false)]
+	[InlineData("zh-Hant", "zh-TW", true)]
+	[InlineData("zh-Hans", "zh-TW", false)]
+	[InlineData("zh-Hans", "zh-CN", true)]
 	[InlineData("sr", "sr-Latn-RS", true)]
 	[InlineData(null, "en", false)]
 	public void TheDefaultSpeaks_WhereItsCodeIsOneTheLanguageFallsBackTo(string? spoken, string asked, bool speaks) {
@@ -148,6 +157,18 @@ public class LanguageCodeTests {
 		Assert.Equal("🕮繁體", words["script"]);
 		Assert.Equal("🕮中", words["family"]);
 		Assert.Equal("📚none", words["none"]);
+	}
+
+	[Fact]
+	public void Flatten_ReadsAChineseRegion_InTheScriptItWrites_UnlessItNamesOne() {
+		var builder = WordsBuilder.Create().LoadString(Chinese).Debug();
+
+		//1.5.0's first cut read zh-TW straight to zh: a Windows Traditional Chinese user lost 繁體
+		Assert.Equal("繁體", builder.Flatten("zh-TW")["script"]); //the first level found is the language's own
+		Assert.Equal("繁體", builder.Flatten("zh-HK")["script"]);
+		Assert.Equal("简体", builder.Flatten("zh-CN")["script"]);
+		Assert.Equal("简体", builder.Flatten("zh-Hans-HK")["script"]);
+		Assert.Equal("🕮中", builder.Flatten("zh-TW")["family"]);
 	}
 
 	[Fact]

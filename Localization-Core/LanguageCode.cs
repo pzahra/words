@@ -12,7 +12,8 @@ namespace PatTech.Localization {
 	/// <c>es-419</c>, <c>zh-Hans-CN</c>, <c>sr-Latn-RS</c>. Each subtag is cased by its
 	/// kind (<c>sr-latn-rs</c> reads <c>sr-Latn-RS</c>), so two codes compare as their
 	/// <see cref="ToString"/>. A code falls back by truncation, <c>zh-Hant-TW</c> to
-	/// <c>zh-Hant</c> to <c>zh</c> (<see cref="Chain"/>). The <see langword="default"/>
+	/// <c>zh-Hant</c> to <c>zh</c>, and a Chinese region through its script, <c>zh-TW</c>
+	/// to <c>zh-Hant</c> to <c>zh</c> (<see cref="Chain"/>). The <see langword="default"/>
 	/// value is no code, and reads as the empty string, the language-less default.
 	/// </summary>
 	public readonly struct LanguageCode : IEquatable<LanguageCode> {
@@ -82,7 +83,11 @@ namespace PatTech.Localization {
 		/// <summary>
 		/// This code and each shorter one it falls back to, longest first: <c>zh-Hant-TW</c>,
 		/// <c>zh-Hant</c>, <c>zh</c>. A region falls back past its script, never to a
-		/// sibling, so Traditional never reads Simplified. Empty for the <see langword="default"/> value.
+		/// sibling, so Traditional never reads Simplified. A Chinese region that names no
+		/// script falls back past the one it is written in, so <c>zh-TW</c>,
+		/// <c>zh-HK</c> and <c>zh-MO</c> read <c>zh-Hant</c>, and <c>zh-CN</c> and
+		/// <c>zh-SG</c> read <c>zh-Hans</c>; a script the code names comes first, so
+		/// <c>zh-Hans-HK</c> reads <c>zh-Hans</c>. Empty for the <see langword="default"/> value.
 		/// </summary>
 		public IEnumerable<LanguageCode> Chain {
 			get {
@@ -90,8 +95,9 @@ namespace PatTech.Localization {
 					yield break;
 				}
 				yield return this;
-				if (Region != "" && Script != "") {
-					yield return new LanguageCode(Language, Script, "");
+				string script = Script != "" || Region == "" ? Script : likelyScripts.GetValueOrDefault((Language, Region), "");
+				if (Region != "" && script != "") {
+					yield return new LanguageCode(Language, script, "");
 				}
 				if (Region != "" || Script != "") {
 					yield return new LanguageCode(Language, "", "");
@@ -99,10 +105,21 @@ namespace PatTech.Localization {
 			}
 		}
 
+		//the script a region writes a language in where its culture's name says none
+		//(CLDR's likely subtags): Windows names Chinese cultures zh-TW and zh-CN, while
+		//its other scripted languages carry the script (sr-Latn-RS)
+		private static readonly Dictionary<(string Language, string Region), string> likelyScripts = new() {
+			[("zh", "TW")] = "Hant",
+			[("zh", "HK")] = "Hant",
+			[("zh", "MO")] = "Hant",
+			[("zh", "CN")] = "Hans",
+			[("zh", "SG")] = "Hans",
+		};
+
 		/// <summary>
 		/// Whether <paramref name="prefix"/> is this code or one it falls back to
 		/// (<see cref="Chain"/>): <c>zh</c> and <c>zh-Hant</c> both are for <c>zh-Hant-TW</c>,
-		/// <c>zh-TW</c> is not.
+		/// <c>zh-TW</c> is not; <c>zh-Hant</c> is for <c>zh-TW</c> too.
 		/// </summary>
 		/// <param name="prefix">The shorter code.</param>
 		public bool StartsWith(LanguageCode prefix) {

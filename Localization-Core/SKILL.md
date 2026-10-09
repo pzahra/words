@@ -96,7 +96,9 @@ script, a 2-letter or 3-digit region (`en`, `ceb`, `es-419`, `zh-Hans-CN`),
 cased by kind. A field whose suffix is none (`value-english=`) is skipped with
 `WP:LANG`; a key's `param-name=` is a parameter's name, not a language.
 Language resolution per key drops one subtag at a time: `zh-Hant-TW` →
-`zh-Hant` → `zh` → default, so Traditional never reads Simplified.
+`zh-Hant` → `zh` → default, so Traditional never reads Simplified. A Chinese
+region with no script goes through the one it writes: `zh-TW` → `zh-Hant`,
+`zh-CN` → `zh-Hans`.
 
 ## Editing words.ini: the tools
 
