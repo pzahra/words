@@ -11,10 +11,17 @@ public static class Program
         WriteLocal(GetLocalizedMessage());
         WriteLocal("welcome");
         WriteLocal(Bye);
+
+        Show("greeting");
+        Show("greetng");
     }
 
     static void WriteLocal([Localized] string message) {
         Console.WriteLine(message);
+    }
+
+    static void Show([WordsKey] string key) {
+        Console.WriteLine(key);
     }
 
     [return:Localized]

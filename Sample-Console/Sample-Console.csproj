@@ -12,6 +12,9 @@
     <None Update="Assets\words.ini">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- and to the analyzer, which checks the keys code names against *words.ini files -->
+    <AdditionalFiles Include="Assets\words.ini" />
+
   </ItemGroup>
 
   <ItemGroup>

@@ -9,7 +9,7 @@ using System.Windows;
 namespace Sample_Wpf;
 
 public partial class App : Application {
-	private const string FrameworkWords = "pack://application:,,,/Sample-Wpf;Component/Assets/framework.ini";
+	private const string FrameworkWords = "pack://application:,,,/Sample-Wpf;Component/Assets/framework-words.ini";
 
 	protected override void OnStartup(StartupEventArgs e) {
 		base.OnStartup(e);
@@ -80,5 +80,5 @@ public partial class App : Application {
 	/// </summary>
 	public static CardSources CardSources() => new(
 		CardSource.ReadAll(typeof(App).Assembly, "pages/"),
-		[SampleWords.ReadShared(), CardSource.Read("framework.ini", GetResourceStream(new Uri(FrameworkWords)).Stream)]);
+		[SampleWords.ReadShared(), CardSource.Read("framework-words.ini", GetResourceStream(new Uri(FrameworkWords)).Stream)]);
 }

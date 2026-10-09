@@ -60,7 +60,7 @@ public class CardSourcesTests {
 		value=Constant
 		""";
 
-	private static CardSources Sources() => new([new("Page.xaml", Page)], [new("sample.ini", Ini), new("framework.ini", Framework)]);
+	private static CardSources Sources() => new([new("Page.xaml", Page)], [new("sample-words.ini", Ini), new("framework-words.ini", Framework)]);
 
 	[Fact]
 	public void Markup_CutsBetweenTheMarkers_ItsIndentTakenOff() {
@@ -76,7 +76,7 @@ public class CardSourcesTests {
 	public void How_ShowsTheMarkupThenTheWords_FileByFile() {
 		var how = Sources().How("demo.one", null);
 
-		Assert.Equal(["Page.xaml", "sample.ini", "framework.ini"], how.Select(source => source.File));
+		Assert.Equal(["Page.xaml", "sample-words.ini", "framework-words.ini"], how.Select(source => source.File));
 		// a comment right above a header is the block's own
 		Assert.Equal("""
 			; constants
@@ -129,7 +129,7 @@ public class CardSourcesTests {
 			[enums.thing]
 			value=A thing in code
 			""", how[1].Text);
-		Assert.DoesNotContain(how, source => source.File == "framework.ini");
+		Assert.DoesNotContain(how, source => source.File == "framework-words.ini");
 	}
 
 	[Fact]
@@ -147,7 +147,7 @@ public class CardSourcesTests {
 			value#other=things
 			""";
 
-		var words = Assert.Single(new CardSources([], [new("sample.ini", ini)]).How("count", null)).Text;
+		var words = Assert.Single(new CardSources([], [new("sample-words.ini", ini)]).How("count", null)).Text;
 
 		Assert.Equal("""
 			[count]

@@ -29,7 +29,7 @@ public sealed record CardSource(string File, string Text) {
 ///     for the card, and the blocks of each words file that its keys look up.
 /// </summary>
 /// <param name="pages">The page markup files, whole.</param>
-/// <param name="words">The words files, whole: <c>sample.ini</c>, then the sample's <c>framework.ini</c>.</param>
+/// <param name="words">The words files, whole: <c>sample-words.ini</c>, then the sample's <c>framework-words.ini</c>.</param>
 public sealed partial class CardSources(IReadOnlyList<CardSource> pages, IReadOnlyList<CardSource> words) {
 	private readonly Lazy<IReadOnlyList<IniFile>> parsed = new(() => [.. words.Select(IniFile.Parse)]);
 

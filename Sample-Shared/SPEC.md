@@ -50,8 +50,8 @@ literally is written twice: `{{>key}` shows as `{>key}`.
 
 ## The words
 
-One `sample.ini`, embedded in Sample-Shared, carries every word both samples
-show. Each sample loads it, then its own `framework.ini` of two constants:
+One `sample-words.ini`, embedded in Sample-Shared, carries every word both samples
+show. Each sample loads it, then its own `framework-words.ini` of two constants:
 `$framework`, the name in the title, and `$embedded`, the base URI of an
 embedded asset — `avares://Sample-Ava/Assets/` or
 `pack://application:,,,/Sample-Wpf;component/Assets/`. Values reference them —
@@ -87,7 +87,7 @@ template, Avalonia through its view locator.
 |---|---|
 | Getting started | words in markup (`{l:Words}`); a missing key, shown as `#key#` |
 | Markdown | inline styles; entities and emoji; code spans and blocks (`WordsCodeFont`, `WordsCodeBackground`); the kitchen sink; the playground (`WordsMarkdown`) |
-| References | one key inside another (`{>key}`); constants (`{$constant}`, from `framework.ini`); dot-relative blocks and references; a loop, cut at `# ∞ #` |
+| References | one key inside another (`{>key}`); constants (`{$constant}`, from `framework-words.ini`); dot-relative blocks and references; a loop, cut at `# ∞ #` |
 | Hyperlinks | tooltips, autolinks and app commands (`RegisterGlobalNavigateHandler`), coloured by the theme (`WordsLinkBrush`); the app's report of them (`Params`) |
 | Images | every scheme, `staticres:` beside `dynres:` under the theme toggle |
 | Format parameters | positional, as a child binding; plural forms the same count picks (`{0#key}`, `value#other`), sharing its slider; named, read off an object; numbers and dates in the language's culture, with `UseSystemNumbers` |
@@ -115,7 +115,7 @@ under `pages/`. A card's markup is the lines between the marker comments named
 for it — `<!-- card: markdown.code -->` and the next `<!-- /card -->` — with
 their common indent taken off. Every card on every page has its markers.
 
-**The words.** From `sample.ini`, then the sample's `framework.ini`, each block
+**The words.** From `sample-words.ini`, then the sample's `framework-words.ini`, each block
 whose key is the card's key or beneath it, then each block those reference with
 `{>key}`, `{>.sub}` or `{$constant}`, followed until nothing new turns up; an
 escaped `{{>key}` is not followed. A card that looks keys up in code names them
@@ -142,4 +142,4 @@ takes a card's own blocks first, then what they reference, a relative header
 written out in full and an escaped reference not followed; keeps a header-like
 line inside a continued value and a block's own comment, and drops a section's;
 adds `MoreKeys`; leaves out a file with nothing to show; and cuts the real
-`sample.ini`'s code card whole.
+`sample-words.ini`'s code card whole.

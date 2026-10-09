@@ -14,6 +14,22 @@ project's `words.ini` and reference it by key. Parameters marked
 `[Localized]` warn (PTL001) when handed a raw string — that warning means
 "move this text into words.ini", not "suppress me".
 
+**Name the file `*words.ini` and hand it to the analyzer**, so a key the
+code names is checked against the keys the file declares (PTL002):
+
+```xml
+<ItemGroup>
+  <AdditionalFiles Include="Assets\app-words.ini" />
+</ItemGroup>
+```
+
+The analyzer reads only files whose name ends in `words.ini`. With one, a
+misspelt key (`Words.Known["menu.flie"]`, `Format("menu.flie", …)`, a
+`[WordsKey]` parameter of your own) warns at build time instead of rendering
+`#menu.flie#` at run time. A key with a plural form in it
+(`"files#other"`) warns too: code names the key, and the count picks the
+form.
+
 ## The words.ini format
 
 ```ini

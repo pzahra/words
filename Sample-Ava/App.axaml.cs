@@ -14,7 +14,7 @@ using System.Diagnostics;
 
 namespace Sample_Ava {
 	public partial class App : Application {
-		private const string FrameworkWords = "avares://Sample-Ava/Assets/framework.ini";
+		private const string FrameworkWords = "avares://Sample-Ava/Assets/framework-words.ini";
 		private readonly SampleConfig config = SampleConfig.For("Sample-Ava");
 		private IReadOnlyList<KeyValuePair<string, string>> langs = [];
 		private string lang = "it";
@@ -78,6 +78,6 @@ namespace Sample_Ava {
 		/// </summary>
 		public static CardSources CardSources() => new(
 			CardSource.ReadAll(typeof(App).Assembly, "pages/"),
-			[SampleWords.ReadShared(), CardSource.Read("framework.ini", AssetLoader.Open(new Uri(FrameworkWords)))]);
+			[SampleWords.ReadShared(), CardSource.Read("framework-words.ini", AssetLoader.Open(new Uri(FrameworkWords)))]);
 	}
 }

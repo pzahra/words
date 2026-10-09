@@ -6,7 +6,7 @@
              x:Class="Sample_Ava.Views.StartPageView"
              x:DataType="vm:StartPageViewModel">
   <!-- Getting started. Each card's words are `<card key>`, `.guide` and `.demo` in
-       Sample-Shared/sample.ini -->
+       Sample-Shared/sample-words.ini -->
   <StackPanel>
     <!-- card: start.markup -->
     <c:DemoCard Key="start.markup" Uses="{}{l:Words key}">

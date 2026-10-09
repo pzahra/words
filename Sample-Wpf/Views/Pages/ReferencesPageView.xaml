@@ -13,7 +13,7 @@
     <!-- /card -->
 
     <!-- card: references.constants -->
-    <c:DemoCard Key="references.constants" Uses="{}{$constant}, framework.ini">
+    <c:DemoCard Key="references.constants" Uses="{}{$constant}, framework-words.ini">
       <TextBlock TextWrapping="Wrap"><l:WordsInline Key="references.constants.demo"/></TextBlock>
     </c:DemoCard>
     <!-- /card -->

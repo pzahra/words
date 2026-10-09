@@ -10,6 +10,8 @@
   <ItemGroup>
     <Folder Include="Models\" />
     <AvaloniaResource Include="Assets\**" />
+    <!-- every word this sample can name, for the analyzer's key check -->
+    <AdditionalFiles Include="Assets\framework-words.ini;..\Sample-Shared\sample-words.ini" />
   </ItemGroup>
 
   <ItemGroup>

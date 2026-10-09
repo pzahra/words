@@ -11,8 +11,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- every word both samples show; each sample adds its own framework.ini -->
-    <EmbeddedResource Include="sample.ini" />
+    <!-- every word both samples show; each sample adds its own framework-words.ini -->
+    <EmbeddedResource Include="sample-words.ini" />
+    <!-- and to the analyzer, which checks the keys code names against *words.ini files -->
+    <AdditionalFiles Include="sample-words.ini" />
   </ItemGroup>
 
   <ItemGroup>

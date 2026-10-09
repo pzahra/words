@@ -287,6 +287,6 @@ Console.WriteLine(parser.ToInline(Words.Known["main.title"]));
 
 - **[PatTech.Localization.WPF](https://www.nuget.org/packages/PatTech.Localization.WPF)** — Words in the XAML: the `{l:Words key}` markup extension, markdown inlines, converters and image schemes.
 - **[PatTech.Localization.Avalonia](https://www.nuget.org/packages/PatTech.Localization.Avalonia)** — the same, for Avalonia's AXAML.
-- **[PatTech.Localization.Analyzer](https://www.nuget.org/packages/PatTech.Localization.Analyzer)** — the `[Localized]` attribute and rule PTL001, which flags a localized seam handed a raw string. Core already depends on it, so you have it.
+- **[PatTech.Localization.Analyzer](https://www.nuget.org/packages/PatTech.Localization.Analyzer)** — the `[Localized]` and `[WordsKey]` attributes and their rules: PTL001 flags a localized seam handed a raw string, and PTL002 checks every key the code names (`Words.Known["key"]`, `Format`, `[Words("key")]`) against the `*words.ini` files given to the build as `AdditionalFiles`. Core already depends on it, so you have it.
 - **Wordsmith** — the desktop editor for `words.ini` files, published on [GitHub Releases](https://github.com/pzahra/words/releases).
 - **words** — the command line that ships beside it, for scripts, build steps and coding agents on Windows, Linux and macOS: it changes one field of a `words.ini` and leaves every other byte where it was. The agent skill above tells agents to reach for it.

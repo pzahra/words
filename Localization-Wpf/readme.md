@@ -248,5 +248,5 @@ repaints the links and shows a `dynres:` image following the theme while its
 
 - **[PatTech.Localization.Core](https://www.nuget.org/packages/PatTech.Localization.Core)** — the engine: `words.ini` files, lookups by key, languages and fallbacks, `{0}`/`{Name}` parameters, `{>key}` references, a markdown dialect.
 - **[PatTech.Localization.Avalonia](https://www.nuget.org/packages/PatTech.Localization.Avalonia)** — the same as this, for Avalonia's AXAML.
-- **[PatTech.Localization.Analyzer](https://www.nuget.org/packages/PatTech.Localization.Analyzer)** — the `[Localized]` attribute and rule PTL001, which flags a localized seam handed a raw string. It arrives with Core.
+- **[PatTech.Localization.Analyzer](https://www.nuget.org/packages/PatTech.Localization.Analyzer)** — the `[Localized]` and `[WordsKey]` attributes and their rules: PTL001 flags a localized seam handed a raw string, and PTL002 checks every key the code names (`Words.Known["key"]`, `Format`, `[Words("key")]`) against the `*words.ini` files given to the build as `AdditionalFiles`. It arrives with Core.
 - **Wordsmith** — the desktop editor for `words.ini` files, published on [GitHub Releases](https://github.com/pzahra/words/releases).

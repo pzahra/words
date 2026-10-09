@@ -24,7 +24,10 @@ Console.WriteWordsLine("demo.greeting", Environment.UserName);
 Console.WriteLine();
 
 // And this key does not exist, on purpose: it renders as #key# and gripes.
+// The analyzer would catch it first (PTL002), so it is told this one is meant.
+#pragma warning disable PTL002
 Console.WriteWordsLine("demo.missing-on-purpose");
+#pragma warning restore PTL002
 Console.ReadKey(true);
 
 /// <summary>Writes Words' complaints to stderr, so the demo shows them off.</summary>
