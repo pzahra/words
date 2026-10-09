@@ -152,7 +152,7 @@ one home: a `Watch()` from a thread with no synchronization context (a pool
 thread, a service at startup) leaves it where a UI thread put it. A WPF app
 with a second UI thread, such as a splash screen or a tool window on its own
 Dispatcher, still moves it with that thread's `Watch()`; one trigger per
-synchronization context waits until somebody needs it.
+synchronization context waits until somebody needs it (Planned upgrades).
 
 **Rendering controls.** A control that renders Words itself rather than handing a
 string to a property — `WordsInline`, on both frameworks — implements
@@ -734,3 +734,27 @@ the one the host's default is written in. Undecided: whether each file's
 default keeps its own language at runtime, so a fallback is branded where
 the languages differ, and whether Wordsmith flags a library written in
 another language than its host's default.
+
+## FormatByName's dictionary overloads
+
+The template overloads 1.4.0 shipped with an `IReadOnlyDictionary` parameter
+stay, hidden from completion (`[EditorBrowsable(Never)]`), and read as the
+`object` overloads do (*Plural forms*). The goal is to steer callers to the
+`object` overload and warn anyone who reaches a dictionary one, and neither
+attribute does that alone. `[Obsolete]` warns on every call that binds there, a
+dictionary's or a bare `null`'s, though the `object` overload would read it the
+same. `OverloadResolutionPriority(-1)`, which would send those calls to the
+`object` overload, makes `Words.FormatByName(null, template, dict)` ambiguous
+from C# 13, needs C# 13 for Core's net8.0 build, and is ignored by a C# 12
+caller. Nothing breaks today, so it waits for a way that warns only the calls
+it should.
+
+## One trigger per synchronization context
+
+`TriggerWords` is one for the process, and lives on the UI thread whose
+`Watch()` came last (*Live language switching*). A WPF app with a second UI
+thread, a splash screen or a tool window on its own Dispatcher, moves it there
+with that thread's `Watch()`. The shape: a trigger per synchronization context,
+each multi-binding taking its own thread's, and a swap pulsing each on its
+own context. The context-less half is built: a `Watch()` from a thread with no
+context leaves the trigger where it was.
