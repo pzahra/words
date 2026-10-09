@@ -1,7 +1,10 @@
 ﻿using PatTech.Utils;
 using System;
+using System.Buffers;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace PatTech.Localization {
@@ -162,21 +165,88 @@ namespace PatTech.Localization {
 	/// current position; results go to the <see cref="IWordsParserConsumer"/> it was built with.
 	/// </summary>
 	public class WordsParser {
-		private static readonly Regex rxKeySegment = new(@"^\w[\w-]*\z", RegexOptions.Compiled);
-		private static readonly Regex rxKeyName = new(@"^(\$\w[\w-]*|\w[\w-]*(\.\w[\w-]*)*)\z", RegexOptions.Compiled);
-
 		/// <summary>
 		/// Whether <paramref name="key"/> is a key's name (runtime SPEC: Key names): segments
-		/// of letters, digits, <c>_</c> and <c>-</c>, each starting with one of the first
-		/// three, joined by dots (<c>menu.file-open</c>); or a constant, <c>$</c> and one
-		/// segment, which has no children. A block named otherwise — a space, <c>#</c>,
-		/// <c>=</c>, an empty segment — is skipped with a warning.
+		/// of Unicode's identifier characters (UAX #31's XID_Continue) and <c>-</c>, each
+		/// starting with a letter (XID_Start), a digit or <c>_</c>, joined by dots
+		/// (<c>menu.file-open</c>, <c>हिंदी.शब्द</c>); or a constant, <c>$</c> and one segment,
+		/// which has no children. A name is in NFC, so one compares by its code points. A
+		/// block named otherwise — a space, <c>#</c>, <c>=</c>, an empty segment — is
+		/// skipped with a warning.
 		/// </summary>
 		/// <param name="key">A full key, as a <c>[.child]</c> header resolves to.</param>
-		public static bool IsKeyName(string key) => key is not null && rxKeyName.IsMatch(key);
+		public static bool IsKeyName(string key) {
+			if (key is null) {
+				return false;
+			}
+			if (key.StartsWith('$')) {
+				return IsSegment(key.AsSpan(1)) && InNfc(key);
+			}
+			ReadOnlySpan<char> rest = key;
+			for (int dot; (dot = rest.IndexOf('.')) >= 0; rest = rest[(dot + 1)..]) {
+				if (!IsSegment(rest[..dot])) {
+					return false;
+				}
+			}
+			return IsSegment(rest) && InNfc(key);
+		}
 
 		/// <summary>Whether <paramref name="segment"/> is one dotted segment of a key's name (<see cref="IsKeyName"/>).</summary>
-		public static bool IsKeySegment(string segment) => segment is not null && rxKeySegment.IsMatch(segment);
+		public static bool IsKeySegment(string segment) => segment is not null && IsSegment(segment) && InNfc(segment);
+
+		//UAX #31's identifier in the profile key names use: an XID_Start character, a
+		//decimal digit or a connector (_) first, as 1.4.0's \w had them, then
+		//XID_Continue characters and -, a code point at a time
+		private static bool IsSegment(ReadOnlySpan<char> segment) {
+			bool first = true;
+			while (!segment.IsEmpty) {
+				if (Rune.DecodeFromUtf16(segment, out Rune rune, out int length) != OperationStatus.Done) {
+					return false; //a lone surrogate
+				}
+				int c = rune.Value;
+				bool fits = first
+					? XidStart(c) || CharUnicodeInfo.GetUnicodeCategory(c) is UnicodeCategory.DecimalDigitNumber or UnicodeCategory.ConnectorPunctuation
+					: c == '-' || XidContinue(c);
+				if (!fits) {
+					return false;
+				}
+				first = false;
+				segment = segment[length..];
+			}
+			return !first;
+		}
+
+		//NFC, where the platform can tell: without ICU (invariant globalization) every
+		//string reads as normalized
+		private static bool InNfc(string name) {
+			try {
+				return name.IsNormalized(NormalizationForm.FormC);
+			}
+			catch (ArgumentException) {
+				return false;
+			}
+		}
+
+		//UAX #31's XID_Start, from the general categories: letters and letter numbers,
+		//with Other_ID_Start, less Pattern_Syntax's one letter and what NFKC would change
+		//into a non-start. Checked against ICU's for every code point both assign
+		private static bool XidStart(int c) => c switch {
+			0x1885 or 0x1886 or 0x2118 or 0x212E => true,
+			0x2E2F or 0x037A or 0x0E33 or 0x0EB3 or 0x309B or 0x309C or 0xFF9E or 0xFF9F or (>= 0xFC5E and <= 0xFC63) or 0xFDFA or 0xFDFB => false,
+			>= 0xFE70 and <= 0xFE7E when c % 2 == 0 => false,
+			_ => CharUnicodeInfo.GetUnicodeCategory(c) is UnicodeCategory.UppercaseLetter or UnicodeCategory.LowercaseLetter
+				or UnicodeCategory.TitlecaseLetter or UnicodeCategory.ModifierLetter or UnicodeCategory.OtherLetter or UnicodeCategory.LetterNumber,
+		};
+
+		//UAX #31's XID_Continue: XID_Start with marks, decimal digits and connectors, and
+		//Other_ID_Continue, which since Unicode 15.1 holds the joiners Persian and the
+		//Indic scripts write words with (U+200C, U+200D)
+		private static bool XidContinue(int c) => c switch {
+			0x00B7 or 0x0387 or (>= 0x1369 and <= 0x1371) or 0x19DA or 0x200C or 0x200D or 0x30FB or 0xFF65 => true,
+			0x0E33 or 0x0EB3 or 0xFF9E or 0xFF9F => true,
+			_ => XidStart(c) || CharUnicodeInfo.GetUnicodeCategory(c) is UnicodeCategory.NonSpacingMark
+				or UnicodeCategory.SpacingCombiningMark or UnicodeCategory.DecimalDigitNumber or UnicodeCategory.ConnectorPunctuation,
+		};
 
 		/// <summary>
 		/// Whether the default, written in <paramref name="defaultLanguage"/>, speaks for

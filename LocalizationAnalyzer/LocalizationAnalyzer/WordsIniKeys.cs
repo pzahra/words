@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Immutable;
+using System.Globalization;
 using System.IO;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.CodeAnalysis;
@@ -25,7 +27,6 @@ namespace LocalizationAnalyzer
     internal static class WordsIniKeys
     {
         // WordsParser's own patterns, as written there: keep them in step.
-        private static readonly Regex KeyName = new Regex(@"^(\$\w[\w-]*|\w[\w-]*(\.\w[\w-]*)*)\z");
         private static readonly Regex Block = new Regex(@"^\[(?<1>[^]]*)\]", RegexOptions.ExplicitCapture);
         private static readonly Regex Pair = new Regex(
             @"^(?<key>\w+)(-(?<lang>\w+(?:-\w+)*))?(?<form>#\w+)?\s*[:=]\s*(?<text>.*)",
@@ -66,14 +67,128 @@ namespace LocalizationAnalyzer
         private static bool IsWordsIni(string path) =>
             path != null && path.EndsWith("words.ini", StringComparison.OrdinalIgnoreCase);
 
-        /// <summary>Whether <paramref name="key"/> is a key's name, as <c>WordsParser.IsKeyName</c> decides.</summary>
-        internal static bool IsKeyName(string key) => key != null && KeyName.IsMatch(key);
+        /// <summary>
+        /// Whether <paramref name="key"/> is a key's name, as <c>WordsParser.IsKeyName</c> decides:
+        /// dotted segments of UAX #31 identifier characters and <c>-</c>, or <c>$</c> and one, in NFC.
+        /// </summary>
+        internal static bool IsKeyName(string key)
+        {
+            if (key == null)
+            {
+                return false;
+            }
+            if (key.StartsWith("$", StringComparison.Ordinal))
+            {
+                return IsSegment(key, 1, key.Length) && InNfc(key);
+            }
+            var start = 0;
+            for (int dot; (dot = key.IndexOf('.', start)) >= 0; start = dot + 1)
+            {
+                if (!IsSegment(key, start, dot))
+                {
+                    return false;
+                }
+            }
+            return IsSegment(key, start, key.Length) && InNfc(key);
+        }
 
-        //what a key name can begin with: a constant's start, or whole segments and a segment begun
-        private static readonly Regex KeyNameStart = new Regex(@"^(\$(\w[\w-]*)?|(\w[\w-]*\.)*(\w[\w-]*)?)\z");
+        /// <summary>
+        /// Whether some key name begins with <paramref name="prefix"/> (the fixed start of a built key):
+        /// a constant's start, or whole segments and a segment begun.
+        /// </summary>
+        internal static bool CouldStartKeyName(string prefix)
+        {
+            if (prefix == null)
+            {
+                return false;
+            }
+            if (prefix.StartsWith("$", StringComparison.Ordinal))
+            {
+                return prefix.Length == 1 || IsSegment(prefix, 1, prefix.Length);
+            }
+            var start = 0;
+            for (int dot; (dot = prefix.IndexOf('.', start)) >= 0; start = dot + 1)
+            {
+                if (!IsSegment(prefix, start, dot))
+                {
+                    return false;
+                }
+            }
+            return start == prefix.Length || IsSegment(prefix, start, prefix.Length);
+        }
 
-        /// <summary>Whether some key name begins with <paramref name="prefix"/> (the fixed start of a built key).</summary>
-        internal static bool CouldStartKeyName(string prefix) => prefix != null && KeyNameStart.IsMatch(prefix);
+        // UAX #31's identifier in the profile key names use, WordsParser's ported: an XID_Start
+        // character, a decimal digit or a connector (_) first, then XID_Continue characters and -,
+        // a code point at a time. The categories are the host's .NET's, which may know fewer
+        // code points than the app's.
+        private static bool IsSegment(string text, int from, int to)
+        {
+            for (var i = from; i < to;)
+            {
+                int c;
+                if (char.IsHighSurrogate(text[i]) && i + 1 < to && char.IsLowSurrogate(text[i + 1]))
+                {
+                    c = char.ConvertToUtf32(text[i], text[i + 1]);
+                }
+                else if (char.IsSurrogate(text[i]))
+                {
+                    return false;
+                }
+                else
+                {
+                    c = text[i];
+                }
+                var category = CharUnicodeInfo.GetUnicodeCategory(text, i);
+                var fits = i == from
+                    ? XidStart(c, category) || category == UnicodeCategory.DecimalDigitNumber || category == UnicodeCategory.ConnectorPunctuation
+                    : c == '-' || XidContinue(c, category);
+                if (!fits)
+                {
+                    return false;
+                }
+                i += c > 0xFFFF ? 2 : 1;
+            }
+            return to > from;
+        }
+
+        private static bool XidStart(int c, UnicodeCategory category)
+        {
+            if (c == 0x1885 || c == 0x1886 || c == 0x2118 || c == 0x212E)
+            {
+                return true;
+            }
+            if (c == 0x2E2F || c == 0x037A || c == 0x0E33 || c == 0x0EB3 || c == 0x309B || c == 0x309C || c == 0xFF9E || c == 0xFF9F
+                || (c >= 0xFC5E && c <= 0xFC63) || c == 0xFDFA || c == 0xFDFB || (c >= 0xFE70 && c <= 0xFE7E && c % 2 == 0))
+            {
+                return false;
+            }
+            return category == UnicodeCategory.UppercaseLetter || category == UnicodeCategory.LowercaseLetter
+                || category == UnicodeCategory.TitlecaseLetter || category == UnicodeCategory.ModifierLetter
+                || category == UnicodeCategory.OtherLetter || category == UnicodeCategory.LetterNumber;
+        }
+
+        private static bool XidContinue(int c, UnicodeCategory category)
+        {
+            if (c == 0x00B7 || c == 0x0387 || (c >= 0x1369 && c <= 0x1371) || c == 0x19DA || c == 0x200C || c == 0x200D
+                || c == 0x30FB || c == 0xFF65 || c == 0x0E33 || c == 0x0EB3 || c == 0xFF9E || c == 0xFF9F)
+            {
+                return true;
+            }
+            return XidStart(c, category) || category == UnicodeCategory.NonSpacingMark || category == UnicodeCategory.SpacingCombiningMark
+                || category == UnicodeCategory.DecimalDigitNumber || category == UnicodeCategory.ConnectorPunctuation;
+        }
+
+        private static bool InNfc(string name)
+        {
+            try
+            {
+                return name.IsNormalized(NormalizationForm.FormC);
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
+        }
 
         /// <summary>
         /// Walks the lines as <c>WordsParser.Load</c> does, adding each block whose resolved name is a

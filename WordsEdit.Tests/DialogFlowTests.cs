@@ -720,6 +720,20 @@ value-de=y
 		Assert.False(dialog.AddKeyCommand.CanExecute(null));
 	}
 
+	//a name is one segment of the runtime's grammar: any script's letters, UAX #31's
+	[Theory]
+	[InlineData("हिंदी", true)]
+	[InlineData("می‌خواهم", true)]
+	[InlineData("a😀", false)]
+	[InlineData("café", false)]
+	public void KeyNameDialog_TakesAnyScriptsLetters_InNfc(string name, bool valid) {
+		var (vm, _) = Load();
+		var dialog = new KeyNameViewModel(vm, null) { KeyName = name };
+
+		Assert.Equal(valid, !dialog.HasErrors);
+		Assert.Equal(valid, dialog.AddKeyCommand.CanExecute(null));
+	}
+
 	[Fact]
 	public void RemoveKeyData_AsksFirst() {
 		var dialogs = new FakeDialogs { ConfirmAnswer = false };

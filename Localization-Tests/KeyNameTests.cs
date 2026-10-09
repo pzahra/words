@@ -24,8 +24,32 @@ public class KeyNameTests {
 	[InlineData("_lead.é-ü")]
 	[InlineData("$unit")]
 	[InlineData("$si-unit_2")]
+	[InlineData("errors.404")]
+	[InlineData("हिंदी.शब्द")]           //spacing marks, which 1.4.0's \w lacked
+	[InlineData("می‌خواهم")]        //a non-joiner inside a Persian word
+	[InlineData("𝒜𝒷𝒸.𐐷")]               //letters past the 16-bit plane
+	[InlineData("١٢٣")]                  //a digit of any script starts one
+	[InlineData("a·b")]                  //Other_ID_Continue
 	public void AKeyIsDottedSegments_OrAConstant(string key) {
 		Assert.True(WordsParser.IsKeyName(key));
+	}
+
+	[Theory]
+	[InlineData("́a")]  //a mark starts nothing
+	[InlineData("‌a")]  //nor a joiner
+	[InlineData("a😀")]      //a symbol is no identifier's
+	[InlineData("a\uD800")]  //nor a lone surrogate
+	[InlineData("abͺ")] //nor what NFKC would change: XID, not ID
+	[InlineData("café")] //café, decomposed: a name is in NFC
+	public void WhatNoIdentifierHolds_IsNoKey(string key) {
+		Assert.False(WordsParser.IsKeyName(key));
+	}
+
+	[Fact]
+	public void ANameIsInNfc_SoItComparesByCodePoints() {
+		Assert.True(WordsParser.IsKeyName("café".Normalize()));
+		Assert.False(WordsParser.IsKeySegment("café"));
+		Assert.True(WordsParser.IsKeySegment("café"));
 	}
 
 	[Theory]
@@ -205,12 +229,14 @@ public class KeyNameTests {
 				  <data name="a_"><value>4</value></data>
 				  <data name="$unit"><value>5</value></data>
 				  <data name=".lead"><value>6</value></data>
+				  <data name="हिंदी 😀"><value>7</value></data>
 				</root>
 				""");
 
 			var loaded = new ResxCodec().Read([path]);
 
-			Assert.Equal(["a_b", "_this.Text", "a_", "a_-2", "$unit", "_.lead"], loaded.WordKeys.Keys);
+			//\w made हिंदी ह_ंद_: its vowel signs are spacing marks, which UAX #31 keeps
+			Assert.Equal(["a_b", "_this.Text", "a_", "a_-2", "$unit", "_.lead", "हिंदी__"], loaded.WordKeys.Keys);
 			Assert.True(loaded.WordKeys["$unit"].IsConstant);
 			Assert.False(loaded.WordKeys["_this.Text"].IsConstant);
 			Assert.Equal("3", loaded.WordKeys["a_"].DefaultValue);

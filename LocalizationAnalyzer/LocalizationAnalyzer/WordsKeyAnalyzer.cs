@@ -74,7 +74,7 @@ namespace LocalizationAnalyzer
             = new DiagnosticDescriptor(
                     DiagnosticId,
                     Title,
-                    "'{0}' is not a words key name: keys are dotted segments of letters, digits, '_' and '-', and a plural form is picked by a count, never named",
+                    "'{0}' is not a words key name: keys are dotted segments of any script's letters and digits, '_' and '-', in NFC, and a plural form is picked by a count, never named",
                     Category,
                     DiagnosticSeverity.Warning,
                     isEnabledByDefault: true,

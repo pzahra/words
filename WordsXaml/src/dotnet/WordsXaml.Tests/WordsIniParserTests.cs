@@ -379,6 +379,13 @@ value=yes
         [InlineData("a b", false)]
         [InlineData("lang.c#", false)]
         [InlineData("", false)]
+        [InlineData("errors.404", true)]
+        [InlineData("हिंदी.शब्द", true)]       // spacing marks: UAX #31's, not \w's
+        [InlineData("می‌خواهم", true)]    // a non-joiner inside a word
+        [InlineData("𝒜𝒷𝒸", true)]
+        [InlineData("́a", false)]
+        [InlineData("a😀", false)]
+        [InlineData("café", false)]      // a name is in NFC
         public void IsKeyName_follows_the_runtime_grammar(string key, bool expected)
         {
             Assert.Equal(expected, WordsIniParser.IsKeyName(key));

@@ -72,8 +72,8 @@ A section starting with `.` extends the last **fully-qualified** header (evo-wor
 Dot-sections never become the new base, so consecutive `[.x] [.y]` both resolve against the same parent.
 
 - **Headers** are the runtime's `^\[([^]]*)\]`: at the line start, the name as written, no trimming. The
-  resolved name must be a key's name (`WordsParser.IsKeyName`: dotted segments of letters, digits, `_`
-  and `-`, or a constant, `$unit`); one that isn't — `[lang.c#]`, `[ spaced ]` — is no key, and its
+  resolved name must be a key's name (`WordsParser.IsKeyName`: dotted segments of any script's
+  letters and digits, UAX #31's, `_` and `-`, in NFC, or a constant, `$unit`); one that isn't — `[lang.c#]`, `[ spaced ]` — is no key, and its
   fields go with it. So are the `[.child]` headers under it or under a constant (`$unit.child` is no
   name), and a `[.x]` before any full header (`.x` is no name either). A block named twice in a file is
   one key.

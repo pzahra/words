@@ -418,10 +418,18 @@ label clears the declaration, and a later declaration replaces it.
 
 A key's name is segments of letters, digits, `_` and `-`, each starting with
 one of the first three, joined by dots: `menu.file-open`. Letters and digits
-are any script's (the regex `\w`), so `é-ü` is a segment. A constant is `$`
-and one segment, `$unit`, and has no children. A header is `[name]`, or
-`[.child]` under the last full header, and the key it resolves to must be a
-name. `WordsParser.IsKeyName` is the check, and `IsKeySegment` its one segment.
+are any script's, as Unicode's identifiers have them (UAX #31): a segment is
+XID_Continue characters and `-`, starting with an XID_Start character, a
+decimal digit or a connector such as `_`. That is UAX #31's default identifier
+in a declared profile, where a digit or a connector may start a segment and a
+dash continue one, so `errors.404`, `हिंदी.शब्द`, a Persian word with its
+non-joiner and letters past the 16-bit plane are all names. A name is in NFC,
+so it compares by its code points and two spellings of `é` are never two keys;
+a platform without ICU (invariant globalization) cannot tell, and takes a name
+as written. A constant is `$` and one segment, `$unit`, and has no children. A
+header is `[name]`, or `[.child]` under the last full header, and the key it
+resolves to must be a name. `WordsParser.IsKeyName` is the check, and
+`IsKeySegment` its one segment; the analyzer and the Rider plugin port it.
 
 **Why there is a grammar.** Until plural forms nothing hung on it, and a header
 took anything up to `]`. Now `#` marks a form, so `[lang.c#]` beside
@@ -447,17 +455,28 @@ foreign name one.
 
 **What changes.** A hand-written file that 1.4.0 read with such a name loses
 that key; none of Wordsmith's can hold one. `WP:HASH` became `WP:NAME`, which
-covers `#` and the rest.
+covers `#` and the rest. The grammar's first cut, never released, read letters
+as the regex `\w`, which lacks spacing marks (the vowel signs of Devanagari and
+its kin), letters past the 16-bit plane and the joiners, so `[हिंदी]` was
+skipped; UAX #31 adds them, and leaves out a mark or a joiner as a segment's
+first character and the few letters NFKC would change.
 
 **Tests.** The grammar accepts dotted segments in any script, dashes inside,
 and a one-segment constant; it refuses an empty name or segment, a leading dot
 or dash, `$` inside or a constant's child, and each of the characters above.
+Devanagari's spacing marks, a Persian non-joiner, letters past the 16-bit plane
+and a digit of any script are its; a leading mark or joiner, an emoji, a lone
+surrogate, a letter NFKC would change and a decomposed `café` are not. Checked
+once against the ICU that Windows ships (Unicode 12.1): its XID_Start and
+XID_Continue agree on every code point both assign, but the four characters
+Unicode 15.1 added to XID_Continue (the joiners and two katakana middle dots).
 A runtime skips `[lang.c#]` and its continued value, warns once, and reads
 `[lang.c]` and the block after; it skips the children of a constant and of a
 skipped block; a second file's labels are read after a first that ended in a
 skipped block. The authoring reader keeps the block, with its gripe, and saves
 it back unchanged; the command line refuses to write one and removes one; an
-import maps WinForms' and bracketed names and tells two apart.
+import maps WinForms' and bracketed names and tells two apart, and keeps
+हिंदी's marks.
 
 ## Plural forms
 

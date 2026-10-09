@@ -171,6 +171,43 @@ public partial class T
         }
 
         [TestMethod]
+        public async Task UnicodesIdentifiers_AreKeyNames_InNfc()
+        {
+            // UAX #31, as the runtime has it: हिंदी's vowel signs are spacing marks, which \w
+            // lacked; a decomposed é is no name, since a name is in NFC
+            const string ini = @"
+[हिंदी.शब्द]
+value=x
+[café]
+value=y
+";
+            const string source = @"
+using PatTech.Localization;
+
+public partial class T
+{
+    static void M(string tail)
+    {
+        Use(""हिंदी.शब्द"");
+        Use(""café"");
+        Use(""हिंदी."" + tail);
+        Use({|#0:""हिंदी.नहीं""|});
+        Use({|#1:""café""|});
+        Use({|#2:""a😀""|});
+        Use({|#3:""́a"" + tail|});
+    }
+}
+";
+            await VerifyWithIni(
+                    ini,
+                    source,
+                    Unknown(0, "हिंदी.नहीं"),
+                    Invalid(1, "café"),
+                    Invalid(2, "a😀"),
+                    Invalid(3, "́a"));
+        }
+
+        [TestMethod]
         public async Task NonConstantExpression_Ignored()
         {
             const string source = @"

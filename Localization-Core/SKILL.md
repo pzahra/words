@@ -54,10 +54,11 @@ stale=marks the value as needing re-translation (gripes to the builder's logger)
 ; `[.name]` is dot-relative: nests under the last full header → group.key.sub
 [.sub]
 value=really `group.key.sub`
-; ^ a key's name is segments of letters, digits, _ and - joined by dots
-;   (menu.file-open), and a $constant is one segment. A block named otherwise
-;   (a space, #, =, ;, an empty segment, a constant's child) is skipped with a
-;   warning, WP:NAME: `#` marks plural forms. WordsParser.IsKeyName checks one.
+; ^ a key's name is segments of any script's letters and digits (Unicode's
+;   identifier characters), _ and - joined by dots (menu.file-open), in NFC,
+;   and a $constant is one segment. A block named otherwise (a space, #, =,
+;   ;, an empty segment, a constant's child) is skipped with a warning,
+;   WP:NAME: `#` marks plural forms. WordsParser.IsKeyName checks one.
 
 [file]
 value=file

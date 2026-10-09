@@ -63,8 +63,9 @@ A session holds one or more files. Each file contributes:
 - A **key tree**: dotted block keys (`view.section.key`), prefixed in memory
   with the file's label — its name, disambiguated when two loaded files
   share one (`strings`, `strings-2`), since files are identified by path. `$keys` are constants (no translations). A key's name
-  is the runtime's grammar (its spec's *Key names*): segments of letters,
-  digits, `_` and `-`, joined by dots, and a constant one segment. A block the
+  is the runtime's grammar (its spec's *Key names*): segments of any script's
+  letters and digits, `_` and `-`, joined by dots and in NFC, and a constant
+  one segment. A block the
   file names otherwise loads all the same, with a gripe that a runtime skips
   it, and saves back as it was; renaming it is the fix. A key carries:
   default value, context (programmer → translator), comment (translator-facing),
@@ -587,9 +588,9 @@ language is a feature like any other: resx has no slot for it and says so.
 So are plural forms, which neither has a slot for: to a translation tool a
 form is no unit of its own, so both drop them, counted, with a gripe. A
 foreign name that is no key's (the runtime spec's *Key names*) is made one,
-segment by segment, with a gripe: what is no letter, digit, `_` or `-` becomes
-`_`, and an empty or dash-led segment gains one, so WinForms' `$this.Text`
-loads as `_this.Text`. A name that is already a key's, a `$constant` included,
+segment by segment, in NFC, with a gripe: what is no letter, digit, `_` or `-`
+becomes `_`, and an empty segment, or one led by a dash or a mark, gains one,
+so WinForms' `$this.Text` loads as `_this.Text` and `हिंदी 😀` as `हिंदी__`. A name that is already a key's, a `$constant` included,
 loads as it is. Two names made one key are told apart with a number (`a_`,
 `a_-2`) and a gripe, never one overwriting the other, and a name met again in
 another file of the set finds the key it took first. An XLIFF unit is its

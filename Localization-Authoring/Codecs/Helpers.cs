@@ -1,5 +1,5 @@
 using System.Globalization;
-using System.Text.RegularExpressions;
+using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 
@@ -77,11 +77,23 @@ namespace PatTech.Localization.Authoring.Codecs {
 			return blockKey;
 		}
 
-		private static readonly Regex rxNoKey = new(@"[^\w-]");
-
+		//a foreign segment made one by the one check (WordsParser.IsKeySegment), a code
+		//point at a time, in NFC: what may not follow becomes _, and what may follow but
+		//not start, a mark or a dash, gets a _ before it
 		private static string Segment(string segment) {
-			string made = rxNoKey.Replace(segment, "_");
-			return made == "" || made[0] == '-' ? "_" + made : made;
+			var made = new StringBuilder();
+			foreach (Rune rune in segment.Normalize().EnumerateRunes()) {
+				if (WordsParser.IsKeySegment($"{made}{rune}")) {
+					made.Append(rune);
+				}
+				else if (made.Length == 0 && WordsParser.IsKeySegment($"_{rune}")) {
+					made.Append('_').Append(rune);
+				}
+				else {
+					made.Append('_');
+				}
+			}
+			return made.Length == 0 ? "_" : made.ToString();
 		}
 
 		/// <summary>

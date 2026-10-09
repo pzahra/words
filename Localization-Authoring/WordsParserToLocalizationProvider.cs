@@ -276,7 +276,7 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		/// <summary>The key-name grammar in a sentence, for a gripe (runtime SPEC: Key names).</summary>
-		public const string KeyNameRule = "a key is segments of letters, digits, _ and -, joined by dots, and a $constant is one segment";
+		public const string KeyNameRule = "a key is segments of any script's letters and digits, _ and -, joined by dots and in NFC, and a $constant is one segment";
 		/// <summary>The language-code grammar in a sentence, for a gripe (runtime SPEC: Language codes).</summary>
 		public const string LanguageCodeRule = "a language code is language(-Script)?(-REGION)?, as en, ceb, es-419, zh-Hans-CN";
 

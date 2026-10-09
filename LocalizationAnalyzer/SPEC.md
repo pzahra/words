@@ -28,7 +28,11 @@ declares a key, the rule registers nothing and stays silent, so a project that k
 words elsewhere never sees a false positive.
 
 **Read as the runtime reads.** The analyzer cannot reference Core, so `WordsIniKeys` copies
-`WordsParser`'s patterns as written there. Only names matter; values are never kept.
+`WordsParser`'s patterns as written there, and ports its key-name check: UAX #31's
+identifier characters in the runtime's profile, in NFC, a code point at a time. The
+characters' categories are those of the .NET the analyzer runs in, and Visual Studio's
+.NET Framework may not know letters newer than its Unicode, where `dotnet build` does.
+Only names matter; values are never kept.
 
 - A header is `[name]` at the start of its line, the name as written, untrimmed:
   `  [indented]` is no header, and `[ spaced ]` names ` spaced `. Text after the `]` is
@@ -144,9 +148,10 @@ its count.
 concatenated and folded — is checked exactly, and reported on the whole expression with
 one of two messages:
 
-- `'material.metals#other' is not a words key name: keys are dotted segments of letters,
-  digits, '_' and '-', and a plural form is picked by a count, never named` when it fails
-  the key-name grammar, as a `#`, a space, a doubled or leading dot does;
+- `'material.metals#other' is not a words key name: keys are dotted segments of any
+  script's letters and digits, '_' and '-', in NFC, and a plural form is picked by a count,
+  never named` when it fails the key-name grammar, as a `#`, a space, a doubled or leading
+  dot, an emoji or a decomposed `é` does;
 - `'nope.not.here' is not a known words key` when it is a name no file declares.
 
 The first is wrong in every file, and no key added fixes it; the second is a typo or a
@@ -191,7 +196,8 @@ key is checked plain, through `?[…]` and named, and an `int` indexer's is not;
 indexer checks the key; an implementing, a generic and an inherited member are marked as
 the interface member, the inherited one only on the type that implements; `""` is never
 reported; an `object` key checks only strings; an attribute's constructor and named
-arguments are checked.
+arguments are checked; `हिंदी.शब्द` and `café` are keys and `हिंदी.नहीं` an unknown one,
+while a decomposed `café`, an emoji and a leading combining mark are no key names.
 
 ## The keys Words marks
 
@@ -518,12 +524,3 @@ base is caught while a base with no value of its own stays quiet.
   them yet.
 - A headless test of the SDK glue (`JetBrains.ReSharper.TestFramework`) would check
   completion, the tooltip and the squiggle the way they are now checked by hand.
-
-## Unicode key names
-
-The grammar both copy is the runtime's `\w`, which misses spacing combining marks,
-supplementary-plane letters and ZWNJ, so `[हिंदी]` is skipped today. The proposal, its
-decision pending, is a UAX #31 segment (XID_Start, then XID_Continue) plus `-`, joined by
-`.`, NFC-normalised and matched by code points. The runtime's parser, the analyzer's
-`WordsIniKeys` (its key-name and key-start patterns both), the plugin's `WordsIniParser`
-and Wordsmith change together, in step as they are now.
