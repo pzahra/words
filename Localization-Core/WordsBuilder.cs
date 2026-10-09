@@ -290,11 +290,31 @@ namespace PatTech.Localization {
 
 		/// <inheritdoc cref="ToWords(string, out IEnumerable{KeyValuePair{string, string}})"/>
 		public IWords ToWords(string languageCode) {
-			var uiCulture = CultureInfo.CreateSpecificCulture(languageCode);
+			//the words go by the code the name starts with, which Flatten checks first
+			var words = Flatten(languageCode);
+			string language = LanguageCode.TryRead(languageCode, out var code) ? code.ToString() : languageCode;
+			var uiCulture = CultureOf(languageCode, language);
 			var culture = _useSystemNumbers ? Words.SystemCulture : uiCulture;
 			//the code picks the plural forms: the culture may be the invariant one for a language .NET does not know
-			var words = Flatten(languageCode);
-			return new CulturedWords(words, culture, uiCulture) { Language = LanguageCode.TryRead(languageCode, out var code) ? code.ToString() : languageCode };
+			return new CulturedWords(words, culture, uiCulture) { Language = language };
+		}
+
+		//the culture a name names, where .NET knows it (ca-ES-valencia keeps its variant),
+		//else the one of the code it starts with: en_US is en-US's, and sr_Latn_RS, which
+		//.NET refuses, sr-Latn-RS's. A language .NET knows neither way is the invariant culture's
+		private static CultureInfo CultureOf(string name, string code) {
+			foreach (string candidate in (string[])[name, code]) {
+				try {
+					var culture = CultureInfo.CreateSpecificCulture(candidate);
+					if (candidate == "" || !culture.Equals(CultureInfo.InvariantCulture)) {
+						return culture;
+					}
+				}
+				catch (CultureNotFoundException) {
+					//the name is no culture's: the code's may be
+				}
+			}
+			return CultureInfo.InvariantCulture;
 		}
 
 		/// <summary>

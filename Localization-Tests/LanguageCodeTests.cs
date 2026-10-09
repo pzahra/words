@@ -1,6 +1,7 @@
 using PatTech.Localization.Authoring;
 using PatTech.Localization.Authoring.Codecs;
 using PatTech.Localization.Cli;
+using System.Globalization;
 using System.Text;
 using Xunit;
 
@@ -170,6 +171,21 @@ public class LanguageCodeTests {
 		Assert.Equal("🕮简体", builder.Flatten("zh-Hans-HK")["script"]);
 		Assert.Equal("繁體", WordsBuilder.Create().LoadString(Chinese).Flatten("zh-TW")["script"]);
 		Assert.Equal("🕮中", builder.Flatten("zh-TW")["family"]);
+	}
+
+	//a POSIX name reads its code's words, and has its code's culture: 1.5.0's first cut
+	//gave en_US the invariant one, and threw for sr_Latn_RS, a name .NET refuses
+	[Fact]
+	public void ToWords_GivesAPosixNameItsCodesCulture() {
+		var builder = WordsBuilder.Create().LoadString("value-en-US=American\nvalue-sr-Latn-RS=Srpski\n\n[k]\nvalue=x\nvalue-en-US=us\nvalue-sr-Latn-RS=rs\n");
+
+		var american = builder.ToWords("en_US");
+		Assert.Equal(("us", "en-US", "en-US"), (american["k"], american.UICulture.Name, american.Language));
+		var serbian = builder.ToWords("sr_Latn_RS");
+		Assert.Equal(("rs", "sr-Latn-RS"), (serbian["k"], serbian.UICulture.Name));
+		Assert.Equal("ca-ES-valencia", builder.ToWords("ca-ES-valencia").UICulture.Name, ignoreCase: true); //a name .NET knows keeps what it says
+		Assert.Equal(CultureInfo.InvariantCulture, builder.ToWords("").UICulture);
+		Assert.Throws<ArgumentException>(() => builder.ToWords("english"));
 	}
 
 	[Fact]

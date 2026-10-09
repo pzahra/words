@@ -339,8 +339,11 @@ words of its own, `pa-PK`, or the app passes a code with the script.
 can say more than a code: `ca-ES-valencia`, `en-US-POSIX`. It reads as the
 longest run of leading subtags that is a code (`LanguageCode.TryRead`), so an
 app that digests `CultureInfo.CurrentUICulture.Name` starts in any locale.
-`IWords.Language` is that code. A name that starts with no code at all is still
-an `ArgumentException`.
+`IWords.Language` is that code. `ToWords` takes the name's culture where .NET
+knows the name, so `ca-ES-valencia` keeps its variant, and else the code's: a
+POSIX `en_US` gets `en-US`'s, and `sr_Latn_RS`, which .NET refuses, gets
+`sr-Latn-RS`'s. A name that starts with no code at all is still an
+`ArgumentException`.
 
 **A field that is no code.** A field like `value-english=` is read past, along
 with its continuation lines, and reported through
@@ -367,7 +370,7 @@ survives a reload.
 - `Flatten` falls back through three levels, branded, never across scripts, and
   takes a culture's name; it reads `zh-TW` in Traditional and `zh-CN` in
   Simplified, and `zh-Hans-HK` by the script it names; `ToWords("sr-latn-rs")`
-  builds.
+  builds, and `ToWords("en_US")` has the `en-US` culture.
 - The plural rules look codes up through the chain.
 - A runtime reads a three-part code and skips `value-english` with its
   continuation. The authoring reader gripes about it.
