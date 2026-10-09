@@ -35,7 +35,7 @@
          analyzer version is on nuget.org. CI restores only from nuget.org, so pointing
          at an unpublished version breaks every build, the analyzer tag's own gated
          test run included -->
-    <PackageReference Include="PatTech.Localization.Analyzer" Version="1.3.0" PrivateAssets="none" />
+    <PackageReference Include="PatTech.Localization.Analyzer" Version="1.4.0" PrivateAssets="none" />
   </ItemGroup>
 
 </Project>

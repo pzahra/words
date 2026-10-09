@@ -35,7 +35,8 @@ There is even a compiler warning for the day you inevitably try to sneak a raw
 1. Put a `words.ini` in your assets:
    
    ```ini
-   value-en=!English (common)
+   value=!en
+   value-en=English
    
    [main.title]
    value=Words
