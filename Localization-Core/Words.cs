@@ -1,6 +1,7 @@
 ﻿using PatTech.Utils;
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -518,6 +519,12 @@ namespace PatTech.Localization {
 					return false;
 			}
 			var type = item.GetType();
+			if (Lookup(type) is { } tryGetValue) {
+				object?[] call = [name, null];
+				bool has = (bool)tryGetValue.Invoke(item, call)!;
+				found = has ? call[1] : null;
+				return has;
+			}
 			if (type.GetField(name) is FieldInfo field) {
 				found = field.GetValue(item);
 				return true;
@@ -528,6 +535,19 @@ namespace PatTech.Localization {
 			}
 			return false;
 		}
+
+		//a type's TryGetValue as a dictionary by name of any other value type, if it is one:
+		//its IReadOnlyDictionary<string, T>, else its IDictionary<string, T>. Kept per type
+		private static readonly ConcurrentDictionary<Type, MethodInfo?> lookups = new();
+		private static MethodInfo? Lookup(Type type) => lookups.GetOrAdd(type, static type => {
+			Type[] interfaces = type.GetInterfaces();
+			Type? dictionary = interfaces.FirstOrDefault(face => ByName(face, typeof(IReadOnlyDictionary<,>)))
+				?? interfaces.FirstOrDefault(face => ByName(face, typeof(IDictionary<,>)));
+			return dictionary?.GetMethod(nameof(IDictionary<string, object>.TryGetValue));
+
+			static bool ByName(Type face, Type definition)
+				=> face.IsGenericType && face.GetGenericTypeDefinition() == definition && face.GenericTypeArguments[0] == typeof(string);
+		});
 
 		/// <summary>
 		/// Retrieves and renders the value of <paramref name="key"/> with silent failure.
@@ -668,7 +688,7 @@ namespace PatTech.Localization {
 		/// referring to <paramref name="args"/>.
 		/// </summary>
 		/// <param name="template">The format template containing <c>{Name}</c> or <c>{Name:format}</c> tags.</param>
-		/// <param name="value">The object whose public fields and properties are read by name.</param>
+		/// <param name="value">The object whose public fields and properties, or the dictionary whose values, are read by name.</param>
 		/// <param name="args">Additional positional arguments, addressed by the template's numbered tags.</param>
 		/// <returns>A numbered format string and the matching argument array, ready for <see cref="string.Format(string, object[])"/>.</returns>
 		public static (string FormatString, object?[] FormatArgs) PreFormatByName(string template, object? value, params object?[] args) {

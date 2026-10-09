@@ -615,7 +615,9 @@ against that key, and a `{{` in it is `string.Format`'s, and stays.
 On the named path `{0}` is the object itself, as `PreFormatByName` slots it, so a
 converter's bound count selects with `{0#word}`. A dictionary given as the value
 supplies its values by name, never its own members, so `{Count}` reads the
-entry and not the dictionary's `Count`, and a tool holding samples by name
+entry and not the dictionary's `Count`. That is any dictionary by a `string`
+key, of any value type: an `IDictionary`, or an `IReadOnlyDictionary<string, T>`
+or `IDictionary<string, T>` of one's own that is nothing else. A tool holding samples by name
 selects as an app would. A bare `null` fills every name with nothing, as in
 1.4.0. The template overloads 1.4.0 shipped with an `IReadOnlyDictionary`
 parameter (`Words.FormatByName`, `Words.PreFormatByName`) stay for callers built
@@ -682,7 +684,7 @@ picks from its own sub-key; a key referring to one that selects its own forms
 renders the circular mark, while a form may refer to its plain value; an
 escaped selector is none; `RenderText` given arguments may refer to its base key
 and select its forms. `FormatByName` fills a `null` with nothing on every path
-and reads a dictionary, of any value type, by its values; `RenderKey` with
+and reads a dictionary, of any value type and one's own too, by its values; `RenderKey` with
 arguments reads the provider as it does without; a template an `IWords` of
 one's own answers still selects, its `{{` left to `string.Format`; every number
 type counts, a float's fraction is `other`, and a double's sixteenth digit

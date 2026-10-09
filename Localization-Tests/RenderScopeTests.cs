@@ -169,6 +169,21 @@ public class RenderScopeTests {
 		Assert.Equal("5 items", en.FormatByName("named", (IReadOnlyDictionary<string, object?>)new Dictionary<string, object?> { ["Count"] = 5 }));
 		Assert.Equal("7 met", Words.FormatByName("{Count} met", new Dictionary<string, object?> { ["Count"] = 7 }));
 		Assert.Equal("#Count# met", Words.FormatByName("{Count} met", new Dictionary<string, object?>()));
+		//one of one's own, of another value type: its Count, 1 and then 0, read 'item' and '0'
+		Assert.Equal("5 items", en.FormatByName("named", new Tally(new() { ["Count"] = 5 })));
+		Assert.Equal("#Count# met", Words.FormatByName("{Count} met", new Tally([])));
+	}
+
+	//a dictionary by name that is no IDictionary, and whose values are no objects
+	private sealed class Tally(Dictionary<string, int> counts) : IReadOnlyDictionary<string, int> {
+		public int this[string key] => counts[key];
+		public IEnumerable<string> Keys => counts.Keys;
+		public IEnumerable<int> Values => counts.Values;
+		public int Count => counts.Count;
+		public bool ContainsKey(string key) => counts.ContainsKey(key);
+		public bool TryGetValue(string key, out int value) => counts.TryGetValue(key, out value);
+		public IEnumerator<KeyValuePair<string, int>> GetEnumerator() => counts.GetEnumerator();
+		System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 	}
 
 	[Fact]
