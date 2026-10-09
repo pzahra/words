@@ -455,6 +455,42 @@ public partial class T
         }
 
         [TestMethod]
+        public async Task ObjectKey_OnlyAStringIsChecked()
+        {
+            const string source = @"
+using PatTech.Localization;
+
+/// <summary>Mirrors WordsExtension(object): a key, or a binding to localize instead.</summary>
+public class Extension
+{
+    public Extension([WordsKey] object key) { }
+}
+
+public class Binding
+{
+    public Binding(string path) { }
+}
+
+public partial class T
+{
+    static void M(object runtime)
+    {
+        _ = new Extension(new Binding(""Some.Path""));
+        _ = new Extension(runtime);
+        _ = new Extension(null);
+        _ = new Extension(42);
+        _ = new Extension(""material.metals"");
+        _ = new Extension({|#0:""nope""|});
+        _ = new Extension({|#1:""nope."" + runtime|});
+    }
+}
+";
+            await VerifyWithIni(source,
+                Unknown(0, "nope"),
+                VerifyCS.Diagnostic(WordsKeyAnalyzer.UnknownKeyPrefixDiagnostic).WithLocation(1).WithArguments("nope."));
+        }
+
+        [TestMethod]
         public async Task AttributeArguments_AreChecked()
         {
             const string source = @"
