@@ -84,7 +84,7 @@ public class KeyNameViewModel : DataViewModelBase, IDialogViewModel {
 			}
 			//one segment of a key's name, the grammar the runtime reads (runtime SPEC: Key names)
 			if (!WordsParser.IsKeySegment(KeyName)) {
-				SetError(Words.Known["key-name.invalid"]);
+				SetError(Words.Known["key-name.invalid"], nameof(KeyName));
 			}
 		}
 

@@ -705,6 +705,21 @@ value-de=y
 		Assert.True(closed);
 	}
 
+	//the name starts empty, so its first check fails: a good name typed after clears
+	//that failure, or Add never comes back
+	[Fact]
+	public void KeyNameDialog_AddComesBack_OnceTheNameIsGood() {
+		var (vm, _) = Load();
+		var dialog = new KeyNameViewModel(vm, null);
+		Assert.False(dialog.AddKeyCommand.CanExecute(null));
+
+		dialog.KeyName = "abc";
+		Assert.False(dialog.HasErrors);
+		Assert.True(dialog.AddKeyCommand.CanExecute(null));
+		dialog.KeyName = "a b";
+		Assert.False(dialog.AddKeyCommand.CanExecute(null));
+	}
+
 	[Fact]
 	public void RemoveKeyData_AsksFirst() {
 		var dialogs = new FakeDialogs { ConfirmAnswer = false };
