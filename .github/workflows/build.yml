@@ -87,12 +87,20 @@ jobs:
       # Core/WPF/Avalonia set GeneratePackageOnBuild for local dev, which makes a
       # bare `dotnet pack` run the pack target without building first (NU5026: the
       # output dll is missing). Turn it off here so pack builds, then packs.
+      # pwsh fails a step on the last native exit code only, so each pack is
+      # checked, and all three must be there before anything is pushed.
       - name: Pack API packages
         if: startsWith(github.ref, 'refs/tags/api/')
+        shell: pwsh
         run: |
-          dotnet pack Localization-Core/Localization-Core.csproj -c Release -o artifacts -p:GeneratePackageOnBuild=false
-          dotnet pack Localization-Wpf/Localization-Wpf.csproj  -c Release -o artifacts -p:GeneratePackageOnBuild=false
-          dotnet pack Localization-Ava/Localization-Ava.csproj  -c Release -o artifacts -p:GeneratePackageOnBuild=false
+          foreach ($project in 'Localization-Core/Localization-Core.csproj', 'Localization-Wpf/Localization-Wpf.csproj', 'Localization-Ava/Localization-Ava.csproj') {
+            dotnet pack $project -c Release -o artifacts -p:GeneratePackageOnBuild=false
+            if ($LASTEXITCODE -ne 0) { throw "Pack failed for $project" }
+          }
+          $version = '${{ github.ref_name }}'.Split('/')[-1]
+          foreach ($id in 'Core', 'WPF', 'Avalonia') {
+            if (-not (Test-Path "artifacts/PatTech.Localization.$id.$version.nupkg")) { throw "PatTech.Localization.$id $version was not packed" }
+          }
 
       - name: NuGet login
         uses: NuGet/login@v1
