@@ -376,7 +376,9 @@ A host may list a language its library has no words for: neither its code,
 nor one the code falls back to, nor its default's language. An app offering
 it reads the library's default there, which may be what was meant, so the
 library is flagged rather than refused (Badges), and declaring the language
-in the library, `!` and all, clears it.
+in the library, `!` and all, clears it. A library whose default is written
+in another language than its host's is a question for later (the runtime
+SPEC's *A library written in another language*).
 
 **Tests.** Headless, a host and its library loaded together: the manager
 edits the selection's file; a host's relabel leaves the library's `!`, a
@@ -411,11 +413,12 @@ loaded, ready to be worked on separately and merged back.
 Save rewrites every loaded file through `WordsSession.Save` — `IniWriter.WriteFile`
 with the file's own language table, preamble and settings references, in the
 order its tree node walks — and with its own line break, `\n` or `\r\n`, the
-first one it was read with (the system's for an imported file), and its own
-encoding: UTF-8, UTF-16 or UTF-32 by its BOM, BOM kept, and UTF-8 without one
-when it had none (or was imported). So a file round-trips byte for byte
-whichever its checkout or editor gave it; merge and split write with their
-source's. The encoder refuses what it can't encode, such as a lone surrogate,
+first one it was read with (the system's for a file imported from another
+format), and its own encoding: UTF-8, UTF-16 or UTF-32 by its BOM, BOM kept,
+and UTF-8 without one when it had none (or came from another format; an ini
+picked through Import is a load, and keeps both). So a file round-trips byte
+for byte whichever its checkout or editor gave it; merge and split write with
+their source's. The encoder refuses what it can't encode, such as a lone surrogate,
 rather than writing a replacement character. A file that cannot be written,
 for either reason, is reported, left as it was on disk, and the others still
 save. Each file is written to a temporary sibling and moved over the original,
@@ -503,11 +506,13 @@ flows through the exact pipeline the ini loader does: label disambiguation
 (`strings`, `strings-2`), empty-key dropping, language backfill,
 reload-in-place. The store takes copies of the document's keys, so the
 caller's document stays as read and loading it twice gives two files their
-own. `WordsSession.Import` is `Read` then `Load` at the native path
-the importer names: the pick with the ini extension for a one-file format, the
+own. `WordsSession.Import` is `Read` then `Load` at the native path the
+importer names: the pick with the ini extension for a one-file format, the
 stem's — `Strings.ini` beside `Strings.*.resx` — for one file per culture.
-Importing an ini is loading it, line break and encoding kept.
-Importers inherit the whole of loading for free, and are tested the same way.
+Importing an ini is loading it, line break and encoding kept; a file from
+another format has neither to keep, so it takes the system's line break and
+UTF-8 without a BOM. Importers inherit the whole of loading for free, and are
+tested the same way.
 On the way out, an `ExportSource` — the file, its tree and the session, refused
 on the same terms as Save — is what `Plan` and `Write` take: its keys in tree
 order, its language table, and what it uses of the model.
@@ -1279,19 +1284,34 @@ room, undecided between:
 
 ## Undo inside a text box
 
-Today an editing box keeps no undo of its own and every Ctrl+Z goes to the
-document (Undo: Text boxes). A box's own undo stack cannot be read, so it
-cannot become document entries, but it need not be thrown away either:
-while a box has the focus, Ctrl+Z and Ctrl+Y could be the box's, undoing
-its typing within its own context the way any text box does, and only when
-it has nothing left to undo would Ctrl+Z reach the stack. A focus change
-ends the box's context: its own history is cleared, so coming back to the
-box never undoes typing the stack may already have taken back, and the
-typing run on the stack ends with it — whatever the box undid inside the
-run is already folded into the run's last text, and a run undone back to
-its start leaves no entry. The window's routing (`DocumentUndo`) would ask
-the focused box whether it can undo before handing the command to the
-document.
+Today an editing box keeps no undo of its own, and every Ctrl+Z goes to the
+document as a whole typing run (Undo: Text boxes). The window catches the
+routed command on its way down to the box (`DocumentUndo`), with an
+exception for the search box, which keeps its own. WPF's own stack can't be
+read, so a box's finer history could only ever be thrown away.
+
+The upgrade makes the box's undo ours. The editing boxes become a `TextBox`
+subclass that turns WPF's internal stack off and puts its own in its place:
+class command bindings for Undo and Redo, which a subclass's take ahead of
+`TextBox`'s, answer from a stack the box is bound to and which delegates to
+the document. The box records no history of its own. The document's typing
+run keeps the steps a box would, a word or a pause apart, each with its caret
+and selection, so Ctrl+Z in the box steps back through the run as any text
+box does, and then past it into the entries before it. Ctrl+Y steps
+forward again. Restoring the text puts the caret back where the step left it,
+not at the start, where setting `Text` drops it. A step is part of its run:
+the run is still one entry to every other caller, Undo from the Edit menu
+steps back the whole run, a focus change ends it as today, and typing back to
+its start leaves no entry. Nothing undoes twice, because only the document
+holds the history.
+
+The window-wide hook and its exception both go. The behaviour lives in the
+control, the search box is a plain `TextBox` keeping WPF's own stack, and
+dialogs are untouched. Tests, headless: a subclassed box bound to a fake
+document stack, where Ctrl+Z inside a run steps back a word at a time with
+the caret restored, then reaches the entry before it, and Redo walks it
+forward. A plain box beside it keeps its own. The Edit menu's Undo takes the
+run whole.
 
 ## Machine translation
 

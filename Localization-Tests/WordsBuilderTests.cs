@@ -193,6 +193,17 @@ public class WordsBuilderTests {
 		Assert.Null(WordsBuilder.Create().LoadString(Ini).DefaultLanguage);
 	}
 
+	[Fact]
+	public void DefaultLanguage_IsTheLastFilesLabel_SoALaterPlainOneClearsIt() {
+		var builder = WordsBuilder.Create().LoadString("value=!en\n\n[k]\nvalue=x\n");
+		Assert.Equal("en", builder.DefaultLanguage);
+
+		builder.LoadString("value=Default\n\n[j]\nvalue=y\n"); //a label of the default, no declaration
+		Assert.Null(builder.DefaultLanguage);
+		builder.LoadString("value=!fr\n\n[i]\nvalue=z\n");
+		Assert.Equal("fr", builder.DefaultLanguage);
+	}
+
 	[Theory]
 	[InlineData("en", "en", true)]
 	[InlineData("en", "EN", true)]

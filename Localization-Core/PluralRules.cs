@@ -53,8 +53,9 @@ namespace PatTech.Localization {
 		/// handful of its words keep a dual, its <c>many</c> reads <c>other</c>, and its
 		/// <c>other</c> reads <c>one</c>, the plain value: from 11 up a Maltese count
 		/// takes the singular. Hebrew <c>two</c> reads <c>other</c>; the exact millions
-		/// of French, Italian, Spanish, Portuguese and Catalan read <c>other</c>. Words'
-		/// own table, not CLDR's; empty for most languages.
+		/// of French, Italian, Spanish, Portuguese and Catalan, of Ladin, Sicilian and
+		/// Venetian, which share the rule, and of Breton, whose <c>many</c> is the same,
+		/// read <c>other</c>. Words' own table, not CLDR's; empty for most languages.
 		/// </summary>
 		/// <param name="languageCode">A language, as for <see cref="Select"/>.</param>
 		public static IReadOnlyDictionary<string, string> Optional(string languageCode) {

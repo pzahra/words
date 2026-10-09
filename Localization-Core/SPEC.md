@@ -393,7 +393,8 @@ the parser the declaration is just a label of the default, as `value-xx=` labels
 language `xx`. The `!` is what keeps it off `GetLanguages()`, as for any
 `!Label`, so a runtime that predates it lists nothing new. The language it names
 is usually registered too, so it stays on the menu and keeps its culture. It
-need not be.
+need not be. Being a label, it is the last file's: a later file's keyless
+`value=` without the `!` labels the default anew, and the declaration is gone.
 
 **Where the default speaks.** The default speaks its own language and every
 code that falls back to it (*Language codes*). An `en` default speaks for `en`
@@ -406,7 +407,8 @@ no 📚. Fallbacks to a shorter code keep their 🕮.
 
 **Tests.** A file declaring `en` brands nothing in `en` or `en-AU` and still
 brands `de`, and lists exactly its three languages. An `en-AU` default brands
-`en-US`. `DefaultSpeaks` covers the matrix, case included.
+`en-US`. `DefaultSpeaks` covers the matrix, case included. A later file's plain
+label clears the declaration, and a later declaration replaces it.
 
 ## Key names
 
@@ -536,11 +538,12 @@ reads `one`, the plain value: from 11 up a Maltese count takes the singular.
 Hebrew `two` reads `other`, its dual kept by time words too. The exact
 millions of French, Italian, Spanish, Portuguese and Catalan, of Ladin,
 Sicilian and Venetian, which share the rule, and of Breton, whose `many` is
-the same, read `other`: the difference is a "de" or a "di". The table is Words' own judgement, not CLDR's, kept beside its
-rules. A translator still writes an optional form where a word needs one,
-`value-mt#two=Kelmtejn`, and it reads as any form does. The editor counts only
-the categories that are not optional as missing words. Russian's `other`,
-which takes fractions and reads like its `few`, joins when fractions do.
+the same, read `other`: the difference is a "de" or a "di". The table is Words'
+own judgement, not CLDR's, kept beside its rules. A translator still writes an
+optional form where a word needs one, `value-mt#two=Kelmtejn`, and it reads as
+any form does. The editor counts only the categories that are not optional as
+missing words. Russian's `other`, which takes fractions and reads like its
+`few`, joins when fractions do.
 
 **The selector.** A third reference beside `{$constant}` and `{>key}`, with the
 same mark as the forms: `{0#word}` names a parameter and a key. The parameter is
@@ -667,5 +670,20 @@ UI thread.
 
 # Planned upgrades
 
-Not built. Each section here is the shape the feature takes when it is. None is
-waiting.
+Not built. Each section here is the shape the feature takes when it is, or the
+question it has to answer first.
+
+## A library written in another language
+
+A library's defaults are written in its own language, and its host's may be
+written in another: a German library under an English app. The runtime has
+one default's language, the last file's declaration (*The default's
+language*), so it cannot tell the two apart. In English, either the library's
+German defaults read unbranded, as if they spoke English, or the library's
+declaration replaces the host's and the host's own English defaults are
+branded 📚 where they speak. Wordsmith checks each file against its own
+declaration, and flags a library only for a language a host lists, not for
+the one the host's default is written in. Undecided: whether each file's
+default keeps its own language at runtime, so a fallback is branded where
+the languages differ, and whether Wordsmith flags a library written in
+another language than its host's default.
