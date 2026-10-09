@@ -555,6 +555,33 @@ public partial class T
         }
 
         [TestMethod]
+        public async Task EmptyHeader_LeavesNoBaseForAChild()
+        {
+            // [] names no key; a [.child] under it resolves to ".child", not to the key above's child
+            const string ini = @"
+[above]
+value=x
+[]
+value=y
+[.child]
+value=z
+";
+            const string source = @"
+using PatTech.Localization;
+
+public partial class T
+{
+    static void M()
+    {
+        Use(""above"");
+        Use({|#0:""above.child""|});
+    }
+}
+";
+            await VerifyWithIni(ini, source, Unknown(0, "above.child"));
+        }
+
+        [TestMethod]
         public async Task ChildBeforeAnyFullHeader_IsNoKey()
         {
             // it resolves against nothing, to ".early", which is no key name

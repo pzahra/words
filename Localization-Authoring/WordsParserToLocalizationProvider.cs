@@ -322,6 +322,11 @@ namespace PatTech.Localization.Authoring {
 
 		void IWordsParserConsumer.VisitBlock(string baseKey, string name) {
 			WordsKey keyToAdd;
+			//no key to keep: the parser reads past its fields
+			if (name == "") {
+				errors.Add($"[]: names no key, so a runtime skips it and every field under it, and a save drops them: {KeyNameRule}");
+				return;
+			}
 			if (name[0] == '.') {
 				baseKey += name;
 			}

@@ -76,6 +76,24 @@ value=Max Peak
         }
 
         [Fact]
+        public void An_empty_header_names_no_key_and_pours_nothing_into_the_key_above()
+        {
+            const string ini =
+@"[above]
+value=kept
+[]
+value=lost
+[.child]
+value=orphan
+";
+            var entries = WordsIniParser.Parse(ini, "f.ini");
+
+            // [] once matched no header, so its value overwrote above's and [.child] hung off it
+            Assert.Equal("kept", entries.Single(e => e.Key == "above").DefaultValue);
+            Assert.DoesNotContain(entries, e => e.Key == "above.child" || e.Key == "" || e.Key == ".child");
+        }
+
+        [Fact]
         public void Records_section_line_numbers_for_go_to_definition()
         {
             var entries = WordsIniParser.Parse(Sample, "f.ini");

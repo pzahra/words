@@ -432,8 +432,8 @@ namespace PatTech.Localization.Authoring {
 			public void VisitLine(int number) => line = number - 1;
 
 			public void VisitBlock(string baseKey, string key) {
-				string name = key[0] == '.' ? baseKey + key : key;
-				Headers.Add(new(line, name, key[0] != '.'));
+				string name = key.StartsWith('.') ? baseKey + key : key;
+				Headers.Add(new(line, name, !key.StartsWith('.')));
 				if (seen.Add(name)) {
 					Order.Add(name);
 				}

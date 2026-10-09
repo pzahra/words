@@ -411,11 +411,17 @@ never name one. Wordsmith never let anyone type them.
 
 **What a runtime does.** A block whose name is none is skipped, its fields with
 it, and warned about once (`WP:NAME`, with the key it resolved to); so are the
-`[.child]` headers under it, and under a constant. A file's top-of-file labels
+`[.child]` headers under it, and under a constant. An empty header, `[]`, is a
+header too, though no key's: a runtime skips it, warns `WP:NAME` with an empty
+key, and resolves a `[.child]` under it against nothing. The parser itself reads
+past every field under it, since a consumer couldn't tell them from the
+top-of-file fields. Until 1.5.0 it matched no header at all, so its fields read
+as the key above's. A file's top-of-file labels
 are read, whichever block the file loaded before it ended in. The one check
 serves every reader: the authoring reader keeps such a block, griping that a
 runtime skips it, so an editor can rename it (the editor spec's *The
-document*); the command line writes no key that is none; an import makes a
+document*), all but `[]`, which has no fields to keep and which a save drops
+with a gripe; the command line writes no key that is none; an import makes a
 foreign name one.
 
 **What changes.** A hand-written file that 1.4.0 read with such a name loses

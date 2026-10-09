@@ -90,6 +90,61 @@ public class KeyNameTests {
 	}
 
 	[Fact]
+	public void TheRuntime_SkipsAnEmptyHeader_WithItsFields_AndPoursNothingIntoTheKeyAbove() {
+		var logger = new CaptureLogger();
+		var builder = WordsBuilder.Create(logger).LoadString(
+			"value-de=Deutsch\n\n[a]\nvalue=keep\n\n[]\nvalue=lost\nvalue-de=lost\\\nstill lost\n\n[.c]\nvalue=z\n\n[b]\nvalue=b\n");
+
+		var words = builder.Flatten("de");
+
+		//[] once matched no header, so its fields read as a's
+		Assert.Equal("keep", words["a"]);
+		Assert.False(words.ContainsKey(".c"));
+		Assert.Equal("b", words["b"]);
+		Assert.Equal(["WP:NAME:``", "WP:NAME:`.c`"], logger.Messages);
+	}
+
+	[Fact]
+	public void ALeadingEmptyHeader_HoldsNoTopOfFileLabel() {
+		var builder = WordsBuilder.Create().LoadString("[]\nvalue-fr=Français\n\n[k]\nvalue=v\n");
+
+		Assert.DoesNotContain("fr", builder.GetLanguages().Select(language => language.Key));
+	}
+
+	[Fact]
+	public void TheAuthoringReader_GripesAboutAnEmptyHeader_AndKeepsTheKeysAroundIt() {
+		var session = new WordsSession();
+		string ini = "[]\nvalue=keep\n\n[a]\nvalue=a\n\n[]\nvalue=lost\n\n[b]\nvalue=b\n";
+
+		WordsFile file = session.Load(new StringReader(ini), "Odd");
+
+		Assert.Equal("a", session.Keys["Odd.a"].DefaultValue);
+		Assert.Equal("b", session.Keys["Odd.b"].DefaultValue);
+		Assert.All(file.Errors, error => Assert.StartsWith("[]: names no key", error));
+		Assert.Equal(2, file.Errors.Count);
+		var output = new StringWriter { NewLine = "\n" };
+		session.Save(file, KeyTree.Build(session, file), output);
+		//a leading [] once read its value as the file's default label, saved as value=!keep
+		Assert.DoesNotContain("keep", output.ToString());
+		Assert.DoesNotContain("lost", output.ToString());
+	}
+
+	[Fact]
+	public void TheCommandLine_EndsAKeyAtAnEmptyHeader() {
+		var patcher = IniPatcher.FromBytes(Encoding.UTF8.GetBytes("[a]\nvalue=x\n\n[]\nvalue=junk\n"));
+		Assert.True(WordsField.TryParse("value", out var value, out _));
+		Assert.True(WordsField.TryParse("value-de", out var german, out _));
+
+		patcher.Set("a", value, "y");
+		patcher.Set("a", german, "z");
+
+		string text = patcher.Text;
+		Assert.Contains("value=junk", text);
+		Assert.True(text.IndexOf("value=y") < text.IndexOf("[]"));
+		Assert.True(text.IndexOf("value-de=z") < text.IndexOf("[]"));
+	}
+
+	[Fact]
 	public void TheNextFilesLabels_AreReadThoughTheLastFileEndedInASkippedBlock() {
 		var builder = WordsBuilder.Create()
 			.LoadString("value-en=English\n\n[bad key]\nvalue=x\n")

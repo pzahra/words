@@ -35,7 +35,7 @@ namespace WordsXaml.Ini
     {
         // WordsParser's own patterns, as written there: keep them in step.
         private static readonly Regex KeyName = new Regex(@"^(\$\w[\w-]*|\w[\w-]*(\.\w[\w-]*)*)\z");
-        private static readonly Regex Block = new Regex(@"^\[(?<1>[^]]+)\]", RegexOptions.ExplicitCapture);
+        private static readonly Regex Block = new Regex(@"^\[(?<1>[^]]*)\]", RegexOptions.ExplicitCapture);
         private static readonly Regex Pair = new Regex(
             @"^(?<key>\w+)(-(?<lang>\w+(?:-\w+)*))?(?<form>#\w+)?\s*[:=]\s*(?<text>.*)",
             RegexOptions.ExplicitCapture);
@@ -115,7 +115,8 @@ namespace WordsXaml.Ini
                     {
                         var name = block.Groups[1].Value;
                         string key;
-                        if (name[0] == '.')
+                        // [] names no key, and leaves none for a [.child] to resolve against
+                        if (name.StartsWith(".", StringComparison.Ordinal))
                             key = baseKey + name;
                         else
                             key = baseKey = name;

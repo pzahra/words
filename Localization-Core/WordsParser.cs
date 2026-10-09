@@ -108,7 +108,9 @@ namespace PatTech.Localization {
 		/// A <c>[block]</c> header was read.
 		/// </summary>
 		/// <param name="baseKey">The block key that dot-relative headers (<c>[.sub]</c>) resolve against.</param>
-		/// <param name="key">The header text as written, which may start with a dot.</param>
+		/// <param name="key">The header text as written, which may start with a dot, or be
+		/// empty: <c>[]</c> names no key, and the parser reads past every field under it, as
+		/// they would otherwise read as the file's top-of-file fields.</param>
 		void VisitBlock(string baseKey, string key);
 		/// <summary>
 		/// A <c>field=text</c> line was read; escapes are already collapsed and any
@@ -237,7 +239,7 @@ namespace PatTech.Localization {
 		}
 
 		static readonly Regex rxBlock = new(
-			@"^\[(?<1>[^]]+)\]",
+			@"^\[(?<1>[^]]*)\]",
 			RegexOptions.Compiled | RegexOptions.ExplicitCapture);
 		static readonly Regex rxPair = new(
 			@"^(?<key>\w+)(-(?<lang>\w+(?:-\w+)*))?(?<form>#\w+)?\s*[:=]\s*(?<text>.*)",
@@ -273,6 +275,8 @@ namespace PatTech.Localization {
 			FieldKey? target = null;
 			//a field read past runs on through its continuation lines
 			bool readingPast = false;
+			//under [], which names no key, every field is read past
+			bool emptyBlock = false;
 			int number = 0;
 			while (reader.ReadLine() is string line) {
 				consumer.VisitLine(++number);
@@ -292,7 +296,12 @@ namespace PatTech.Localization {
 				else if (rxBlock.TryMatch(line, out var block)) {
 					// open a new block.
 					string name = block.Groups[1].Value;
-					if (name[0] == '.') {
+					emptyBlock = name == "";
+					if (emptyBlock) {
+						//no base for a [.child] either, which resolves to no key
+						currentBlockKey = baseBlockKey = "";
+					}
+					else if (name[0] == '.') {
 						currentBlockKey = baseBlockKey + name;
 					}
 					else {
@@ -304,6 +313,10 @@ namespace PatTech.Localization {
 					string field = pair.Groups["key"].Value;
 					string lang = pair.Groups["lang"].Value;
 					var text = pair.Groups["text"].Value;
+					if (emptyBlock) {
+						readingPast = rxIsContinuedLine.IsMatch(text);
+						continue;
+					}
 					//a key's param- names a parameter; everywhere else the suffix is a language
 					if (lang != "" && LanguageSuffixes && !(field == "param" && currentBlockKey != "")) {
 						if (!LanguageCode.TryParse(lang, out var code)) {
