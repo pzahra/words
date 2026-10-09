@@ -184,6 +184,37 @@ public class ViewModel
             await VerifyCS.VerifyAnalyzerAsync(test);
         }
 
+        // an assignment through a method's own ref or out parameter names the method, as
+        // an argument's does; it named the type that holds the method
+        [TestMethod]
+        public async Task RefOrOutParameter_GivenLiteral_NamesTheMethod()
+        {
+            var test = @"
+using PatTech.Localization;
+
+public static class Program
+{
+    static void Fill([Localized] out string message, [Localized] ref string other)
+    {
+        message = {|#0:""filled""|};
+        other = {|#1:""again""|};
+        Local(out _);
+
+        void Local([Localized] out string inner)
+        {
+            inner = {|#2:""inside""|};
+        }
+    }
+}
+" + AttributeSource;
+
+            await VerifyCS.VerifyAnalyzerAsync(
+                    test,
+                    VerifyCS.Diagnostic(LocalizationAnalyzer.MethodParameterDiagnostic).WithLocation(0).WithArguments("message", "Fill"),
+                    VerifyCS.Diagnostic(LocalizationAnalyzer.MethodParameterDiagnostic).WithLocation(1).WithArguments("other", "Fill"),
+                    VerifyCS.Diagnostic(LocalizationAnalyzer.MethodParameterDiagnostic).WithLocation(2).WithArguments("inner", "Local"));
+        }
+
         [TestMethod]
         public async Task ConditionalExpression_FlagsOnlyTheUnlocalizedArm_Warns()
         {

@@ -93,7 +93,8 @@ passed by, since it receives rather than gives. Simple and `+=` assignments to a
 property or field, and, inside a method, to its own marked `ref` or `out` parameter. The
 message names the target: ``Parameter `message` in method `WriteLocal` expects a localized
 value``, ``Property `ViewModel.Message` expects a localized value``, or the same for a
-field. A constructor's, an indexer's or an attribute's arguments are not looked at, and
+field. An assignment through a `ref` or `out` parameter names the parameter and its
+method as an argument does, a local function's by its own name. A constructor's, an indexer's or an attribute's arguments are not looked at, and
 neither is what a `[return: Localized]` method returns. Generated code is skipped.
 
 **What counts as localized.** An expression that reads a marked member — a name, a member
@@ -114,9 +115,10 @@ raw assignment anywhere in the block makes the local suspect, wherever it sits.
 
 **Tests.** `LocalizationAnalyzerUnitTest` passes an empty source; warns at a literal handed
 to a marked parameter, naming the parameter and the method, and at a literal assigned to
-a marked property and to a marked field; passes a `[return: Localized]` call, a marked
-property, and a marked field assigned to another; and flags only the literal arm of a
-`?:`. `LocalVariableTrackingTests` passes a local holding a localized value, and one
+a marked property and to a marked field, and at one assigned through a marked `ref` or
+`out` parameter, naming its method, a local function's too; passes a
+`[return: Localized]` call, a marked property, and a marked field assigned to another;
+and flags only the literal arm of a `?:`. `LocalVariableTrackingTests` passes a local holding a localized value, and one
 reassigned to another, and flags a local holding an unmarked value or reassigned to one.
 Each test compiles its own copy of the attribute.
 

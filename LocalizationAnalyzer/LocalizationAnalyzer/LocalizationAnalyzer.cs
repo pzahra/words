@@ -261,10 +261,13 @@ namespace LocalizationAnalyzer
                         };
                         break;
                     case IParameterSymbol parameter:
+                        // named as an argument's target is: the parameter and its method
                         descriptor = MethodParameterDiagnostic;
                         args = new object[] {
-                            parameter.Name,
-                            parameter.ContainingType.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat),
+                            GetArgumentName(parameter),
+                            parameter.ContainingSymbol is IMethodSymbol method
+                                ? GetMethodName(method)
+                                : OrQuestionMark(parameter.ContainingSymbol?.Name),
                         };
                         break;
                     default:
