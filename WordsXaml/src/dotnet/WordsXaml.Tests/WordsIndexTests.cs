@@ -1,3 +1,4 @@
+using System.IO;
 using System.Linq;
 using WordsXaml.Ini;
 using Xunit;
@@ -106,6 +107,44 @@ value=Capture Delay
         public void Unknown_key_returns_null_preview()
         {
             Assert.Null(Build().RenderPreview("does.not.exist"));
+        }
+
+        [Fact]
+        public void A_key_with_only_forms_previews_empty_but_is_known()
+        {
+            var index = new WordsIndex(WordsIniParser.Parse("[files]\nvalue#other=Files\n", "f.ini"));
+            Assert.Equal("", index.RenderPreview("files"));
+            Assert.Equal("#other", index.RenderForms("files"));
+        }
+
+        [Fact]
+        public void A_key_declared_in_two_files_merges_per_language_and_the_later_file_wins()
+        {
+            var first = WordsIniParser.Parse("[k]\nvalue=first\nvalue-de=erste\nvalue#other=firsts\n", "a-words.ini");
+            var second = WordsIniParser.Parse("[k]\nvalue=second\n", "b-words.ini");
+            var index = new WordsIndex(first.Concat(second));
+            Assert.True(index.TryGet("k", out var k));
+            Assert.Equal("second", k.DefaultValue);
+            Assert.Equal("erste", k.Values["de"]);
+            Assert.Equal("firsts", k.Forms[""]["other"]);
+            Assert.Equal("a-words.ini", k.FilePath); // the first declaration's location
+        }
+
+        [Fact]
+        public void Preview_shows_the_runtime_unescaped_value()
+        {
+            var index = new WordsIndex(WordsIniParser.Parse("[k]\nvalue=it''s a__b\n", "f.ini"));
+            Assert.Equal("it's a_b", index.RenderPreview("k"));
+        }
+
+        [Fact]
+        public void QuickDoc_names_the_key_its_preview_forms_and_file()
+        {
+            var index = new WordsIndex(WordsIniParser.Parse(
+                "[word]\nvalue=Word & co\nvalue#other=Words\nvalue-ru#few=Slova\n", Path.Combine("x", "app-words.ini")));
+            var html = WordsQuickDoc.Html(index, "word");
+            Assert.Equal("<b>word</b><br/>Word &amp; co<br/>forms: #few #other<br/><i>app-words.ini</i>", html);
+            Assert.Null(WordsQuickDoc.Html(index, "nope"));
         }
     }
 }

@@ -2,20 +2,19 @@ using JetBrains.Application.Parts;
 using JetBrains.ProjectModel;
 using JetBrains.ReSharper.Feature.Services.CodeCompletion.Infrastructure;
 using JetBrains.ReSharper.Feature.Services.CodeCompletion.Infrastructure.LookupItems;
-using JetBrains.ReSharper.Feature.Services.CodeCompletion.Infrastructure.LookupItems.Impl;
 using JetBrains.ReSharper.Features.Intellisense.CodeCompletion.Xaml;
 using JetBrains.ReSharper.Psi;
-using JetBrains.ReSharper.Psi.Tree;
 using JetBrains.ReSharper.Psi.Xaml;
 using WordsXaml.Index;
-using WordsXaml.Ini;
+using WordsXaml.Keys;
 
 namespace WordsXaml.Xaml
 {
     /// <summary>
-    /// Offers words-key completion inside <c>{l:Words |}</c>. All the "which keys / what preview" logic
-    /// lives in <see cref="Ini.WordsIndex"/>; this class only bridges the SDK. The registration
-    /// (<c>Instantiation.DemandAnyThreadSafe</c>) matches JetBrains' own XAML items providers.
+    /// Offers words-key completion inside <c>{l:Words |}</c>, <c>{l:Words Key=|}</c> and
+    /// <c>{l:Words '|'}</c>. The list itself comes from <see cref="WordsLookupItems"/>; this class only
+    /// says where the key is. The registration (<c>Instantiation.DemandAnyThreadSafe</c>) matches
+    /// JetBrains' own XAML items providers.
     /// </summary>
     [Language(typeof(XamlLanguage), Instantiation.DemandAnyThreadSafe)]
     public sealed class WordsCompletionProvider : ItemsProviderOfSpecificContext<XamlCodeCompletionContext>
@@ -32,37 +31,17 @@ namespace WordsXaml.Xaml
                 return false;
 
             var index = context.BasicContext.Solution.GetComponent<WordsIndexService>().Index;
-
-            // Show only the current tree level (next segment), not every fully-qualified key: at the root
-            // that's ~a dozen branches instead of thousands of keys. The committed prefix is the typed text
-            // up to its last '.'; ReSharper's matcher then filters this level by the partial segment. As
-            // the user accepts a branch (which ends in '.'), the next completion shows the level below.
-            var committed = WordsIndex.CommittedPrefix(token.Key);
-
-            foreach (var segment in index.CompleteSegments(committed))
-            {
-                // typeText (right-aligned): child count for a branch, resolved value for a leaf.
-                var typeText = segment.IsBranch
-                    ? $"{segment.ChildCount} key{(segment.ChildCount == 1 ? "" : "s")}"
-                    : segment.LeafPreview ?? string.Empty;
-
-                var item = new TextLookupItem(segment.InsertText, typeText, isDynamic: false);
-                item.InitializeRanges(context.Ranges, context.BasicContext);
-                collector.Add(item);
-            }
-
-            return true;
+            return WordsLookupItems.Add(context.BasicContext, index, token, collector);
         }
 
         /// <summary>
-        /// Locates the <c>{l:Words …}</c> context from the node under the caret. The reparsed
-        /// "unterminated" tree is preferred because while typing (<c>{l:Words fo|</c>) the original tree
-        /// may not parse; we fall back to the committed tree node.
+        /// Locates the key from the document text around the caret. The text, not the tree, because
+        /// while typing (<c>{l:Words fo|</c>) the extension may not parse yet, and the reparsed
+        /// completion tree's offsets are not the document's.
         /// </summary>
         private static WordsKeyToken FindKeyContext(XamlCodeCompletionContext context)
         {
-            ITreeNode node = context.UnterminatedContext?.TreeNode ?? context.TreeNode;
-            return WordsMarkupContext.TryGetKeyToken(node);
+            return WordsMarkupContext.FindAtCaret(context.BasicContext.CaretDocumentOffset);
         }
     }
 }

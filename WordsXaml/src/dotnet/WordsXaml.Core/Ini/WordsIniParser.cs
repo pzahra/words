@@ -1,70 +1,93 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
+using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace WordsXaml.Ini
 {
     /// <summary>
-    /// Parser for the pattech.words *-words.ini grammar. Standalone and side-effect free so it can be
-    /// unit-tested without the ReSharper SDK. The SDK cache layer only supplies file contents + paths.
+    /// Parser for the *-words.ini grammar. Standalone and side-effect free so it can be unit-tested
+    /// without the ReSharper SDK. The SDK cache layer only supplies file contents + paths.
     ///
-    /// Grammar (see Helios/Helios/Assets/helios-words.ini and evolution-services/Assets/evo-words.ini):
-    ///   [section.dotted.key]        fully-qualified section header -> WordsEntry.Key
-    ///   [.suffix]                   inherits: appended to the last fully-qualified header, e.g.
-    ///                                 [material] then [.metals] -> "material.metals". Dot-sections do
-    ///                                 NOT become the new base; siblings keep hanging off [material].
+    /// The runtime's reader is the contract: <c>WordsParser.Load</c> walking the lines and
+    /// <c>WordsParserToWordsProvider</c> keeping the values (Localization-Core). This plugin cannot
+    /// reference it, so its patterns are copied here as written there; keep them in step.
+    ///   [section.dotted.key]        a full header: the key, and the base for [.child] headers
+    ///   [.suffix]                   appended to the last full header: [material] then [.metals] is
+    ///                                 "material.metals"; dot-headers never become the base
     ///   value=Some text             invariant value  -> Values[""]
-    ///   value-en=English            locale variant   -> Values["en"]
+    ///   value-zh-Hans-CN=...        language variant -> Values["zh-Hans-CN"], the code cased by kind
+    ///   value#other= / value-ru#few=  plural forms of the key -> Forms[language][form]
     ///   \  at end of line           line continuation, joined with a newline
     ///   _  at end of line           line continuation, concatenated (no separator)
-    ///   repeated value= / value-x=  concatenated onto the same key (no separator)
+    ///   \\  __  ''                  doubled escapes: one character each, and never a continuation
+    ///   repeated value= / value-x=  the later one wins, as in the runtime
+    /// A header or field starts at the line's start: an indented one is no header or field. A header
+    /// whose resolved name is no key's name (<see cref="IsKeyName"/>) is no key, its fields with it;
+    /// so are the [.child] headers under it or under a constant ([$c]), and a [.x] before any full
+    /// header. A field whose language is no language code is read past. A line a field's continuation
+    /// runs on through is text, never a header or field. Lines starting with ';' are comments; any
+    /// other line (one starting '#', say) is skipped as unrecognised, as the runtime skips it.
     /// {>other.key} cross-refs and [icon:name] tokens are left verbatim in the value.
-    /// Blank lines and lines starting with ';' or '#' are ignored.
     /// </summary>
     public static class WordsIniParser
     {
+        // WordsParser's own patterns, as written there: keep them in step.
+        private static readonly Regex KeyName = new Regex(@"^(\$\w[\w-]*|\w[\w-]*(\.\w[\w-]*)*)\z");
+        private static readonly Regex Block = new Regex(@"^\[(?<1>[^]]+)\]", RegexOptions.ExplicitCapture);
+        private static readonly Regex Pair = new Regex(
+            @"^(?<key>\w+)(-(?<lang>\w+(?:-\w+)*))?(?<form>#\w+)?\s*[:=]\s*(?<text>.*)",
+            RegexOptions.ExplicitCapture);
+        private static readonly Regex IsContinuedLine = new Regex(@"^([\\_].|[^\\_])*[\\_]$", RegexOptions.ExplicitCapture);
+        private static readonly Regex Comment = new Regex(@"^\s*;", RegexOptions.ExplicitCapture);
+        private static readonly Regex BlankLine = new Regex(@"^\s*$");
+        private static readonly Regex Unescape = new Regex(@"([\\_'])\1");
+
+        // LanguageCode's grammar (runtime SPEC: Language codes): language(-Script)?(-REGION)?
+        private static readonly Regex LanguageCode = new Regex(
+            @"^(?<lang>[a-zA-Z]{2,3})(-(?<script>[a-zA-Z]{4}))?(-(?<region>[a-zA-Z]{2}|[0-9]{3}))?\z",
+            RegexOptions.ExplicitCapture | RegexOptions.CultureInvariant);
+
+        /// <summary>
+        /// Whether <paramref name="key"/> is a key's name, as <c>WordsParser.IsKeyName</c> decides:
+        /// dotted segments of letters, digits, '_' and '-', each starting with one of the first three
+        /// (<c>menu.file-open</c>), or a constant, '$' and one segment (<c>$unit</c>).
+        /// </summary>
+        public static bool IsKeyName(string key) => key != null && KeyName.IsMatch(key);
+
+        /// <summary>
+        /// Reads <paramref name="text"/> as a language code, as <c>LanguageCode.TryParse</c> does, and
+        /// cases it by kind: <c>zh-hans-cn</c> is <c>zh-Hans-CN</c>. The empty string is none.
+        /// </summary>
+        public static bool TryNormalizeLanguage(string text, out string code)
+        {
+            var match = text == null ? null : LanguageCode.Match(text);
+            if (match == null || !match.Success)
+            {
+                code = null;
+                return false;
+            }
+            var script = match.Groups["script"].Value;
+            var region = match.Groups["region"].Value;
+            code = match.Groups["lang"].Value.ToLowerInvariant()
+                + (script.Length == 0 ? "" : "-" + char.ToUpperInvariant(script[0]) + script.Substring(1).ToLowerInvariant())
+                + (region.Length == 0 ? "" : "-" + region.ToUpperInvariant());
+            return true;
+        }
+
         public static IReadOnlyList<WordsEntry> Parse(string text, string filePath)
         {
             var entries = new List<WordsEntry>();
+            // a block named twice in a file is one key, its fields merged as the runtime merges them
+            var byKey = new Dictionary<string, WordsEntry>(StringComparer.Ordinal);
+
+            // the last full header, which [.child] headers resolve against: even one that was no key
+            var baseKey = string.Empty;
+            // the key whose fields are being read; null before the first block and in a skipped one
             WordsEntry current = null;
-
-            // The most recent header that did NOT start with '.', used to resolve [.suffix] sections.
-            string lastFullKey = null;
-
-            // Pending continuation: which (entry, valueKey) is being extended, and the separator to
-            // insert before the next line ("\n" for a trailing '\', "" for a trailing '_').
-            WordsEntry contEntry = null;
-            string contValueKey = null;
-            string contSeparator = null;
-            var contBuilder = new StringBuilder();
-
-            // Append a part onto an entry's key so a repeated value= (or a flushed continuation)
-            // concatenates rather than overwrites.
-            void AddValue(WordsEntry entry, string valueKey, string part)
-            {
-                entry.Values[valueKey] = entry.Values.TryGetValue(valueKey, out var existing)
-                    ? existing + part
-                    : part;
-            }
-
-            void FlushContinuation()
-            {
-                if (contEntry != null && contValueKey != null)
-                    AddValue(contEntry, contValueKey, contBuilder.ToString());
-                contEntry = null;
-                contValueKey = null;
-                contSeparator = null;
-                contBuilder.Clear();
-            }
-
-            // Separator this line implies for the NEXT line, or null if it does not continue.
-            //   '\' -> newline join   '_' -> concat (no separator)
-            static string ContinuationSeparator(string s)
-            {
-                if (s.EndsWith("\\")) return "\n";
-                if (s.EndsWith("_")) return "";
-                return null;
-            }
+            // the field the next line continues, while the last line ended in a continuation
+            Target target = null;
 
             var lineNumber = 0;
             using (var reader = new StringReader(text))
@@ -74,85 +97,100 @@ namespace WordsXaml.Ini
                 {
                     lineNumber++;
 
-                    // Mid-continuation: append this line using the pending separator.
-                    if (contEntry != null)
+                    // a continued field runs on through this line, whatever it says
+                    if (target != null)
                     {
-                        var sep = ContinuationSeparator(line);
-                        var payload = sep != null ? line.Substring(0, line.Length - 1) : line;
-                        contBuilder.Append(contSeparator).Append(payload);
-                        if (sep != null)
-                            contSeparator = sep;   // separator before the next payload line
-                        else
-                            FlushContinuation();
+                        var segment = Segment(line, out var continued);
+                        target.Entry?.AppendValue(target.Language, target.Form, segment);
+                        if (!continued)
+                            target = null;
                         continue;
                     }
 
-                    var trimmed = line.TrimStart();
-                    if (trimmed.Length == 0 || trimmed[0] == ';' || trimmed[0] == '#')
+                    if (Comment.IsMatch(line) || BlankLine.IsMatch(line))
                         continue;
 
-                    if (trimmed[0] == '[')
+                    var block = Block.Match(line);
+                    if (block.Success)
                     {
-                        var close = trimmed.IndexOf(']');
-                        if (close > 1)
+                        var name = block.Groups[1].Value;
+                        string key;
+                        if (name[0] == '.')
+                            key = baseKey + name;
+                        else
+                            key = baseKey = name;
+
+                        current = null;
+                        if (IsKeyName(key) && !byKey.TryGetValue(key, out current))
                         {
-                            var header = trimmed.Substring(1, close - 1).Trim();
-
-                            string key;
-                            if (header.StartsWith("."))
-                            {
-                                // [.suffix] extends the last fully-qualified header (base + ".suffix").
-                                // If none has been seen yet, fall back to the bare suffix.
-                                key = lastFullKey != null ? lastFullKey + header : header.TrimStart('.');
-                            }
-                            else
-                            {
-                                key = header;
-                                lastFullKey = header;
-                            }
-
                             current = new WordsEntry(key, filePath, lineNumber);
+                            byKey.Add(key, current);
                             entries.Add(current);
                         }
                         continue;
                     }
 
-                    var eq = trimmed.IndexOf('=');
-                    if (eq <= 0 || current == null)
-                        continue;
+                    var pair = Pair.Match(line);
+                    if (!pair.Success)
+                        continue; // unrecognised: skipped, as the runtime skips it
 
-                    var name = trimmed.Substring(0, eq).Trim();
-                    var value = trimmed.Substring(eq + 1);
+                    var field = pair.Groups["key"].Value;
+                    var language = pair.Groups["lang"].Value;
+                    var form = pair.Groups["form"].Value.ToLowerInvariant();
 
-                    // Only "value" and "value-<locale>" keys are meaningful.
-                    string valueKey;
-                    if (name == "value")
-                        valueKey = string.Empty;
-                    else if (name.StartsWith("value-"))
-                        valueKey = name.Substring("value-".Length);
-                    else
-                        continue;
-
-                    var startSep = ContinuationSeparator(value);
-                    if (startSep != null)
+                    // Only a block's value= and value-<code>= fields, and their valid forms, are kept;
+                    // everything else (labels before the first block, comment=, context=, param-x=, a
+                    // language that is no code, a form that is none) is read past, continuation and all.
+                    var entry = field == "value" ? current : null;
+                    if (entry != null && language.Length != 0 && !TryNormalizeLanguage(language, out language))
+                        entry = null;
+                    string formName = null;
+                    if (entry != null && form.Length != 0)
                     {
-                        // Starts a continuation; the accumulated text is concatenated onto any
-                        // existing value for this key when flushed (repeated value= + continuation).
-                        contEntry = current;
-                        contValueKey = valueKey;
-                        contSeparator = startSep;
-                        contBuilder.Clear();
-                        contBuilder.Append(value.Substring(0, value.Length - 1));
+                        formName = form.Substring(1);
+                        // the plain value is the 'one' form, and only CLDR's categories are forms
+                        if (formName == "one" || !WordsEntry.PluralCategories.Contains(formName))
+                            entry = null;
                     }
-                    else
-                    {
-                        AddValue(current, valueKey, value);
-                    }
+
+                    var first = Segment(pair.Groups["text"].Value, out var startsContinuation);
+                    entry?.SetValue(language, formName, first);
+                    if (startsContinuation)
+                        target = new Target(entry, language, formName);
                 }
             }
 
-            FlushContinuation();
             return entries;
+        }
+
+        // One line's worth of a field's text, as WordsParser.TryReadLine reads it: a trailing '\'
+        // becomes a newline and a trailing '_' nothing, then each doubled escape becomes one.
+        private static string Segment(string text, out bool continued)
+        {
+            continued = IsContinuedLine.IsMatch(text);
+            if (continued)
+            {
+                var newlineKept = text[text.Length - 1] == '\\';
+                text = text.Substring(0, text.Length - 1);
+                if (newlineKept)
+                    text += "\n";
+            }
+            return Unescape.Replace(text, "$1");
+        }
+
+        private sealed class Target
+        {
+            public Target(WordsEntry entry, string language, string form)
+            {
+                Entry = entry;
+                Language = language;
+                Form = form;
+            }
+
+            /// <summary>Where the continuation goes; null when the field is read past.</summary>
+            public WordsEntry Entry { get; }
+            public string Language { get; }
+            public string Form { get; }
         }
     }
 }

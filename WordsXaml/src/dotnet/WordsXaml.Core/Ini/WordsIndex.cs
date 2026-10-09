@@ -9,8 +9,9 @@ namespace WordsXaml.Ini
     /// In the real plugin this is rebuilt when an .ini file changes; here it is a plain immutable
     /// snapshot so it can be tested and reasoned about on its own.
     ///
-    /// Later keys win on duplicate: matches typical last-loaded-overrides ini behaviour. If Helios
-    /// instead errors on duplicates, swap the assignment for a diagnostic.
+    /// A key declared in more than one file is one entry, its values merged per language and form
+    /// with the later file winning, as the runtime's later Load wins; it keeps the first declaration's
+    /// location.
     /// </summary>
     public sealed class WordsIndex
     {
@@ -23,7 +24,21 @@ namespace WordsXaml.Ini
         {
             _byKey = new Dictionary<string, WordsEntry>(StringComparer.Ordinal);
             foreach (var e in entries)
-                _byKey[e.Key] = e;
+                _byKey[e.Key] = _byKey.TryGetValue(e.Key, out var earlier) ? Merge(earlier, e) : e;
+        }
+
+        private static WordsEntry Merge(WordsEntry earlier, WordsEntry later)
+        {
+            var merged = new WordsEntry(earlier.Key, earlier.FilePath, earlier.LineNumber);
+            foreach (var entry in new[] { earlier, later })
+            {
+                foreach (var value in entry.Values)
+                    merged.SetValue(value.Key, null, value.Value);
+                foreach (var language in entry.Forms)
+                    foreach (var form in language.Value)
+                        merged.SetValue(language.Key, form.Key, form.Value);
+            }
+            return merged;
         }
 
         public IReadOnlyCollection<string> Keys => _byKey.Keys;
@@ -104,7 +119,7 @@ namespace WordsXaml.Ini
         /// <summary>
         /// Single-line preview for a key's invariant value: continuations collapsed to spaces and
         /// truncated with an ellipsis. Cross-refs ({&gt;key}) and [icon:x] tokens are shown verbatim.
-        /// Returns null for an unknown key.
+        /// Returns null for an unknown key, and "" for a key with no plain value in any language.
         /// </summary>
         public string RenderPreview(string key, int maxLength = DefaultPreviewLength)
         {
@@ -113,12 +128,24 @@ namespace WordsXaml.Ini
 
             var value = entry.DefaultValue ?? entry.Values.Values.FirstOrDefault();
             if (string.IsNullOrEmpty(value))
-                return value;
+                return string.Empty;
 
             var oneLine = value.Replace("\r", " ").Replace("\n", " ").Trim();
             return oneLine.Length > maxLength
                 ? oneLine.Substring(0, maxLength).TrimEnd() + "…"
                 : oneLine;
+        }
+
+        /// <summary>
+        /// The plural forms a key has, in any language, as a short note for the preview
+        /// (<c>"#few #many #other"</c>); null for an unknown key or one with no forms.
+        /// </summary>
+        public string RenderForms(string key)
+        {
+            if (!TryGet(key, out var entry))
+                return null;
+            var forms = entry.FormNames;
+            return forms.Count == 0 ? null : string.Join(" ", forms.Select(f => "#" + f));
         }
     }
 }

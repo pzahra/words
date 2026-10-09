@@ -1,72 +1,74 @@
+using System;
 using JetBrains.DocumentModel;
 using JetBrains.ReSharper.Psi.Tree;
 using JetBrains.ReSharper.Psi.Xaml.Tree.MarkupExtensions;
+using JetBrains.Util;
+using WordsXaml.Keys;
+using WordsXaml.Sites;
 
 namespace WordsXaml.Xaml
 {
     /// <summary>
-    /// Recognises the <c>{l:Words &lt;key&gt;}</c> context inside XAML PSI and pulls the key argument out.
-    /// Centralised so completion, quick-doc and the inspection all agree on what "we are on a Words key"
-    /// means.
+    /// Recognises the <c>{l:Words &lt;key&gt;}</c> context in XAML and pulls the key out. Centralised so
+    /// completion, quick-doc and the inspection all agree on what "we are on a Words key" means.
     ///
-    /// In ReSharper 2025.3, a markup-extension usage is an <see cref="IMarkup"/> node: <c>Name</c>/
-    /// <c>NameNode</c> identify the extension and <c>Value</c> is its (single positional) argument. For
-    /// <c>{l:Words params.focal-law-base.capture-delay}</c> the value is an <see cref="IPathValue"/> whose
-    /// text is the dotted key. We match on the extension's short name (<c>NameNode.Id == "Words"</c>) so
-    /// the per-file alias ("l") is irrelevant.
+    /// The key itself is read from the text by <see cref="MarkupKeys"/> (SDK-free, tested), which
+    /// knows the three spellings: positional <c>{l:Words main.title}</c>, named
+    /// <c>{l:Words Key=main.title}</c> and quoted <c>{l:Words 'main.title'}</c>. The PSI only says
+    /// where an extension starts: in ReSharper 2025.3 a markup-extension usage is an
+    /// <see cref="IMarkup"/> node, whose <c>Value</c> is either the positional argument or an
+    /// attribute list, so reading the node's text sidesteps how each spelling is shaped. Completion
+    /// and quick-doc read the document around the caret instead, which also works while the
+    /// extension is half-typed and does not parse.
     /// </summary>
     public static class WordsMarkupContext
     {
-        public const string MarkupExtensionShortName = "Words";
-
         /// <summary>The xmlns the extension is registered under; kept for reference/diagnostics.</summary>
         public const string MarkupExtensionXmlns = "https://github.com/pzahra/words";
         /// <summary>The name the extension was registered under before the project URL became the namespace; still an alias.</summary>
         public const string LegacyMarkupExtensionXmlns = "pattech.words";
 
+        // How much of the document around the caret to read: an extension sits in one attribute value.
+        private const int WindowBefore = 2048;
+        private const int WindowAfter = 512;
+
         /// <summary>
-        /// Returns the key text and its document range if <paramref name="node"/> sits inside an
-        /// <c>l:Words</c> markup extension; otherwise null. When the key is still empty (caret right after
-        /// <c>{l:Words }</c>) the key is "" and the range collapses to the caret's containing node, so the
-        /// completion list still opens.
+        /// The key of <paramref name="markup"/> and its document range if it is an <c>l:Words</c>
+        /// extension that names one; otherwise null. For the inspection.
         /// </summary>
-        public static WordsKeyToken TryGetKeyToken(ITreeNode node)
+        public static WordsKeyToken TryGetKeyToken(IMarkup markup)
         {
-            if (node == null)
+            if (markup == null)
                 return null;
 
-            var markup = node.GetContainingNode<IMarkup>(returnThis: true);
-            if (markup == null || !IsWordsExtension(markup))
+            var text = markup.GetText();
+            var span = MarkupKeys.Parse(text, text.IndexOf('{'));
+            if (span == null)
                 return null;
 
-            // Value is the positional argument node (IPathValue for a dotted key). Null while empty.
-            var valueNode = markup.Value;
-            if (valueNode == null)
-                return new WordsKeyToken(string.Empty, markup, markup.GetDocumentRange());
-
-            return new WordsKeyToken(valueNode.GetText(), valueNode, valueNode.GetDocumentRange());
+            var start = markup.GetDocumentStartOffset();
+            return new WordsKeyToken(span.Key, new DocumentRange(start.Shift(span.Start), start.Shift(span.End)));
         }
 
-        private static bool IsWordsExtension(IMarkup markup)
+        /// <summary>
+        /// The key a caret at <paramref name="caret"/> is on, if it is on one in an <c>l:Words</c>
+        /// extension; otherwise null. When the key is still empty (caret right after
+        /// <c>{l:Words </c>) the key is "" and the range collapses to the caret, so the completion
+        /// list still opens.
+        /// </summary>
+        public static WordsKeyToken FindAtCaret(DocumentOffset caret)
         {
-            // NameNode.Id is the extension's local name without the alias qualifier.
-            var id = markup.NameNode?.Id;
-            return id == MarkupExtensionShortName;
-        }
-    }
+            var document = caret.Document;
+            if (document == null)
+                return null;
 
-    /// <summary>The key argument of an <c>l:Words</c> extension, plus where it lives for range-based edits.</summary>
-    public sealed class WordsKeyToken
-    {
-        public WordsKeyToken(string key, ITreeNode argumentNode, DocumentRange range)
-        {
-            Key = key;
-            ArgumentNode = argumentNode;
-            Range = range;
-        }
+            var from = Math.Max(0, caret.Offset - WindowBefore);
+            var to = Math.Min(document.GetTextLength(), caret.Offset + WindowAfter);
+            var span = MarkupKeys.FindAt(document.GetText(new TextRange(from, to)), caret.Offset - from);
+            if (span == null)
+                return null;
 
-        public string Key { get; }
-        public ITreeNode ArgumentNode { get; }
-        public DocumentRange Range { get; }
+            return new WordsKeyToken(span.Key, new DocumentRange(document, new TextRange(from + span.Start, from + span.End)));
+        }
     }
 }

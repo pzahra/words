@@ -4,12 +4,18 @@ using JetBrains.ReSharper.Feature.Services.Daemon;
 namespace WordsXaml.Inspections
 {
     /// <summary>
-    /// Warning shown on an <c>l:Words</c> key that has no matching <c>[section]</c> in any *-words.ini.
-    /// This is the highest-value feature for a codebase with 30+ consuming .axaml files: it turns silent
-    /// missing-string bugs into an editor squiggle.
-    ///
-    /// Register the config id in a matching <c>WordsXaml.dotSettings</c> so severity is user-tweakable.
+    /// Warning shown on an <c>l:Words</c> key that has no matching <c>[section]</c> in any *-words.ini
+    /// (raised by <see cref="UnknownWordsKeyAnalyzer"/>). This is the highest-value feature for a
+    /// codebase with 30+ consuming .axaml files: it turns silent missing-string bugs into an editor
+    /// squiggle. The severity is registered here, so it is user-tweakable under Code Notification.
     /// </summary>
+    [RegisterConfigurableSeverity(
+        SeverityId,
+        null,
+        HighlightingGroupIds.CodeInfo,
+        "Unknown words key",
+        "A {l:Words} key that no *-words.ini of the solution declares renders as #key# at run time.",
+        Severity.WARNING)]
     [ConfigurableSeverityHighlighting(
         SeverityId,
         JetBrains.ReSharper.Psi.Xaml.XamlLanguage.Name,

@@ -15,8 +15,9 @@ namespace PatTech.Localization
 	/// enlists the target in analyzer rule <c>PTL002</c> ("Unknown words key"): a
 	/// compile-time-constant string supplied to the target must be a key declared in a
 	/// <c>*words.ini</c> made available to the compilation as an AdditionalFile, or the
-	/// analyzer reports a warning. The Rider plugin uses the same marker to offer key
-	/// completion and tooltips at these sites.
+	/// analyzer reports a warning. The Rider plugin (WordsXaml) uses the same marker to
+	/// offer key completion and tooltips in a string literal at these sites, a member
+	/// that overrides or implements a marked one included.
 	/// </para>
 	/// <example>
 	/// <code>
