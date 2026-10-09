@@ -144,6 +144,21 @@ public class RenderScopeTests {
 		Assert.Equal("#Count# met", Words.FormatByName("{Count} met", new Dictionary<string, object?>()));
 	}
 
+	[Fact]
+	public void FormatByName_1_4_0DictionaryOverloads_ReadAsTheObjectOnes() {
+		//the signatures a caller built against 1.4.0 binds to, a null included
+		Func<string, IReadOnlyDictionary<string, object?>?, object?[], string> format = Words.FormatByName;
+		Func<IFormatProvider?, string, IReadOnlyDictionary<string, object?>?, object?[], string> formatIn = Words.FormatByName;
+		Func<string, IReadOnlyDictionary<string, object?>?, object?[], (string, object?[])> preFormat = Words.PreFormatByName;
+		var values = new Dictionary<string, object?> { ["Count"] = 7 };
+
+		Assert.Equal("7 met {0}", format("{Count} met {{0}}", values, []));
+		Assert.Equal("7 met Sam", formatIn(null, "{Count} met {0}", values, ["Sam"]));
+		Assert.Equal(" met", format("{Count} met", null, []));
+		Assert.Equal(Words.PreFormatByName("{Count}", (object?)values).FormatArgs, preFormat("{Count}", values, []).Item2);
+		Assert.Equal("{1:}", preFormat("{Count}", null, []).Item1);
+	}
+
 	//a dictionary of one's own whose indexer dresses the words up
 	private sealed class Shouting(IWords inner) : IWords {
 		public IWordsProvider Provider => inner.Provider;

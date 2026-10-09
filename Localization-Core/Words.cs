@@ -671,26 +671,13 @@ namespace PatTech.Localization {
 			}, args);
 		}
 		/// <summary>
-		/// <see cref="PreFormatByName(string, object?, object?[])"/> with the named
-		/// values supplied by a dictionary instead of an object's members — for
-		/// callers that assemble them at runtime, such as an authoring tool trying
-		/// out sample parameters. A name absent from <paramref name="values"/>
-		/// formats as <c>#name#</c> and warns via <see cref="Logger"/>.
+		/// <see cref="PreFormatByName(string, object?, object?[])"/>, which reads a
+		/// dictionary by name itself: whichever overload a call binds to, a dictionary or
+		/// a <see langword="null"/> reads the same. Kept for callers built against 1.4.0.
 		/// </summary>
-		/// <param name="template">The format template containing <c>{Name}</c> or <c>{Name:format}</c> tags.</param>
-		/// <param name="values">The named values, by the name the template uses.</param>
-		/// <param name="args">Additional positional arguments, addressed by the template's numbered tags.</param>
-		/// <returns>A numbered format string and the matching argument array, ready for <see cref="string.Format(string, object[])"/>.</returns>
-		public static (string FormatString, object?[] FormatArgs) PreFormatByName(string template, IReadOnlyDictionary<string, object?> values, params object?[] args) {
-			ArgumentNullException.ThrowIfNull(values);
-			return PreFormatByName(template, null, name => {
-				if (values.TryGetValue(name, out var found)) {
-					return found;
-				}
-				Logger.Warn($"WORDS:FIELD:`{name}`");
-				return $"#{name}#";
-			}, args);
-		}
+		[EditorBrowsable(EditorBrowsableState.Never)]
+		public static (string FormatString, object?[] FormatArgs) PreFormatByName(string template, IReadOnlyDictionary<string, object?>? values, params object?[] args)
+			=> PreFormatByName(template, (object?)values, args);
 		private static (string FormatString, object?[] FormatArgs) PreFormatByName(string template, object? value, Func<string, object?> resolve, object?[] args) {
 			// slot 0 after the positional args holds the source object itself, then
 			// one slot per distinct name in order of first appearance
@@ -753,6 +740,18 @@ namespace PatTech.Localization {
 			var (formatString, formatArgs) = PreFormatByName(template, value, args);
 			return string.Format(provider, formatString, formatArgs);
 		}
+		/// <summary>
+		/// <see cref="FormatByName(string, object?, object?[])"/>, which reads a dictionary
+		/// by name itself: whichever overload a call binds to, a dictionary or a
+		/// <see langword="null"/> reads the same. Kept for callers built against 1.4.0.
+		/// </summary>
+		[EditorBrowsable(EditorBrowsableState.Never)]
+		public static string FormatByName(string template, IReadOnlyDictionary<string, object?>? values, params object?[] args)
+			=> FormatByName(provider: null, template, (object?)values, args);
+		/// <inheritdoc cref="FormatByName(string, IReadOnlyDictionary{string, object?}?, object?[])"/>
+		[EditorBrowsable(EditorBrowsableState.Never)]
+		public static string FormatByName(IFormatProvider? provider, string template, IReadOnlyDictionary<string, object?>? values, params object?[] args)
+			=> FormatByName(provider, template, (object?)values, args);
 	}
 
 	/// <summary>

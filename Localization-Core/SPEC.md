@@ -567,8 +567,11 @@ On the named path `{0}` is the object itself, as `PreFormatByName` slots it, so 
 converter's bound count selects with `{0#word}`. A dictionary given as the value
 supplies its values by name, never its own members, so `{Count}` reads the
 entry and not the dictionary's `Count`, and a tool holding samples by name
-selects as an app would. There is no dictionary overload, so a bare `null`
-fills every name with nothing, as in 1.4.0.
+selects as an app would. A bare `null` fills every name with nothing, as in
+1.4.0. The template overloads 1.4.0 shipped with an `IReadOnlyDictionary`
+parameter (`Words.FormatByName`, `Words.PreFormatByName`) stay for callers built
+against it, hidden from completion; they take a `null` too, and read exactly
+as the `object` overloads do, so whichever one a call binds to doesn't matter.
 
 The indexer leaves a selector in place — it has no argument to select with — so
 a plural template reached through `Words.Known[key]` and the caller's own
