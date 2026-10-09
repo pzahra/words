@@ -239,6 +239,9 @@ public class RenderScopeTests {
 		{ (UInt128)25, "25 файлов" },
 		{ BigInteger.Pow(10, 40) + 1, $"{BigInteger.Pow(10, 40) + 1} файл" }, //past decimal, the low digits pick
 		{ 1e30, $"{1e30} файлов" },
+		{ 1e15 + 1, $"{1e15 + 1} файл" },                                   //decimal keeps 15 digits, the count all 16
+		{ 1e15 + 2, $"{1e15 + 2} файла" },
+		{ Math.Pow(2, 62), string.Create(CultureInfo.InvariantCulture, $"{Math.Pow(2, 62)} файла") }, //4611686018427387904
 		{ 1.0000001f, $"{1.0000001f} файла" },                                 //a fraction is other, though decimal rounds it whole
 		{ 1.0000000000000002, $"{1.0000000000000002} файла" },
 	};

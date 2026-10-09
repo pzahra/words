@@ -452,8 +452,9 @@ namespace PatTech.Localization {
 				case float f:
 					return TryCount((double)f, out count, out fraction);
 				case double d when double.IsFinite(d):
+					//decimal keeps a double's first 15 digits, so a longer whole one counts whole
 					fraction = d != Math.Truncate(d);
-					count = fraction ? 0 : Math.Abs(d) < 7.9e28 ? (decimal)d : (decimal)(Math.Abs(d) % 1e12) + 1_000_000_000_000m;
+					count = fraction ? 0 : Math.Abs(d) < 1e15 ? (decimal)d : Whole(new BigInteger(d));
 					return true;
 				default:
 					count = 0;

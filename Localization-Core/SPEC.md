@@ -508,7 +508,8 @@ come, a number with a fractional part is `other`, a `float` or `double` included
 where a `decimal` would round it whole (`1.0000001f`); the sign is ignored, and a
 whole value counts as whole whatever its scale or type, `Int128` and
 `BigInteger` among them, keeping the low digits a rule reads past `decimal`'s
-range. The tables come back read-only.
+range, and past the 15 digits `decimal` keeps of a `double` (`1e15 + 1` is
+`one` in Russian). The tables come back read-only.
 
 **Which form a count reads.** The category's form, else, for an optional
 category, the form it reads instead (below), else the key's `other` form, else
@@ -681,7 +682,8 @@ and select its forms. `FormatByName` fills a `null` with nothing on every path
 and reads a dictionary, of any value type, by its values; `RenderKey` with
 arguments reads the provider as it does without; a template an `IWords` of
 one's own answers still selects, its `{{` left to `string.Format`; every number
-type counts, a float's fraction is `other`; the runtime's
+type counts, a float's fraction is `other`, and a double's sixteenth digit
+picks; the runtime's
 default language is trimmed and cased; `blo`, `cv`, `kok` and `sgs` count by
 CLDR 48; the tables refuse to be changed; `CulturedWords`' indexers are
 `[Localized]`; a pool thread's `TriggerWords.Watch()` leaves the trigger on its
