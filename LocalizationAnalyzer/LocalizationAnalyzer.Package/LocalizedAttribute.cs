@@ -9,11 +9,17 @@ namespace PatTech.Localization
 	/// <remarks>
 	/// <para>
 	/// Applying this attribute enlists the target in analyzer rule
-	/// <c>PTL001</c> ("Expecting localized value"): any expression supplied to the
-	/// target — a method argument, a property or field assignment, or a value
-	/// returned from a method whose return is marked <c>[return: Localized]</c> —
-	/// must itself be localized, or the analyzer reports a warning at the offending
-	/// expression.
+	/// <c>PTL001</c> ("Expecting localized value"): an argument a method call passes
+	/// to a marked parameter, and a value assigned to a marked property or field (or,
+	/// inside a method, to its own marked <c>ref</c> or <c>out</c> parameter), must
+	/// itself be localized, or the analyzer reports a warning at the offending
+	/// expression. A constructor's, an indexer's and an attribute's arguments are not
+	/// checked yet.
+	/// </para>
+	/// <para>
+	/// On a return value, <c>[return: Localized]</c> is a promise the analyzer takes
+	/// at its word: a call to the method counts as localized, and what the method
+	/// returns is not checked.
 	/// </para>
 	/// <para>
 	/// An expression counts as localized when it reads from another

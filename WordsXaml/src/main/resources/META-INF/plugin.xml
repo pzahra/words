@@ -5,9 +5,9 @@
 
     <description><![CDATA[
         Autocomplete, tooltip preview and an unknown-key warning for <code>{l:Words ...}</code> keys in
-        Avalonia XAML, and autocomplete and tooltips for keys in C# string literals passed to a
+        XAML, and autocomplete and tooltips for keys in C# string literals passed to a
         <code>[WordsKey]</code> parameter or property, resolved against the solution's
-        <code>*-words.ini</code> files.
+        <code>*words.ini</code> files.
     ]]></description>
 
     <!-- Marks this as a Rider (ReSharper-backend) plugin. The backend assemblies in the plugin's

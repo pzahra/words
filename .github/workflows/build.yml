@@ -5,7 +5,8 @@
 #
 # Two independent release lines, told apart by the tag prefix:
 #   api/X.Y.Z       -> Core, WPF and Avalonia (one API surface, released together)
-#   analyzer/X.Y.Z  -> the analyzer package on its own
+#   analyzer/X.Y.Z  -> the analyzer package, and beside it the Rider plugin
+#                      (WordsXaml), at the same number, as a GitHub Release asset
 #
 # Versions come from Versions.props, not the tag — the tag only decides when to
 # publish. Bump the props, commit, then tag that commit; the version job fails a
@@ -127,3 +128,59 @@ jobs:
             dotnet nuget push $symbols.FullName --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
             if ($LASTEXITCODE -ne 0) { throw "Push failed for $($symbols.Name)" }
           }
+
+  # The Rider plugin rides the analyzer's track, at AnalyzerVersion (build.gradle.kts
+  # reads it from Versions.props): a GitHub Release for the analyzer/ tag carries
+  # its zip, which Rider installs from disk. The analyzer package itself goes to
+  # nuget.org, in the publish job.
+  plugin:
+    needs: tests
+    if: startsWith(github.ref, 'refs/tags/analyzer/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write    # to create the release
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0         # every tag, to find the previous analyzer/ one
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Build the plugin
+        working-directory: WordsXaml
+        run: bash gradlew buildPlugin -PbuildConfiguration=Release --no-daemon
+
+      # A re-run finds the release made, and uploads the zip over what an
+      # interrupted upload left. Not marked Latest: that is Wordsmith's.
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME##*/}"
+          zip="WordsXaml/build/distributions/WordsXaml-$version.zip"
+          if [ ! -f "$zip" ]; then
+            echo "::error::$zip was not built: the plugin's version is not AnalyzerVersion"
+            exit 1
+          fi
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$zip" --clobber
+            exit
+          fi
+          cat > notes.md <<'EOF'
+          **WordsXaml** is the Rider plugin: key completion, tooltips and an unknown-key squiggle for `{l:Words …}` in XAML, and key completion and tooltips in C# wherever a `[WordsKey]` is wanted. In Rider 2025.3 or later, install the zip with **Settings ▸ Plugins ▸ ⚙ ▸ Install Plugin from Disk…**.
+
+          The analyzer itself is on nuget.org as `PatTech.Localization.Analyzer`, and comes along with `PatTech.Localization.Core`.
+          EOF
+          since=()
+          previous=$(git tag --list 'analyzer/*' --sort=v:refname | grep -F -x -B1 "$GITHUB_REF_NAME" | head -n -1)
+          if [ -n "$previous" ]; then since=(--notes-start-tag "$previous"); fi
+          gh release create "$GITHUB_REF_NAME" "$zip" --title "Analyzer $version" --notes-file notes.md --generate-notes --latest=false "${since[@]}"

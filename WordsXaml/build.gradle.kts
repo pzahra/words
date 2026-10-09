@@ -17,10 +17,15 @@ repositories {
     }
 }
 
-val pluginVersion: String by project
 val buildConfiguration: String by project
 val dotNetPluginId: String by project
 val riderSdkVersion: String by project
+
+// The plugin ships on the analyzer's track: an analyzer/X.Y.Z tag releases it beside the analyzer
+// package, at the analyzer's number, AnalyzerVersion in the repository's Versions.props.
+val pluginVersion = Regex("<AnalyzerVersion>\\s*([^<\\s]+)\\s*</AnalyzerVersion>")
+    .find(File(rootDir, "../Versions.props").readText())?.groupValues?.get(1)
+    ?: throw GradleException("No AnalyzerVersion in ../Versions.props")
 
 version = pluginVersion
 
@@ -37,6 +42,9 @@ dependencies {
 }
 
 intellijPlatform {
+    // no settings pages to index, and indexing launches a headless Rider: slow, and fragile on CI
+    buildSearchableOptions = false
+
     pluginConfiguration {
         ideaVersion {
             sinceBuild = "253"

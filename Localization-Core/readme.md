@@ -183,9 +183,10 @@ labels, typically in the app's own file.
 
 `Words.Known["key"]` returns the translated value of the specified key.
 
-Use the attribute `[Localized]` to mark fields, properties, return values or
-parameters that expect or provide localised strings. If there is a mismatch,
-the compiler will produce a warning.
+Use the attribute `[Localized]` to mark the fields, properties and parameters
+that expect localised strings, and `[return: Localized]` on a method that
+provides one. Pass or assign a raw string to a marked target, and the compiler
+warns (PTL001).
 
 Use the attribute `[Words("key")]` to mark enum values. The `Enum.Describe`
 function will assume the existence of "key.tooltip", "key.sub", "key.desc"

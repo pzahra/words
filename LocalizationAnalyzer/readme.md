@@ -2,10 +2,13 @@
 
 The Words police. It makes sure your Words are actually Words.
 
-Mark a parameter, property, field, or return value with `[Localized]` and the
-analyzer checks that everything assigned to it is localized too — a Words
-lookup, another `[Localized]` member, or a method that promises
-`[return: Localized]`. Hand it a raw string literal and you get:
+Mark a parameter, property or field with `[Localized]` and the analyzer
+checks that what a method call passes it, or an assignment stores in it, is
+localized too — a Words lookup, another `[Localized]` member, or a call to a
+method marked `[return: Localized]`, its promise that what it returns is
+localized (taken at its word: the returns aren't checked, and nor yet are a
+constructor's, an indexer's or an attribute's arguments). Hand it a raw string
+literal and you get:
 
 ```
 warning PTL001: Parameter `message` in method `WriteLocal` expects a localized value
@@ -49,3 +52,8 @@ Set `LocalizationAnalyzer.Vsix` as the startup project in Visual Studio and
 hit F5. A second Visual Studio opens with the analyzer loaded; open any
 project that uses `[Localized]` and your breakpoints in the analyzer will
 hit as it types.
+
+## The spec
+
+What both rules check, exactly, and what the Rider plugin that ships beside the
+analyzer offers, is in [SPEC.md](SPEC.md).

@@ -1,12 +1,13 @@
 # WordsXaml — Rider extension for `{l:Words …}` keys
 
-A local Rider plugin that gives Avalonia XAML **autocomplete + tooltip preview** and an
+A Rider plugin that gives XAML **autocomplete + tooltip preview** and an
 unknown-key warning for the Words markup extension (xmlns `https://github.com/pzahra/words`, formerly
 `pattech.words`) — `{l:Words some.dotted.key}`, `{l:Words Key=some.dotted.key}` or
 `{l:Words 'some.dotted.key'}` — and the same autocomplete + tooltip in C# string literals passed to a
 `[WordsKey]` parameter or property (`Words.Known["some.dotted.key"]`), resolved against the solution's
-`*-words.ini` files. Built against the **Rider 2025.3** SDK and installable on anything newer
-(`since-build=253`, no upper bound).
+`*words.ini` files. Built against the **Rider 2025.3** SDK and installable on anything newer
+(`since-build=253`, no upper bound). What it does, exactly, is in the analyzer's spec,
+[../LocalizationAnalyzer/SPEC.md](../LocalizationAnalyzer/SPEC.md) (*The Rider plugin* onwards).
 
 ## Why not Roslyn?
 
@@ -22,14 +23,15 @@ in the backend.
 ```
 build.gradle.kts            IntelliJ Platform plugin; builds the backend + copies it into dotnet/
 settings.gradle.kts
-gradle.properties           pluginVersion, dotNetPluginId, riderSdkVersion (paired with the SDK nupkg)
+gradle.properties           dotNetPluginId, riderSdkVersion (paired with the SDK nupkg); the version is
+                            AnalyzerVersion, read from ../Versions.props
 gradlew / gradlew.bat       Gradle 9.1 wrapper
 src/
   main/resources/META-INF/plugin.xml    JVM-side descriptor (depends com.intellij.modules.rider)
   dotnet/                               THE BACKEND (was src/ before the Gradle conversion)
     WordsXaml.Core/          SDK-FREE, tested core.
       Ini/WordsEntry.cs         one resolved key (values per language, plural forms, source line)
-      Ini/WordsIniParser.cs     the *-words.ini grammar, as the runtime's WordsParser reads it
+      Ini/WordsIniParser.cs     the *words.ini grammar, as the runtime's WordsParser reads it
       Ini/WordsIndex.cs         key -> entry map, fuzzy Match(), RenderPreview() (one-line, truncated)
       Ini/WordsQuickDoc.cs      the tooltip body: key, preview, forms, file
       Sites/MarkupKeys.cs       the key in {l:Words …} text: positional, Key=, quoted; at a caret
@@ -69,7 +71,7 @@ A section starting with `.` extends the last **fully-qualified** header (evo-wor
 
 Dot-sections never become the new base, so consecutive `[.x] [.y]` both resolve against the same parent.
 
-- **Headers** are the runtime's `^\[([^]]+)\]`: at the line start, the name as written, no trimming. The
+- **Headers** are the runtime's `^\[([^]]*)\]`: at the line start, the name as written, no trimming. The
   resolved name must be a key's name (`WordsParser.IsKeyName`: dotted segments of letters, digits, `_`
   and `-`, or a constant, `$unit`); one that isn't — `[lang.c#]`, `[ spaced ]` — is no key, and its
   fields go with it. So are the `[.child]` headers under it or under a constant (`$unit.child` is no
@@ -104,12 +106,15 @@ has any (`forms: #few #other`), and the file that declares it.
 
 - **Core (tested):** everything under `WordsXaml.Core` — parser (the runtime's grammar above), index,
   fuzzy match, truncated preview, tooltip body, and the key's place in `{l:Words …}` text and in a C#
-  literal. `dotnet test src/dotnet/WordsXaml.Tests` → 87 passing.
+  literal. `dotnet test src/dotnet/WordsXaml.Tests` → 88 passing.
 - **Plugin (compiles against the real 2025.3 SDK):** XAML completion, quick-doc and the unknown-key
   inspection; C# `[WordsKey]` completion and quick-doc. `dotnet build src/dotnet/WordsXaml` → 0 errors
   (warnings are SDK NU1701/MSB3277 noise).
 
-### 0.2.0
+### 1.4.0
+
+The plugin now ships on the analyzer's track, at its number: an `analyzer/X.Y.Z` tag attaches
+`WordsXaml-X.Y.Z.zip` to that GitHub Release. This is the release first built as 0.2.0.
 
 - The parser reads what the runtime reads (*The grammar*): the key-name check on headers and their
   children, the runtime's continuation and escape rules, a repeated `value=` overwriting, plural forms
@@ -174,12 +179,13 @@ Trade-off: this favours drill-down over global fuzzy search — typing `capture`
 `params.focal-law-base.capture-delay` until you've drilled to that level. A hybrid (branches + deep
 fuzzy matches) is possible if that's wanted.
 
-### The one thing not verifiable from a build
+### What a build can't check
 
-Compilation + JetBrains-identical wiring is strong, but it doesn't *prove* the list pops up in a live
-editor — nor that the tooltip shows on hover, that the squiggle appears, or that Rider asks for
-completion inside a C# string literal (expect Ctrl+Space there; it doesn't auto-pop in strings). Use
-`runIde` (below) to see it, and/or add a headless completion test with `JetBrains.ReSharper.TestFramework`.
+A build proves the wiring compiles, not that the list pops up in a live editor, the tooltip shows on
+hover, the squiggle appears, or Rider asks for completion inside a C# string literal (Ctrl+Space
+there; it doesn't auto-pop in strings). 1.4.0 was checked by hand in a live Rider (2026-10-09). Check a
+change the same way with `runIde` (below), or add a headless completion test with
+`JetBrains.ReSharper.TestFramework`.
 
 ## Running & debugging in Rider (`runIde` sandbox)
 
@@ -195,7 +201,7 @@ untouched. Requirements: JDK 21 (Rider's bundled JBR works), .NET SDK, and inter
 
 `gradlew` uses Rider's JBR if you point `JAVA_HOME` at it, e.g.
 `JetBrains\JetBrains Rider 2025.3.2\jbr`. Open any Avalonia solution in the sandbox and type
-`{l:Words ` in a `.axaml` — completion should list the keys from the loaded `*-words.ini`. In C#, put the
+`{l:Words ` in a `.axaml` — completion should list the keys from the loaded `*words.ini`. In C#, put the
 caret in `Words.Known["|"]` and press Ctrl+Space.
 
 **From the IDE (recommended loop):** open this folder as a Gradle project in Rider (or IntelliJ), then
@@ -228,10 +234,13 @@ backend still binds to one SDK's API surface — if a Rider update ever breaks i
 MissingMethodException in the backend log), bump `JetBrains.ReSharper.SDK` + `riderSdkVersion`
 together and rebuild rather than re-pinning `until-build`.
 
-## Packaging for install (optional)
+## Installing
 
-`./gradlew buildPlugin` produces a plugin zip under `build/distributions/`. Install it into a real Rider
-via **Settings ▸ Plugins ▸ ⚙ ▸ Install Plugin from Disk…**.
+Each `analyzer/X.Y.Z` release on GitHub carries `WordsXaml-X.Y.Z.zip`. In Rider 2025.3 or later, install
+it with **Settings ▸ Plugins ▸ ⚙ ▸ Install Plugin from Disk…**.
+
+To build one yourself, `./gradlew buildPlugin -PbuildConfiguration=Release` writes the zip to
+`build/distributions/`; the release workflow builds it the same way (`.github/workflows/build.yml`).
 
 ## Cheaper alternative
 

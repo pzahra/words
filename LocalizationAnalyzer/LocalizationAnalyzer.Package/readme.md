@@ -9,10 +9,13 @@ supervised.
 
 ## What it does
 
-Mark a parameter, property, field, or return value with `[Localized]` and the
-analyzer checks that everything assigned to it is localized too: a Words lookup,
-another `[Localized]` member, or a method that promises `[return: Localized]`.
-Hand it a raw string literal and the build tells you:
+Mark a parameter, property or field with `[Localized]` and the analyzer checks
+that what a method call passes it, or an assignment stores in it, is localized
+too: a Words lookup, another `[Localized]` member, or a call to a method marked
+`[return: Localized]`, its promise that what it returns is localized (a promise
+taken at its word: the returns aren't checked, and nor yet are a constructor's,
+an indexer's or an attribute's arguments). Hand it a raw string literal and the
+build tells you:
 
 ```
 warning PTL001: Parameter `message` in method `WriteLocal` expects a localized value
