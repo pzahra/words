@@ -345,22 +345,42 @@ value-fr=Ouvrir
 		Assert.Equal(library, Save(session, libraryFile).ReplaceLineEndings("\n"));
 	}
 
+	private static string[] Table(WordsSession session, WordsFile file)
+		=> [.. Save(session, file).Split('\n').Select(line => line.TrimEnd('\r')).TakeWhile(line => line != "")];
+
 	[Fact]
-	public void Labels_ARelabelReachesEveryFileWithWhatItChanged() {
+	public void Labels_ARelabelIsTheFilesAlone() {
 		var session = Load("value-en=English\nvalue-fr=Français\ncomment-fr=French\n\n[k]\nvalue=x\n");
+		WordsFile main = session.Files[0];
 		WordsFile library = session.Load(new StringReader("value-en=!English\nvalue-fr=!Français\n\n[j]\nvalue=y\n"), "Lib");
 
-		//a new endonym: each file keeps its own !
-		session.Languages.Rename("en", new LanguageEntry("en", "British"));
-		//a new exonym: every file takes it, the library too
-		session.Languages.Rename("fr", new LanguageEntry("fr", "Français") { EnglishName = "French (France)" });
+		session.Languages.Rename(main, "en", new LanguageEntry("en", "British"));
+		session.Languages.Rename(library, "fr", new LanguageEntry("fr", "!Français") { EnglishName = "French (France)" });
 
-		string main = Save(session, session.Files[0]), lib = Save(session, library);
-		Assert.Contains("value-en=British", main);
-		Assert.Contains("value-en=!British", lib);
-		Assert.Contains("comment-fr=French (France)", main);
-		Assert.Contains("comment-fr=French (France)", lib);
-		Assert.Contains("value-fr=!Français", lib);
+		Assert.Equal(["value-en=British", "value-fr=Français", "comment-fr=French"], Table(session, main));
+		Assert.Equal(["value-en=!English", "value-fr=!Français", "comment-fr=French (France)"], Table(session, library));
+		Assert.Equal("British", session.Languages.Find("en")!.NativeName); //the session names it as its one listing file does
+	}
+
+	[Fact]
+	public void Labels_AHostsRelabelLeavesItsLibrarysBang_AndALibrarysLeavesItsHostListed() {
+		//the library loads first, yet the host's listed label names de; neither file's
+		//relabel reaches the other, so the library's ! comes and goes on its own
+		var session = new WordsSession();
+		WordsFile library = session.Load(new StringReader("value-en=!English\nvalue-de=!Deutsch\n\n[j]\nvalue=y\n"), "Lib");
+		WordsFile host = session.Load(new StringReader("value-en=English\nvalue-de=Deutsch\n\n[k]\nvalue=x\n"), "Host");
+		Assert.Equal("Deutsch", session.Languages.Find("de")!.NativeName); //the listed label names it
+
+		session.Languages.Rename(host, "de", new LanguageEntry("de", "Deutsch (DE)"));
+		Assert.Equal(["value-en=English", "value-de=Deutsch (DE)"], Table(session, host));
+		Assert.Equal(["value-en=!English", "value-de=!Deutsch"], Table(session, library));
+
+		session.Languages.Rename(library, "de", new LanguageEntry("de", "Deutsch"));
+		Assert.False(library.IsLibrary); //it lists de now, and only it
+		session.Languages.Rename(library, "de", new LanguageEntry("de", "!Deutsch"));
+		Assert.True(library.IsLibrary);
+		Assert.Equal(["value-en=English", "value-de=Deutsch (DE)"], Table(session, host));
+		Assert.Equal("Deutsch (DE)", session.Languages.Find("de")!.NativeName); //still listed
 	}
 
 	[Fact]
@@ -368,8 +388,8 @@ value-fr=Ouvrir
 		var session = Load("value-en=English\nvalue-it=Italiano\nparam-en=english-settings.ini\nparam-it=italian-settings.ini\n\n[k]\nvalue=x\n");
 		WordsFile file = session.Files[0];
 
-		session.Languages.Rename("en", new LanguageEntry("de", "Deutsch"));
-		session.Languages.Remove("it");
+		session.Languages.Rename(file, "en", new LanguageEntry("de", "Deutsch"));
+		session.Languages.Remove(file, "it");
 
 		Assert.Equal(new Dictionary<string, string> { ["de"] = "english-settings.ini" }, file.LanguageSettings);
 		Assert.NotNull(file.SettingsPath("de"));
@@ -416,35 +436,78 @@ value-fr=Ouvrir
 	}
 
 	[Fact]
-	public void Languages_AddRemoveReorderRoundTrip() {
+	public void Languages_AddRemoveReorderRoundTrip_FileByFile() {
 		var session = Load(Main);
 		session.Load(new StringReader("value-en=English\n\n[x]\nvalue=X\n"), "Extra");
 		WordsFile main = session.Files[0];
 		WordsFile extra = session.Files[1];
 
-		Assert.True(session.Languages.Add(new LanguageEntry("de", "Deutsch") { EnglishName = "German" }));
-		Assert.False(session.Languages.Add(new LanguageEntry("de", "again")));
+		//the file declares it, the other file doesn't, every key has an entry
+		Assert.True(session.Languages.Add(main, new LanguageEntry("de", "Deutsch") { EnglishName = "German" }));
+		Assert.False(session.Languages.Add(main, new LanguageEntry("de", "again")));
 		Assert.Equal(["en", "fr", "de"], main.Languages);
-		Assert.Equal(["en", "de"], extra.Languages);
+		Assert.Equal(["en"], extra.Languages);
 		Assert.All(session.Keys.Values, key => Assert.True(key.Entries.ContainsKey("de")));
-		Assert.Contains("value-de=Deutsch", Save(session, extra));
+		Assert.DoesNotContain("value-de", Save(session, extra));
+		Assert.True(session.Languages.Add(extra, new LanguageEntry("de", "!Deutsch")));
+		Assert.Contains("value-de=!Deutsch", Save(session, extra));
 
-		//the dropdown order becomes every file's order
-		session.Languages.Reorder(2, 0);
-		Assert.Equal(["de", "en", "fr"], session.Languages.Known.Select(language => language.Code));
+		//the file's order; the dropdown follows the files', the first file's first
+		session.Languages.Reorder(main, 2, 0);
 		Assert.Equal(["de", "en", "fr"], main.Languages);
-		Assert.Equal(["de", "en"], extra.Languages);
+		Assert.Equal(["en", "de"], extra.Languages);
+		Assert.Equal(["de", "en", "fr"], session.Languages.Known.Select(language => language.Code));
 		string saved = Save(session, main);
 		Assert.True(saved.IndexOf("value-de") < saved.IndexOf("value-en"));
 
-		Assert.True(session.Languages.Remove("de"));
+		//a removal is the file's: its keys lose their words, the other file's keep theirs
+		session.Keys["Main.greeting"].Entries["de"].Value = "Hallo";
+		session.Keys["Extra.x"].Entries["de"].Value = "Ix";
+		Assert.True(session.Languages.Remove(main, "de"));
 		Assert.Equal(["en", "fr"], main.Languages);
+		Assert.Equal("", session.Keys["Main.greeting"].Entries["de"].Value);
+		Assert.Equal("Ix", session.Keys["Extra.x"].Entries["de"].Value);
+		Assert.Contains(session.Languages.Known, language => language.Code == "de");
+		//the last file to declare it takes it out of the session
+		Assert.True(session.Languages.Remove(extra, "de"));
+		Assert.DoesNotContain(session.Languages.Known, language => language.Code == "de");
 		Assert.All(session.Keys.Values, key => Assert.False(key.Entries.ContainsKey("de")));
 
-		//never empty
-		Assert.True(session.Languages.Remove("fr"));
-		Assert.False(session.Languages.Remove("en"));
-		Assert.Single(session.Languages.Known);
+		//a file keeps its last language
+		Assert.False(session.Languages.Remove(extra, "en"));
+		Assert.False(session.Languages.Remove(extra, "fr")); //nor drops one it never declared
+	}
+
+	[Fact]
+	public void Lacks_WhatAHostListsThatALibraryHasNoWordsFor() {
+		var session = new WordsSession();
+		WordsFile host = session.Load(new StringReader("value-en=English\nvalue-en-AU=Australian\nvalue-fr=Français\nvalue-de=Deutsch\nvalue-it=!Italiano\n\n[k]\nvalue=x\n"), "Host");
+		WordsFile library = session.Load(new StringReader("value-en=!English\nvalue-fr=!Français\n\n[j]\nvalue=y\n"), "Lib");
+		session.Load(new StringReader("value-es=Español\nvalue-de=Deutsch\n\n[i]\nvalue=z\n"), "Other");
+		string[] Lacks(WordsFile file) => [.. session.Languages.Lacks(file).Select(lack => $"{lack.Code}: {string.Join(", ", lack.Hosts)}")];
+
+		//en and fr it declares, en-AU falls back to its en, it is hidden: no host offers it
+		Assert.Equal(["de: Host, Other", "es: Other"], Lacks(library));
+		Assert.Empty(Lacks(host)); //no library
+		session.Languages.Add(library, new LanguageEntry("de", "!Deutsch"));
+		library.DefaultLanguage = "es"; //its default speaks Spanish
+		Assert.Empty(Lacks(library));
+	}
+
+	[Fact]
+	public void Languages_ARecodeIsTheFilesAlone() {
+		var session = Load("value-en=English\nvalue-de=Deutsch\n\n[k]\nvalue=x\nvalue-de=Ix\n");
+		WordsFile host = session.Files[0];
+		WordsFile library = session.Load(new StringReader("value-en=!English\nvalue-de=!Deutsch\n\n[j]\nvalue=y\nvalue-de=Ypsilon\n"), "Lib");
+
+		session.Languages.Rename(host, "de", new LanguageEntry("de-DE", "Deutsch (Deutschland)"));
+
+		Assert.Equal(["en", "de-DE"], host.Languages);
+		Assert.Equal(["en", "de"], library.Languages); //another host may want its de
+		Assert.Equal("Ix", session.Keys["Main.k"].Entries["de-DE"].Value);
+		Assert.Equal("", session.Keys["Main.k"].Entries["de"].Value);
+		Assert.Equal("Ypsilon", session.Keys["Lib.j"].Entries["de"].Value);
+		Assert.Equal(["en", "de-DE", "de"], session.Languages.Known.Select(language => language.Code));
 	}
 
 	[Fact]
@@ -452,13 +515,14 @@ value-fr=Ouvrir
 		var session = Load("value-en=English\nvalue-en-GB=British\n\n[k]\nvalue=x\nvalue-en=family\nvalue-en-GB=regional\n\n[j]\nvalue=y\nvalue-en-GB=only regional\n");
 		WordsFile main = session.Files[0];
 
-		//a relabel keeps the code: the entry is replaced, nothing shifts
-		LanguageEntry relabelled = session.Languages.Rename("en", new LanguageEntry("en", "English (US)"));
+		//a relabel keeps the code: the label is replaced, nothing shifts
+		LanguageEntry relabelled = session.Languages.Rename(main, "en", new LanguageEntry("en", "English (US)"));
 		Assert.Same(relabelled, session.Languages.Find("en"));
+		Assert.Equal("English (US)", relabelled.NativeName);
 		Assert.Equal("family", session.Keys["Main.k"].Entries["en"].Value);
 
-		//re-coding onto an existing language absorbs into it
-		LanguageEntry survivor = session.Languages.Rename("en-GB", new LanguageEntry("en", "English"));
+		//re-coding onto a language the file declares absorbs into it
+		LanguageEntry survivor = session.Languages.Rename(main, "en-GB", new LanguageEntry("en", "English"));
 		Assert.Same(relabelled, survivor);
 		Assert.Equal(["en"], session.Languages.Known.Select(language => language.Code));
 		Assert.Equal(["en"], main.Languages);
@@ -470,7 +534,7 @@ value-fr=Ouvrir
 		Assert.All(session.Keys.Values, key => Assert.False(key.Entries.ContainsKey("en-GB")));
 
 		//re-coding onto a new code moves the file's declaration
-		session.Languages.Rename("en", new LanguageEntry("eo", "Esperanto"));
+		session.Languages.Rename(main, "en", new LanguageEntry("eo", "Esperanto"));
 		Assert.Equal(["eo"], main.Languages);
 		Assert.Equal("family", session.Keys["Main.k"].Entries["eo"].Value);
 	}
@@ -500,13 +564,13 @@ value-fr=Bonjour
 		Assert.Equal(Declared, Save(session, file));
 		Assert.Equal("en", session.Languages.DefaultLanguage);
 
-		session.Languages.Rename("en", new LanguageEntry("en-AU", "Australian"));
+		session.Languages.Rename(file, "en", new LanguageEntry("en-AU", "Australian"));
 		Assert.Equal("en-AU", file.DefaultLanguage);
-		session.Languages.Remove("en-AU");
+		session.Languages.Remove(file, "en-AU");
 		Assert.Null(file.DefaultLanguage);
 		Assert.DoesNotContain("value=", Save(session, file).Split('\n')[0]);
 
-		session.Languages.DefaultLanguage = "fr";
+		file.DefaultLanguage = "fr";
 		Assert.StartsWith("value=!fr" + file.NewLine, Save(session, file)); //the fixture's line break, whichever the checkout gave it
 	}
 
@@ -661,7 +725,7 @@ value-fr=Bonjour
 			//a split takes the language as its file labels it, and only its settings reference
 			WordsFile library = session.Load(new StringReader("value-fr=!Français\nparam=all.ini\nparam-fr=french.ini\n\n[greeting]\nvalue-fr=Salut\n"), Path.Combine(folder, "Lib.ini"));
 			session.Load(new StringReader("value-de=Deutsch\nparam-de=german.ini\n\n[x]\nvalue=X\n"), Path.Combine(folder, "Other.ini"));
-			session.Languages.Rename("fr", new LanguageEntry("fr", "Français") { EnglishName = "French" });
+			session.Languages.Rename(basis, "fr", new LanguageEntry("fr", "Français") { EnglishName = "French" });
 			library.LanguageSettings["de"] = "german.ini"; //a stray reference the split leaves behind
 			WordsFile split = session.Split(library, "fr", KeyTree.Build(session, library), Path.Combine(folder, "Lib.fr.ini"));
 			string text = File.ReadAllText(split.Path);

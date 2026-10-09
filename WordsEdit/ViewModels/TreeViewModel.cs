@@ -611,6 +611,7 @@ public class TreeViewModel : ViewModelBase {
 	public void RefreshBadges() {
 		foreach (KeyNode root in KeyNodes) {
 			WordsFile? file = session.FileOf(root.FullLabel);
+			RefreshFileBadges(root, file);
 			foreach (KeyNode node in root.SelfAndDescendants()) {
 				RefreshBadges(node, file);
 			}
@@ -621,6 +622,15 @@ public class TreeViewModel : ViewModelBase {
 	}
 
 	public void RefreshBadges(KeyNode node) => RefreshBadges(node, session.FileOf(node.Root.FullLabel));
+
+	//a file node's own: whether the file is a library, as a manager may have made it
+	//one or none, and the languages a host lists that it has no words for (SPEC: Badges)
+	private void RefreshFileBadges(KeyNode root, WordsFile? file) {
+		root.IsLibraryFile = file?.IsLibrary == true;
+		IEnumerable<string> lacks = file is null ? [] : session.Languages.Lacks(file)
+			.Select(lack => $"{session.Languages.Find(lack.Code)?.DisplayName ?? lack.Code} ({string.Join(", ", lack.Hosts)})");
+		root.LacksLanguages = lacks.Any() ? Words.Known.Format("main.library-lacks", string.Join(", ", lacks)) : "";
+	}
 
 	private void RefreshBadges(KeyNode node, WordsFile? file) {
 		if (node is OrganizerNode) {

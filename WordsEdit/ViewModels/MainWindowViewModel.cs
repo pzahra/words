@@ -135,7 +135,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		ResetCommand = new DelegateCommand(DoReset);
 		SaveCommand = new DelegateCommand(DoSave);
 		MergeFilesCommand = new DelegateCommand(DoMergeFiles);
-		ManageLanguagesCommand = new DelegateCommand(DoManageLanguages);
+		ManageLanguagesCommand = new DelegateCommand(DoManageLanguages, () => LanguagesFile is not null);
 		SettingsCommand = new DelegateCommand(DoSettings, () => Tree.SelectedFile is not null);
 		ShowGripesCommand = new DelegateCommand<PreviewPane>(
 			pane => Dialogs.Show(new GripesViewModel(Words.Known["gripes.preview"], pane.Gripes)),
@@ -344,8 +344,18 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	//Languages
+	/// <summary>
+	///     The file the Language Manager edits (SPEC: Languages): the one the
+	///     selection sits in, or the only one loaded; none while several are and
+	///     nothing is selected, as a table is one file's.
+	/// </summary>
+	public WordsFile? LanguagesFile => Tree.SelectedFile ?? (Session.Files.Count == 1 ? Session.Files[0] : null);
+
 	private void DoManageLanguages() {
-		Dialogs.Show(new LanguageManagerViewModel(this));
+		if (LanguagesFile is not { } file) {
+			return;
+		}
+		Dialogs.Show(new LanguageManagerViewModel(this, file));
 		Commands.Refresh(); //a language renamed in place: the choice rows re-read their labels
 	}
 

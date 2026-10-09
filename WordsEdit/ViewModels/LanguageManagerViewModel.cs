@@ -5,19 +5,22 @@ using WordsEdit.Utils;
 namespace WordsEdit.ViewModels;
 
 /// <summary>
-///     The language table (SPEC: Languages), edited on a working copy: the rows
-///     are the session's languages as <see cref="LanguageRow"/>s, the pane edits
-///     the highlighted one live, + adds a row, the trash drops one, drag
-///     reorders and one row may be the default's language. Nothing reaches the
-///     session until OK, which applies the lot — removals, re-codes and renames,
-///     additions, the default's language, the order — as one undoable
-///     commit and makes the highlighted row the tree's language; Cancel or
-///     Escape forgets it all.
+///     One file's language table (SPEC: Languages), edited on a working copy:
+///     the rows are the file's languages as <see cref="LanguageRow"/>s, labelled
+///     as the file labels them, its <c>!</c> and all; the pane edits the
+///     highlighted one live, + adds a row, the trash drops one, drag reorders and
+///     one row may be the default's language. No other file's table changes, so a
+///     library beside its host keeps its own. Nothing reaches the session until
+///     OK, which applies the lot — removals, re-codes and renames, additions, the
+///     default's language, the order — as one undoable commit and makes the
+///     highlighted row the tree's language; Cancel or Escape forgets it all.
 /// </summary>
 public class LanguageManagerViewModel : DialogViewModel {
-	public override string Title => Words.Known["languages.title"];
+	public override string Title => Words.Known.Format("languages.title", File.Label);
 	public LanguageDrag LanguageDrag { get; }
 	public MainWindowViewModel Parent { get; }
+	/// <summary>The file whose table the manager edits.</summary>
+	public WordsFile File { get; }
 	public ObservableCollection<LanguageRow> Rows { get; } = [];
 	/// <summary>The highlighted row: the pane's, and the tree's language on OK. The list pushes null while its items turn over.</summary>
 	public LanguageRow? Selected {
@@ -31,8 +34,8 @@ public class LanguageManagerViewModel : DialogViewModel {
 
 	/// <summary>
 	///     The row whose language the default is written in, or null when the
-	///     files do not say (SPEC: Languages); ticking a row moves it there. Every
-	///     file declares it on OK.
+	///     file does not say (SPEC: Languages); ticking a row moves it there. The
+	///     file declares it on OK, when the tick moved.
 	/// </summary>
 	public LanguageRow? DefaultRow {
 		get;
@@ -58,15 +61,23 @@ public class LanguageManagerViewModel : DialogViewModel {
 	public ICommand OkCommand { get; }
 	public ICommand CancelCommand { get; }
 
-	public LanguageManagerViewModel(MainWindowViewModel parent) {
+	//the tick as the file had it, so OK declares the default's language only when it moved
+	private readonly LanguageRow? declaredRow;
+
+	/// <summary>The manager for the file the selection sits in, or the only one loaded (<see cref="MainWindowViewModel.LanguagesFile"/>).</summary>
+	public LanguageManagerViewModel(MainWindowViewModel parent)
+		: this(parent, parent.LanguagesFile ?? throw new InvalidOperationException("no file to manage the languages of")) { }
+
+	public LanguageManagerViewModel(MainWindowViewModel parent, WordsFile file) {
 		Parent = parent;
+		File = file;
 		LanguageDrag = new LanguageDrag { Vm = this };
-		foreach (LanguageEntry known in parent.Tree.KnownLanguages) {
-			Rows.Add(new LanguageRow(this, known));
+		foreach (LanguageEntry label in parent.Session.Languages.For(file)) {
+			Rows.Add(new LanguageRow(this, label));
 		}
-		DefaultRow = Rows.FirstOrDefault(row => row.Code == parent.Session.Languages.DefaultLanguage);
+		DefaultRow = declaredRow = Rows.FirstOrDefault(row => row.Code == file.DefaultLanguage);
 		Revalidate();
-		Selected = Rows.FirstOrDefault(row => row.Origin == parent.Tree.SelectedLanguage) ?? Rows[0];
+		Selected = Rows.FirstOrDefault(row => row.Code == parent.Tree.SelectedLanguage.Code) ?? Rows.FirstOrDefault();
 		AddCommand = new DelegateCommand(DoAdd);
 		OkCommand = new DelegateCommand(DoOk, () => Rows.All(row => !row.HasErrors));
 		CancelCommand = new DelegateCommand(Close);
@@ -117,7 +128,7 @@ public class LanguageManagerViewModel : DialogViewModel {
 		Close();
 	}
 
-	//the copy reaches the session, as one undoable commit. Additions whose code is
+	//the copy reaches the file, as one undoable commit. Additions whose code is
 	//free go first, so the last-language rule never refuses a removal; removals
 	//next, freeing codes — one whose code a new row takes parks on a throwaway
 	//code first, so the new row comes in before it goes; then the renames, one
@@ -127,41 +138,46 @@ public class LanguageManagerViewModel : DialogViewModel {
 	//the order. Whatever the table refused is told, never skipped in silence
 	private void Apply() {
 		LanguageTable table = Parent.Session.Languages;
+		WordsFile file = File;
 		List<string> refused = [];
 		Parent.ChangeLanguages(edit => {
-			List<LanguageEntry> gone = [.. table.Known.Where(known => Rows.All(row => row.Origin != known))];
+			List<LanguageEntry> gone = [.. table.For(file).Where(label => Rows.All(row => row.Origin != label))];
 			List<LanguageRow> additions = [.. Rows.Where(row => row.Origin is null)];
-			AddFree(edit, table, additions);
+			AddFree(edit, file, additions);
 			foreach (LanguageEntry entry in gone) {
 				string code = entry.Code;
 				if (additions.Any(row => row.NormalCode == code)) {
 					code = $"zz-{Guid.NewGuid():N}";
-					edit.Rename(entry.Code, new LanguageEntry(code, entry.NativeName) { EnglishName = entry.EnglishName });
-					AddFree(edit, table, additions);
+					edit.Rename(file, entry.Code, new LanguageEntry(code, entry.NativeName) { EnglishName = entry.EnglishName });
+					AddFree(edit, file, additions);
 				}
-				if (!edit.Remove(code)) {
+				if (!edit.Remove(file, code)) {
 					refused.Add(entry.Code);
 				}
 			}
 			List<LanguageRow> renames = [.. Rows.Where(row => row.Origin is not null && row.IsChanged)];
 			Dictionary<LanguageRow, string> current = renames.ToDictionary(row => row, row => row.Origin!.Code);
 			while (renames.Count > 0) {
-				LanguageRow next = renames.FirstOrDefault(row => row.NormalCode == current[row] || table.Find(row.NormalCode) is null) ?? renames[0];
-				if (next.NormalCode != current[next] && table.Find(next.NormalCode) is { } blocking) {
+				LanguageRow next = renames.FirstOrDefault(row => row.NormalCode == current[row] || !file.Languages.Contains(row.NormalCode)) ?? renames[0];
+				if (next.NormalCode != current[next] && file.Languages.Contains(next.NormalCode)) {
+					LanguageEntry blocking = table.For(file).First(label => label.Code == next.NormalCode);
 					LanguageRow blocked = renames.First(row => current[row] == blocking.Code);
 					current[blocked] = $"zz-{Guid.NewGuid():N}";
-					edit.Rename(blocking.Code, new LanguageEntry(current[blocked], blocking.NativeName) { EnglishName = blocking.EnglishName });
+					edit.Rename(file, blocking.Code, new LanguageEntry(current[blocked], blocking.NativeName) { EnglishName = blocking.EnglishName });
 				}
-				edit.Rename(current[next], next.ToEntry());
+				edit.Rename(file, current[next], next.ToEntry());
 				renames.Remove(next);
 			}
-			AddFree(edit, table, additions);
+			AddFree(edit, file, additions);
 			refused.AddRange(additions.Select(row => row.NormalCode));
-			edit.Declare(DefaultRow?.NormalCode);
-			for (int i = 0; i < Rows.Count; i++) {
-				int at = table.Known.ToList().FindIndex(known => known.Code == Rows[i].NormalCode);
+			if (DefaultRow != declaredRow) {
+				edit.Declare(file, DefaultRow?.NormalCode);
+			}
+			int place = 0;
+			foreach (LanguageRow row in Rows) {
+				int at = file.Languages.IndexOf(row.NormalCode);
 				if (at >= 0) {
-					edit.Reorder(at, i);
+					edit.Reorder(file, at, place++);
 				}
 			}
 		});
@@ -171,10 +187,10 @@ public class LanguageManagerViewModel : DialogViewModel {
 		}
 	}
 
-	//adds the rows whose code the table does not hold yet, and drops them from the list
-	private static void AddFree(LanguagesEdit edit, LanguageTable table, List<LanguageRow> additions) {
-		foreach (LanguageRow row in additions.Where(row => table.Find(row.NormalCode) is null).ToList()) {
-			if (edit.Add(row.ToEntry())) {
+	//adds the rows whose code the file does not declare yet, and drops them from the list
+	private static void AddFree(LanguagesEdit edit, WordsFile file, List<LanguageRow> additions) {
+		foreach (LanguageRow row in additions.Where(row => !file.Languages.Contains(row.NormalCode)).ToList()) {
+			if (edit.Add(file, row.ToEntry())) {
 				additions.Remove(row);
 			}
 		}

@@ -159,6 +159,11 @@
                                     <md:PackIcon Kind="Bookshelf"
                                                  ToolTip="{l:Words main.library-file}"
                                                  Visibility="{Binding IsLibraryFile, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    <!-- a library lacking what a host lists: an app offering it reads the library's default -->
+                                    <md:PackIcon Kind="BookAlertOutline"
+                                                 Foreground="{StaticResource WordsmithOrangeBrush}"
+                                                 ToolTip="{Binding LacksLanguages}"
+                                                 Visibility="{Binding HasLacks, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                     <Button Command="{Binding DataContext.ShowFileGripesCommand, RelativeSource={uc:FindAncestor TreeView}}"
                                             CommandParameter="{Binding}"
                                             Visibility="{Binding GripeCount, Converter={StaticResource NotZeroToVisibilityConverter}}"

@@ -71,6 +71,16 @@ public class KeyNode : ViewModelBase, IKeyTreeNode {
 	public bool IsSelected { get; set => ChangeProperty(ref field, value); }
 	public bool IsFile { get; set => ChangeProperty(ref field, value); }
 	public bool IsLibraryFile { get; set => ChangeProperty(ref field, value); }
+	/// <summary>On a library's file node: the languages a host lists that it has no words for, as its flag's tooltip says them; empty when none (SPEC: Badges).</summary>
+	public string LacksLanguages {
+		get;
+		set {
+			if (ChangeProperty(ref field, value)) {
+				AffectProperty(nameof(HasLacks));
+			}
+		}
+	} = "";
+	public bool HasLacks => LacksLanguages != "";
 	/// <summary>On a file node: how much the parser griped about while loading it (SPEC: Out of scope → now in).</summary>
 	public int GripeCount { get; set => ChangeProperty(ref field, value); }
 	public bool EmptyValue { get; set => ChangeProperty(ref field, value); }
@@ -90,6 +100,7 @@ public class KeyNode : ViewModelBase, IKeyTreeNode {
 		IsVisible = original.IsVisible;
 		IsFile = original.IsFile;
 		IsLibraryFile = original.IsLibraryFile;
+		LacksLanguages = original.LacksLanguages;
 		GripeCount = original.GripeCount;
 		EmptyValue = original.EmptyValue;
 		foreach (KeyNode child in original.Children) {

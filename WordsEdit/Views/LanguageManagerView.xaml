@@ -11,8 +11,9 @@
              d:DesignHeight="450" d:DesignWidth="800"
              d:DataContext="{d:DesignInstance vm:LanguageManagerViewModel}"
              Padding="10">
-    <!-- the Languages window (SPEC: Languages): the working copy's rows at the left, the
-         highlighted row's fields at the right, OK and Cancel below -->
+    <!-- the Languages window (SPEC: Languages): one file's table, named in the heading; the
+         working copy's rows at the left, the highlighted row's fields at the right, OK and
+         Cancel below -->
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="IsTrue"/>
     </UserControl.Resources>
@@ -27,7 +28,7 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Column="0" Grid.Row="0" MinWidth="140">
-            <TextBlock Text="{l:Words languages.title}"
+            <TextBlock Text="{Binding Title}"
                        FontWeight="Bold"
                        FontSize="16"
                        Margin="2.5px"/>

@@ -640,7 +640,7 @@ value=y
 value-en-GB=only regional
 "), "Main");
 		//the table's own operation: the manager's pane never lets two rows share a code
-		vm.Session.Languages.Rename("en-GB", new LanguageEntry("en", "English"));
+		vm.Session.Languages.Rename(vm.Session.Files[0], "en-GB", new LanguageEntry("en", "English"));
 		vm.Tree.FollowLanguage();
 		vm.Tree.RefreshBadges();
 		vm.MarkDirty();

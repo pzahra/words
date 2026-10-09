@@ -48,9 +48,9 @@ A session holds one or more files. Each file contributes:
   file writes `comment-xx` only where one was given, by the file or the
   manager, never a copy of the endonym. The labels are each file's own
   (`WordsFile.Labels`): a library beside its host keeps its `!`, and one
-  file's exonym is never written into another. A manager's relabel reaches
-  every file with what it changed — the `!`, the endonym, the exonym — and
-  leaves the rest of each file's label alone. Lists name a language by its exonym,
+  file's exonym is never written into another. A manager edits one file's
+  table (Languages), so a host's relabel never strips a library's `!`, nor
+  does a library's put the host's language out of sight. Lists name a language by its exonym,
   or by its endonym without one. An import names languages by their culture,
   with the English names only where the default is English or undeclared.
 - The **default's language**, from a keyless `value=!xx` leading that table
@@ -78,7 +78,9 @@ A session holds one or more files. Each file contributes:
 A **library file** declares its languages the `!Label` way — present but
 unlisted. Opened alongside a main file in the host app, its extra languages
 stay off the app's menu; opened solo in the editor, its `!` labels populate
-the editor's language list so the file is workable on its own. Every file
+the editor's language list so the file is workable on its own. Beside its
+host, the editor's list names a language as a file lists it where one does,
+so the host's languages show however a library hides them. Every file
 keeps its own node in the tree, which is also how the split is visualized
 when several files are open.
 
@@ -137,7 +139,11 @@ One tree presents every loaded file:
   table (the one comment written outside the tree walk); the trailer is just
   a comment standing at the file's end.
 - **Badges** on nodes: file (a library file shows a bookshelf: its `!`
-  languages are intentional), the file's load gripes as a count that opens
+  languages are intentional; and an orange book beside it when a host lists
+  a language the library has no words for — neither its code, nor one it
+  falls back to, nor its default's language — a tooltip naming each with the
+  hosts that list it, since an app offering it reads the library's default;
+  declaring it, `!` and all, clears the flag), the file's load gripes as a count that opens
   the list, constant, needs-review, stale (in the selected language),
   overwritten-by-later-file; keys whose default or selected-language value is
   empty render emphasized. The selected-language half applies only
@@ -316,22 +322,35 @@ from a **project settings file** instead of the pre-loaded set:
 
 ## Languages
 
-A language manager adds, removes, relabels and reorders languages, on a
-working copy: the list shows each language's code with a trash beside it and
-a + under it, the pane edits the highlighted row's code and names live —
-checked against the rules and the other rows, a field flagged once it has
-been typed in (a session's row from the start), OK greyed while any row is
-wrong — and drag reorders. Nothing reaches the session until OK; Cancel or
-Escape forgets it all. On OK the copy is applied: a removal (confirmed at the
-trash) deletes the language's entries from every key, and its settings
-reference (`param-xx`) from every file; an addition backfills an empty entry
-on every key; a relabelling may re-code a language, which shifts its entries
-and carries each file's label and settings reference along, a swap's through
-its throwaway code too; the order follows the rows; every file's table
-follows. A new row that takes a removed language's code replaces it: the old
-language parks on a throwaway code, the new one comes in, and the old one
-goes, words and all — so even the only language can be replaced. Whatever the
-table refuses is told after OK, never skipped in silence.
+A language manager adds, removes, relabels and reorders one file's
+languages: the file the selection sits in, or the only one loaded, named in
+its title ("Languages of strings"); with several loaded and nothing selected
+there is no file to name, and the command is greyed. Every change is that
+file's alone. A library declares what its hosts need of it and no more, and
+its `!` is its own, so a host's relabel never strips it, a library's never
+hides the host's language, and an addition to one file never lists a
+language in another. The session's list is the union of the files' tables,
+in the files' order, a language named as a file lists it where one does,
+and it follows each change. The manager works on a working copy: the list
+shows each of the file's languages by code, labelled as the file labels it,
+`!` and all, with a trash beside it and a + under it; the pane edits the
+highlighted row's code and names live — checked against the rules and the
+other rows, a field flagged once it has been typed in (the file's row from
+the start), OK greyed while any row is wrong — and drag reorders. Nothing
+reaches the file until OK; Cancel or Escape forgets it all. On OK the copy is
+applied to the file: a removal (confirmed at the trash) deletes the
+language's entries from the file's keys, and its settings reference
+(`param-xx`) from the file, the session keeping the language while another
+file declares it or a key has words in it; an addition joins the file's
+table and, where the session did not know the language, gives every key an
+empty entry in it; a relabelling may re-code a language, which shifts the file's keys' entries and
+carries the file's label and settings reference along, a swap's through its
+throwaway code too, while another file declaring the old code keeps it; the
+order follows the rows. A new row that takes a removed language's code
+replaces it: the old language parks on a throwaway code, the new one comes
+in, and the old one goes, words and all — so even the only language can be
+replaced. Whatever the table refuses is told after OK, never skipped in
+silence.
 One row may be the default's language: a tick in the pane sets it and moves
 it from the row that had it, a mark beside the code shows it in the list, and
 the field for the names written in the default's language is headed by it
@@ -339,19 +358,37 @@ the field for the names written in the default's language is headed by it
 field may stay blank (the file then writes no `comment-xx`); the code and the
 endonym may not. A code is checked by the runtime's grammar (its *Language
 codes*): `ceb`, `es-419` and `zh-Hans-CN` all pass. It is saved cased by kind,
-so `en-us` beside `en-US` is a code taken twice. On OK
-every file that declares a default's language declares the ticked one, files
-that disagreed included (a file that declared none gains it only when the
-choice changed), a recode carries it along and a removal takes it.
-The table's `Rename` can also absorb a language into one that already holds
-the code (where both hold a value the target's is kept, the source value is
+so `en-us` beside `en-US` is a code taken twice. The tick starts on the
+language the file declares its default in, and on OK the file declares the
+ticked one when the tick moved, nothing when it did not — a file that
+declared none gains one only then, and other files keep theirs; a recode
+carries it along and a removal takes it.
+The table's `Rename` can also absorb a language into one the file already
+declares (where both hold a value the target's is kept, the source value is
 parked in the entry's `context-xx` field where the translator can copy/paste
 from it, and the entry is stale-marked so the review filter surfaces the
-collision); the manager never asks for that, since no two rows may share a
-code — two rows swapping codes go through a throwaway code instead. The
-manager's highlighted row is its own while it is open and becomes the tree's
-language on OK, so browsing the list does not re-contextualize the window
-behind it.
+collision; the target keeps its label and reference); the manager never asks
+for that, since no two rows may share a code — two rows swapping codes go
+through a throwaway code instead. The manager's highlighted row is its own
+while it is open and becomes the tree's language on OK, so browsing the list
+does not re-contextualize the window behind it.
+A host may list a language its library has no words for: neither its code,
+nor one the code falls back to, nor its default's language. An app offering
+it reads the library's default there, which may be what was meant, so the
+library is flagged rather than refused (Badges), and declaring the language
+in the library, `!` and all, clears it.
+
+**Tests.** Headless, a host and its library loaded together: the manager
+edits the selection's file; a host's relabel leaves the library's `!`, a
+library's relabel leaves the host's language listed, in the host's file and
+in the session's list, and the host's addition lists nothing in the library;
+the default's language is declared only when the tick moved, and another
+file's stays. A host's addition flags the library, the tooltip naming the
+language and the host, until the library declares it hidden, and an undo
+raises the flag again. The table's own operations — add, remove, relabel,
+recode, reorder — round-trip file by file and leave every other file's
+table as it was; a library's fallback or its default's language covers what
+a host lists, and a host's hidden language asks nothing of it.
 
 ## Merge
 
@@ -754,16 +791,16 @@ whatever was waiting to be redone.
   and after, made only when they differ. The tables themselves are written
   to their own files when the dialog closes, and stay outside undo.
 - **Languages.** A Language Manager commit is one `LanguagesEdit`: the
-  manager makes its table operations through it (`ChangeLanguages`, on the
-  main view model), each keeping its inverse, undone in reverse order — an
-  addition by removing the language, a relabel by restoring the entry it
-  replaced, a reorder by moving it back, a removal by putting the entries it
-  dropped back on each key and the language back in its place, a recode
-  onto a free code by recoding back, exact since the entries moved whole, a
-  change of the default's language by giving each file the one it had —
-  and then every file's table — its codes, labels, settings references and
-  default's language — is put back whole. A recode onto a code already in the table merges two languages'
-  entries and has no tidy inverse; the manager never asks for one (no two
+  manager makes its table operations on its file through it
+  (`ChangeLanguages`, on the main view model), which keeps what they can
+  change as it stood before the commit and after it, and puts it back whole
+  either way, never by replaying inverses, which can write a key's fields
+  back in another order: every file's table — its codes,
+  labels, settings references and default's language — the session's list,
+  its order and names, and each key's entries, in the order the key writes
+  its fields, copies for each code the commit touched. A recode onto a code
+  the file already declares merges two languages' entries and has no tidy
+  inverse; the manager never asks for one (no two
   rows share a code), but a commit that makes one clears the stack instead
   — the last resort for any document-wide action that cannot keep a
   reversible state. Undone or redone, a commit checks the panes' form picks

@@ -9,7 +9,7 @@ namespace WordsEdit.ViewModels;
 ///     One language of the manager's working copy (SPEC: Languages): the code
 ///     and the two names, edited live in the pane and checked against the other
 ///     rows, whether the default is written in it, and the trash that drops the
-///     row. <see cref="Origin"/> is the session's entry the row came from; null
+///     row. <see cref="Origin"/> is the file's label the row came from; null
 ///     for one added this sitting.
 ///     <see cref="DataViewModelBase.HasErrors"/> is the whole truth, for OK; the
 ///     red text only covers fields that have been typed in, so a fresh row is
@@ -30,7 +30,7 @@ public sealed class LanguageRow : DataViewModelBase {
 		get => owner.DefaultRow == this;
 		set => owner.DefaultRow = value ? this : IsDefault ? null : owner.DefaultRow;
 	}
-	/// <summary>Whether applying the row would change the session: new, or no longer as its origin reads.</summary>
+	/// <summary>Whether applying the row would change the file: new, or no longer as its origin reads.</summary>
 	public bool IsChanged => Origin is null || NormalCode != Origin.Code || NativeName != Origin.NativeName || EnglishName != Origin.EnglishName;
 	public ICommand RemoveCommand { get; }
 

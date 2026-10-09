@@ -33,10 +33,9 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>
 		///     The file's own labels for the codes it declares, as it wrote them: the
 		///     endonym with its <c>!</c> where the file declares the language unlisted,
-		///     and the exonym only where the file or a manager gave one. A manager's
-		///     relabel reaches every file with what it changed
-		///     (<see cref="LanguageTable.Rename"/>); a code without a label here
-		///     takes the session's.
+		///     and the exonym only where the file or a manager gave one. A relabel is
+		///     the file's alone (<see cref="LanguageTable.Rename"/>); a code without a
+		///     label here takes the session's.
 		/// </summary>
 		public Dictionary<string, LanguageEntry> Labels { get; }
 		/// <summary>
@@ -60,9 +59,10 @@ namespace PatTech.Localization.Authoring {
 		public IReadOnlyList<string> Errors { get; }
 		/// <summary>
 		///     A library file lists nothing: every label it declares is a <c>!Label</c>
-		///     (or it declares none at all).
+		///     (or it declares none at all). Read from the table as it stands, which
+		///     a manager may change.
 		/// </summary>
-		public bool IsLibrary { get; }
+		public bool IsLibrary => Languages.All(code => Labels.TryGetValue(code, out LanguageEntry? label) && label.NativeName.StartsWith('!'));
 		/// <summary>
 		///     Comment runs by the (prefixed) block key they sat above, as loaded —
 		///     <see cref="KeyTree.Build(WordsSession, WordsFile)"/> anchors them. After
@@ -107,7 +107,6 @@ namespace PatTech.Localization.Authoring {
 				}
 			}
 			Errors = errors;
-			IsLibrary = loaded.DeclaredLanguages.All(code => loaded.KnownLanguages[code].NativeName.StartsWith('!'));
 			BlockComments = loaded.BlockComments.ToDictionary(pair => $"{label}.{pair.Key}", pair => pair.Value);
 		}
 

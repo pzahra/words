@@ -358,20 +358,100 @@ value-de=y
 	}
 
 	[Fact]
-	public void LanguageManager_OnOkEveryFileThatDeclaresADefaultsLanguageDeclaresTheTickedOne() {
+	public void LanguageManager_TheDefaultsLanguageIsTheFilesOwn_DeclaredOnlyWhenTheTickMoved() {
 		var (vm, _) = Load();
-		vm.LoadFile(new StringReader("value=!en\nvalue-en=English\n\n[a]\nvalue=1\n"), "One");
+		vm.LoadFile(new StringReader("value=!en\nvalue-de=Deutsch\n\n[a]\nvalue=1\n"), "One");
 		vm.LoadFile(new StringReader("value=!de\nvalue-en=English\nvalue-de=Deutsch\n\n[b]\nvalue=2\n"), "Two");
-		var manager = new LanguageManagerViewModel(vm);
-		Assert.Equal("en", manager.DefaultRow!.Code); //the first file that says
+		WordsFile one = vm.Session.FileOf("One")!, two = vm.Session.FileOf("Two")!;
+		var manager = new LanguageManagerViewModel(vm, two);
+		Assert.Equal("de", manager.DefaultRow!.Code); //its own, not the first file's
+		manager.Rows.Single(row => row.Code == "en").IsDefault = true;
 
 		manager.OkCommand.Execute(null);
 
-		Assert.Equal("en", vm.Session.FileOf("One")!.DefaultLanguage);
-		Assert.Equal("en", vm.Session.FileOf("Two")!.DefaultLanguage);
-		Assert.Null(vm.Session.FileOf("Example")!.DefaultLanguage); //the choice did not move: a file declaring none gains none
+		Assert.Equal("en", two.DefaultLanguage);
+		Assert.Equal("en", one.DefaultLanguage);
+		Assert.Null(vm.Session.FileOf("Example")!.DefaultLanguage);
 		vm.UndoCommand.Execute(null);
-		Assert.Equal("de", vm.Session.FileOf("Two")!.DefaultLanguage);
+		Assert.Equal("de", two.DefaultLanguage);
+
+		//One's default is English, which its table doesn't declare: no row has the tick,
+		//and an OK that never moved it leaves the declaration be
+		manager = new LanguageManagerViewModel(vm, one);
+		Assert.Null(manager.DefaultRow);
+		manager.Rows.Single().NativeName = "Deutsch (DE)";
+		manager.OkCommand.Execute(null);
+		Assert.Equal("en", one.DefaultLanguage);
+	}
+
+	//a library declares what its hosts need of it, unlisted: the manager edits one
+	//file's table, the selection's, so neither file's ! is the other's to change
+	[Fact]
+	public void LanguageManager_EditsTheSelectionsFile_ALibrarysBangAndAHostsListingStayTheirOwn() {
+		var vm = new MainWindowViewModel(new FakeDialogs());
+		vm.LoadFile(new StringReader("value-en=!English\nvalue-de=!Deutsch\n\n[j]\nvalue=y\n"), "Lib");
+		vm.LoadFile(new StringReader("value-en=English\nvalue-de=Deutsch\n\n[k]\nvalue=x\n"), "Host");
+		WordsFile library = vm.Session.FileOf("Lib")!, host = vm.Session.FileOf("Host")!;
+		vm.Tree.SelectedKeyNode = null;
+		Assert.Null(vm.LanguagesFile); //two files and no selection: no table to edit
+		Assert.False(vm.ManageLanguagesCommand.CanExecute(null));
+
+		vm.Tree.Select(Find(vm, "Host.k"));
+		Assert.Same(host, vm.LanguagesFile);
+		var manager = new LanguageManagerViewModel(vm);
+		Assert.Equal(Words.Known.Format("languages.title", "Host"), manager.Title);
+		LanguageRow german = manager.Rows.Single(row => row.Code == "de");
+		Assert.Equal("Deutsch", german.NativeName); //the host's label, though the library loaded first
+		german.NativeName = "Deutsch (DE)";
+		manager.OkCommand.Execute(null);
+		Assert.Equal("Deutsch (DE)", host.Labels["de"].NativeName);
+		Assert.Equal("!Deutsch", library.Labels["de"].NativeName);
+
+		vm.Tree.Select(Find(vm, "Lib.j"));
+		manager = new LanguageManagerViewModel(vm);
+		german = manager.Rows.Single(row => row.Code == "de");
+		Assert.Equal("!Deutsch", german.NativeName); //the library's own, ! and all
+		german.NativeName = "Deutsch";
+		manager.OkCommand.Execute(null);
+		manager = new LanguageManagerViewModel(vm);
+		manager.Rows.Single(row => row.Code == "de").NativeName = "!Deutsch"; //and back
+		manager.OkCommand.Execute(null);
+		Assert.Equal("!Deutsch", library.Labels["de"].NativeName);
+		Assert.Equal("Deutsch (DE)", host.Labels["de"].NativeName); //never hidden along with it
+	}
+
+	//a host offering a language its library has no words for reads the library's
+	//default there: the library's node says so, until it declares the language too
+	[Fact]
+	public void ALibraryLackingWhatAHostLists_IsFlagged_UntilItDeclaresItToo() {
+		var vm = new MainWindowViewModel(new FakeDialogs());
+		vm.LoadFile(new StringReader("value-en=English\n\n[k]\nvalue=x\n"), "Host");
+		vm.LoadFile(new StringReader("value-en=!English\n\n[j]\nvalue=y\n"), "Lib");
+		KeyNode lib = vm.Tree.KeyNodes.Single(node => node.FullLabel == "Lib");
+		Assert.True(lib.IsLibraryFile);
+		Assert.False(lib.HasLacks);
+
+		vm.Tree.Select(Find(vm, "Host.k"));
+		var manager = new LanguageManagerViewModel(vm);
+		manager.AddCommand.Execute(null);
+		manager.Selected!.Code = "fr";
+		manager.Selected.NativeName = "Français";
+		manager.Selected.EnglishName = "French";
+		manager.OkCommand.Execute(null);
+		Assert.DoesNotContain("fr", vm.Session.FileOf("Lib")!.Languages); //the host's addition is the host's
+		Assert.True(lib.HasLacks);
+		Assert.Equal(Words.Known.Format("main.library-lacks", "French (Host)"), lib.LacksLanguages);
+
+		vm.Tree.Select(Find(vm, "Lib.j"));
+		manager = new LanguageManagerViewModel(vm);
+		manager.AddCommand.Execute(null);
+		manager.Selected!.Code = "fr";
+		manager.Selected.NativeName = "!Français";
+		manager.OkCommand.Execute(null);
+		Assert.False(lib.HasLacks);
+		Assert.True(lib.IsLibraryFile);
+		vm.UndoCommand.Execute(null);
+		Assert.True(lib.HasLacks);
 	}
 
 	[Fact]
@@ -675,7 +755,7 @@ value-de=y
 		var (vm, _) = Load();
 		Assert.Equal("en", vm.Tree.SelectedLanguage.Code);
 		var manager = new LanguageManagerViewModel(vm);
-		Assert.Same(vm.Tree.SelectedLanguage, manager.Selected!.Origin); //starts where the tree is
+		Assert.Equal(vm.Tree.SelectedLanguage.Code, manager.Selected!.Code); //starts where the tree is
 
 		manager.Selected = manager.Rows.Single(row => row.Code == "de");
 		Assert.Equal("en", vm.Tree.SelectedLanguage.Code); //browsing the list moves the tree nothing

@@ -310,18 +310,45 @@ public sealed class FileSettingsEdit(string file, FileSettingsEdit.Slots before,
 }
 
 /// <summary>
-///     A Language Manager commit: the table operations, made through here so
-///     each keeps its inverse, undone in reverse order; every file's table, and
-///     the language its default is written in, is put back whole. A recode onto
-///     a code the table holds merges two languages and has no inverse:
+///     A Language Manager commit: the table operations on one file, made through
+///     here so the commit is put back whole either way: every file's table, with
+///     the language its default is written in, the session's language list, and
+///     every key's entries in each code the commit touched, as they stood before
+///     or after it. A recode onto a code the file declares merges two languages:
 ///     <see cref="Merged"/> says the commit made one, and the commit is a
 ///     boundary instead. It shows nowhere in the tree.
 /// </summary>
 public sealed class LanguagesEdit : UndoEntry {
 	private readonly WordsSession session;
-	private readonly List<(Action Undo, Action Redo)> steps = [];
 	private readonly Dictionary<WordsFile, FileTable> tablesBefore;
 	private Dictionary<WordsFile, FileTable> tablesAfter = [];
+	private readonly KnownList knownBefore;
+	private KnownList? knownAfter;
+	//every key's languages in its order, which its fields are written in, and each
+	//touched code's entries, block key to entry, as they stood before the commit
+	//first touched it, and after the commit
+	private readonly Dictionary<string, string[]> ordersBefore;
+	private Dictionary<string, string[]> ordersAfter = [];
+	private readonly Dictionary<string, Dictionary<string, WordsEntry>> entriesBefore = [];
+	private Dictionary<string, Dictionary<string, WordsEntry>> entriesAfter = [];
+
+	//the session's list as it stands: its entries in order, each with its names
+	private sealed record KnownList((LanguageEntry Entry, string NativeName, string EnglishName)[] Languages) {
+		public static KnownList Of(LanguageTable table) => new([.. table.Known.Select(known => (known, known.NativeName, known.EnglishName))]);
+
+		public void PutBack(LanguageTable table) {
+			if (!table.Known.SequenceEqual(Languages.Select(language => language.Entry))) {
+				table.Known.Clear();
+				foreach (var (entry, _, _) in Languages) {
+					table.Known.Add(entry);
+				}
+			}
+			foreach (var (entry, nativeName, englishName) in Languages) {
+				entry.NativeName = nativeName;
+				entry.EnglishName = englishName;
+			}
+		}
+	}
 
 	//what a file's table is: its codes, its labels, its settings references and its
 	//default's language, copied so later edits leave the copy alone
@@ -350,113 +377,94 @@ public sealed class LanguagesEdit : UndoEntry {
 	public LanguagesEdit(WordsSession session) {
 		this.session = session;
 		tablesBefore = Tables();
+		knownBefore = KnownList.Of(Table);
+		ordersBefore = Orders();
 	}
 
 	private LanguageTable Table => session.Languages;
 	/// <summary>The commit changed the table.</summary>
-	public bool Changed => steps.Count > 0;
+	public bool Changed { get; private set; }
 	/// <summary>A recode merged two languages' entries.</summary>
 	public bool Merged { get; private set; }
 
 	/// <inheritdoc cref="LanguageTable.Add"/>
-	public bool Add(LanguageEntry language) {
-		if (!Table.Add(language)) {
-			return false;
-		}
-		steps.Add((() => Table.Remove(language.Code), () => Table.Add(language)));
-		return true;
+	public bool Add(WordsFile file, LanguageEntry language) {
+		Keep(language.Code);
+		return Note(Table.Add(file, language));
 	}
 
 	/// <inheritdoc cref="LanguageTable.Remove"/>
-	public bool Remove(string code) {
-		if (Table.Find(code) is not { } known) {
-			return false;
-		}
-		int at = Table.Known.IndexOf(known);
-		List<(string Label, WordsEntry Entry)> dropped = [.. session.Keys.Values
-			.Where(key => key.Entries.ContainsKey(code))
-			.Select(key => (key.BlockKey, key.Entries[code]))];
-		if (!Table.Remove(code)) {
-			return false;
-		}
-		steps.Add((() => {
-			Table.Known.Insert(at, known);
-			foreach (var (label, entry) in dropped) {
-				if (session.Keys.TryGetValue(label, out WordsKey? key)) {
-					key.Entries[code] = new WordsEntry(entry);
-				}
-			}
-		}, () => Table.Remove(code)));
-		return true;
+	public bool Remove(WordsFile file, string code) {
+		Keep(code);
+		return Note(Table.Remove(file, code));
 	}
 
 	/// <inheritdoc cref="LanguageTable.Rename"/>
-	public LanguageEntry Rename(string code, LanguageEntry replacement) {
-		LanguageEntry edited = Table.Find(code) ?? throw new ArgumentException($"no language '{code}'", nameof(code));
-		Merged |= replacement.Code != code && Table.Find(replacement.Code) is not null;
-		LanguageEntry standing = Table.Rename(code, replacement);
-		//a recode onto a free code moves each entry whole, so recoding back is exact
-		steps.Add((() => Table.Rename(replacement.Code, edited), () => Table.Rename(code, replacement)));
-		return standing;
+	public LanguageEntry Rename(WordsFile file, string code, LanguageEntry replacement) {
+		Keep(code);
+		Keep(replacement.Code);
+		Merged |= replacement.Code != code && file.Languages.Contains(replacement.Code);
+		Note(true);
+		return Table.Rename(file, code, replacement);
 	}
 
 	/// <inheritdoc cref="LanguageTable.Reorder"/>
-	public void Reorder(int from, int to) {
-		if (from == to) {
-			return;
+	public void Reorder(WordsFile file, int from, int to) {
+		if (from != to) {
+			Table.Reorder(file, from, to);
+			Note(true);
 		}
-		Table.Reorder(from, to);
-		steps.Add((() => Table.Reorder(to, from), () => Table.Reorder(from, to)));
 	}
 
-	/// <summary>
-	///     Declares the language the default is written in (SPEC: Languages): every
-	///     file that declares one declares <paramref name="code"/>, and a file that
-	///     declares none gains it only when the session's choice
-	///     (<see cref="LanguageTable.DefaultLanguage"/>) moved. Nothing happens when
-	///     the files already say so.
-	/// </summary>
-	public void Declare(string? code) {
-		bool moved = Table.DefaultLanguage != code;
-		Dictionary<WordsFile, string?> each = session.Files
-			.Where(file => moved || file.DefaultLanguage is not null)
-			.ToDictionary(file => file, file => file.DefaultLanguage);
-		if (each.Values.All(declared => declared == code)) {
-			return;
+	/// <summary>Declares the language <paramref name="file"/>'s default is written in (SPEC: Languages); nothing happens when the file says so already.</summary>
+	public void Declare(WordsFile file, string? code) {
+		if (file.DefaultLanguage != code) {
+			file.DefaultLanguage = code;
+			Note(true);
 		}
-		void DeclareEach() {
-			foreach (WordsFile file in each.Keys) {
-				file.DefaultLanguage = code;
-			}
-		}
-		DeclareEach();
-		steps.Add((() => {
-			foreach (var (file, declared) in each) {
-				file.DefaultLanguage = declared;
-			}
-		}, DeclareEach));
 	}
 
-	/// <summary>The commit is done: every file's table as it now stands is what a redo puts back.</summary>
-	internal void Close() => tablesAfter = Tables();
+	private bool Note(bool changed) => Changed |= changed;
+
+	//a code's entries as they stand, the first time the commit touches it
+	private void Keep(string code) => entriesBefore.TryAdd(code, Entries(code));
+
+	private Dictionary<string, WordsEntry> Entries(string code) => session.Keys.Values
+		.Where(key => key.Entries.ContainsKey(code))
+		.ToDictionary(key => key.BlockKey, key => new WordsEntry(key.Entries[code]));
+
+	private Dictionary<string, string[]> Orders() => session.Keys.Values.ToDictionary(key => key.BlockKey, key => key.Entries.Keys.ToArray());
+
+	/// <summary>The commit is done: every file's table, the session's list and the touched entries as they now stand are what a redo puts back.</summary>
+	internal void Close() {
+		tablesAfter = Tables();
+		knownAfter = KnownList.Of(Table);
+		ordersAfter = Orders();
+		entriesAfter = entriesBefore.Keys.ToDictionary(code => code, Entries);
+	}
 
 	private Dictionary<WordsFile, FileTable> Tables() => session.Files.ToDictionary(file => file, FileTable.Of);
 
 	public override NodeRef? Site(bool undoing) => null;
 
 	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) {
-		if (undoing) {
-			for (int i = steps.Count - 1; i >= 0; i--) {
-				steps[i].Undo();
-			}
-		}
-		else {
-			foreach (var (_, redo) in steps) {
-				redo();
-			}
-		}
 		foreach (var (file, table) in undoing ? tablesBefore : tablesAfter) {
 			table.PutBack(file);
+		}
+		(undoing ? knownBefore : knownAfter!).PutBack(Table);
+		//each key's entries rebuilt in its order then: a touched code's from the copy,
+		//any other the one it holds, which the commit left alone
+		var (orders, kept) = undoing ? (ordersBefore, entriesBefore) : (ordersAfter, entriesAfter);
+		foreach (WordsKey key in session.Keys.Values) {
+			if (!orders.TryGetValue(key.BlockKey, out string[]? codes)) {
+				continue;
+			}
+			List<(string Code, WordsEntry Entry)> entries = [.. codes.Select(code =>
+				(code, kept.TryGetValue(code, out var copies) && copies.TryGetValue(key.BlockKey, out WordsEntry? copy) ? new WordsEntry(copy) : key.Entries[code]))];
+			key.Entries.Clear();
+			foreach (var (code, entry) in entries) {
+				key.Entries[code] = entry;
+			}
 		}
 		return null;
 	}

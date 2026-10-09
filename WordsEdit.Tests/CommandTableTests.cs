@@ -234,7 +234,7 @@ public class CommandTableTests {
 				language.Selected = null;
 			}
 		};
-		vm.Session.Languages.Add(new LanguageEntry("fr", "Français"));
+		vm.Session.Languages.Add(vm.Session.Files[0], new LanguageEntry("fr", "Français"));
 		vm.Tree.RefreshBadges(); //every path that changes the table passes here: the rows turn over once
 		Assert.Equal(1, pushes);
 		Assert.Equal(["English", "German", "Français"], language.Options.Select(option => option.Label));

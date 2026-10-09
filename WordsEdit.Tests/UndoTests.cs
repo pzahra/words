@@ -561,7 +561,7 @@ public class UndoTests {
 		Assert.Equal(1, vm.UndoStack.DoneCount);
 
 		vm.IsDirty = false;
-		vm.ChangeLanguages(edit => edit.Rename("en-GB", new LanguageEntry("en", "English")));
+		vm.ChangeLanguages(edit => edit.Rename(vm.Session.Files[0], "en-GB", new LanguageEntry("en", "English")));
 		Assert.Equal(0, vm.UndoStack.DoneCount);
 		Assert.True(vm.IsDirty);
 		Assert.DoesNotContain(vm.Tree.KnownLanguages, language => language.Code == "en-GB");
