@@ -12,6 +12,7 @@
         <CheckBox Content="{l:Words diagnostics.fallbacks.toggle}" IsChecked="{Binding ShowFallbacks}"/>
         <TextBlock TextWrapping="Wrap" Margin="0,6,0,0" Text="{l:Words diagnostics.fallbacks.translated}"/>
         <TextBlock TextWrapping="Wrap" Text="{l:Words diagnostics.fallbacks.untranslated}"/>
+        <TextBlock TextWrapping="Wrap"><l:WordsInline Key="diagnostics.fallbacks.counted"><Binding Path="CardLines"/></l:WordsInline></TextBlock>
       </StackPanel>
     </c:DemoCard>
     <!-- /card -->

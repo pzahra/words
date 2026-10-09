@@ -78,6 +78,7 @@ public class PluralFormsTests {
 		"value={{{{0#word}}\n";
 
 	private static readonly string DefaultBrand = char.ConvertFromUtf32(0x1F4DA); // 📚
+	private static readonly string StandInMark = char.ConvertFromUtf32(0x1F3B2);  // 🎲
 
 	private static IWords In(string language, bool debug = false)
 		=> WordsBuilder.Create().Load(new StringReader(Ini)).Debug(debug).ToWords(language);
@@ -238,7 +239,7 @@ public class PluralFormsTests {
 	public void ATranslationNeverBorrowsTheDefaultsForms_ItsOwnPlainValueStandsIn() {
 		var ru = In("ru", debug: true);
 
-		Assert.Equal("вещь", ru["thing", 5]); //not the default's "things", branded
+		Assert.Equal(StandInMark + "вещь", ru["thing", 5]); //not the default's "things": its own plain value stands in
 		Assert.Equal("вещь", ru["thing", 1]);
 		Assert.False(WordsBuilder.Create().LoadString(Ini).Flatten("ru").ContainsKey("thing#other"));
 	}
@@ -247,6 +248,38 @@ public class PluralFormsTests {
 	public void AKeyWithNoWordsInTheLanguage_TakesTheDefaultsForms_Branded() {
 		Assert.Equal(DefaultBrand + "items", In("ru", debug: true)["relative.n", 5]);
 		Assert.Equal(DefaultBrand + "item", In("ru", debug: true)["relative.n", 1]);
+	}
+
+	// a count whose category has no form reads another's text: Debug marks it, so a
+	// translator sees Russian's few is missing where its other stands in
+	[Fact]
+	public void Debug_MarksACountWhoseCategoryHasNoForm() {
+		var ru = In("ru", debug: true);
+
+		Assert.Equal(StandInMark + "коробки", ru["box", 2]); //no few: its other, marked
+		Assert.Equal(StandInMark + "коробки", ru["box", 5]); //nor many
+		Assert.Equal("коробка", ru["box", 1]); //the plain value is the one form
+		Assert.Equal("слов", ru["word", 5]); //every form its own
+		Assert.Equal("соло", ru["solo", 5]); //forms in no language: no plural key
+		Assert.Equal("mots", In("fr", debug: true)["word", 1_000_000]); //an optional category reads other by design
+		Assert.Equal("単語", In("ja", debug: true)["word", 2]); //one category: the plain value alone
+		Assert.Equal(DefaultBrand + "boxes", In("fr", debug: true)["box", 2]); //borrowed whole from the default: 📚 alone
+		Assert.Equal("коробки", In("ru")["box", 2]);
+		Assert.False(WordsBuilder.Create().LoadString(Ini).Flatten("ru").ContainsKey("box#few"));
+	}
+
+	[Fact]
+	public void Debug_MarksAStandIn_WhereTheDefaultSpeaks_AndThroughAnOptionalCategory() {
+		const string Cat = "value-en=English\nvalue-ru=Русский\nvalue-mt=Malti\n\n[cat]\nvalue=cat\nvalue-ru=кошка\nvalue-ru#few=кошки\nvalue-mt=qattus\nvalue-mt#other=qtates\n";
+		var english = WordsBuilder.Create().LoadString("value=!en\n" + Cat).Debug();
+		var undeclared = WordsBuilder.Create().LoadString(Cat).Debug();
+		var maltese = english.ToWords("mt");
+
+		Assert.Equal(StandInMark + "cat", english.ToWords("en")["cat", 2]); //the default speaks English and has no other
+		Assert.Equal(DefaultBrand + "cat", undeclared.ToWords("en")["cat", 2]);
+		Assert.Equal(StandInMark + "qtates", maltese["cat", 3]); //few, missing: other stands in
+		Assert.Equal(StandInMark + "qtates", maltese["cat", 2]); //two reads few, which is missing
+		Assert.Equal("qtates", maltese["cat", 11]); //many reads other by design
 	}
 
 	[Fact]

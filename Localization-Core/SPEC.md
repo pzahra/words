@@ -317,7 +317,8 @@ language manager and Wordsmith's startup.
 **Falling back.** A code falls back by truncation, one subtag at a time:
 `zh-Hant-TW` reads `zh-Hant`, then `zh`, then the default (`LanguageCode.Chain`).
 `Flatten` takes each key from the first of those with a value; under `Debug` a
-shorter code's words are branded 🕮 and the default's 📚. The plural rules look
+shorter code's words are branded 🕮 and the default's 📚, the first found
+included where the language has no words of its own. The plural rules look
 a code up the same chain. A region falls back past its script, never across to a
 sibling, so Traditional never reads Simplified. 1.4.0's family fallback, `en-GB`
 to `en`, is the two-subtag case of this.
@@ -472,7 +473,8 @@ writes only that. Comment, context and stale stay one per key. To the runtime a
 form is an entry beside its key's value, keyed `word#other`, so it digests per
 language as a value does, with one difference: a key's forms come whole from
 one level (*Which form a count reads*). `Debug` brands a form that fell back
-as it brands a value. The mark is the forms' alone: a block
+as it brands a value, and marks 🎲 a count whose category has no form, on the
+text it reads instead (*Which form a count reads*). The mark is the forms' alone: a block
 whose name holds a `#` is no key (*Key names*), skipped with `WP:NAME`, and a form that is none is warned about
 (`WP:FORM`) — one on a label, `#one` (the plain value is that form), or a
 category CLDR does not have — which is left out.
@@ -527,6 +529,20 @@ call, 2026-10-07). A language with one category, such as Japanese, speaks only i
 value, its own or the one it falls back to. `Words.FormKey(provider, language,
 key, form)` names the entry a count in a form reads, for a tool that shows it:
 the editor's hints and previews.
+
+Under `Debug`, a count that reads another category's text is marked 🎲, so a
+translator sees that Russian's `few` is missing where its `other` stands in:
+"🎲коробки". The mark goes on each key with forms in any language, a plain
+`[solo]` counted being no plural key, and on the text the count reads, the
+`other` form or the plain value, ahead of any brand that text carries
+("🎲🕮…"). The plain value is the `one` form, so a count of 1 is never marked;
+an optional category reading its stand-in is no miss (below), though a
+stand-in category that is missing reads marked, as it does counted itself
+(Maltese `two` reads `few`'s mark); a language with one category speaks its plain value
+alone; and a key borrowed whole from a default that does not speak the
+language is marked 📚 alone, since every form of it is missing. `Flatten` adds
+each marked text as the category's own entry, so the count indexer, the
+selector and `FormKey` find it without knowing `Debug` is on.
 
 **Optional categories.** Some categories usually read like another, so a
 translation may leave them out. `PluralRules.Optional(language)` names them,
@@ -639,7 +655,12 @@ Japanese, formats a counted key at 1, 2, 5, 11, 21, 22, 25 and 101 under English
 and Russian, and reads the expected forms. A category without a form falls to
 `other`, then to the plain value; a translation's own words keep the default's
 forms out, as a shorter code's keep them out of a longer one, and a key with no words
-in the language takes the default's, branded; a missing optional form reads
+in the language takes the default's, branded; under `Debug` a count reading
+another category's text is marked 🎲, Maltese `two` through its missing `few`
+too, but not at 1, nor an optional category whose stand-in is there, nor a
+one-category language, nor a key borrowed whole from a default that does not
+speak the language, while a default that speaks it is marked like a
+translation; a missing optional form reads
 the one it stands for, and a written one reads as any; Japanese reads only its
 plain value; a named selector picks the same
 form as a numbered one; a key selecting its own forms renders the circular mark;

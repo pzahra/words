@@ -141,7 +141,11 @@ namespace PatTech.Localization {
 		/// stand out: 🕮 for a shorter code's (<c>en</c> for <c>en-GB</c>), 📚 for the
 		/// default's. Constants (<c>$</c> keys) are language-less and never branded, and neither is the default
 		/// where it speaks the language (<see cref="DefaultLanguage"/>,
-		/// <see cref="WordsParser.DefaultSpeaks"/>). A debugging aid, off by
+		/// <see cref="WordsParser.DefaultSpeaks"/>). A count whose category has no form
+		/// reads the <c>other</c> form or the plain value marked 🎲, for a key with forms in
+		/// any language; an optional category reading its stand-in is no miss
+		/// (<see cref="PluralRules.Optional"/>), and a key borrowed whole from a default
+		/// that does not speak the language is marked 📚 alone. A debugging aid, off by
 		/// default; it applies to every dictionary this builder then produces, so chain
 		/// it before <see cref="Digest(string)"/> or leave it out.
 		/// </summary>
@@ -210,36 +214,36 @@ namespace PatTech.Localization {
 			//where the default speaks the language, falling back to it misses nothing
 			bool brandDefault = _showFallback && !WordsParser.DefaultSpeaks(DefaultLanguage, code.ToString());
 
-			//the first level found is the language's own; each one after it fell back
+			//the chain's first level is the language's own; each one after it fell back,
+			//the first found included when the language has none of its own
 			Dictionary<string, string>? words = null;
-#pragma warning disable IDE0028 // Simplify collection initialization (with unsupported syntax!)
+			bool own = true;
 			foreach (var level in code.Chain) {
 				if (_builder.Languages.GetValueOrDefault(level.ToString()) is { } source) {
-					if (words is null) {
-						words = new(source);
-					}
-					else {
-						patch(words, source, "🕮", _showFallback);
-					}
+					patch(words ??= [], source, "🕮", _showFallback && !own);
 				}
+				own = false;
 			}
+			//the keys a language level has words for, before the default fills in the rest
+			HashSet<string> translated = words is null ? [] : [.. words.Keys.Select(BaseKey)];
 			if (fallback != null) {
-				if (words is null) {
-					words = new(fallback);
-				}
-				else {
-					patch(words, fallback, "📚", brandDefault);
-				}
+				patch(words ??= [], fallback, "📚", brandDefault);
 			}
-#pragma warning restore IDE0028 // Simplify collection initialization
-			return words is null ? WordsProvider.Empty() : new ReadOnlyWordsProvider(words);
+			if (words is null) {
+				return WordsProvider.Empty();
+			}
+			if (_showFallback) {
+				//a key borrowed whole from a default that does not speak the language is branded 📚 already
+				markStandIns(words, code.ToString(), PluralKeys(), key => !brandDefault || translated.Contains(key));
+			}
+			return new ReadOnlyWordsProvider(words);
 
 			static void patch(IDictionary<string, string> target, DictionaryWordsProvider source, string fallbackPrefix, bool showFallbackPrefix) {
 				//a key's forms come from the first level with any of its words (SPEC: Plural
 				//forms): beside a translation's own words, no form flattens in
-				var owned = new HashSet<string>(target.Keys.Select(key => key.IndexOf('#') is > 0 and var mark ? key[..mark] : key));
+				var owned = new HashSet<string>(target.Keys.Select(BaseKey));
 				foreach (var (key, value) in source) {
-					if (target.ContainsKey(key) || key.IndexOf('#') is > 0 and var mark && owned.Contains(key[..mark])) {
+					if (target.ContainsKey(key) || (BaseKey(key) is var owner && owner != key && owned.Contains(owner))) {
 						continue;
 					}
 					//a constant is language-less, so it never fell back from anything; branded,
@@ -252,7 +256,37 @@ namespace PatTech.Localization {
 					}
 				}
 			}
+
+			//a count whose category has no form reads another's text (Words.FormKey);
+			//under Debug that text stands as the category's own entry, marked 🎲, for each
+			//key with forms in any language. The plain value is the one form, an optional
+			//category reads its stand-in by design, and a language with one category
+			//speaks its plain value alone, so none of those is marked
+			static void markStandIns(Dictionary<string, string> words, string language, HashSet<string> pluralKeys, Func<string, bool> marked) {
+				IReadOnlyList<string> categories = PluralRules.Categories(language);
+				if (categories.Count <= 1) {
+					return;
+				}
+				IReadOnlyDictionary<string, string> optional = PluralRules.Optional(language);
+				foreach (string key in pluralKeys) {
+					if (!marked(key) || (words.GetValueOrDefault($"{key}#other") ?? words.GetValueOrDefault(key)) is not { } standIn) {
+						continue;
+					}
+					foreach (string category in categories) {
+						if (category != "one" && !optional.ContainsKey(category)) {
+							words.TryAdd($"{key}#{category}", "🎲" + standIn);
+						}
+					}
+				}
+			}
 		}
+
+		//the key an entry belongs to: a form's (word#other is word's), or the entry itself
+		private static string BaseKey(string entry) => entry.IndexOf('#') is > 0 and var mark ? entry[..mark] : entry;
+
+		//every key with a form in any loaded language, the default's included
+		private HashSet<string> PluralKeys()
+			=> [.. _builder.Languages.Values.SelectMany(words => words.Keys).Where(entry => entry.IndexOf('#') > 0 && !entry.StartsWith('$')).Select(BaseKey)];
 
 		/// <inheritdoc cref="ToWords(string, out IEnumerable{KeyValuePair{string, string}})"/>
 		public IWords ToWords(string languageCode) {

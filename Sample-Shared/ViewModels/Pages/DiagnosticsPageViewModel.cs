@@ -11,6 +11,9 @@ public class DiagnosticsPageViewModel(SampleConfig config, GripeLog gripes, Acti
 	/// <summary>What <see cref="Words.Logger"/> heard, newest first.</summary>
 	public ObservableCollection<string> Gripes => gripes.Entries;
 
+	/// <summary>The card's lines, counted: a count Italian has no form for, so Debug marks it 🎲.</summary>
+	public int CardLines => 3;
+
 	private bool showFallbacks;
 	/// <summary>
 	///     The builder's Debug: on, every value that fell back from the language showing

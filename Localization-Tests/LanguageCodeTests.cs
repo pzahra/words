@@ -164,10 +164,11 @@ public class LanguageCodeTests {
 		var builder = WordsBuilder.Create().LoadString(Chinese).Debug();
 
 		//1.5.0's first cut read zh-TW straight to zh: a Windows Traditional Chinese user lost 繁體
-		Assert.Equal("繁體", builder.Flatten("zh-TW")["script"]); //the first level found is the language's own
-		Assert.Equal("繁體", builder.Flatten("zh-HK")["script"]);
-		Assert.Equal("简体", builder.Flatten("zh-CN")["script"]);
-		Assert.Equal("简体", builder.Flatten("zh-Hans-HK")["script"]);
+		Assert.Equal("🕮繁體", builder.Flatten("zh-TW")["script"]); //zh-Hant's words, a shorter code's
+		Assert.Equal("🕮繁體", builder.Flatten("zh-HK")["script"]);
+		Assert.Equal("🕮简体", builder.Flatten("zh-CN")["script"]);
+		Assert.Equal("🕮简体", builder.Flatten("zh-Hans-HK")["script"]);
+		Assert.Equal("繁體", WordsBuilder.Create().LoadString(Chinese).Flatten("zh-TW")["script"]);
 		Assert.Equal("🕮中", builder.Flatten("zh-TW")["family"]);
 	}
 

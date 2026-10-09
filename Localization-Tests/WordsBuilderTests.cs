@@ -149,6 +149,16 @@ public class WordsBuilderTests {
 		Assert.Equal(DefaultBrand + "default", wb.ToWords("de")["k"]);
 	}
 
+	// a language with no words of its own: the first level found fell back too
+	[Fact]
+	public void Debug_BrandsTheFirstLevelFound_WhenTheLanguageHasNoneOfItsOwn() {
+		var wb = WordsBuilder.Create().Load(new StringReader(Ini)).Debug();
+
+		Assert.Equal(FamilyBrand + "English value", wb.Flatten("en-AU")["k"]);
+		Assert.Equal(DefaultBrand + "default", wb.Flatten("fr")["k"]);
+		Assert.Equal("default", wb.Debug(false).Flatten("fr")["k"]);
+	}
+
 	[Fact]
 	public void Debug_LeavesConstantsUnbranded() {
 		// a constant is language-less by design, so it has nothing to fall back from;
