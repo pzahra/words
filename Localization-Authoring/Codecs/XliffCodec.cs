@@ -16,9 +16,10 @@ namespace PatTech.Localization.Authoring.Codecs {
 	///     extension elements. Only the freeform comments, the settings references
 	///     and the plural forms have nowhere to go: a form is no unit of its own to
 	///     a translation tool. XLIFF 2.0 is another shape, refused with a gripe. On
-	///     the way in a unit's key is its <c>resname</c>, else its <c>id</c>, and a
-	///     unit is its <c>file</c>'s <c>original</c> and its <c>id</c>, so two never
-	///     become one key; inline codes read as the text they stand for.
+	///     the way in a unit is its <c>file</c>'s <c>original</c> and its <c>id</c>,
+	///     so two never become one key, and its key is the <c>resname</c> any file
+	///     of the set gives it, else its <c>id</c>; inline codes read as the text
+	///     they stand for.
 	/// </summary>
 	public sealed class XliffCodec : IWordsImporter, IWordsExporter {
 		/// <summary>The manifest name of the format's words.</summary>
@@ -68,7 +69,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 		/// <inheritdoc/>
 		public ILoadedWords Read(IReadOnlyList<string> paths, FormatOptions? options = null) {
 			var loaded = new LoadedWords();
-			HashSet<(string Unit, string Code)> read = [];
+			List<(string File, XElement Root)> documents = [];
 			foreach (string path in paths) {
 				string file = Path.GetFileName(path);
 				XDocument document;
@@ -90,6 +91,11 @@ namespace PatTech.Localization.Authoring.Codecs {
 					loaded.Errors.Add($"{file}: XLIFF {version} is not supported, 1.2 only; skipped");
 					continue;
 				}
+				documents.Add((file, root));
+			}
+			var names = Names(documents, loaded.Errors);
+			HashSet<(Unit Unit, string Code)> read = [];
+			foreach (var (file, root) in documents) {
 				foreach (XElement fileElement in XmlText.Children(root, "file")) {
 					//the source text is the default, so its language is the default's
 					if (loaded.DefaultLanguage is null && (string?)fileElement.Attribute("source-language") is { Length: > 0 } sourceLanguage) {
@@ -101,10 +107,9 @@ namespace PatTech.Localization.Authoring.Codecs {
 						FileNames.Declare(loaded, code);
 					}
 					bool targetsIgnored = false;
-					//an id is only its <file>'s own, and the file is its original's
-					string original = (string?)fileElement.Attribute("original") ?? "";
-					foreach (XElement unit in fileElement.Descendants().Where(element => element.Name.LocalName == "trans-unit")) {
-						ReadUnit(loaded, unit, code, file, original, read, ref targetsIgnored);
+					string original = Original(fileElement);
+					foreach (XElement unit in TransUnits(fileElement)) {
+						ReadUnit(loaded, unit, code, file, original, names, read, ref targetsIgnored);
 					}
 					if (targetsIgnored) {
 						loaded.Errors.Add($"{file}: targets in a file with no target-language were ignored");
@@ -114,21 +119,60 @@ namespace PatTech.Localization.Authoring.Codecs {
 			return loaded;
 		}
 
-		//a unit is its original's id; its key is the resource's name, its id without
-		//one. A unit met again for the same language is a duplicate, and the first stands
-		private static void ReadUnit(LoadedWords loaded, XElement unit, string code, string file, string original, HashSet<(string, string)> read, ref bool targetsIgnored) {
+		//a trans-unit is its <file>'s original and its id, since an id is only its
+		//file's own; one with no id is known by its resname, kept apart from any id
+		private readonly record struct Unit(string Original, string Id, string Resname);
+
+		private static Unit? UnitOf(XElement unit, string original) {
 			string id = (string?)unit.Attribute("id") ?? "";
-			string name = (string?)unit.Attribute("resname") is { Length: > 0 } resname ? resname : id;
-			if (name == "") {
+			string resname = (string?)unit.Attribute("resname") ?? "";
+			return id == "" && resname == "" ? null : new Unit(original, id, id == "" ? resname : "");
+		}
+
+		private static string Original(XElement fileElement) => (string?)fileElement.Attribute("original") ?? "";
+
+		private static IEnumerable<XElement> TransUnits(XElement fileElement)
+			=> fileElement.Descendants().Where(element => element.Name.LocalName == "trans-unit");
+
+		//each unit's name, the resname any file of the set gives it, read ahead of the
+		//units, so a file without one doesn't name the key by its id first; a unit the
+		//set names two ways keeps the first, with a gripe
+		private static Dictionary<Unit, string> Names(List<(string File, XElement Root)> documents, List<string> gripes) {
+			Dictionary<Unit, string> names = [];
+			foreach (var (file, root) in documents) {
+				foreach (XElement fileElement in XmlText.Children(root, "file")) {
+					string original = Original(fileElement);
+					foreach (XElement unit in TransUnits(fileElement)) {
+						if (UnitOf(unit, original) is not { } which || (string?)unit.Attribute("resname") is not { Length: > 0 } resname) {
+							continue;
+						}
+						if (!names.TryAdd(which, resname) && names[which] != resname) {
+							gripes.Add($"{file}: {Shown(which, names[which])} is named '{resname}' here, and keeps the name it was given first");
+						}
+					}
+				}
+			}
+			return names;
+		}
+
+		//a unit as a gripe names it
+		private static string Shown(Unit unit, string name)
+			=> $"'{name}'" + (unit.Id != "" && unit.Id != name ? $" (id {unit.Id})" : "") + (unit.Original == "" ? "" : $" of {unit.Original}");
+
+		//a unit's key is its name, the resource's own, else its id. A unit met again
+		//for the same language is a duplicate, and the first stands
+		private static void ReadUnit(LoadedWords loaded, XElement unit, string code, string file, string original, Dictionary<Unit, string> names, HashSet<(Unit, string)> read, ref bool targetsIgnored) {
+			if (UnitOf(unit, original) is not { } which) {
 				loaded.Errors.Add($"{file}: a trans-unit without an id was skipped");
 				return;
 			}
-			string identity = $"'{name}'" + (id != "" && id != name ? $" (id {id})" : "") + (original == "" ? "" : $" of {original}");
-			if (!read.Add((identity, code))) {
-				loaded.Errors.Add($"{file}: trans-unit {identity} came twice{(code == "" ? "" : $" for {code}")}, and the first stands");
+			string name = names.GetValueOrDefault(which) ?? which.Id;
+			string shown = Shown(which, name);
+			if (!read.Add((which, code))) {
+				loaded.Errors.Add($"{file}: trans-unit {shown} came twice{(code == "" ? "" : $" for {code}")}, and the first stands");
 				return;
 			}
-			WordsKey key = loaded.Key(FileNames.BlockKey(loaded, name, file, identity));
+			WordsKey key = loaded.Key(FileNames.BlockKey(loaded, name, file, which, shown));
 			if ((string?)unit.Attribute("translate") == "no" && !key.IsConstant) {
 				loaded.Errors.Add($"{file}: translate=\"no\" on '{name}' ignored: a Words constant is a $key");
 			}
@@ -136,7 +180,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 				key.NeedsReview = true;
 			}
 			if (XmlText.Child(unit, "source") is { } source) {
-				key.DefaultValue = Text(source, file, identity, loaded.Errors);
+				key.DefaultValue = Text(source, file, shown, loaded.Errors);
 			}
 			WordsEntry? entry = code == "" ? null : key.Entries[code];
 			if (XmlText.Child(unit, "target") is { } target) {
@@ -144,7 +188,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 					targetsIgnored = true;
 				}
 				else {
-					entry.Value = Text(target, file, identity, loaded.Errors);
+					entry.Value = Text(target, file, shown, loaded.Errors);
 					string state = (string?)target.Attribute("state") ?? "";
 					if ((string?)target.Attribute(Ext + "stale") is { } stale) {
 						entry.Stale = stale;

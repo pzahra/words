@@ -226,6 +226,79 @@ context-fr=untranslated, with a note
 	}
 
 	[Fact]
+	public void Read_AUnitIsOneKey_WhateverResnameEachFileGivesIt() {
+		string folder = Folder();
+		try {
+			//German names no resname and is read first; French names one, then names the unit again otherwise
+			File.WriteAllText(Path.Combine(folder, "Strings.de.xlf"), """
+				<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+				  <file original="a.resx" source-language="en" target-language="de">
+				    <body>
+				      <trans-unit id="1"><source>Open</source><target>Öffnen</target></trans-unit>
+				    </body>
+				  </file>
+				</xliff>
+				""");
+			File.WriteAllText(Path.Combine(folder, "Strings.fr.xlf"), """
+				<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+				  <file original="a.resx" source-language="en" target-language="fr">
+				    <body>
+				      <trans-unit id="1" resname="menu.open"><source>Open</source><target>Ouvrir</target></trans-unit>
+				      <trans-unit id="1" resname="menu.close"><source>Close</source><target>Fermer</target></trans-unit>
+				    </body>
+				  </file>
+				</xliff>
+				""");
+			var codec = new XliffCodec();
+
+			ILoadedWords loaded = codec.Read(codec.Discover(Path.Combine(folder, "Strings.fr.xlf")));
+
+			WordsKey open = Assert.Single(loaded.WordKeys.Values);
+			Assert.Equal(("menu.open", "Open", "Ouvrir", "Öffnen"), (open.BlockKey, open.DefaultValue, open.Entries["fr"].Value, open.Entries["de"].Value));
+			Assert.Equal([
+				"Strings.fr.xlf: 'menu.open' (id 1) of a.resx is named 'menu.close' here, and keeps the name it was given first",
+				"Strings.fr.xlf: trans-unit 'menu.open' (id 1) of a.resx came twice for fr, and the first stands",
+			], loaded.Errors);
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
+	public void Read_TwoUnits_StayTwoKeys_ThoughAGripeWouldNameThemAlike() {
+		string folder = Folder();
+		try {
+			//both are 'k' (id 1) of a (id 2) of b to a gripe, and two units all the same
+			string path = Path.Combine(folder, "Strings.fr.xlf");
+			File.WriteAllText(path, """
+				<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+				  <file original="a (id 2) of b" target-language="fr">
+				    <body>
+				      <trans-unit id="1" resname="k"><source>One</source><target>Un</target></trans-unit>
+				    </body>
+				  </file>
+				  <file original="b" target-language="fr">
+				    <body>
+				      <trans-unit id="1) of a (id 2" resname="k"><source>Two</source><target>Deux</target></trans-unit>
+				    </body>
+				  </file>
+				</xliff>
+				""");
+
+			ILoadedWords loaded = new XliffCodec().Read([path]);
+
+			Assert.Equal(["k", "k-2"], loaded.WordKeys.Keys);
+			Assert.Equal(("One", "Un"), (loaded.WordKeys["k"].DefaultValue, loaded.WordKeys["k"].Entries["fr"].Value));
+			Assert.Equal(("Two", "Deux"), (loaded.WordKeys["k-2"].DefaultValue, loaded.WordKeys["k-2"].Entries["fr"].Value));
+			Assert.DoesNotContain(loaded.Errors, error => error.Contains("came twice"));
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
 	public void Read_InlineCodes_ReadAsWhatTheyStandFor_AndTheOnesWithNoTextAreGriped() {
 		string folder = Folder();
 		try {

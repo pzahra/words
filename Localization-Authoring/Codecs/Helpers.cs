@@ -52,11 +52,13 @@ namespace PatTech.Localization.Authoring.Codecs {
 		///     change is a gripe.
 		/// </summary>
 		/// <param name="loaded">The words the set loads into.</param>
-		/// <param name="name">The unit's name in its format.</param>
+		/// <param name="name">The unit's name in its format, the same wherever the set meets the unit.</param>
 		/// <param name="file">The file it is read from, for a gripe.</param>
-		/// <param name="unit">What tells the unit from another of the same name, quoted for a gripe; the quoted name when the format has nothing more.</param>
-		public static string BlockKey(LoadedWords loaded, string name, string file, string? unit = null) {
-			unit ??= $"'{name}'";
+		/// <param name="unit">What tells the unit from another of the same name, compared by value; the name itself when the format has nothing more.</param>
+		/// <param name="shown">The unit as a gripe names it; the quoted name when omitted.</param>
+		public static string BlockKey(LoadedWords loaded, string name, string file, object? unit = null, string? shown = null) {
+			unit ??= name;
+			shown ??= $"'{name}'";
 			string made = WordsParser.IsKeyName(name) ? name : string.Join('.', name.Split('.').Select(Segment));
 			if (!loaded.ForeignUnits.TryGetValue(unit, out string? blockKey)) {
 				blockKey = made;
@@ -64,10 +66,10 @@ namespace PatTech.Localization.Authoring.Codecs {
 					blockKey = $"{made}-{n}";
 				}
 				loaded.ForeignUnits[unit] = blockKey;
-				loaded.ForeignNames[blockKey] = unit;
+				loaded.ForeignNames[blockKey] = shown;
 			}
-			if (blockKey != made) {
-				loaded.Errors.Add($"{file}: {unit} would load as '{made}', which {loaded.ForeignNames[made]} already is, so it loads as '{blockKey}'");
+			if (blockKey != made && loaded.ForeignNames.TryGetValue(made, out string? other)) {
+				loaded.Errors.Add($"{file}: {shown} would load as '{made}', which {other} already is, so it loads as '{blockKey}'");
 			}
 			else if (made != name) {
 				loaded.Errors.Add($"{file}: '{name}' is no words.ini key, loaded as '{made}'");
