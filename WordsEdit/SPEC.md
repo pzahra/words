@@ -179,8 +179,8 @@ One tree presents every loaded file:
   runtime skips a block by, so nothing Wordsmith writes is skipped. A group node can gain key data
   ("add key information") and a key can exist on any node except a file.
   They are reachable from the button strip, the tree's context menu and the
-  keyboard (F2 rename, Delete remove, Ctrl+Shift+S stale-all; Ctrl+O and
-  Ctrl+S open and save, Ctrl+F the search). Removing a node that takes keys
+  keyboard (F2 rename, Delete remove, Ctrl+Shift+S stale-all; Ctrl+N, Ctrl+O
+  and Ctrl+S new, open and save, Ctrl+F the search). Removing a node that takes keys
   with it, or a key's information, asks first. A control a command has greyed
   out keeps its tooltip, so it still says what it would do.
 
@@ -417,6 +417,29 @@ languages, written on their own — that language's entries with the defaults
 for reference, its label and settings reference as the file has them — and
 loaded, ready to be worked on separately and merged back.
 
+## New
+
+File > New (Ctrl+N) starts a file, so someone trying Wordsmith out need not
+write one by hand first. The save dialog names it before anything else, so
+it has a path and a label like any loaded file, and it is presented the way
+an import is, as unsaved work: nothing reaches the disk until Save, and
+closing asks. It comes up selected, so Add works at once. Its text is
+`MainWindowViewModel.Starter`: a header as comment lines, which the file's
+preamble keeps, then `value=!en` and `value-en=English`, which make English
+the default's language, then the blank line Save writes between the table
+and the first key, so Save writes back exactly what New started with. The
+header (`file.new-preamble`, in Wordsmith's language) is boilerplate a
+familiar hand leaves in as readily as a newcomer reads it, not a tutorial:
+the file by name and what it holds, that it ships in the app's assets for
+`WordsBuilder` to load, that Wordsmith or `words` edits it, and a link to
+the Core readme for the format. A path already loaded is replaced and one on disk is overwritten at
+Save, as the dialog's overwrite ask agreed to.
+
+**Tests.** A cancelled dialog does nothing. The new file is selected, dirty
+and not yet on disk, English by default, without gripes, its preamble
+naming it, linking the Core readme and showing as the pinned organizer; Save writes the starter byte
+for byte and leaves the window clean.
+
 ## Saving
 
 Save rewrites every loaded file through `WordsSession.Save` — `IniWriter.WriteFile`
@@ -647,7 +670,7 @@ dirtiness, the plan, the loss and the overwrite confirmation.
 ## Menu and toolbars
 
 A menu bar carries every command the editor has, grouped the usual way —
-File (Open, Import, Merge, Save, Export, Reset, Exit), Edit (Undo and Redo,
+File (New, Open, Import, Merge, Save, Export, Reset, Exit), Edit (Undo and Redo,
 the node and key operations, then the flags), View (the filters, the previews, Find, then each
 pane's plural form, then the translation language and Wordsmith's own, all
 four submenus), Tools (Languages,
@@ -661,7 +684,7 @@ the box's other side, Rename at the right of the selected node's name, each pane
 flags, its preview) and, above the translation pane, Languages beside the
 translation language as a combo box.
 Files in and out, Merge, Reset and Project Settings live in the menu alone,
-the files with their keys (Ctrl+O, Ctrl+I, Ctrl+S, Ctrl+E).
+the files with their keys (Ctrl+N, Ctrl+O, Ctrl+I, Ctrl+S, Ctrl+E).
 
 **One row per command.** A command is defined once — its `ICommand`, its
 caption, its icon and its gesture — as a `CommandItem` in the command table

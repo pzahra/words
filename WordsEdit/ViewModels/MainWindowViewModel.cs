@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
+using System.Text;
 using System.Windows.Input;
 using WordsEdit.Utils;
 using WordsEdit.Views;
@@ -64,6 +65,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	//Commands
+	public ICommand NewFileCommand { get; }
 	public ICommand LoadFileCommand { get; }
 	public ICommand ImportCommand { get; }
 	public ICommand ExportCommand { get; }
@@ -140,6 +142,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 				UndoStack.Clear();
 			}
 		};
+		NewFileCommand = new DelegateCommand(DoNewFile);
 		LoadFileCommand = new DelegateCommand(DoLoadFiles);
 		ImportCommand = new DelegateCommand(DoImport);
 		ExportCommand = new DelegateCommand(DoExport, () => Tree.KeyNodes.Count > 0);
@@ -200,6 +203,42 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	//the window title names the loaded files; TitleMarked stars it while dirty
 	private void UpdateTitle()
 		=> Title = Tree.KeyNodes.Count == 0 ? Words.Known["app.title"] : Words.Known.Format("app.title-files", string.Join(", ", Tree.FileLabels));
+
+	//New (SPEC: New): the save dialog names the file first, and Save writes it
+	private void DoNewFile() {
+		if (Dialogs.TrySaveFile(Words.Known["file.new-title"], Words.Known["file.filter"], out string? fileName)) {
+			NewFile(fileName);
+		}
+	}
+
+	/// <summary>
+	///     Presents a new file at <paramref name="fileName"/>, selected, as unsaved
+	///     work: <see cref="Starter"/>'s header and English as the default's
+	///     language. Nothing is written until Save. A file already loaded from
+	///     there is replaced, as the dialog's overwrite ask agreed to.
+	/// </summary>
+	public void NewFile(string fileName) {
+		WordsFile file = Session.Load(new StringReader(Starter(Path.GetFileName(fileName))), fileName);
+		Tree.Present(file);
+		Tree.Select(Tree.NodeOf(file));
+		MarkDirty();
+	}
+
+	/// <summary>
+	///     What a new file named <paramref name="name"/> starts as: a header
+	///     saying what it is and where it goes, as comment lines its preamble
+	///     keeps, then the two lines that make English the default's language.
+	/// </summary>
+	public static string Starter(string name) {
+		var text = new StringBuilder();
+		foreach (string line in Words.Known.Format("file.new-preamble", name).ReplaceLineEndings("\n").Split('\n')) {
+			text.AppendLine(line == "" ? ";" : "; " + line);
+		}
+		text.AppendLine("value=!en");
+		text.AppendLine("value-en=English");
+		text.AppendLine(); //where Save parts the table from the first key, so it writes the start back as it was
+		return text.ToString();
+	}
 
 	//Load
 	private void DoLoadFiles() {

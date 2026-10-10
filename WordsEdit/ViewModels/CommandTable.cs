@@ -255,6 +255,7 @@ public sealed class CommandTable {
 	public CommandTable(MainWindowViewModel vm) {
 		TreeViewModel tree = vm.Tree;
 		//File: in, out, and away
+		var create = new CommandItem(Words.Known["menu.new"], PackIconKind.FilePlus, vm.NewFileCommand, Ctrl(Key.N));
 		var load = new CommandItem(Words.Known["menu.load"], PackIconKind.FolderUpload, vm.LoadFileCommand, Ctrl(Key.O));
 		var import = new CommandItem(Words.Known["menu.import"], PackIconKind.FileImport, vm.ImportCommand, Ctrl(Key.I));
 		var merge = new CommandItem(Words.Known["menu.merge"], PackIconKind.Merge, vm.MergeFilesCommand);
@@ -304,7 +305,7 @@ public sealed class CommandTable {
 
 		MenuGroup edit = new(Words.Known["menu.edit"], [undo, redo, new MenuBreak(), addNode, addKey, addComment, rename, remove, new MenuBreak(), toggleReview, toggleConstant, toggleStale, staleAll, removeKey]);
 		Menu = [
-			new MenuGroup(Words.Known["menu.file"], [load, import, merge, new MenuBreak(), save, export, new MenuBreak(), reset, exit]),
+			new MenuGroup(Words.Known["menu.file"], [create, load, import, merge, new MenuBreak(), save, export, new MenuBreak(), reset, exit]),
 			edit,
 			new MenuGroup(Words.Known["menu.view"], [staleView, reviewView, missingView, clearFilters, new MenuBreak(), defaultPreview, translationPreview, new MenuBreak(), back, forward, find, new MenuBreak(), defaultForm, translationForm, new MenuBreak(), translationLanguage, uiLanguage]),
 			new MenuGroup(Words.Known["menu.tools"], [languages, settings, parameters]),

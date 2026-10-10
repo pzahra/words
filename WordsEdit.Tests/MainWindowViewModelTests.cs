@@ -440,6 +440,50 @@ value=w
 	}
 
 	[Fact]
+	public void NewStartsAFileAsUnsavedWorkThatSaveWrites() {
+		// the save dialog names it, a quick start and English start it, and
+		// nothing reaches the disk until Save
+		var path = Path.Combine(Path.GetTempPath(), $"WordsEditNew-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(path);
+		var filePath = Path.Combine(path, "Strings.ini");
+		try {
+			var dialogs = new FakeDialogs();
+			var vm = new MainWindowViewModel(dialogs);
+
+			vm.NewFileCommand.Execute(null); //cancelled: nothing happens
+			Assert.Empty(vm.Tree.KeyNodes);
+			Assert.False(vm.IsDirty);
+
+			dialogs.FileToSave = filePath;
+			vm.NewFileCommand.Execute(null);
+
+			KeyNode node = Assert.Single(vm.Tree.KeyNodes);
+			Assert.Same(node, vm.Tree.SelectedKeyNode); //Add works at once
+			WordsFile file = vm.Session.FileOf("Strings")!;
+			Assert.Equal(filePath, file.Path);
+			Assert.Equal("en", file.DefaultLanguage);
+			Assert.Equal("English", Assert.Single(vm.Session.Languages.For(file)).NativeName);
+			Assert.Empty(file.Errors);
+			Assert.StartsWith(" Strings.ini: an app's words", file.Preamble); //named, its apostrophe through the format
+			Assert.Contains("https://github.com/pzahra/words/blob/main/Localization-Core/readme.md", file.Preamble);
+			Assert.IsType<OrganizerNode>(node.Children[0]); //the preamble shows, pinned to the file's start
+			Assert.True(vm.IsDirty);
+			Assert.False(File.Exists(filePath));
+
+			vm.Save();
+
+			string[] lines = File.ReadAllLines(filePath);
+			Assert.StartsWith("; Strings.ini: ", lines[0]);
+			Assert.Equal(["value=!en", "value-en=English", ""], lines[^3..]);
+			Assert.Equal(MainWindowViewModel.Starter("Strings.ini"), File.ReadAllText(filePath)); //written as it started
+			Assert.False(vm.IsDirty);
+		}
+		finally {
+			Directory.Delete(path, recursive: true);
+		}
+	}
+
+	[Fact]
 	public void MainWindowViewModel_SaveTellsWhatTheEncodingCannotHold_AndSavesTheOtherFiles() {
 		// a lone surrogate has no UTF-8: that file is told about and left as it
 		// was, the next one still saves, and the window stays dirty

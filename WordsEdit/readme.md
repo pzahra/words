@@ -9,6 +9,9 @@ the command line that ships beside it.
 
 ## What it does
 
+- **New** — File > New starts a `words.ini` that already knows English is
+  the default, with a header saying what the file is, where it goes and where
+  the format is written down. It's yours once you Save, header and all.
 - **Edit** — browse the key tree, edit values, contexts, and comments per
   language; add, rename, remove, and drag keys around without breaking their
   children.
