@@ -16,146 +16,146 @@ namespace PatTech.Utils {
 	public static class Extensions {
 
 		/// <summary>
-		///     Checks <paramref name="value"/> for a <see cref="WordsAttribute"/> (with Key used in Words.Known)
-		///     or <see cref="DescriptionAttribute"/>,
-		///     returns the first possible non-<see langword="null"/> string according to format:
-		///     <list type="bullet">
-		///         <item>
-		///             <term>G: General</term>
-		///             <description>
-		///                 Use value from <c><see cref="WordsAttribute.Key"/></c> lookup,
-		///                 then from <c><see cref="DescriptionAttribute.Description"/></c>,
-		///                 then from <c><see cref="Enum.ToString()"/></c>.
-		///             </description>
-		///         </item>
-		///         <item>
-		///             <term>N: Name, strict</term>
-		///             <description>
-		///                 Use value from <c><see cref="WordsAttribute.Key"/></c> lookup,
-		///                 then <c><see cref="Enum.ToString()"/></c>.
-		///             </description>
-		///         </item>
-		///         <item>
-		///             <term>n: Name, non-strict</term>
-		///             <description>Same as General</description>
-		///         </item>
-		///         <item>
-		///           <term>d: Description</term>
-		///           <description>
-		///               Use value from <c><see cref="WordsAttribute.Key"/> + ".desc"</c> lookup,
-		///               then from <c><see cref="DescriptionAttribute.Description"/></c>.
-		///             </description>
-		///         </item>
-		///         <item>
-		///             <term>S: Subtitle</term>
-		///             <description>
-		///                 Use value from <c><see cref="WordsAttribute.Key"/> + ".sub"</c> lookup,
-		///                 then use <c><see cref="TooltipAttribute.Text"/></c>.
-		///             </description>
-		///         </item>
-		///         <item>
-		///             <term>T: Tooltip</term>
-		///             <description>
-		///                 Use value from <c><see cref="WordsAttribute.Key"/> + ".tooltip"</c> lookup,
-		///                 then use <c><see cref="TooltipAttribute.Text"/></c>.
-		///             </description>
-		///         </item>
-		///         <item>
-		///             <term>U: Unit</term>
-		///             <description>
-		///                 Use value from <c><see cref="WordsAttribute.Key"/> + ".unit"</c> lookup.
-		///             </description>
-		///         </item>
-		///         <item>
-		///             <term>s: General</term>
-		///             <description>Symbol name from <c><see cref="Enum.ToString()"/></c>.</description>
-		///         </item>
-		///         <item>
-		///             <term>i: General</term>
-		///             <description>Symbol numeric value, in whatever integer type the enum has.</description>
-		///         </item>
-		///     </list>
+		///     The words for an enum value, as <paramref name="format"/> asks for them: the
+		///     member's describable from <see cref="Describable"/>, built once from its type,
+		///     described by <see cref="Describe(IDescribable, string?, IWords?)"/>. A value no
+		///     member has, a <see cref="FlagsAttribute"/> combination or an undefined number,
+		///     reads as its own name and number; <see cref="Describable.Members"/> gives a
+		///     combination's members one by one.
 		/// </summary>
+		/// <param name="value">The enum value.</param>
+		/// <param name="format">The slots to read, by their letters: <c>G</c> when none.</param>
+		/// <param name="words">The words to look the keys up in: <see cref="Words.Known"/> when none.</param>
 		[return: Localized]
-		public static string Describe (
+		public static string Describe(
 				this Enum value,
 				string? format = null,
 				IWords? words = null) {
-			// TODO: "f[:<,>|:'<delimiter>']" = split by individual flag, optional new delimiter could be quoted string
-			// TODO: "F[:<,>|:'<delimiter>']" = split by group flag (like "f", but use ToString().Split(','))
 			Debug.Assert(value != null);
+			return Describable.Of(value).Describe(format, words);
+		}
+
+		/// <summary>
+		///     The engine (runtime SPEC: Describe without the type): each letter of
+		///     <paramref name="format"/> reads a slot of <paramref name="value"/>, the key's
+		///     words with the slot's suffix, then the text an attribute gave it:
+		///     <list type="bullet">
+		///         <item><term>G, n</term><description>the key's words, then the general text, then the description, then the name</description></item>
+		///         <item><term>N</term><description>the key's words, then the name</description></item>
+		///         <item><term>D, d</term><description><c>.desc</c>, then the description</description></item>
+		///         <item><term>S</term><description><c>.sub</c>, then the subtitle</description></item>
+		///         <item><term>T</term><description><c>.tooltip</c>, then the tooltip</description></item>
+		///         <item><term>s</term><description>the symbol's name</description></item>
+		///         <item><term>i</term><description>the number, in whatever integer type it has</description></item>
+		///     </list>
+		///     A slot the app added (<see cref="Describable.Slot"/>) reads its own suffix. A
+		///     letter no slot answers reads as <c>G</c> marked <c>#!X#</c>, and warns
+		///     (<c>WORDS:SLOT</c>). Text between single quotes is written as it is, <c>''</c>
+		///     being a quote, and so is anything that is no letter or digit. A key is looked up
+		///     only when a letter asks for it, and once.
+		/// </summary>
+		/// <param name="value">What to describe.</param>
+		/// <param name="format">The slots to read, by their letters: <c>G</c> when none.</param>
+		/// <param name="words">The words to look the keys up in: <see cref="Words.Known"/> when none.</param>
+		[return: Localized]
+		public static string Describe(
+				this IDescribable value,
+				string? format = null,
+				IWords? words = null) {
+			ArgumentNullException.ThrowIfNull(value);
 			if (string.IsNullOrEmpty(format)) {
 				format = "G";
 			}
-
-			var m = value.GetEnumMemberInfo();
-			var sn = value.ToString();
-			var wk = m?.GetCustomAttribute<WordsAttribute>()?.Key;
-			var dd = m?.GetCustomAttribute<DescriptionAttribute>()?.Description;
-#pragma warning disable CS0618 // Type or member is obsolete
-			var tt = m?.GetCustomAttribute<TooltipAttribute>()?.Text;
-#pragma warning restore CS0618 // Type or member is obsolete
-
-			string? ln = null;
-			string? ls = null;
-			string? lt = null;
-			string? ld = null;
-			string? lu = null;
-
-			if (wk != null) {
-				words ??= Words.Known;
-				words.TryGetValue(wk, out ln);
-				words.TryGetValue(wk + ".tooltip", out lt);
-				words.TryGetValue(wk + ".sub", out ls);
-				words.TryGetValue(wk + ".desc", out ld);
-				words.TryGetValue(wk + ".unit", out lu);
-			}
-
+			Dictionary<string, string?>? found = null;
 			var sb = new StringBuilder();
 			bool quoted = false;
 			for (int i = 0; i < format.Length; ++i) {
 				char c = format[i];
-				if (quoted) {
-					if (c == '\'') {
-						if (i + 1 < format.Length && format[i + 1] == '\'') {
-							sb.Append(c);
-							++i;
-						}
-						else {
-							quoted = false;
-						}
-					}
-					else {
-						sb.Append(c);
-					}
+				if (!quoted) {
+					appendCode(c);
+				}
+				else if (c != '\'') {
+					sb.Append(c);
+				}
+				else if (i + 1 < format.Length && format[i + 1] == '\'') {
+					sb.Append(c);
+					++i;
 				}
 				else {
-					appendCode(c);
+					quoted = false;
 				}
 			}
 			return sb.ToString();
 
-			StringBuilder appendCode(char c) {
-				// Name (fallback to Desc), Name (not Desc), Desc, Subtitle
+			//the key's words with a suffix, looked up the first time a letter asks
+			string? Find(string suffix) {
+				if (value.Key is not { } key) {
+					return null;
+				}
+				found ??= [];
+				if (!found.TryGetValue(suffix, out string? text)) {
+					words ??= Words.Known;
+					found[suffix] = words.TryGetValue(key + suffix, out text) ? text : null;
+				}
+				return text;
+			}
+
+			string General() => Find("") ?? value.Text('G') ?? value.Text('D') ?? value.Name;
+
+			void appendCode(char c) {
 				switch (c) {
-					case '\'': {
+					case '\'':
 						quoted = true;
-						return sb;
-					}
-					case 'G':
-					case 'n': return sb.Append(ln ?? dd ?? sn);
-					case 'N': return sb.Append(ln ?? sn);
-					case 'D': return sb.Append(ld ?? dd);
-					case 'd': return sb.Append(ld ?? dd);
-					case 'S': return sb.Append(ls ?? tt);
-					case 's': return sb.Append(sn);
-					case 'T': return sb.Append(lt ?? tt);
-					case 'U': return sb.Append(lu);
-					// "D" formats any underlying type; an (int) unbox throws on a long or byte enum
-					case 'i': return sb.Append(value.ToString("D"));
-					default: return char.IsLetterOrDigit(c) ? sb : sb.Append(c);
+						break;
+					case 'G' or 'n':
+						sb.Append(General());
+						break;
+					case 'N':
+						sb.Append(Find("") ?? value.Name);
+						break;
+					case 'D' or 'd':
+						sb.Append(Find(".desc") ?? value.Text('D'));
+						break;
+					case 'S':
+						sb.Append(Find(".sub") ?? value.Text('S'));
+						break;
+					case 'T':
+						sb.Append(Find(".tooltip") ?? value.Text('T'));
+						break;
+					case 's':
+						sb.Append(value.Name);
+						break;
+					case 'i':
+						sb.Append(value.Number);
+						break;
+					case var other when !char.IsLetterOrDigit(other):
+						sb.Append(other);
+						break;
+					case var slot when Describable.SuffixOf(slot) is { } suffix:
+						sb.Append(Find(suffix) ?? value.Text(slot));
+						break;
+					default:
+						//a slot nobody added: the general text, marked so it can be searched for
+						Words.Logger.Warn($"WORDS:SLOT:`{c}`");
+						sb.Append(General()).Append($"#!{c}#");
+						break;
 				}
 			}
+		}
+
+		/// <summary>
+		///     Each of <paramref name="values"/> described, one text apiece: the members
+		///     <see cref="Describable.Members"/> finds in a <see cref="FlagsAttribute"/> value.
+		/// </summary>
+		/// <param name="values">What to describe.</param>
+		/// <param name="format">The slots to read, by their letters: <c>G</c> when none.</param>
+		/// <param name="words">The words to look the keys up in: <see cref="Words.Known"/> when none.</param>
+		public static IReadOnlyList<string> Describe(
+				this IEnumerable<IDescribable> values,
+				string? format = null,
+				IWords? words = null) {
+			ArgumentNullException.ThrowIfNull(values);
+			return [.. values.Select(value => value.Describe(format, words))];
 		}
 
 		private const BindingFlags flags = BindingFlags.Public | BindingFlags.Static;

@@ -42,8 +42,6 @@ public class FlagsDescriptionConverter : IValueConverter {
 	/// </remarks>
 	public string Format { get; set; } = "G";
 
-	private static readonly string[] separator = [", "];
-
 	/// <summary>
 	/// Converts an enumeration value to its string representation or a collection of descriptions, based on the specified
 	/// formatting options.
@@ -58,24 +56,15 @@ public class FlagsDescriptionConverter : IValueConverter {
 	/// <param name="culture">The culture information used for formatting the output.</param>
 	/// <returns>A string containing the formatted description(s) of the enumeration value, or an enumerable of descriptions if
 	/// array output is enabled. Returns <see cref="Binding.DoNothing"/> if the input is not an enumeration.</returns>
-	/// <exception cref="InvalidOperationException">Thrown if the enumeration value's string representation is unexpectedly null.</exception>
 	public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) {
 		if (value is Enum @enum) {
-			// A bit hacky, but it'll do.
-			// Relies on the base Enum object's ability to find the optimal set of flags,
-			// then pulls those and gets their descriptions.
-			var type = @enum.GetType();
-			var names = (value.ToString() ?? throw new InvalidOperationException("ToString is null"))
-				.Split(separator, StringSplitOptions.None)
-				.Select(name => (isFlag: Enum.TryParse(type, name, out var res), flag: res))
-				.Where(isf => IncludeNone || (isf.isFlag && (System.Convert.ToInt64(isf.flag) != 0)))
-				.Select(isf
-					=> isf.isFlag
-					? (isf.flag as Enum)?.Describe((parameter?.ToString()) ?? Format)
-					: isf.flag?.ToString()
-				)
+			// the members .NET names for the value, overlaps settled its way
+			// (runtime SPEC: Describe without the type)
+			var names = Describable.Members(@enum)
+				.Where(member => IncludeNone || member.Number != "0")
+				.Describe(parameter?.ToString() ?? Format)
 				// a flag with nothing for the format is left out, not shown as a gap
-				.Where(name => !string.IsNullOrEmpty(name));
+				.Where(name => name != "");
 			if (AsArray) {
 				return names;
 			}

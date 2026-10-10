@@ -196,7 +196,7 @@ For values that only exist at runtime, there are converters:
 - `MarkdownConverter` — turns a markdown string into WPF inlines.
 - `EnumDescriptionConverter` — turns a `[Words]`-decorated enum value into its
   display text; the ConverterParameter picks the `Describe` format (tooltip,
-  description, unit…). A member with nothing for that format gives null, so a
+  subtitle, description, a slot of the app's own…). A member with nothing for that format gives null, so a
   tooltip bound to it stays hidden.
 - `FlagsDescriptionConverter` — the same for `[Flags]` combinations, as a list
   of descriptions or one delimited string (`AsArray="False"`). A flag with

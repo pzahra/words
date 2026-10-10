@@ -18,7 +18,7 @@ public static class SampleTopics {
 	public static SampleTopic Links { get; } = new("links", 3);
 	public static SampleTopic Images { get; } = new("images", 3);
 	public static SampleTopic Parameters { get; } = new("parameters", 3);
-	public static SampleTopic Enums { get; } = new("enums", 2);
+	public static SampleTopic Enums { get; } = new("enums", 3);
 	public static SampleTopic Live { get; } = new("live", 3);
 	public static SampleTopic Diagnostics { get; } = new("diagnostics", 2);
 

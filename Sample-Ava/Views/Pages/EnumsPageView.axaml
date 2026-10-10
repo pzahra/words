@@ -25,9 +25,9 @@
     <!-- /card -->
 
     <!-- card: enums.variants -->
-    <c:DemoCard Key="enums.variants" MoreKeys="enums.brew" Uses="WordsEnumDescription, ConverterParameter">
-      <!-- the parameter is the Describe format: G (the default) names it, T, S and d
-           read .tooltip, .sub and .desc -->
+    <c:DemoCard Key="enums.variants" MoreKeys="enums.brew" Uses="WordsEnumDescription, ConverterParameter, Describable.Slot">
+      <!-- the parameter is the Describe format: G (the default) names it, T, S and D
+           read .tooltip, .sub and .desc, and U the samples' own .unit -->
       <StackPanel>
         <TextBlock FontWeight="SemiBold"
                    Text="{l:Words {Binding SelectedBrew, Converter={StaticResource WordsEnumDescription}}}"
@@ -35,7 +35,12 @@
         <TextBlock FontStyle="Italic" Opacity="0.8"
                    Text="{l:Words {Binding SelectedBrew, Converter={StaticResource WordsEnumDescription}, ConverterParameter=S}}"/>
         <TextBlock TextWrapping="Wrap" Margin="0,4,0,0"
-                   Text="{l:Words {Binding SelectedBrew, Converter={StaticResource WordsEnumDescription}, ConverterParameter=d}}"/>
+                   Text="{l:Words {Binding SelectedBrew, Converter={StaticResource WordsEnumDescription}, ConverterParameter=D}}"/>
+        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+          <TextBlock Opacity="0.8" Text="{l:Words enums.variants.unit}"/>
+          <TextBlock Margin="4,0,0,0"
+                     Text="{l:Words {Binding SelectedBrew, Converter={StaticResource WordsEnumDescription}, ConverterParameter=U}}"/>
+        </StackPanel>
       </StackPanel>
     </c:DemoCard>
     <!-- /card -->

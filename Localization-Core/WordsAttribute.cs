@@ -3,14 +3,15 @@
 namespace PatTech.Localization {
 	/// <summary>
 	/// Provides a base key for multiple forms of display text for a given Enum.
-	/// Use in conjunction with <see cref="Utils.Extensions.Describe"/>.
+	/// Use in conjunction with <see cref="Utils.Extensions.Describe(Enum, string?, IWords?)"/>.
 	/// <list type="bullet">
-	/// <item>key = Primary display name</item>
-	/// <item>key<i>.tooltip</i> = Popup help text</item>
-	/// <item>key<i>.sub</i> = Short description</item>
-	/// <item>key<i>.desc</i> = Long description</item>
-	/// <item>key<i>.unit</i> = Suffix to be applied to another value</item>
+	/// <item>key = Primary display name (G, N)</item>
+	/// <item>key<i>.tooltip</i> = Popup help text (T)</item>
+	/// <item>key<i>.sub</i> = Short description (S)</item>
+	/// <item>key<i>.desc</i> = Long description (D)</item>
 	/// </list>
+	/// An app keeps more beside each key with slots of its own (<see cref="Describable.Slot"/>),
+	/// such as <c>.unit</c>, a suffix to another value.
 	/// </summary>
 	/// <param name="key">The base key for the primary text.</param>
 	[AttributeUsage(AttributeTargets.Field, AllowMultiple = false)]
@@ -23,11 +24,12 @@ namespace PatTech.Localization {
 	}
 	
 	/// <summary>
-	/// Migration aid for <see cref="Utils.Extensions.Describe"/>.
+	/// Migration aid for <see cref="Utils.Extensions.Describe(Enum, string?, IWords?)"/>.
 	/// Enums already using <see cref="System.ComponentModel.DescriptionAttribute"/>
-	/// are picked up by Describe automatically; enums using a custom attribute to
-	/// carry raw tooltip or subtitle strings can swap it for this one. Describe
-	/// reads the text (formats "T" and "S"), and the obsolete warning keeps a
+	/// are picked up by Describe automatically, and a custom attribute an enum
+	/// already carries is better registered (<see cref="Describable.Fill"/>), which
+	/// leaves the enum as it is. Describe reads this one's text (formats "T" and
+	/// "S") for the code that already uses it, and the obsolete warning keeps a
 	/// reminder ticking until the text moves to a words.ini key and the attribute
 	/// is replaced by a <see cref="WordsAttribute"/>.
 	/// </summary>

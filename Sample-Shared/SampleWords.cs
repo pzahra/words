@@ -11,6 +11,10 @@ public static class SampleWords {
 	/// <summary>The manifest name of the shared file.</summary>
 	public const string ResourceName = "Sample_Shared.sample-words.ini";
 
+	//a slot of the samples' own, read beside each brew's key by U (the Enums page);
+	//once per process, however often the words load
+	static SampleWords() => Describable.Slot('U', ".unit");
+
 	/// <summary>Loads the words both samples share; chain the sample's <c>framework-words.ini</c> after it.</summary>
 	public static WordsBuilder LoadShared(this WordsBuilder builder)
 		=> builder.LoadResource(ResourceName, typeof(SampleWords).Assembly);

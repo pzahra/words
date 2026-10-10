@@ -189,16 +189,26 @@ provides one. Pass or assign a raw string to a marked target, and the compiler
 warns (PTL001).
 
 Use the attribute `[Words("key")]` to mark enum values. The `Enum.Describe`
-function will assume the existence of "key.tooltip", "key.sub", "key.desc"
-and "key.unit" as well as the exact name, to provide additional variations
-of the text associated with an enum item.
+function will assume the existence of "key.tooltip", "key.sub" and "key.desc"
+as well as the exact name, to provide additional variations of the text
+associated with an enum item, each picked by a letter of the format: `T`, `S`,
+`D`, and `G` for the name itself. Keep something else beside each member?
+`Describable.Slot('U', ".unit")` at startup, and `U` reads "key.unit". A
+letter no slot answers reads as `G` with `#!U#` stuck on, and gripes, so a
+typo in a format is hard to miss.
 
 Migrating an existing enum? `Describe` already understands
 `[Description("...")]` and uses it as fallback display text. If your tooltips
-or subtitles live in some custom attribute instead, move the text to
-`[Tooltip("...")]`: `Describe` reads it for the tooltip and subtitle formats,
-and its obsolete warning keeps reminding you that those words really belong
-in a `words.ini` under a `[Words]` key.
+or subtitles live in some custom attribute instead, register it at startup,
+`Describable.Fill<HintAttribute>('T', hint => hint.Text)`, and `Describe`
+reads it for that format until the words move into a `words.ini` under a
+`[Words]` key. An enum with no attributes at all can take its keys from a
+prefix: `Describable.Keys<Brew>("enums.brew")` reads `Brew.Latte` at
+"enums.brew.Latte". Not your enum to decorate, or its keys don't follow its
+names? Hand `Keys` a function instead:
+`Describable.Keys<HttpStatusCode>(code => $"http.{(int)code}")` reads
+`HttpStatusCode.NotFound` at "http.404", and a `null` leaves a member to its
+name.
 
 Use the container `LazyWords` to preload a key for services that statically
 initialise before the dictionary has been loaded. The words will resolve

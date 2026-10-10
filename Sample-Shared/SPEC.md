@@ -92,7 +92,7 @@ template, Avalonia through its view locator.
 | Hyperlinks | tooltips, autolinks and app commands (`RegisterGlobalNavigateHandler`), coloured by the theme (`WordsLinkBrush`); the app's report of them (`Params`) |
 | Images | every scheme, `staticres:` beside `dynres:` under the theme toggle |
 | Format parameters | positional, as a child binding; plural forms the same count picks (`{0#key}`, `value#other`), sharing its slider; named, read off an object; numbers and dates in the language's culture, with `UseSystemNumbers` |
-| Enums | a `[Words]` enum in a picker (`WordsEnumDescription`); its tooltip, subtitle and description; a `[Flags]` value joined and listed |
+| Enums | a `[Words]` enum in a picker (`WordsEnumDescription`); its tooltip, subtitle and description, and its unit, a slot of the samples' own (`Describable.Slot`); a `[Flags]` value joined and listed |
 | Live switching | a bound key the view model picks; a converted binding; a kept string beside one recomposed through `IKnowWords` |
 | Diagnostics | the fallback brands (`Debug`); the log of what `Words.Logger` heard |
 
