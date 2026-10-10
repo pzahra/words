@@ -397,4 +397,53 @@ public class DescribableTests {
 		Assert.Equal("cocoa", Describable.OfKey("top.cocoa").Describe("G", Words()));
 		Assert.Equal("missing", Describable.OfKey("top.missing").Describe("G", Words())); //no words: its name
 	}
+
+	private const string Templates = Script + """
+
+		[order]
+		value={0}: {0:T} ({0:D})
+		[.named]
+		value={Brew:S}, x{Count}
+		[.stray]
+		value={0:X}
+		""";
+
+	[Fact]
+	public void ATemplate_DescribesAnEnum_ItsFormatDescribesLetters() {
+		// runtime SPEC: Describe in a template. Format hands an enum argument over as
+		// its describable, so {0} reads its words and a letter reads a slot
+		IWords words = Words(Templates);
+
+		Assert.Equal("Espresso shot: Short and strong (0)", words.Format("order", Coffee.Espresso));
+		Assert.Equal("A long black:  (1)", words.Format("order", Coffee.Americano)); //its Description, and no tooltip
+		Assert.Equal("Sugar, Cream:  (5)", words.Format("order", Toppings.Sugar | Toppings.Cream)); //no member: its own name
+		Assert.Equal("A small cup, x2", words.FormatByName("order.named", new Dictionary<string, object?> { ["Brew"] = Coffee.Espresso, ["Count"] = 2 }));
+		Assert.Equal("A small cup, x2", words.FormatParams("order.named", new { Brew = Coffee.Espresso, Count = 2 }));
+		Assert.Equal("Espresso shot: Short and strong (0)", words.RenderText("{0}: {0:T} ({0:D})", null, [Coffee.Espresso]));
+	}
+
+	[Fact]
+	public void ATemplate_DescribesInTheWordsItCameFrom() {
+		IWords italian = Words("[coffee.espresso]\nvalue=Caffè\n[.tooltip]\nvalue=Corto e forte\n[order]\nvalue={0}: {0:T}\n");
+
+		Assert.Equal("Caffè: Corto e forte", italian.Format("order", Coffee.Espresso));
+		Assert.Equal("Caffè: Corto e forte", italian.Format("order", Describable.OfKey("coffee.espresso"))); //a describable as it is
+	}
+
+	[Fact]
+	public void ATemplateWithoutADictionary_DescribesWhatNeedsNone() {
+		Assert.Equal("Espresso is 0", PatTech.Localization.Words.FormatByName("{0:s} is {0:D}", null, Coffee.Espresso));
+		Assert.Equal("A long black", PatTech.Localization.Words.FormatByName("{Brew}", new { Brew = Coffee.Americano }));
+	}
+
+	[Fact]
+	public void ATemplatesEnumLetter_NoSlotAnswers_IsStray() {
+		// Enum's own X and F are no slot's: the letters are Describe's now
+		using var globals = new WordsGlobals();
+		var logger = new CaptureLogger();
+		PatTech.Localization.Words.Logger = logger;
+
+		Assert.Equal("Espresso shot#!X#", Words(Templates).Format("order.stray", Coffee.Espresso));
+		Assert.Contains("WORDS:SLOT:`X`", logger.Messages);
+	}
 }

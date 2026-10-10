@@ -211,6 +211,14 @@ names? Hand `Keys` a function instead:
 `HttpStatusCode.NotFound` at "http.404", and a `null` leaves a member to its
 name.
 
+Hand an enum to a template and it describes itself there too: `{0}` reads
+its words, and the format after the colon is Describe's letters, so
+`Words.Known.Format("order.summary", brew)` with `{0}: {0:T}` gives the
+member's words and its tooltip, in the dictionary's language. The letters
+are Describe's, not Enum's: `{0:D}` is still the number, but `{0:d}` is the
+description and `{0:X}` is no slot. Anything implementing `IDescribable`
+formats the same way.
+
 Use the container `LazyWords` to preload a key for services that statically
 initialise before the dictionary has been loaded. The words will resolve
 once the Value is accessed the first time.

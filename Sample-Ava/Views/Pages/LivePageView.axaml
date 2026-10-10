@@ -18,7 +18,7 @@
     <!-- /card -->
 
     <!-- card: live.converted -->
-    <c:DemoCard Key="live.converted" Uses="{}{l:Words {Binding}}, WordsFormat">
+    <c:DemoCard Key="live.converted" Uses="{}{l:Words {Binding}}, WordsConverter">
       <StackPanel>
         <!-- the binding's own converter formats; live, it runs again on a switch too -->
         <TextBlock TextWrapping="Wrap" Text="{l:Words {Binding Count, Converter={StaticResource WordsFormat}, ConverterParameter=live.converted.demo}}"/>

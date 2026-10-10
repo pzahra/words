@@ -734,9 +734,9 @@ the key's own words, then the general text an attribute gives, then the
 description, then the name (`N`: the key's words, then the name); `d`,
 `.desc`, then `[Description]`; `S`, `.sub`, then `[Tooltip]`; `T`,
 `.tooltip`, then `[Tooltip]`; and `s` the name and `D` the number, which read
-no key. One letter a slot: `D` reads as Enum's own `D` does, so a template
-that one day hands an enum over cannot mean two things by it (*Describe in a
-template*). `D` used to read the description beside `d`, a leftover nothing
+no key. One letter a slot: `D` reads as Enum's own `D` does, so a template,
+which hands an enum over (*Describe in a template*), cannot mean two things
+by it. `D` used to read the description beside `d`, a leftover nothing
 used; `i`, the number's letter before it, is retired, and so is `n`, which
 read as `G` and looked like the lower case of `N`, the strict name. `G` is
 the general text because IFormattable's general format is.
@@ -812,6 +812,42 @@ describe reads the type again; the cache holds no words, so another language
 reads its own; and a describable built from a key alone reads its slots. The
 `Describe` and converter tests stand unchanged.
 
+## Describe in a template
+
+The `Format` family hands an enum argument over as its describable
+(`Describable.Of`), and an `IDescribable` one as it is: where string.Format
+prints the argument, its format is Describe's letters, read in the
+dictionary the template came from. So `{0}` is the general text, the key's
+words in the template's language, `{0:T}` the tooltip and `{0:D}` the
+number, and a template reads an enum as the converters do. This holds for
+`Format`, `FormatByName`, `FormatParams` and their `Known` shorthands, so
+for `WordsInline` and the converters, and for `RenderKey` and `RenderText`
+with arguments; the raw-template `FormatByName` and the provider overloads
+have no dictionary, and describe in `Known`. A selector reads its argument
+before it is described, so a count stays a count; an enum is none, as
+before. Wordsmith's `enum` input sends the describable it builds off the
+key, so its previews read a template's letters as an app's would (the
+editor spec's *Parameters*).
+
+The letters are Describe's, not Enum's, and they change what a template
+printed. `{0}` printed the member's name, and now prints its words, or its
+`[Description]`, then its name. `D` is the number to both. `d`, the decimal
+to Enum, is the description, empty where there is none. Enum's `X` and
+`F`, in either case, and `g` are no slot's, and read as stray letters, the
+general text marked `#!X#` with a `WORDS:SLOT` warning. A `[Flags]`
+combination reads as `Describable.Of` reads it, its own name and number. A
+template wanting Enum's hex is handed the number. There is no opting out:
+an app that wants Enum's own text passes `ToString()`.
+
+**Tests.** `{0}`, `{0:T}` and `{0:D}` read a `[Words]` member's words,
+tooltip and number; a `[Description]` member prints its description and a
+combination its name; `FormatByName` and `FormatParams` describe a named
+enum, and `RenderText` with arguments a positional one; a dictionary in
+another language describes in its words, and a describable built from a key
+alone formats as an enum does; the raw template describes what needs no
+words; one of Enum's letters that is no slot is stray, and warns. The
+samples' Enums page formats the picked brew into a template.
+
 # Planned upgrades
 
 Not built. Each section here is the shape the feature takes when it is, or the
@@ -871,18 +907,3 @@ string.Format does, so `{{0}}` would read `{0}` formatted and `{0}}` plain.
 A file that wrote `{{{{` for a formatted brace would then read two, so the
 fix's release notes say so. Wordsmith's parameter finder reads the runtime
 as it is, `{{0}` a use (the editor spec's *Parameters*), and follows the fix.
-
-## Describe in a template
-
-Undecided: whether a template describes an enum (*Describe without the
-type*). string.Format hands an enum argument to `Enum.ToString`, so `{0:T}`
-throws rather than describing. An `IDescribable` that is also `IFormattable`
-would let a template take one, `{0:T}` reading the tooltip, and the preview
-would pass Wordsmith's own the same way. Handing every enum argument over as
-its describable inside the `Format` family goes further. It changes what
-`{0}` prints for a member with a `[Description]`, and `d`, the description to
-Describe, is the decimal to Enum, whose letters ignore case; `D` is the
-number to both, so an app wanting the number writes `D`. Enum's `g`, its
-`G`, and its `X` and `F` are no slot's, and read as stray letters. So it
-would be opt-in, if at all. Until this is answered, Wordsmith's input sends
-the general text, `Describe()` with no letters.

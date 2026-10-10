@@ -32,7 +32,7 @@
     <!-- /card -->
 
     <!-- card: markdown.playground -->
-    <c:DemoCard Key="markdown.playground" Uses="WordsMarkdown">
+    <c:DemoCard Key="markdown.playground" Uses="MarkdownConverter">
       <StackPanel>
         <TextBox Text="{Binding Playground}" TextWrapping="Wrap"/>
         <!-- WordsMarkdown comes from the package's Converters.axaml, merged in App.axaml -->

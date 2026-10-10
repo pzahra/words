@@ -197,7 +197,7 @@ namespace PatTech.Localization {
 			}
 			//the text is the caller's, not baseKey's words, so it may refer to baseKey and
 			//select its forms, as it may without arguments
-			return string.Format(RenderTextCore(words.Provider, text, baseKey, null, new(words.Language, Positional(args))), args);
+			return string.Format(RenderTextCore(words.Provider, text, baseKey, null, new(words.Language, Positional(args))), Describing(args, words));
 		}
 
 		/// <summary>
@@ -220,7 +220,7 @@ namespace PatTech.Localization {
 
 			var renderedText = RenderKeyCore(wordsProvider, key, null, null);
 			if (args?.Length > 0) {
-				renderedText = string.Format(renderedText, args: args);
+				renderedText = string.Format(renderedText, args: Describing(args, null));
 			}
 			return renderedText;
 		}
@@ -247,7 +247,7 @@ namespace PatTech.Localization {
 
 			var renderedText = RenderTextCore(wordsProvider, text, baseKey, null, null);
 			if (args?.Length > 0) {
-				renderedText = string.Format(renderedText, args: args);
+				renderedText = string.Format(renderedText, args: Describing(args, null));
 			}
 			return renderedText;
 		}
@@ -578,7 +578,10 @@ namespace PatTech.Localization {
 		/// <c>{0#word}</c>, is replaced by the form of <c>word</c> its argument's count
 		/// picks (<see cref="IWords.this[string, decimal]"/>), so <c>{0} {0#word}</c>
 		/// reads "1 Word" and "2 Words"; the argument itself prints only where a
-		/// <c>{0}</c> puts it.
+		/// <c>{0}</c> puts it. An enum or an <see cref="IDescribable"/> argument prints
+		/// described in <paramref name="known"/>, its format the letters of
+		/// <see cref="Extensions.Describe(IDescribable, string?, IWords?)"/>: <c>{0}</c>
+		/// its words, <c>{0:T}</c> its tooltip, <c>{0:D}</c> its number.
 		/// </summary>
 		/// <param name="known">The dictionary to read.</param>
 		/// <param name="provider">Culture-specific formatting, or <see langword="null"/> for the current culture.</param>
@@ -586,7 +589,32 @@ namespace PatTech.Localization {
 		/// <param name="args">The values to format into the template.</param>
 		[return: Localized]
 		public static string Format(this IWords known, IFormatProvider? provider, [WordsKey] string key, params object?[] args)
-			=> string.Format(provider, Template(known, key, new(known.Language, Positional(args))), args);
+			=> string.Format(provider, Template(known, key, new(known.Language, Positional(args))), Describing(args, known));
+
+		//each enum or describable argument, described in words where string.Format prints
+		//it (runtime SPEC: Describe in a template); a selector has read its count before.
+		//The array is copied only where there is one
+		[return: NotNullIfNotNull(nameof(args))]
+		private static object?[]? Describing(object?[]? args, IWords? words) {
+			object?[]? described = null;
+			for (int i = 0; i < (args?.Length ?? 0); ++i) {
+				IDescribable? value = args![i] switch {
+					Enum member => Describable.Of(member),
+					IDescribable describable => describable,
+					_ => null,
+				};
+				if (value is not null) {
+					(described ??= (object?[])args.Clone())[i] = new Described(value, words);
+				}
+			}
+			return described ?? args;
+		}
+
+		//a describable as string.Format takes one: the format is Describe's letters
+		private sealed class Described(IDescribable value, IWords? words) : IFormattable {
+			public string ToString(string? format, IFormatProvider? provider) => value.Describe(format, words);
+			public override string ToString() => value.Describe(null, words);
+		}
 
 		/// <inheritdoc cref="FormatByName(IWords, IFormatProvider?, string, object?, object?[])"/>
 		[return: Localized]
@@ -609,7 +637,7 @@ namespace PatTech.Localization {
 		/// <param name="args">Additional positional arguments.</param>
 		[return: Localized]
 		public static string FormatByName(this IWords known, IFormatProvider? provider, [WordsKey] string key, object? value, params object?[] args)
-			=> FormatByName(provider, Template(known, key, new(known.Language, Named(value, args))), value, args);
+			=> FormatByNameIn(known, provider, Template(known, key, new(known.Language, Named(value, args))), value, args);
 
 		/// <summary>
 		/// Looks up <paramref name="key"/> and fills its placeholders from whatever
@@ -761,14 +789,19 @@ namespace PatTech.Localization {
 		/// <summary>
 		/// Formats a raw template string with named placeholders, no dictionary lookup involved.
 		/// See <see cref="PreFormatByName(string, object?, object?[])"/> for the placeholder rules.
+		/// An enum or an <see cref="IDescribable"/> prints described in <see cref="Known"/>,
+		/// as <see cref="Format(IWords, IFormatProvider?, string, object?[])"/> describes one.
 		/// </summary>
 		/// <param name="provider">Culture-specific formatting, or <see langword="null"/> for the current culture.</param>
 		/// <param name="template">The format template containing <c>{Name}</c> or <c>{Name:format}</c> tags.</param>
 		/// <param name="value">The object whose public fields and properties, or the dictionary whose values, are read by name.</param>
 		/// <param name="args">Additional positional arguments, addressed by the template's numbered tags.</param>
-		public static string FormatByName(IFormatProvider? provider, string template, object? value, params object?[] args) {
+		public static string FormatByName(IFormatProvider? provider, string template, object? value, params object?[] args)
+			=> FormatByNameIn(null, provider, template, value, args);
+		//the same, describing in words, the dictionary the template came from
+		private static string FormatByNameIn(IWords? words, IFormatProvider? provider, string template, object? value, object?[] args) {
 			var (formatString, formatArgs) = PreFormatByName(template, value, args);
-			return string.Format(provider, formatString, formatArgs);
+			return string.Format(provider, formatString, Describing(formatArgs, words));
 		}
 		/// <summary>
 		/// <see cref="FormatByName(string, object?, object?[])"/>, which reads a dictionary

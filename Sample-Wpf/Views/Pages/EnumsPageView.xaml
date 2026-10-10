@@ -7,7 +7,7 @@
        Each is wrapped in {l:Words}, so it runs again on a language switch too -->
   <StackPanel>
     <!-- card: enums.names -->
-    <c:DemoCard Key="enums.names" MoreKeys="enums.brew" Uses="[Words], WordsEnumDescription, {l:Words {Binding}}">
+    <c:DemoCard Key="enums.names" MoreKeys="enums.brew" Uses="[Words], EnumDescriptionConverter, {l:Words {Binding}}">
       <ComboBox HorizontalAlignment="Left" MinWidth="200"
                 ItemsSource="{Binding Brews}"
                 SelectedItem="{Binding SelectedBrew}">
@@ -21,7 +21,7 @@
     <!-- /card -->
 
     <!-- card: enums.variants -->
-    <c:DemoCard Key="enums.variants" MoreKeys="enums.brew" Uses="WordsEnumDescription, ConverterParameter, Describable.Slot">
+    <c:DemoCard Key="enums.variants" MoreKeys="enums.brew" Uses="EnumDescriptionConverter, ConverterParameter, Describable.Slot">
       <!-- the parameter is the Describe format: G (the default) names it, T, S and d
            read .tooltip, .sub and .desc, and U the samples' own .unit -->
       <StackPanel>
@@ -41,8 +41,16 @@
     </c:DemoCard>
     <!-- /card -->
 
+    <!-- card: enums.template -->
+    <c:DemoCard Key="enums.template" MoreKeys="enums.brew" Uses="{}{0:T}, WordsInline">
+      <!-- the brew is the template's argument as it is: {0} reads its words, {0:S} and
+           {0:T} its subtitle and tooltip, as the converter's parameter would -->
+      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="enums.template.demo"><Binding Path="SelectedBrew"/></l:WordsInline></TextBlock>
+    </c:DemoCard>
+    <!-- /card -->
+
     <!-- card: enums.flags -->
-    <c:DemoCard Key="enums.flags" MoreKeys="enums.extras" Uses="[Flags], WordsFlagsDescription, WordsFlagsDescriptionList">
+    <c:DemoCard Key="enums.flags" MoreKeys="enums.extras" Uses="[Flags], FlagsDescriptionConverter, AsArray">
       <StackPanel>
         <!-- each box sets or clears one flag of the view model's Extras value -->
         <WrapPanel>

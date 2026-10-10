@@ -189,7 +189,10 @@ live (`.Live()` before `Digest`) is the proxy that follows `Words.SwitchLanguage
 `Describable.Fill<TAttribute>` points an existing attribute at a slot,
 `Describable.Keys<TEnum>("prefix")` or `Keys<TEnum>(member => key)` keys an
 enum without attributes (one the app doesn't own included), and a letter no
-slot answers reads as `G` marked `#!U#`.
+slot answers reads as `G` marked `#!U#`. The `Format` family describes an
+enum or `IDescribable` argument the same way, in its dictionary: `{0}` is
+`G`, `{0:T}` the tooltip, and Enum's own letters are gone (`{0:d}` is the
+description, `{0:X}` no slot).
 
 ## Logging — silent unless you wire it
 

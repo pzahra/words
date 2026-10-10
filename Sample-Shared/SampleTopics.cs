@@ -13,13 +13,13 @@ public sealed record SampleTopic(string Id, int Revision) {
 /// <summary>The topics, in the order the list shows them.</summary>
 public static class SampleTopics {
 	public static SampleTopic Start { get; } = new("start", 3);
-	public static SampleTopic Markdown { get; } = new("markdown", 4);
+	public static SampleTopic Markdown { get; } = new("markdown", 5);
 	public static SampleTopic References { get; } = new("references", 2);
 	public static SampleTopic Links { get; } = new("links", 3);
 	public static SampleTopic Images { get; } = new("images", 3);
 	public static SampleTopic Parameters { get; } = new("parameters", 3);
-	public static SampleTopic Enums { get; } = new("enums", 4);
-	public static SampleTopic Live { get; } = new("live", 3);
+	public static SampleTopic Enums { get; } = new("enums", 5);
+	public static SampleTopic Live { get; } = new("live", 4);
 	public static SampleTopic Diagnostics { get; } = new("diagnostics", 2);
 
 	public static IReadOnlyList<SampleTopic> All { get; } = [Start, Markdown, References, Links, Images, Parameters, Enums, Live, Diagnostics];
