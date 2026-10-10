@@ -260,6 +260,26 @@ public sealed class WordsCommandTests : IDisposable {
 	}
 
 	[Fact]
+	public void Set_ATranslationThatDropsOrAddsAParameter_IsWritten_WithANote() {
+		File.WriteAllText(path, Ini(
+			"value=!en",
+			"value-fr=Français",
+			"",
+			"[files]",
+			"value={0} files"));
+
+		var (code, _, error) = Run("set", "FILE", "files", "value-fr", "des fichiers");
+		Assert.Equal((0, "words: files: the fr words drop {0}, which the default uses, so the app's value never shows\n"), (code, error));
+		Assert.Contains("value-fr=des fichiers\n", File.ReadAllText(path));
+
+		Assert.Equal("words: files: the fr words use {1}, which the default does not and no param- defines\n",
+			Run("set", "FILE", "files", "value-fr", "{0} fichiers de {1}").Error);
+		Assert.Equal("", Run("set", "FILE", "files", "value-fr", "{0} fichiers").Error);
+		Assert.Equal("", Run("set", "FILE", "files", "value-fr#other", "{0} fichiers").Error);
+		Assert.Equal("", Run("set", "FILE", "files", "value-fr", "{>elsewhere.files}").Error); //its one file: a reference out of it may carry {0}
+	}
+
+	[Fact]
 	public void ARefusedEdit_ExitsTwo_AndLeavesTheFile() {
 		string text = "[a]\nvalue=A\\";
 		File.WriteAllText(path, text);

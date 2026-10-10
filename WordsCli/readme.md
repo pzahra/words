@@ -41,6 +41,10 @@ words list   strings.ini --missing it                # the keys Italian still mi
   Wordsmith does. A mark already there stays put, so "machine translated"
   doesn't quietly become a date. Setting a default to the words it already
   has marks nothing.
+- **A translation that loses a placeholder** gets a word on stderr: one that
+  drops a `{0}` the default uses (the app's value would never show), or uses
+  a `{1}` the default doesn't and no `param-` defines (the app would throw).
+  It is written all the same, since you may be halfway through.
 - **`--missing xx`** asks Wordsmith's badge rule about one language: keys with
   no words in `xx`, or a plural key missing a form `xx` counts by. A language
   the default speaks misses nothing, since its empty entries fall back. (The

@@ -37,7 +37,12 @@ rather than losing them as an unknown type:
   stale with it (the default's mark keeps no words), so the review filter
   surfaces a machine-written value. Options go anywhere after the call:
   `--stale` takes the next argument as its words only once the value is in,
-  and `--stale=text` always does.
+  and `--stale=text` always does. A translation it writes is checked against
+  the default by the editor's rule (the editor spec's *Parameters*,
+  Translation check): one that drops a parameter the default uses, or uses
+  one the default does not and no `param-` defines, is written all the same,
+  with a note naming them. The file is all it sees, so a side with a
+  reference out of it may carry anything, and is not held to the other.
 - `remove <file> <key> [field]` drops one field, every declaration of it, or
   the whole key. A field is there to drop when the file declares it, with
   words or empty, though `get` reads an empty one as none, exit 1.
@@ -58,7 +63,7 @@ be read and cleared. `remove` refuses a constant whose header bases
 constant, and without one the children re-base. Values go
 to stdout and gripes to stderr: the reader's gripes the edit adds (a field in
 an undeclared language, a form the language never reads), and a note when a
-field declared twice is made one. The exit code is 0 for done, 1 when the
+field declared twice is made one, or a translation drops or adds a parameter. The exit code is 0 for done, 1 when the
 key or field is not there, 2 for a bad call, a file that is missing, can't be
 read or written, does not parse or is no text the patcher reads, or a refused
 edit; a file's failure names the file, which the system's own message may not,
@@ -158,7 +163,9 @@ output and exit code, a dash read from stdin, a lone `\r` its last break, a
 leading U+FEFF kept and said, bytes that are no UTF-8 refused, all through the
 reader the program puts on a pipe; `--stale` with words, without and before
 the value, a changed default staling its translations with words and keeping
-a mark there, gripes passed on, a refused edit leaving the file, BOM-less UTF-16
+a mark there, a translation that drops or adds a parameter written with a
+note and none for one that keeps them or refers out of the file, gripes
+passed on, a refused edit leaving the file, BOM-less UTF-16
 left alone, a missing or read-only file named without the calls, an empty
 field removed though `get` calls it none, a `[.child]` header before any base
 listed, read and removed but never written, and `list` with a prefix and

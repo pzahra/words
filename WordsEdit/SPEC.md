@@ -1162,13 +1162,16 @@ The prefix sits in parentheses so the type stays one word before the first
 `:`. Numbers, spans and moments are typed in the invariant culture, as the
 file's own are, so `1.5` reads the same for every translator; the previews
 format them in their pane's culture. An `enum` input describes the picked
-member through the runtime's engine, from a describable built off its key
-(the runtime spec's *Describe without the type*). It sends what an app passing
+member through the runtime's engine, from a describable built off its key,
+`Describable.OfKey` (the runtime spec's *Describe without the type*). It sends what an app passing
 `brew.Describe()` shows: the member's words in the pane's language, or its
 name, the key's last segment, where it has none. Whether a template's `{0:T}`
 reads the member's `.tooltip` waits on that section's question. What lives
 only on the type, `[Description]`, `[Tooltip]` and the number, stays empty,
-and a `[Flags]` combination is no member.
+and a `[Flags]` combination is no member. The runtime's registry is one per
+process, so Wordsmith cannot hold the slots each app adds side by side; the
+general text needs none, and an input that reads an app's own slots waits on
+solving that.
 
 **In the pane, a conversation.** The baseline pane reads as a chat already:
 the programmer's context on the left, inset from the right, the translator's
@@ -1198,8 +1201,12 @@ What is found is every parameter the default uses, printed (`{0}`, `{0:N2}`,
 `{Name}`) or counting (`{0#word}`), over its plain value and every form, with
 references and selected forms expanded as the runtime expands them, through
 every loaded file as the previews resolve them, so a `{>files}` whose words
-print `{0}` uses `{0}`. Numbered ones come first, by number, then named ones
-as they first appear; an escaped `{{0}` is none. A parameter found and not
+print `{0}` uses `{0}`. Numbered ones come first, by number, `{01}` being
+`{1}` as string.Format reads it, then named ones as they first appear. The
+words are read as the runtime reads them today: rendering collapses Words'
+escapes before string.Format sees them, so `{{0}` renders to `{0}` and is a
+use, and only `{{{{0}}` is a brace. That is a runtime bug (the runtime spec's
+*One escape for a brace*), and the finder follows its fix. A parameter found and not
 defined shows faintly under the definitions, `+ {0}`, and a click makes it
 one, its type guessed: `int` for a selector's count, `str` otherwise. The
 + adds the first of those, or else the lowest number no definition has, so
@@ -1236,8 +1243,12 @@ use is compared, so a translation may print where the default counts (a
 language whose words do not change with the count prints `{0}` and needs no
 `{0#word}`), a form may leave out what another keeps (an English `one` that
 reads "a file"), and a format may differ (`{0:d}` for `{0:D}`). A reference
-that cannot be followed, into a file not loaded, may carry anything, so a
-side with one has nothing called dropped. A mismatch badges the key's node for the selected language, as
+that cannot be followed, into a file not loaded, may carry anything, so
+nothing is dropped from a translation with one, and nothing is extra beside
+a default with one. A translation with forms and no plain value reads the
+plain value it falls back to, as the runtime does; a translation without
+words is missing rather than mismatched, and a constant is checked for
+nothing. A mismatch badges the key's node for the selected language, as
 missing words do, has a filter beside Missing, and names what is dropped or
 extra beside the translation box. The rule is Authoring's, as `MissingWords`
 is: the badges read it, `words set` notes on stderr a translation it writes
@@ -1265,11 +1276,11 @@ this replaces the baseline pane's *Parameter testing* bullet, and the inputs
 take the samples' place in *Plural forms*.
 
 **Tests.**
-- What a default finds with `{0}`, `{0:N2}`, `{Name}`, `{1#word}`, `{{2}`,
-  `{>ref}` whose words print `{3}`, a `word#other` that prints `{4}`, and
-  forms of its own: 0, 1, 3, 4 and Name, in that order, with 1 guessed
-  `int`; `{{2}` is none, and a reference into a file not loaded finds
-  nothing.
+- What a default finds with `{0}`, `{0:N2}`, `{Name}`, `{1#word}`,
+  `{{{{2}}`, `{>ref}` whose words print `{3}`, a `word#other` that prints
+  `{4}`, `{{5}`, and forms of its own: 0, 1, 3, 4, 5 and Name, in that
+  order, with 1 guessed `int`; `{{{{2}}` is none, as the runtime's `Format`
+  reads it, and a reference into a file not loaded finds nothing.
 - A found parameter adopted becomes a definition with its guess; the + adds
   the first found and undefined, else the lowest free number; a definition
   the default does not use stays, hinted, with no gripe and no badge; a key
@@ -1294,14 +1305,16 @@ take the samples' place in *Plural forms*.
   leaving out what another keeps, is no mismatch; a translation counting
   with a defined `{0}` the default never uses is fine, and an undefined
   `{2}` is extra; a reference whose translation prints `{0}` is a use of it;
-  a side with a reference it cannot follow drops nothing; `words set` notes
-  a mismatch and writes it.
+  a side with a reference it cannot follow is not held to the other; `words
+  set` notes a mismatch and writes it.
 - The menu's inventory no longer has Test Parameters.
 
 **Order.** After the runtime's *Describe without the type*, which the `enum`
 input stands on. Finding parameters, references and selected forms expanded, and
 the check first, in Authoring and headless, with the command line's note; then the description in the model,
 the reader and the writer; then the pane; then the badge and the filter.
+Built so far: the first, `ParameterUse` in Authoring, and the note (the
+command line spec's *Calls*).
 
 ## Save as a patch
 

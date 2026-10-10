@@ -139,9 +139,31 @@ namespace PatTech.Localization.Cli {
 				}
 				gripes.AddRange(patcher.Set(key, new WordsField("stale", field.Language, ""), stale));
 			}
+			if (field is { Type: "value", Language: not "" }) {
+				gripes.AddRange(Mismatch(patcher, key, field.Language));
+			}
 			Save(patcher, call.File);
 			Gripe(error, gripes);
 			return Done;
+		}
+
+		//what a translation just written drops or adds beside its default, by the
+		//editor's rule; the file is all it sees, so a reference into another is one it
+		//cannot follow
+		private static IEnumerable<string> Mismatch(IniPatcher patcher, string key, string code) {
+			var keys = patcher.Keys.ToDictionary(found => found.BlockKey);
+			if (!keys.TryGetValue(key, out var written)) {
+				yield break;
+			}
+			var mismatch = ParameterUse.Check(written, code, new DefaultWordsProvider(keys, []), patcher.DefaultLanguage, new LanguageWordsProvider(keys, code, []));
+			if (mismatch.Dropped.Count != 0) {
+				yield return $"{key}: the {code} words drop {Placeholders(mismatch.Dropped)}, which the default uses, so the app's value never shows";
+			}
+			if (mismatch.Extra.Count != 0) {
+				yield return $"{key}: the {code} words use {Placeholders(mismatch.Extra)}, which the default does not and no param- defines";
+			}
+
+			static string Placeholders(IEnumerable<string> names) => string.Join(", ", names.Select(FoundParameters.Placeholder));
 		}
 
 		//all of stdin but its last line break, \r\n, \n or \r

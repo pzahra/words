@@ -608,7 +608,8 @@ may refer to that key or select among its forms, given arguments or not.
 
 An escaped pair collapses in the same pass, so `{{0#word}` is a brace and text,
 no selector; `string.Format` then wants its own `{{`, as for `{{>key}`. A
-`{{{{` pair still reaches `string.Format` as `{{`. The `Format` family renders the
+`{{{{` pair still reaches `string.Format` as `{{`. That a formatted brace takes
+two escapes is a bug, planned (*One escape for a brace*). The `Format` family renders the
 key from `Provider`, as `RenderKey` does; an `IWords` of one's own whose indexer
 dresses words up is read through only for a key its provider lacks. What it
 answers is rendered already, so only its selectors are left, each resolved
@@ -736,6 +737,22 @@ with that thread's `Watch()`. The shape: a trigger per synchronization context,
 each multi-binding taking its own thread's, and a swap pulsing each on its
 own context. The context-less half is built: a `Watch()` from a thread with no
 context leaves the trigger where it was.
+
+## One escape for a brace
+
+A brace is escaped once in words, `{{`, and rendering collapses it, so
+`{{>key}` shows as `{>key}`. A value handed to `Format` is rendered first and
+then read by string.Format, which wants an escape of its own: `{{0}` renders
+to `{0}` and is filled, `{{>key}` renders to `{>key}` and throws, and a
+literal brace in a formatted value takes `{{{{`. That is a bug: whoever writes
+a value should not have to know whether the code formats it, and a
+translator cannot. The shape of the fix: on the `Format` path, rendering
+leaves an escaped brace for string.Format to collapse, so one `{{` is one
+brace either way. Undecided: `}`, which Words does not escape and
+string.Format does, so `{{0}}` would read `{0}` formatted and `{0}}` plain.
+A file that wrote `{{{{` for a formatted brace would then read two, so the
+fix's release notes say so. Wordsmith's parameter finder reads the runtime
+as it is, `{{0}` a use (the editor spec's *Parameters*), and follows the fix.
 
 ## Describe without the type
 
