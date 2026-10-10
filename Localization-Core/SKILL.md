@@ -185,7 +185,7 @@ unchanged. `WordsConverter` formats with the culture the binding hands it.
 live (`.Live()` before `Digest`) is the proxy that follows `Words.SwitchLanguage`.
 `[Words("key")]` on enum members plus `Enum.Describe` provides `key`,
 `key.tooltip`, `key.sub`, `key.desc` variants (format letters `G`, `T`, `S`,
-`D`); `Describable.Slot('U', ".unit")` adds a slot of the app's own,
+`d`; `D` is the number, as Enum's `D`); `Describable.Slot('U', ".unit")` adds a slot of the app's own,
 `Describable.Fill<TAttribute>` points an existing attribute at a slot,
 `Describable.Keys<TEnum>("prefix")` or `Keys<TEnum>(member => key)` keys an
 enum without attributes (one the app doesn't own included), and a letter no

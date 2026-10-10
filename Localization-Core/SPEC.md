@@ -694,6 +694,124 @@ UI thread.
 
 ---
 
+## Describe without the type
+
+`Describe` reads an enum member's name, number, key (`[Words]`) and attribute
+text, looks up the words beside the key, and assembles what the format's
+letters ask for. It used to reflect on every call, asking for each attribute
+by name whether the member had it or not, and to look up every key beside the
+member though `G` reads one; and Wordsmith, which has the keys and never the
+type, could not describe at all (the editor spec's *Parameters*, Types).
+
+**The seam.** `IDescribable` is what the engine reads: `Name`, `Number`, the
+number as text so any integer type's value fits, `Key`, and `Text(slot)`, the
+text an attribute gave a slot, by the slot's letter (Slots, below).
+`Describe(this IDescribable, format, words)` is the engine, and it looks up
+only the keys its letters ask for, each once: `G` the key alone, `T` the key's
+`.tooltip`, and so on. `Describe(this Enum, …)` takes the member's describable
+from `Describable.Of`, built once per member and kept per type, and runs the
+same engine. A value's member is its first name that is not obsolete, as
+`Enum.GetNames` orders them, so an old name kept for compatibility never
+stands in for the new one. The cache holds what the type says and never the
+words, so a language switched live reads afresh.
+
+**Without an enum.** `Describable.OfKey(key)` describes a key with no type
+behind it: its name the last segment, no number and no attribute text, so the
+letters read the key's `.tooltip` and kin as they would for a real member.
+Wordsmith's `enum(prefix)` input builds one per key under the prefix.
+
+**Flags.** A `[Flags]` combination is no member. `Describe` on one reads as it
+always has: the joined names, and for `D` the whole number.
+`Describable.Members(value)` gives the members `Enum.ToString` names for it,
+which settles overlapping values the way .NET does, each one's describable
+from the cache, and `Describe` on that list gives one text per member. Both
+frameworks' flags converters stand on the pair and keep their options:
+leaving out `None`, the delimiter, a list or one string.
+
+**Slots.** A slot is a format letter, the suffix it reads beside the key, and
+the attribute text it falls back to where the key has none. The canon: `G`,
+the key's own words, then the general text an attribute gives, then the
+description, then the name (`N`: the key's words, then the name); `d`,
+`.desc`, then `[Description]`; `S`, `.sub`, then `[Tooltip]`; `T`,
+`.tooltip`, then `[Tooltip]`; and `s` the name and `D` the number, which read
+no key. One letter a slot: `D` reads as Enum's own `D` does, so a template
+that one day hands an enum over cannot mean two things by it (*Describe in a
+template*). `D` used to read the description beside `d`, a leftover nothing
+used; `i`, the number's letter before it, is retired, and so is `n`, which
+read as `G` and looked like the lower case of `N`, the strict name. `G` is
+the general text because IFormattable's general format is.
+`DescribeSlot`, a `byte` enum, names the canon by its letters,
+`DescribeSlot.Tooltip = (byte)'T'`, cast to `char` where a slot is asked for,
+so `(char)DescribeSlot.Tooltip` and `'T'` are one slot. Any other letter or
+digit is an app's own, once it is on `[Words]` and keeps more
+beside each member: `Describable.Slot('H', ".hint")` makes `H` read
+`key.hint`, and the registry can point an attribute at it as at any slot. A
+letter that is a slot already, built in or added, is refused, and so is a
+suffix that is not a dot and one segment of a key's name.
+
+`.unit` left the canon on the same footing: a suffix to another value is one
+app's need, not every enum's, and one line puts it back,
+`Describable.Slot('U', ".unit")`. The samples' words add it, and their Enums
+page shows each brew's unit, a slot of one's own on show.
+
+**A letter no slot answers** reads as `G`, marked `#!X#`, and warns
+`WORDS:SLOT` with the letter. It used to read nothing, so a typo in a format,
+or an app reading `U` without adding it, vanished without a word; marked, it
+leaves something to search the gripes and the docs for. Quoted text, `''`
+being a quote, and anything that is no letter or digit are written as they
+are. The release that brings this says so in its notes: `U` is no longer
+built in, `D` reads the number where it read the description, `i` and `n`
+are retired, and a stray letter, `i` and `n` among them, shows.
+
+**The registry.** What fills a slot is registered, not searched for: the
+registry maps an attribute type to what it gives, the key or a slot's text,
+and how its text is read. It starts with `[Words]` for the key,
+`[Description]` for `d` and `[Tooltip]` for `S` and `T`. Building a member's
+describable asks its field for its attributes once and looks each one's type
+up; an attribute the registry does not know is passed over, and one it knows
+is never probed for on a member that lacks it. An app registers an attribute
+it already has, `Describable.Fill<HintAttribute>('T', hint => hint.Text)`, so
+`Describe` reads it while moving to `[Words]` is not an option yet, and its
+enums are not touched at all. `Fill` takes `G`, `d`, `S`, `T` or a slot the
+app added; the name and the number read no attribute. An attribute that
+names the key is registered with `FillKey`. Where two attributes give the
+same thing, the one registered first wins, so a member's `[Words]` beats an
+app's own key, and `[Tooltip]` an app's own tooltip.
+
+An enum type can instead key its members itself, so it needs no attribute at
+all: by a prefix, `Describable.Keys<Brew>("enums.brew")`, each member's key
+the prefix and its name; or by a function, for an enum one does not own or
+whose keys do not follow its names,
+`Describable.Keys<HttpStatusCode>(code => $"http.{(int)code}")`, a `null`
+leaving a member keyless. The function is asked once per member, when the
+type is first described. A member's own key still wins, and a type has one
+way to key its members, the latest given. Registering belongs at startup. A
+registration is a new registry with an empty cache, so a type described
+before reads again, and a describe already under way finishes on the
+registry it began with. This is the
+migration `[Tooltip]` stood in for: the Core readme's advice to move a custom
+attribute's text into `[Tooltip]` is now registering that attribute, and
+`[Tooltip]` stays, obsolete, for the code that already uses it.
+
+**Tests.** Every built-in letter reads as before, quoting and punctuation
+included, for a `[Words]` member, a `[Description]` one, a bare one and one
+sharing its value with an obsolete name; `G` looks up the key alone and `T`
+its `.tooltip` alone, each once, and `s` and `D` none; `D` reads the number
+as Enum's `D` does, and `i` and `n` as stray letters; a member is read once
+however often it is described; a registered attribute fills its slot, one
+attribute can fill two, an unregistered one is passed over, and the first
+registered wins; `[Words]` beats an app's own key, which beats a key prefix;
+a function keys an enum one does not own member by member, once each, a
+`null` leaving a member its name, and the latest for a type stands;
+a slot of one's own reads its suffix, then its attribute; a letter taken, no
+letter and a bad suffix are refused; a letter no slot answers reads as `G`
+marked, and warns; the samples' `U` reads a brew's unit; a combination's
+members are those .NET names, an overlap and an undefined value among them,
+while `Describe` on the combination reads as before; a registration after a
+describe reads the type again; the cache holds no words, so another language
+reads its own; and a describable built from a key alone reads its slots. The
+`Describe` and converter tests stand unchanged.
+
 # Planned upgrades
 
 Not built. Each section here is the shape the feature takes when it is, or the
@@ -754,124 +872,17 @@ A file that wrote `{{{{` for a formatted brace would then read two, so the
 fix's release notes say so. Wordsmith's parameter finder reads the runtime
 as it is, `{{0}` a use (the editor spec's *Parameters*), and follows the fix.
 
-## Describe without the type
+## Describe in a template
 
-`Describe` reads an enum member's name, number, key (`[Words]`) and attribute
-text, looks up the words beside the key, and assembles what the format's
-letters ask for. It used to reflect on every call, asking for each attribute
-by name whether the member had it or not, and to look up every key beside the
-member though `G` reads one; and Wordsmith, which has the keys and never the
-type, could not describe at all (the editor spec's *Parameters*, Types).
-
-**The seam.** `IDescribable` is what the engine reads: `Name`, `Number`, the
-number as text so any integer type's value fits, `Key`, and `Text(slot)`, the
-text an attribute gave a slot, by the slot's letter (Slots, below).
-`Describe(this IDescribable, format, words)` is the engine, and it looks up
-only the keys its letters ask for, each once: `G` the key alone, `T` the key's
-`.tooltip`, and so on. `Describe(this Enum, …)` takes the member's describable
-from `Describable.Of`, built once per member and kept per type, and runs the
-same engine. A value's member is its first name that is not obsolete, as
-`Enum.GetNames` orders them, so an old name kept for compatibility never
-stands in for the new one. The cache holds what the type says and never the
-words, so a language switched live reads afresh.
-
-**Without an enum.** `Describable.OfKey(key)` describes a key with no type
-behind it: its name the last segment, no number and no attribute text, so the
-letters read the key's `.tooltip` and kin as they would for a real member.
-Wordsmith's `enum(prefix)` input builds one per key under the prefix.
-
-**Flags.** A `[Flags]` combination is no member. `Describe` on one reads as it
-always has: the joined names, and for `i` the whole number.
-`Describable.Members(value)` gives the members `Enum.ToString` names for it,
-which settles overlapping values the way .NET does, each one's describable
-from the cache, and `Describe` on that list gives one text per member. Both
-frameworks' flags converters stand on the pair and keep their options:
-leaving out `None`, the delimiter, a list or one string.
-
-**Slots.** A slot is a format letter, the suffix it reads beside the key, and
-the attribute text it falls back to where the key has none. The canon: `G`
-and `n`, the key's own words, then the general text an attribute gives, then
-the description, then the name (`N`: the key's words, then the name); `D` and
-`d`, `.desc`, then `[Description]`; `S`, `.sub`, then `[Tooltip]`; `T`,
-`.tooltip`, then `[Tooltip]`; and `s` the name and `i` the number, which read
-no key. The four that read beside the key are capitals, `G`, `D`, `S` and
-`T`, and the docs name them so; `n` and `d` are the same slots under the
-letters older formats use. `DescribeSlot`, a `byte` enum, names the canon by
-its letters, `DescribeSlot.Tooltip = (byte)'T'`, cast to `char` where a slot
-is asked for, so `(char)DescribeSlot.Tooltip` and `'T'` are one slot. Any
-other letter or digit is an app's own, once it is on `[Words]` and keeps more
-beside each member: `Describable.Slot('H', ".hint")` makes `H` read
-`key.hint`, and the registry can point an attribute at it as at any slot. A
-letter that is a slot already, built in or added, is refused, and so is a
-suffix that is not a dot and one segment of a key's name.
-
-`.unit` left the canon on the same footing: a suffix to another value is one
-app's need, not every enum's, and one line puts it back,
-`Describable.Slot('U', ".unit")`. The samples' words add it, and their Enums
-page shows each brew's unit, a slot of one's own on show.
-
-**A letter no slot answers** reads as `G`, marked `#!X#`, and warns
-`WORDS:SLOT` with the letter. It used to read nothing, so a typo in a format,
-or an app reading `U` without adding it, vanished without a word; marked, it
-leaves something to search the gripes and the docs for. Quoted text, `''`
-being a quote, and anything that is no letter or digit are written as they
-are. The release that brings this says both in its notes: `U` is no longer
-built in, and a stray letter shows.
-
-**The registry.** What fills a slot is registered, not searched for: the
-registry maps an attribute type to what it gives, the key or a slot's text,
-and how its text is read. It starts with `[Words]` for the key,
-`[Description]` for `D` and `[Tooltip]` for `S` and `T`. Building a member's
-describable asks its field for its attributes once and looks each one's type
-up; an attribute the registry does not know is passed over, and one it knows
-is never probed for on a member that lacks it. An app registers an attribute
-it already has, `Describable.Fill<HintAttribute>('T', hint => hint.Text)`, so
-`Describe` reads it while moving to `[Words]` is not an option yet, and its
-enums are not touched at all. `Fill` takes `G`, `D`, `S`, `T` or a slot the
-app added, `n` and `d` registering for their capitals; the name and the
-number read no attribute. An attribute that names
-the key is registered with `FillKey`. Where two attributes give the same
-thing, the one registered first wins, so a member's `[Words]` beats an app's
-own key, and `[Tooltip]` an app's own tooltip.
-
-An enum type can instead key its members itself, so it needs no attribute at
-all: by a prefix, `Describable.Keys<Brew>("enums.brew")`, each member's key
-the prefix and its name; or by a function, for an enum one does not own or
-whose keys do not follow its names,
-`Describable.Keys<HttpStatusCode>(code => $"http.{(int)code}")`, a `null`
-leaving a member keyless. The function is asked once per member, when the
-type is first described. A member's own key still wins, and a type has one
-way to key its members, the latest given. Registering belongs at startup. A registration is a new registry
-with an empty cache, so a type described before reads again, and a describe
-already under way finishes on the registry it began with. This is the
-migration `[Tooltip]` stood in for: the Core readme's advice to move a custom
-attribute's text into `[Tooltip]` is now registering that attribute, and
-`[Tooltip]` stays, obsolete, for the code that already uses it.
-
-**A question: in a template.** string.Format hands an enum argument to
-`Enum.ToString`, so `{0:T}` throws rather than describing. An `IDescribable`
-that is also `IFormattable` would let a template take one, `{0:T}` reading
-the tooltip, and the preview would pass Wordsmith's own the same way. Handing
-every enum argument over as its describable inside the `Format` family goes
-further. It changes what `{0}` prints for a member with a `[Description]`,
-and `D` means Enum's decimal to one and the description to the other. So it
+Undecided: whether a template describes an enum (*Describe without the
+type*). string.Format hands an enum argument to `Enum.ToString`, so `{0:T}`
+throws rather than describing. An `IDescribable` that is also `IFormattable`
+would let a template take one, `{0:T}` reading the tooltip, and the preview
+would pass Wordsmith's own the same way. Handing every enum argument over as
+its describable inside the `Format` family goes further. It changes what
+`{0}` prints for a member with a `[Description]`, and `d`, the description to
+Describe, is the decimal to Enum, whose letters ignore case; `D` is the
+number to both, so an app wanting the number writes `D`. Enum's `g`, its
+`G`, and its `X` and `F` are no slot's, and read as stray letters. So it
 would be opt-in, if at all. Until this is answered, Wordsmith's input sends
 the general text, `Describe()` with no letters.
-
-**Tests.** Every built-in letter reads as before, quoting and punctuation
-included, for a `[Words]` member, a `[Description]` one, a bare one and one
-sharing its value with an obsolete name; `G` looks up the key alone and `T`
-its `.tooltip` alone, each once, and `s` and `i` none; a member is read once
-however often it is described; a registered attribute fills its slot, one
-attribute can fill two, an unregistered one is passed over, and the first
-registered wins; `[Words]` beats an app's own key, which beats a key prefix;
-a function keys an enum one does not own member by member, once each, a
-`null` leaving a member its name, and the latest for a type stands;
-a slot of one's own reads its suffix, then its attribute; a letter taken, no
-letter and a bad suffix are refused; a letter no slot answers reads as `G`
-marked, and warns; the samples' `U` reads a brew's unit; a combination's
-members are those .NET names, an overlap and an undefined value among them,
-while `Describe` on the combination reads as before; a registration after a
-describe reads the type again; the cache holds no words, so another language
-reads its own; and a describable built from a key alone reads its slots. The
-`Describe` and converter tests stand unchanged.

@@ -172,14 +172,13 @@ public class DescribableTests {
 		IWords words = Words();
 
 		Assert.Equal("Espresso shot", Coffee.Espresso.Describe("G", words));
-		Assert.Equal("Espresso shot", Coffee.Espresso.Describe("n", words));
 		Assert.Equal("Espresso shot", Coffee.Espresso.Describe("N", words));
 		Assert.Equal("Hot water through fine grounds", Coffee.Espresso.Describe("d", words));
-		Assert.Equal("Hot water through fine grounds", Coffee.Espresso.Describe("D", words));
 		Assert.Equal("A small cup", Coffee.Espresso.Describe("S", words));
 		Assert.Equal("Short and strong", Coffee.Espresso.Describe("T", words));
 		Assert.Equal("Espresso", Coffee.Espresso.Describe("s", words)); //not the obsolete name sharing its value
-		Assert.Equal("0", Coffee.Espresso.Describe("i", words));
+		Assert.Equal("0", Coffee.Espresso.Describe("D", words));          //the number, as Enum reads D
+		Assert.Equal(Coffee.Plain.ToString("D"), Coffee.Plain.Describe("D", words));
 		Assert.Equal("Espresso shot", Coffee.Espresso.Describe(null, words));
 
 		//a Description and no key: the general text falls back to it, the strict name does not
@@ -188,7 +187,7 @@ public class DescribableTests {
 		Assert.Equal("A long black", Coffee.Americano.Describe("d", words));
 		Assert.Equal("", Coffee.Americano.Describe("T", words));
 		Assert.Equal("Plain", Coffee.Plain.Describe("G", words));
-		Assert.Equal("2", Coffee.Plain.Describe("i", words));
+		Assert.Equal("2", Coffee.Plain.Describe("D", words));
 
 		//quoted text and anything that is no letter are written as they are
 		Assert.Equal("Espresso shot - A small cup", Coffee.Espresso.Describe("G' - 'S", words));
@@ -208,7 +207,7 @@ public class DescribableTests {
 		Assert.Equal(["coffee.espresso.tooltip"], words.Asked);
 
 		words.Asked.Clear();
-		Coffee.Espresso.Describe("si", words); //the name and the number read no key
+		Coffee.Espresso.Describe("sD", words); //the name and the number read no key
 		Assert.Empty(words.Asked);
 	}
 
@@ -236,15 +235,17 @@ public class DescribableTests {
 	}
 
 	[Fact]
-	public void ALowerCaseLetter_IsItsCapitalsSlot() {
-		Describable.Fill<NoteAttribute>('d', note => note.Text);
-		Describable.Fill<GistAttribute>('n', gist => gist.Text);
+	public void TheSlotsLetters_AreTheirFormatsLetters_OneApiece() {
+		Describable.Fill<NoteAttribute>((char)DescribeSlot.Description, note => note.Text);
+		Describable.Fill<GistAttribute>((char)DescribeSlot.General, gist => gist.Text);
 
-		Assert.Equal('D', (char)DescribeSlot.Description);
-		Assert.Equal("A note", Hinted.Noted.Describe("D"));
+		Assert.Equal('G', (char)DescribeSlot.General);
+		Assert.Equal('d', (char)DescribeSlot.Description);
+		Assert.Equal('D', (char)DescribeSlot.Number);
 		Assert.Equal("A note", Hinted.Noted.Describe("d"));
+		Assert.Equal("4", Hinted.Noted.Describe("D")); //the number, never the description
 		Assert.Equal("The gist", Hinted.Noted.Describe("G"));
-		Assert.Equal("The gist", Hinted.Noted.Describe("n"));
+		Assert.Throws<ArgumentException>(() => Describable.Fill<GistAttribute>('n', gist => gist.Text)); //no slot's
 	}
 
 	[Fact]
@@ -321,12 +322,13 @@ public class DescribableTests {
 
 		Assert.Throws<ArgumentException>(() => Describable.Slot('J', ".k"));    //added already
 		Assert.Throws<ArgumentException>(() => Describable.Slot('T', ".tip"));  //built in
-		Assert.Throws<ArgumentException>(() => Describable.Slot('n', ".n"));    //G's other letter
+		Assert.Throws<ArgumentException>(() => Describable.Slot('N', ".n"));    //the strict name's
 		Assert.Throws<ArgumentException>(() => Describable.Slot('=', ".eq"));   //no letter
 		Assert.Throws<ArgumentException>(() => Describable.Slot('K', "k"));     //no dot
 		Assert.Throws<ArgumentException>(() => Describable.Slot('K', ".a.b"));  //more than a segment
 		Assert.Throws<ArgumentException>(() => Describable.Fill<HintAttribute>('N', hint => hint.Text)); //the strict name takes none
-		Assert.Throws<ArgumentException>(() => Describable.Fill<HintAttribute>('i', hint => hint.Text));
+		Assert.Throws<ArgumentException>(() => Describable.Fill<HintAttribute>('D', hint => hint.Text)); //the number takes none
+		Assert.Throws<ArgumentException>(() => Describable.Slot('D', ".d"));    //the number's
 		Assert.Throws<ArgumentException>(() => Describable.Fill<HintAttribute>('V', hint => hint.Text)); //no such slot
 	}
 
@@ -339,6 +341,10 @@ public class DescribableTests {
 		Assert.Equal("Espresso shot#!Z#", Coffee.Espresso.Describe("Z", Words()));
 		Assert.Equal("Plain#!Z#", Coffee.Plain.Describe("Z", Words()));
 		Assert.Equal(2, logger.Messages.Count(message => message == "WORDS:SLOT:`Z`"));
+		Assert.Equal("Espresso shot#!i#", Coffee.Espresso.Describe("i", Words())); //retired for D
+		Assert.Equal("Espresso shot#!n#", Coffee.Espresso.Describe("n", Words())); //retired: G is the one
+		Assert.Contains("WORDS:SLOT:`i`", logger.Messages);
+		Assert.Contains("WORDS:SLOT:`n`", logger.Messages);
 	}
 
 	[Fact]
@@ -361,7 +367,7 @@ public class DescribableTests {
 
 		//described whole, a combination still reads as its names and its number
 		Assert.Equal("Sugar, Cream", (Toppings.Sugar | Toppings.Cream).Describe("G", words));
-		Assert.Equal("5", (Toppings.Sugar | Toppings.Cream).Describe("i", words));
+		Assert.Equal("5", (Toppings.Sugar | Toppings.Cream).Describe("D", words));
 	}
 
 	[Fact]

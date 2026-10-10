@@ -40,13 +40,13 @@ namespace PatTech.Utils {
 		///     <paramref name="format"/> reads a slot of <paramref name="value"/>, the key's
 		///     words with the slot's suffix, then the text an attribute gave it:
 		///     <list type="bullet">
-		///         <item><term>G, n</term><description>the key's words, then the general text, then the description, then the name</description></item>
+		///         <item><term>G</term><description>the key's words, then the general text, then the description, then the name</description></item>
 		///         <item><term>N</term><description>the key's words, then the name</description></item>
-		///         <item><term>D, d</term><description><c>.desc</c>, then the description</description></item>
+		///         <item><term>d</term><description><c>.desc</c>, then the description</description></item>
 		///         <item><term>S</term><description><c>.sub</c>, then the subtitle</description></item>
 		///         <item><term>T</term><description><c>.tooltip</c>, then the tooltip</description></item>
 		///         <item><term>s</term><description>the symbol's name</description></item>
-		///         <item><term>i</term><description>the number, in whatever integer type it has</description></item>
+		///         <item><term>D</term><description>the number, in whatever integer type it has, as <see cref="Enum.ToString(string)"/> formats it for <c>D</c></description></item>
 		///     </list>
 		///     A slot the app added (<see cref="Describable.Slot"/>) reads its own suffix. A
 		///     letter no slot answers reads as <c>G</c> marked <c>#!X#</c>, and warns
@@ -100,21 +100,21 @@ namespace PatTech.Utils {
 				return text;
 			}
 
-			string General() => Find("") ?? value.Text('G') ?? value.Text('D') ?? value.Name;
+			string General() => Find("") ?? value.Text('G') ?? value.Text('d') ?? value.Name;
 
 			void appendCode(char c) {
 				switch (c) {
 					case '\'':
 						quoted = true;
 						break;
-					case 'G' or 'n':
+					case 'G':
 						sb.Append(General());
 						break;
 					case 'N':
 						sb.Append(Find("") ?? value.Name);
 						break;
-					case 'D' or 'd':
-						sb.Append(Find(".desc") ?? value.Text('D'));
+					case 'd':
+						sb.Append(Find(".desc") ?? value.Text('d'));
 						break;
 					case 'S':
 						sb.Append(Find(".sub") ?? value.Text('S'));
@@ -125,7 +125,7 @@ namespace PatTech.Utils {
 					case 's':
 						sb.Append(value.Name);
 						break;
-					case 'i':
+					case 'D':
 						sb.Append(value.Number);
 						break;
 					case var other when !char.IsLetterOrDigit(other):

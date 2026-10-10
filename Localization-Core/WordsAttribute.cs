@@ -8,7 +8,7 @@ namespace PatTech.Localization {
 	/// <item>key = Primary display name (G, N)</item>
 	/// <item>key<i>.tooltip</i> = Popup help text (T)</item>
 	/// <item>key<i>.sub</i> = Short description (S)</item>
-	/// <item>key<i>.desc</i> = Long description (D)</item>
+	/// <item>key<i>.desc</i> = Long description (d)</item>
 	/// </list>
 	/// An app keeps more beside each key with slots of its own (<see cref="Describable.Slot"/>),
 	/// such as <c>.unit</c>, a suffix to another value.

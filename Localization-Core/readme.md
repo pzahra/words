@@ -192,7 +192,8 @@ Use the attribute `[Words("key")]` to mark enum values. The `Enum.Describe`
 function will assume the existence of "key.tooltip", "key.sub" and "key.desc"
 as well as the exact name, to provide additional variations of the text
 associated with an enum item, each picked by a letter of the format: `T`, `S`,
-`D`, and `G` for the name itself. Keep something else beside each member?
+`d`, and `G` for the name itself; `D` gives the number, as Enum's own `D`
+does. Keep something else beside each member?
 `Describable.Slot('U', ".unit")` at startup, and `U` reads "key.unit". A
 letter no slot answers reads as `G` with `#!U#` stuck on, and gripes, so a
 typo in a format is hard to miss.

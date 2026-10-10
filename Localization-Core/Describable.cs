@@ -16,7 +16,7 @@ namespace PatTech.Localization {
 	public interface IDescribable {
 		/// <summary>The symbol's name: format <c>s</c>, and the last resort of <c>G</c> and <c>N</c>.</summary>
 		string Name { get; }
-		/// <summary>The value as a number, in whatever integer type it has: format <c>i</c>. Empty where there is none.</summary>
+		/// <summary>The value as a number, in whatever integer type it has: format <c>D</c>. Empty where there is none.</summary>
 		string Number { get; }
 		/// <summary>The words key, read for <c>G</c> and, with each slot's suffix, for the slot; <see langword="null"/> where there is none.</summary>
 		string? Key { get; }
@@ -33,20 +33,20 @@ namespace PatTech.Localization {
 	///     a slot is asked for, so <c>(char)DescribeSlot.Tooltip</c> and <c>'T'</c> are one slot.
 	/// </summary>
 	public enum DescribeSlot : byte {
-		/// <summary><c>G</c>: the key's words, then the general text an attribute gives, then the description, then the name. <c>n</c> reads the same.</summary>
+		/// <summary><c>G</c>: the key's words, then the general text an attribute gives, then the description, then the name.</summary>
 		General = (byte)'G',
 		/// <summary><c>N</c>: the key's words, then the name.</summary>
 		Name = (byte)'N',
-		/// <summary><c>D</c>: the key's <c>.desc</c>, then the description an attribute gives. <c>d</c> reads the same.</summary>
-		Description = (byte)'D',
+		/// <summary><c>d</c>: the key's <c>.desc</c>, then the description an attribute gives.</summary>
+		Description = (byte)'d',
 		/// <summary><c>S</c>: the key's <c>.sub</c>, then the subtitle an attribute gives.</summary>
 		Subtitle = (byte)'S',
 		/// <summary><c>T</c>: the key's <c>.tooltip</c>, then the tooltip an attribute gives.</summary>
 		Tooltip = (byte)'T',
 		/// <summary><c>s</c>: the symbol's name.</summary>
 		Symbol = (byte)'s',
-		/// <summary><c>i</c>: the number.</summary>
-		Number = (byte)'i',
+		/// <summary><c>D</c>: the number, as <see cref="Enum.ToString(string)"/> formats it for <c>D</c>.</summary>
+		Number = (byte)'D',
 	}
 
 	/// <summary>
@@ -132,17 +132,16 @@ namespace PatTech.Localization {
 		///     Registers <typeparamref name="TAttribute"/> as giving the slot
 		///     <paramref name="slot"/> its text, read by <paramref name="text"/>, so
 		///     <c>Describe</c> reads an attribute an app already has: the general text
-		///     (<c>G</c>), the description (<c>D</c>), the subtitle (<c>S</c>), the tooltip
+		///     (<c>G</c>), the description (<c>d</c>), the subtitle (<c>S</c>), the tooltip
 		///     (<c>T</c>), or a slot the app added. Where two attributes give a member the
 		///     same slot, the one registered first wins.
 		/// </summary>
 		/// <exception cref="ArgumentException">The slot takes no text from an attribute.</exception>
 		public static void Fill<TAttribute>(char slot, Func<TAttribute, string?> text) where TAttribute : Attribute {
 			ArgumentNullException.ThrowIfNull(text);
-			slot = Canon(slot);
 			Register(current => {
-				if (slot is not ('G' or 'D' or 'S' or 'T') && !current.Slots.ContainsKey(slot)) {
-					throw new ArgumentException($"'{slot}' takes no text from an attribute: G, D, S, T or a slot the app added", nameof(slot));
+				if (slot is not ('G' or 'd' or 'S' or 'T') && !current.Slots.ContainsKey(slot)) {
+					throw new ArgumentException($"'{slot}' takes no text from an attribute: G, d, S, T or a slot the app added", nameof(slot));
 				}
 				return current.Adding(typeof(TAttribute), new Giver(slot, attribute => text((TAttribute)attribute)));
 			});
@@ -185,10 +184,7 @@ namespace PatTech.Localization {
 			Register(current => current.Keying(typeof(TEnum), (value, _) => key((TEnum)value)));
 		}
 
-		//n reads as G and d as D, so a registration for either is one for both
-		private static char Canon(char slot) => slot switch { 'n' => 'G', 'd' => 'D', _ => slot };
-
-		internal static bool IsBuiltIn(char slot) => slot is 'G' or 'n' or 'N' or 'D' or 'd' or 'S' or 'T' or 's' or 'i';
+		internal static bool IsBuiltIn(char slot) => slot is 'G' or 'N' or 'd' or 'D' or 'S' or 'T' or 's';
 
 		private static void Register(Func<State, State> change) {
 			lock (gate) {
@@ -215,7 +211,7 @@ namespace PatTech.Localization {
 			public static State BuiltIn() {
 				var state = new State([], 0, [], [], new());
 				state = state.Adding(typeof(WordsAttribute), new Giver(null, attribute => ((WordsAttribute)attribute).Key));
-				state = state.Adding(typeof(DescriptionAttribute), new Giver('D', attribute => ((DescriptionAttribute)attribute).Description));
+				state = state.Adding(typeof(DescriptionAttribute), new Giver('d', attribute => ((DescriptionAttribute)attribute).Description));
 #pragma warning disable CS0618 // the migration aid stays readable for the code that has it
 				state = state.Adding(typeof(TooltipAttribute), new Giver('S', attribute => ((TooltipAttribute)attribute).Text));
 				state = state.Adding(typeof(TooltipAttribute), new Giver('T', attribute => ((TooltipAttribute)attribute).Text));

@@ -29,9 +29,9 @@ public class DescribeTests {
 
 	[Fact]
 	public void Number_IsTheValue_WhateverTheUnderlyingType() {
-		Assert.Equal("1099511627776", WideEnum.Far.Describe("i"));
-		Assert.Equal("255", TinyEnum.Top.Describe("i"));
-		Assert.Equal("3", (DescribedFlags.Sugar | DescribedFlags.Cream).Describe("i"));
+		Assert.Equal("1099511627776", WideEnum.Far.Describe("D"));
+		Assert.Equal("255", TinyEnum.Top.Describe("D"));
+		Assert.Equal("3", (DescribedFlags.Sugar | DescribedFlags.Cream).Describe("D"));
 	}
 
 	[Fact]

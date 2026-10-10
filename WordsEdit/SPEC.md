@@ -1166,7 +1166,8 @@ member through the runtime's engine, from a describable built off its key,
 `Describable.OfKey` (the runtime spec's *Describe without the type*). It sends what an app passing
 `brew.Describe()` shows: the member's words in the pane's language, or its
 name, the key's last segment, where it has none. Whether a template's `{0:T}`
-reads the member's `.tooltip` waits on that section's question. What lives
+reads the member's `.tooltip` waits on the runtime spec's *Describe in a
+template*. What lives
 only on the type, `[Description]`, `[Tooltip]` and the number, stays empty,
 and a `[Flags]` combination is no member. The runtime's registry is one per
 process, so Wordsmith cannot hold the slots each app adds side by side; the
