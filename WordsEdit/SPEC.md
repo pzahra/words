@@ -832,10 +832,11 @@ can be trusted to step from there. The error goes on.
 
 **Coalescing.** Consecutive edits to the same field of the same node and
 language fold into one entry, the first text before and the last after, so
-undo takes back the typing, not a character. A different field, another
-entry, an undo or a redo, a save, or moving to another node ends the run,
-and a run typed back to where it started leaves no entry at all, and the
-title as the run found it.
+undo takes back the typing, not a character. Inside the entry the typing
+keeps its steps, a word or a pause apart, for an editing box to undo one at
+a time (Text boxes). A different field, another entry, an undo or a redo, a
+save, or moving to another node ends the run, and a run typed back to where
+it started leaves no entry at all, and the title as the run found it.
 
 **Depth.** The stack is unbounded. An entry holds only what its action
 changed — a field's text before and after, a removed subtree's keys — and
@@ -857,8 +858,9 @@ Redo mirrors it. Once an entry is undone or redone the selection follows it
 — an undone removal selects the restored node, an undone addition its
 parent, an undone move the node in its old place — shown through the
 filters the same way, so what just changed stays in view, and a field edit
-then focuses its text box, a free action, so the next keystroke lands where
-the change did.
+then focuses its text box, a free action, with the selection where the step
+left it (Text boxes) or the caret at the end, so the next keystroke lands
+where the change did.
 
 **Boundaries.** Save does not clear the stack (a saved state can still be
 undone; the title stars again). Reset, Load, Import, Unload, Merge and Split
@@ -867,17 +869,40 @@ no help. Each of them puts a file node into the tree or takes one out, and
 that is what clears it; a file dragged among files does not. A Language
 Manager commit that merges codes clears it too.
 
-**Text boxes.** The main window's editing boxes keep no undo of their own
-(`IsUndoEnabled` off): a box turns Ctrl+Z and Ctrl+Y into the routed Undo
-and Redo before the window's keys see them, and the window catches those on
-their way down to the box (`DocumentUndo`) and runs the document's, so a
-field focused after an undo answers the next Ctrl+Z with the stack. The
-search box keeps its own, as do the dialogs' boxes, which are other
-windows.
+**Text boxes.** The main window's editing boxes undo as any text box does,
+from the document's history. Each is a `WordsBox`: a `TextBox` with WPF's
+own stack off (`IsUndoEnabled`), whose class command bindings for Undo and
+Redo, which a subclass's take ahead of `TextBox`'s, answer Ctrl+Z and
+Ctrl+Y from the history it is bound to (`TextHistory` on the main view
+model, an `ITextHistory`). The box keeps no history of its own, so nothing
+undoes twice. A typing run keeps the steps a box's own undo would: a
+keystroke joins the run's last step unless a pause (`FieldEdit.Pause`, a
+second and a half), a word's start (a letter typed after a space), a change
+of direction (typing after deleting, or deleting after typing), a moved
+caret, or a change of more than one character (a paste, a cut, a line
+break, a selection typed over) comes between, and then it starts a step of
+its own. Each keystroke tells the history where it found the box's
+selection and where it left it (`Typed`), the history taking only the
+keystroke it just folded in, so a text the document hands a box is no
+keystroke. Ctrl+Z in a box steps back through the run a step at a time,
+and then on into the entries before it; Ctrl+Y steps forward again. A step
+taken back puts the selection where its first keystroke found it, and a
+step put back where its last left it, not at the start, where setting
+`Text` drops the caret. A step is part of its run: the run is still one
+entry to every other caller. The Edit menu's Undo takes back what stands
+of it whole, and its Redo puts back first what a box stepped back of the
+latest run, then entries whole. A run stays the latest entry until its
+last step is undone; typing after stepping back drops the steps stepped
+back, as a new edit drops the entries undone. Each step keeps its own
+dirtiness, so a save between two steps is clean there and nowhere else,
+and a note's hand comes down with the step that raised it. The search box
+is a plain `TextBox` and keeps WPF's own stack, as do the dialogs' boxes,
+which are other windows.
 
 **Surface.** `UndoCommand` and `RedoCommand` on `MainWindowViewModel`, with
-`CanExecute` from the stack depth, as rows of the command table: Ctrl+Z and
-Ctrl+Y, entries at the head of the Edit menu (and so in the tree's context
+`CanExecute` from the stack (Redo's also from a run a box stepped part way
+back), as rows of the command table: Ctrl+Z and Ctrl+Y outside the editing
+boxes, entries at the head of the Edit menu (and so in the tree's context
 menu), their captions in `words.ini`. They have no toolbar buttons: beside
 Back and Forward they left the search box too little room (Planned
 upgrades: The search strip).
@@ -911,10 +936,18 @@ returns from the navigation; an undo in view applies at once and focuses
 the field, and so does its redo. Save keeps the stack, undoing past it
 stars the title and coming back clears it; Load, Import, Unload, Split,
 Merge and Reset clear it and a file reorder does not; a commit that changes
-nothing records nothing, and a merging recode clears the stack. In a pair of
-laid-out text boxes routed the window's way, Undo in the editing box runs
-the document's undo and Redo asks the document whether it can, while in
-the search box Undo is the box's own.
+nothing records nothing, and a merging recode clears the stack. In laid-out
+boxes (`TextBoxUndoTests`), an editing box answers Undo and Redo from its
+history and tells it each keystroke's selections, and a plain box beside it
+keeps its own; typed into one bound to a key, Ctrl+Z steps back a word at a
+time with the caret put back, then reaches the entry before the run, and
+Ctrl+Y walks it forward again. A pause, a change of direction, a moved
+caret and a paste each start a step. The Edit menu's Undo takes the run
+whole, from part way back too, and its Redo puts back what a box stepped
+back. Typing after stepping back drops those steps; a save between two
+steps is clean there and nowhere else; a note's hand comes down only with
+the step that raised it; and only the keystroke's own text tells where it
+left the selection. The box takes `TextBox`'s style.
 
 ## Plural forms
 
@@ -1187,7 +1220,8 @@ listed, read and removed but never written, and `list` with a prefix and
 
 Not built yet. Each section here is the shape the feature takes when it is.
 *Plural forms* and *A command line for tools*, planned here once, are built
-above, and shipped with editor 1.3.0 and api 1.5.0.
+above, and shipped with editor 1.3.0 and api 1.5.0. *Undo inside a text box*
+is built above too (Undo: Text boxes).
 
 ## Save as a patch
 
@@ -1282,37 +1316,6 @@ room, undecided between:
   answers the crowding by letting a user drop what they don't use, and the
   growing number of commands besides — but it is a feature of its own, not
   a layout fix.
-
-## Undo inside a text box
-
-Today an editing box keeps no undo of its own, and every Ctrl+Z goes to the
-document as a whole typing run (Undo: Text boxes). The window catches the
-routed command on its way down to the box (`DocumentUndo`), with an
-exception for the search box, which keeps its own. WPF's own stack can't be
-read, so a box's finer history could only ever be thrown away.
-
-The upgrade makes the box's undo ours. The editing boxes become a `TextBox`
-subclass that turns WPF's internal stack off and puts its own in its place:
-class command bindings for Undo and Redo, which a subclass's take ahead of
-`TextBox`'s, answer from a stack the box is bound to and which delegates to
-the document. The box records no history of its own. The document's typing
-run keeps the steps a box would, a word or a pause apart, each with its caret
-and selection, so Ctrl+Z in the box steps back through the run as any text
-box does, and then past it into the entries before it. Ctrl+Y steps
-forward again. Restoring the text puts the caret back where the step left it,
-not at the start, where setting `Text` drops it. A step is part of its run:
-the run is still one entry to every other caller, Undo from the Edit menu
-steps back the whole run, a focus change ends it as today, and typing back to
-its start leaves no entry. Nothing undoes twice, because only the document
-holds the history.
-
-The window-wide hook and its exception both go. The behaviour lives in the
-control, the search box is a plain `TextBox` keeping WPF's own stack, and
-dialogs are untouched. Tests, headless: a subclassed box bound to a fake
-document stack, where Ctrl+Z inside a run steps back a word at a time with
-the caret restored, then reaches the entry before it, and Redo walks it
-forward. A plain box beside it keeps its own. The Edit menu's Undo takes the
-run whole.
 
 ## Machine translation
 

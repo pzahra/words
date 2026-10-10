@@ -1,8 +1,6 @@
 using GongSolutions.Wpf.DragDrop;
 using PatTech.Localization.Authoring;
 using System.Text;
-using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
 using WordsEdit.Utils;
 using WordsEdit.ViewModels;
@@ -259,7 +257,7 @@ public class UndoTests {
 		entry.Value = "changed";
 		string changed = State(vm);
 		DocumentField? focused = null;
-		vm.FieldFocusRequested += field => focused = field;
+		vm.FieldFocusRequested += (field, _) => focused = field;
 
 		//away: another node, the default language, and a search that hides the change
 		vm.Tree.Select(Node(vm, "Example.main.title"));
@@ -295,7 +293,7 @@ public class UndoTests {
 		WordsKey key = vm.Tree.SelectedKey!;
 		string context = key.Context;
 		DocumentField? focused = null;
-		vm.FieldFocusRequested += field => focused = field;
+		vm.FieldFocusRequested += (field, _) => focused = field;
 		key.Context = "typed";
 
 		vm.UndoCommand.Execute(null);
@@ -565,35 +563,5 @@ public class UndoTests {
 		Assert.Equal(0, vm.UndoStack.DoneCount);
 		Assert.True(vm.IsDirty);
 		Assert.DoesNotContain(vm.Tree.KnownLanguages, language => language.Code == "en-GB");
-	}
-
-	[Fact]
-	public void TheEditingBoxesGiveTheirUndoToTheDocumentAndTheSearchBoxKeepsItsOwn() {
-		NavigationTests.RunSta(() => {
-			int undos = 0, redos = 0;
-			var undo = new DelegateCommand(() => undos++);
-			var redo = new DelegateCommand(() => redos++, () => false);
-			var editing = new TextBox();
-			var search = new TextBox();
-			var window = new StackPanel { Children = { editing, search } };
-			//a box keeps an undo of its own once it has been laid out
-			window.Measure(new Size(200, 100));
-			window.Arrange(new Rect(0, 0, 200, 100));
-			DocumentUndo.Route(window, () => undo, () => redo, source => source == search);
-
-			Assert.True(ApplicationCommands.Undo.CanExecute(null, editing));
-			ApplicationCommands.Undo.Execute(null, editing);
-			Assert.Equal(1, undos);
-			Assert.False(ApplicationCommands.Redo.CanExecute(null, editing)); //the document says, not the box
-			ApplicationCommands.Redo.Execute(null, editing);
-			Assert.Equal(0, redos);
-
-			search.SelectedText = "typed";
-			Assert.Equal("typed", search.Text);
-			Assert.True(ApplicationCommands.Undo.CanExecute(null, search));
-			ApplicationCommands.Undo.Execute(null, search);
-			Assert.Equal(1, undos);
-			Assert.Equal("", search.Text); //the box's own undo
-		});
 	}
 }

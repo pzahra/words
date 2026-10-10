@@ -13,7 +13,8 @@ the command line that ships beside it.
   language; add, rename, remove, and drag keys around without breaking their
   children.
 - **Undo, and Back** — Ctrl+Z takes back the last edit, one action at a
-  time; if it happened somewhere you aren't looking, the first Ctrl+Z takes
+  time, and in a text box your typing a word at a time, the caret back where
+  it was; if it happened somewhere you aren't looking, the first Ctrl+Z takes
   you there and the second takes it back. Back and Forward retrace where
   you've been in the tree, like a browser.
 - **Languages** — manage the language list, and see at a glance which keys

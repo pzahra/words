@@ -1,3 +1,5 @@
+using WordsEdit.Utils;
+
 namespace WordsEdit.ViewModels;
 
 //The kinds of entry (SPEC: Undo → One entry per action). Each holds what its action
@@ -8,36 +10,157 @@ namespace WordsEdit.ViewModels;
 ///     Typing into one text field: the node, the language for an entry's field,
 ///     the field and, for a value, the plural form typed into, and its text
 ///     before and after. A run of keystrokes in the field folds into the entry
-///     its first keystroke made.
+///     its first keystroke made, in steps a word or a pause apart (SPEC: Undo →
+///     Text boxes): an editing box steps back and forth through them, and to
+///     every other caller the run is one entry.
 /// </summary>
-public sealed class FieldEdit(NodeRef node, string? language, DocumentField field, string before, string after, string? form = null) : UndoEntry {
-	public NodeRef Node { get; } = node;
-	public override string? Language { get; } = language;
-	public DocumentField Field { get; } = field;
+public sealed class FieldEdit : UndoEntry {
+	/// <summary>Keystrokes further apart than this are steps of their own.</summary>
+	public static readonly TimeSpan Pause = TimeSpan.FromSeconds(1.5);
+
+	public FieldEdit(NodeRef node, string? language, DocumentField field, string before, string after, string? form = null) {
+		Node = node;
+		Language = language;
+		Field = field;
+		Form = form;
+		Before = before;
+		steps = [new Step(after, Keystroke.Of(before, after).Kind)];
+	}
+
+	public NodeRef Node { get; }
+	public override string? Language { get; }
+	public DocumentField Field { get; }
 	/// <summary>The plural form typed into (SPEC: Plural forms); null for the plain value and every other field.</summary>
-	public string? Form { get; } = form;
-	public string Before { get; } = before;
-	public string After { get; private set; } = after;
+	public string? Form { get; }
+	public string Before { get; }
+	/// <summary>The run's last text, every step standing.</summary>
+	public string After => steps[^1].Text;
+	/// <summary>The steps the run is made of.</summary>
+	public int Steps => steps.Count;
+	/// <summary>How many of them stand: all, unless a box stepped some back; none once the run is undone.</summary>
+	public int Standing { get; private set; } = 1;
+	/// <summary>Steps stepped back wait to be put back, and the run still stands.</summary>
+	public bool Partly => Standing > 0 && Standing < steps.Count;
 	/// <summary>The typing raised the key's Needs Review, as a note does; undoing it lowers the hand.</summary>
-	public bool RaisedReview { get; set; }
+	public bool RaisedReview {
+		get => raisedAt > 0;
+		set => raisedAt = !value ? 0 : raisedAt > 0 ? raisedAt : Math.Max(Standing, 1);
+	}
 	/// <summary>A translator's note: a field whose typing raises Needs Review.</summary>
 	public bool IsNote => Field is DocumentField.KeyComment or DocumentField.EntryComment;
 	internal bool ChangesNothing => Before == After && !RaisedReview;
 
-	//the next keystroke, when it lands in the same field: the run's last text is its
-	internal bool Absorb(FieldEdit next) {
+	//one step: the text it leaves; the box's selection where its first keystroke found it
+	//and where its last left it (none when no box typed it); how its keystrokes change the
+	//text; when the last landed; and whether the document is dirty with it standing
+	private sealed class Step(string text, Stroke kind) {
+		public string Text = text;
+		public readonly Stroke Kind = kind;
+		public Selection? Found, Left;
+		public DateTimeOffset Last;
+		public bool Dirty = true;
+	}
+
+	private readonly List<Step> steps;
+	//the step the hand went up in, counting from one; zero when it stayed down
+	private int raisedAt;
+	//the keystroke folded in last, until its box says where it found and left the selection:
+	//the step it went into, the text that step had before it, and whether it raised the hand
+	private (Step Step, string? Extended, bool Raised)? awaiting;
+
+	//the text and the dirtiness with so many steps standing
+	private string TextAt(int standing) => standing == 0 ? Before : steps[standing - 1].Text;
+	internal bool DirtyAt(int standing) => standing == 0 ? DirtyBefore : steps[standing - 1].Dirty;
+	internal override bool DirtyAfter { get => steps[^1].Dirty; set => steps[^1].Dirty = value; }
+
+	internal override void Unsaved() {
+		DirtyBefore = true;
+		foreach (Step step in steps) {
+			step.Dirty = true;
+		}
+	}
+
+	//the document was saved with the steps standing as they are
+	internal void SavedPartly() => steps[Standing - 1].Dirty = false;
+
+	//a new edit drops the steps stepped back, as it drops the entries undone
+	internal void DropStepsBack() {
+		steps.RemoveRange(Standing, steps.Count - Standing);
+		if (raisedAt > Standing) {
+			raisedAt = 0;
+		}
+	}
+
+	/// <summary>
+	///     Where a box's selection goes with <paramref name="standing"/> steps
+	///     standing: where the step after them found it, coming back to it, and
+	///     where the last of them left it, going forward; null when no box said.
+	/// </summary>
+	public Selection? SelectionAt(int standing, bool undoing) => undoing ? steps[standing].Found : steps[standing - 1].Left;
+
+	//the stack took the entry: its first keystroke landed now, and its box has yet to say
+	//where it found and left the selection
+	internal void Began(DateTimeOffset now) {
+		steps[0].Last = now;
+		awaiting = (steps[0], null, false);
+	}
+
+	//the next keystroke, when it lands in the same field: part of the last step, unless a
+	//pause, a word's start, a change of direction or a change of more than one character
+	//comes between, which makes it a step of its own
+	internal bool Absorb(FieldEdit next, DateTimeOffset now) {
 		if (next.Node != Node || next.Language != Language || next.Field != Field || next.Form != Form) {
 			return false;
 		}
-		After = next.After;
-		RaisedReview |= next.RaisedReview;
+		Keystroke stroke = Keystroke.Of(next.Before, next.After);
+		Step last = steps[^1];
+		string? extended = null;
+		if (stroke.Kind != Stroke.More && stroke.Kind == last.Kind && !stroke.StartsWord && now - last.Last <= Pause) {
+			extended = last.Text;
+			last.Text = next.After;
+		}
+		else {
+			steps.Add(last = new Step(next.After, stroke.Kind));
+			Standing = steps.Count;
+		}
+		last.Last = now;
+		bool raised = next.RaisedReview && raisedAt == 0;
+		if (raised) {
+			raisedAt = Standing;
+		}
+		awaiting = (last, extended, raised);
 		return true;
+	}
+
+	//the keystroke folded in last told where it found the box's selection and where it left
+	//it; one whose box's caret moved since the step's last keystroke is a step of its own
+	internal void Typed(string text, Selection found, Selection left) {
+		//another box's text, changed on the way, is not this keystroke's
+		if (awaiting is not (Step step, var extended, var raised) || step.Text != text) {
+			return;
+		}
+		awaiting = null;
+		if (extended is not null && step.Left is { } was && was != found) {
+			step.Text = extended;
+			steps.Add(step = new Step(text, step.Kind) { Last = step.Last });
+			Standing = steps.Count;
+			if (raised) {
+				raisedAt = Standing;
+			}
+		}
+		step.Found ??= found;
+		step.Left = left;
 	}
 
 	public override NodeRef? Site(bool undoing) => Node;
 
-	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) {
-		string text = undoing ? Before : After;
+	//undone whole, or redone whole
+	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) => Apply(session, tree, undoing ? 0 : steps.Count);
+
+	/// <summary>Puts the field back as it is with <paramref name="standing"/> of the steps standing.</summary>
+	public NodeRef? Apply(WordsSession session, TreeViewModel tree, int standing) {
+		string text = TextAt(standing);
+		Standing = standing;
 		if (Field == DocumentField.CommentText) {
 			if (Node.Resolve(tree) is OrganizerNode organizer) {
 				organizer.Text = text;
@@ -60,9 +183,33 @@ public sealed class FieldEdit(NodeRef node, string? language, DocumentField fiel
 		}
 		//the text first: the hand goes back to where it stood with it
 		if (RaisedReview) {
-			key.NeedsReview = !undoing;
+			key.NeedsReview = standing >= raisedAt;
 		}
 		return Node;
+	}
+
+	//what one keystroke did to the text: typed one character, removed one, or more than
+	//that (a paste, a cut, a line break, a selection typed over); and whether the one it
+	//typed starts a word
+	private enum Stroke { Typed, Removed, More }
+
+	private readonly record struct Keystroke(Stroke Kind, bool StartsWord) {
+		public static Keystroke Of(string before, string after) {
+			int prefix = 0, shorter = Math.Min(before.Length, after.Length);
+			while (prefix < shorter && before[prefix] == after[prefix]) {
+				prefix++;
+			}
+			int suffix = 0;
+			while (suffix < shorter - prefix && before[^(suffix + 1)] == after[^(suffix + 1)]) {
+				suffix++;
+			}
+			int removed = before.Length - prefix - suffix, added = after.Length - prefix - suffix;
+			return (removed, added) switch {
+				(0, 1) => new(Stroke.Typed, prefix > 0 && char.IsWhiteSpace(after[prefix - 1]) && !char.IsWhiteSpace(after[prefix])),
+				(1, 0) => new(Stroke.Removed, false),
+				_ => new(Stroke.More, false),
+			};
+		}
 	}
 }
 

@@ -17,16 +17,12 @@ public partial class MainWindow : Window {
 			(e.OldValue as MainWindowViewModel)?.FieldFocusRequested -= FocusField;
 			(e.NewValue as MainWindowViewModel)?.FieldFocusRequested += FocusField;
 		};
-		//Ctrl+Z and Ctrl+Y in the editing boxes are the document's; the search box keeps its own (SPEC: Undo)
-		DocumentUndo.Route(this,
-			() => (DataContext as MainWindowViewModel)?.UndoCommand,
-			() => (DataContext as MainWindowViewModel)?.RedoCommand,
-			source => source == SearchBox);
 	}
 
 	//an undone or redone field edit: its box takes the focus once the panes have
-	//caught up with the selection, the caret at the end
-	private void FocusField(DocumentField field) {
+	//caught up with the selection, the selection where the step left it, or the caret
+	//at the end
+	private void FocusField(DocumentField field, Selection? selection) {
 		TextBox box = field switch {
 			DocumentField.DefaultValue => DefaultValueBox,
 			DocumentField.KeyContext => KeyContextBox,
@@ -37,7 +33,13 @@ public partial class MainWindow : Window {
 			_ => CommentTextBox,
 		};
 		Dispatcher.BeginInvoke(() => {
-			if (box.Focus()) {
+			if (!box.Focus()) {
+				return;
+			}
+			if (selection is { } kept && kept.Start + kept.Length <= box.Text.Length) {
+				box.Select(kept.Start, kept.Length);
+			}
+			else {
 				box.CaretIndex = box.Text.Length;
 			}
 		}, DispatcherPriority.Input);

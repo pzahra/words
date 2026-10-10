@@ -1,3 +1,5 @@
+using WordsEdit.Utils;
+
 namespace WordsEdit.ViewModels;
 
 /// <summary>A text field the panes edit (SPEC: Undo → Fields): what a <see cref="FieldEdit"/> names and the window focuses.</summary>
@@ -45,15 +47,24 @@ public abstract class UndoEntry {
 
 	//the dirtiness undoing and redoing return to; a save moves them (UndoStack.Saved)
 	internal bool DirtyBefore { get; set; }
-	internal bool DirtyAfter { get; set; }
+	internal virtual bool DirtyAfter { get; set; }
+
+	//a save left the disk at none of the states the entry passes through
+	internal virtual void Unsaved() {
+		DirtyBefore = true;
+		DirtyAfter = true;
+	}
 }
 
 /// <summary>
 ///     The edits made and the edits undone (SPEC: Undo): undo moves the latest
 ///     across, redo moves it back, and a new edit drops what waited to be redone.
-///     Typing folds into the entry its run started, until something ends the run.
+///     Typing folds into the entry its run started, until something ends the run;
+///     an editing box steps back through a run and forward again, and the run
+///     stays the latest entry until the last of its steps is undone.
 /// </summary>
-public sealed class UndoStack {
+public sealed class UndoStack(TimeProvider? time = null) {
+	private readonly TimeProvider time = time ?? TimeProvider.System;
 	private readonly Stack<UndoEntry> done = new();
 	private readonly Stack<UndoEntry> undone = new();
 	//the typing run still taking keystrokes: always the top of done while set
@@ -63,14 +74,19 @@ public sealed class UndoStack {
 	public int UndoneCount => undone.Count;
 	public UndoEntry? NextUndo => done.TryPeek(out UndoEntry? entry) ? entry : null;
 	public UndoEntry? NextRedo => undone.TryPeek(out UndoEntry? entry) ? entry : null;
+	/// <summary>What a redo puts back: the steps a box stepped back of the latest run, then the next entry undone.</summary>
+	public UndoEntry? NextToPutBack => NextUndo is FieldEdit { Partly: true } edit ? edit : NextRedo;
+	public bool CanRedo => NextToPutBack is not null;
 
 	/// <summary>An action changed the document; <paramref name="wasDirty"/> is what undoing it returns to.</summary>
 	public void Push(UndoEntry entry, bool wasDirty) {
+		(NextUndo as FieldEdit)?.DropStepsBack();
 		undone.Clear();
 		entry.DirtyBefore = wasDirty;
 		entry.DirtyAfter = true;
 		done.Push(entry);
 		run = entry as FieldEdit;
+		run?.Began(time.GetUtcNow());
 	}
 
 	/// <summary>
@@ -82,7 +98,7 @@ public sealed class UndoStack {
 	///     back to where it started, leaving nothing to undo; null otherwise.
 	/// </returns>
 	public bool? Type(FieldEdit edit, bool wasDirty) {
-		if (run is null || !run.Absorb(edit)) {
+		if (run is null || !run.Absorb(edit, time.GetUtcNow())) {
 			Push(edit, wasDirty);
 			return null;
 		}
@@ -95,6 +111,14 @@ public sealed class UndoStack {
 		run = null;
 		return before;
 	}
+
+	/// <summary>
+	///     The keystroke just typed, its box holding <paramref name="text"/>, found
+	///     the box's selection at <paramref name="found"/> and left it at
+	///     <paramref name="left"/>. A text the box was handed is no keystroke and
+	///     is passed over.
+	/// </summary>
+	public void Typed(string text, Selection found, Selection left) => run?.Typed(text, found, left);
 
 	/// <summary>The next keystroke starts an entry of its own.</summary>
 	public void EndRun() => run = null;
@@ -118,13 +142,18 @@ public sealed class UndoStack {
 	public void Saved(bool partly = false) {
 		run = null;
 		foreach (UndoEntry entry in done.Concat(undone)) {
-			entry.DirtyBefore = true;
-			entry.DirtyAfter = true;
+			entry.Unsaved();
 		}
-		if (!partly) {
-			NextUndo?.DirtyAfter = false;
-			NextRedo?.DirtyBefore = false;
+		if (partly) {
+			return;
 		}
+		//a run a box stepped part way back was saved between two of its steps
+		if (NextUndo is FieldEdit { Partly: true } edit) {
+			edit.SavedPartly();
+			return;
+		}
+		NextUndo?.DirtyAfter = false;
+		NextRedo?.DirtyBefore = false;
 	}
 
 	/// <summary>A boundary: what the entries refer to is gone.</summary>

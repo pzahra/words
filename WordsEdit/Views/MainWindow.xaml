@@ -242,15 +242,15 @@
                             BorderThickness="1" 
                             Margin="0 0 30px 2.5px" 
                             BorderBrush="{DynamicResource PrimaryHueLightBrush}">
-                        <TextBox x:Name="KeyContextBox"
-                                 Text="{Binding Tree.SelectedKey.Context, UpdateSourceTrigger=PropertyChanged}"
-                                 uc:Spelling.Language="{Binding Tree.DefaultLanguage}"
-                                 IsUndoEnabled="False"
-                                 TextWrapping="Wrap"
-                                 AcceptsReturn="True"
-                                 uc:Spelling.WhenEditing="True"
-                                 TextAlignment="Left"
-                                 Margin="2.5px"/>
+                        <uc:WordsBox x:Name="KeyContextBox"
+                                     History="{Binding TextHistory}"
+                                     Text="{Binding Tree.SelectedKey.Context, UpdateSourceTrigger=PropertyChanged}"
+                                     uc:Spelling.Language="{Binding Tree.DefaultLanguage}"
+                                     TextWrapping="Wrap"
+                                     AcceptsReturn="True"
+                                     uc:Spelling.WhenEditing="True"
+                                     TextAlignment="Left"
+                                     Margin="2.5px"/>
                     </Border>
                     <TextBlock TextWrapping="Wrap"
                                HorizontalAlignment="Right"
@@ -262,14 +262,14 @@
                             BorderThickness="1" 
                             Margin="30px 0 0 2.5px" 
                             BorderBrush="{DynamicResource MaterialDesignBody}">
-                        <TextBox x:Name="KeyCommentBox"
-                                 Text="{Binding Tree.SelectedKey.Comment, UpdateSourceTrigger=PropertyChanged}"
-                                 IsUndoEnabled="False"
-                                 TextWrapping="Wrap"
-                                 AcceptsReturn="True"
-                                 uc:Spelling.WhenEditing="True"
-                                 TextAlignment="Left"
-                                 Margin="2.5px"/>
+                        <uc:WordsBox x:Name="KeyCommentBox"
+                                     History="{Binding TextHistory}"
+                                     Text="{Binding Tree.SelectedKey.Comment, UpdateSourceTrigger=PropertyChanged}"
+                                     TextWrapping="Wrap"
+                                     AcceptsReturn="True"
+                                     uc:Spelling.WhenEditing="True"
+                                     TextAlignment="Left"
+                                     Margin="2.5px"/>
                     </Border>
                 </StackPanel>
                 <StackPanel Visibility="{Binding Tree.SelectedOrganizer, Converter={StaticResource IsNotNull}}">
@@ -282,16 +282,16 @@
                             BorderThickness="1"
                             Margin="0 0 30px 2.5px"
                             BorderBrush="{DynamicResource MaterialDesignDivider}">
-                        <TextBox x:Name="CommentTextBox"
-                                 Text="{Binding Tree.SelectedOrganizer.Text, UpdateSourceTrigger=PropertyChanged}"
-                                 uc:Spelling.Language="{Binding Tree.DefaultLanguage}"
-                                 IsUndoEnabled="False"
-                                 TextWrapping="Wrap"
-                                 AcceptsReturn="True"
-                                 uc:Spelling.WhenEditing="True"
-                                 TextAlignment="Left"
-                                 MinHeight="80"
-                                 Margin="2.5px"/>
+                        <uc:WordsBox x:Name="CommentTextBox"
+                                     History="{Binding TextHistory}"
+                                     Text="{Binding Tree.SelectedOrganizer.Text, UpdateSourceTrigger=PropertyChanged}"
+                                     uc:Spelling.Language="{Binding Tree.DefaultLanguage}"
+                                     TextWrapping="Wrap"
+                                     AcceptsReturn="True"
+                                     uc:Spelling.WhenEditing="True"
+                                     TextAlignment="Left"
+                                     MinHeight="80"
+                                     Margin="2.5px"/>
                     </Border>
                 </StackPanel>
                 </StackPanel>
@@ -351,18 +351,18 @@
                         Grid.Column="0" 
                         Grid.ColumnSpan="2">
                     <Grid>
-                        <TextBox x:Name="DefaultValueBox"
-                                 Text="{Binding Tree.DefaultText, UpdateSourceTrigger=PropertyChanged}"
-                                 md:HintAssist.Hint="{Binding Tree.DefaultFormHint}"
-                                 uc:Spelling.Language="{Binding Tree.DefaultLanguage}"
-                                 IsUndoEnabled="False"
-                                 VerticalScrollBarVisibility="Auto"
-                                 AcceptsReturn="True"
-                                 TextWrapping="Wrap"
-                                 TextAlignment="Left"
-                                 uc:Spelling.WhenEditing="True"
-                                 Visibility="{Binding ShowDefaultPreview, Converter={StaticResource IsFalse}}"
-                                 Margin="2.5px"/>
+                        <uc:WordsBox x:Name="DefaultValueBox"
+                                     History="{Binding TextHistory}"
+                                     Text="{Binding Tree.DefaultText, UpdateSourceTrigger=PropertyChanged}"
+                                     md:HintAssist.Hint="{Binding Tree.DefaultFormHint}"
+                                     uc:Spelling.Language="{Binding Tree.DefaultLanguage}"
+                                     VerticalScrollBarVisibility="Auto"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     TextAlignment="Left"
+                                     uc:Spelling.WhenEditing="True"
+                                     Visibility="{Binding ShowDefaultPreview, Converter={StaticResource IsFalse}}"
+                                     Margin="2.5px"/>
                         <ScrollViewer VerticalScrollBarVisibility="Auto"
                                       Visibility="{Binding ShowDefaultPreview, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <StackPanel Margin="3.5 7 0 0">
@@ -408,15 +408,15 @@
                             BorderThickness="1" 
                             Margin="0 0 30px 2.5px" 
                             BorderBrush="{DynamicResource PrimaryHueLightBrush}">
-                        <TextBox x:Name="EntryContextBox"
-                                 Text="{Binding Tree.SelectedEntry.Context, UpdateSourceTrigger=PropertyChanged}"
-                                 IsUndoEnabled="False"
-                                 TextWrapping="Wrap"
-                                 TextAlignment="Left"
-                                 AcceptsReturn="True"
-                                 uc:Spelling.WhenEditing="True"
-                                 uc:Spelling.Language="{Binding Tree.SelectedLanguage.Code}"
-                                 Margin="2.5px"/>
+                        <uc:WordsBox x:Name="EntryContextBox"
+                                     History="{Binding TextHistory}"
+                                     Text="{Binding Tree.SelectedEntry.Context, UpdateSourceTrigger=PropertyChanged}"
+                                     TextWrapping="Wrap"
+                                     TextAlignment="Left"
+                                     AcceptsReturn="True"
+                                     uc:Spelling.WhenEditing="True"
+                                     uc:Spelling.Language="{Binding Tree.SelectedLanguage.Code}"
+                                     Margin="2.5px"/>
                     </Border>
                     <TextBlock Text="{l:Words main.translation-comment}"
                                HorizontalAlignment="Right"
@@ -427,15 +427,15 @@
                             BorderThickness="1" 
                             Margin="30px 0 0 2.5px" 
                             BorderBrush="{DynamicResource MaterialDesignBody}">
-                        <TextBox x:Name="EntryCommentBox"
-                                 Text="{Binding Tree.SelectedEntry.Comment, UpdateSourceTrigger=PropertyChanged}"
-                                 IsUndoEnabled="False"
-                                 TextWrapping="Wrap"
-                                 TextAlignment="Left"
-                                 AcceptsReturn="True"
-                                 uc:Spelling.WhenEditing="True"
-                                 uc:Spelling.Language="{Binding Tree.SelectedLanguage.Code}"
-                                 Margin="2.5px"/>
+                        <uc:WordsBox x:Name="EntryCommentBox"
+                                     History="{Binding TextHistory}"
+                                     Text="{Binding Tree.SelectedEntry.Comment, UpdateSourceTrigger=PropertyChanged}"
+                                     TextWrapping="Wrap"
+                                     TextAlignment="Left"
+                                     AcceptsReturn="True"
+                                     uc:Spelling.WhenEditing="True"
+                                     uc:Spelling.Language="{Binding Tree.SelectedLanguage.Code}"
+                                     Margin="2.5px"/>
                     </Border>
                 </StackPanel>
             </ScrollViewer>
@@ -499,18 +499,18 @@
                         Grid.Column="0" 
                         Grid.ColumnSpan="2">
                     <Grid>
-                        <TextBox x:Name="EntryValueBox"
-                                 Text="{Binding Tree.EntryText, UpdateSourceTrigger=PropertyChanged}"
-                                 md:HintAssist.Hint="{Binding Tree.EntryHint}"
-                                 IsUndoEnabled="False"
-                                 TextWrapping="Wrap"
-                                 VerticalScrollBarVisibility="Auto"
-                                 AcceptsReturn="True"
-                                 TextAlignment="Left"
-                                 uc:Spelling.WhenEditing="True"
-                                 uc:Spelling.Language="{Binding Tree.SelectedLanguage.Code}"
-                                 Visibility="{Binding ShowLocalizationPreview, Converter={StaticResource IsFalse}}"
-                                 Margin="2.5px"/>
+                        <uc:WordsBox x:Name="EntryValueBox"
+                                     History="{Binding TextHistory}"
+                                     Text="{Binding Tree.EntryText, UpdateSourceTrigger=PropertyChanged}"
+                                     md:HintAssist.Hint="{Binding Tree.EntryHint}"
+                                     TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"
+                                     AcceptsReturn="True"
+                                     TextAlignment="Left"
+                                     uc:Spelling.WhenEditing="True"
+                                     uc:Spelling.Language="{Binding Tree.SelectedLanguage.Code}"
+                                     Visibility="{Binding ShowLocalizationPreview, Converter={StaticResource IsFalse}}"
+                                     Margin="2.5px"/>
                         <ScrollViewer VerticalScrollBarVisibility="Auto"
                                       Visibility="{Binding ShowLocalizationPreview, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <StackPanel Margin="3.5 7 0 0">

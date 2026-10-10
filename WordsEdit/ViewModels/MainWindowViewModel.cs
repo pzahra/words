@@ -96,9 +96,15 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	//Undo (SPEC: Undo)
 	/// <summary>The edits made, to take back, and the edits taken back, to put back.</summary>
-	public UndoStack UndoStack { get; } = new();
-	/// <summary>A field edit was undone or redone: the window focuses its box, so the next keystroke lands where the change did.</summary>
-	public event Action<DocumentField>? FieldFocusRequested;
+	public UndoStack UndoStack { get; }
+	/// <summary>What the editing boxes undo and redo from (SPEC: Undo → Text boxes): the document's history, a run's steps at a time.</summary>
+	public ITextHistory TextHistory { get; }
+	/// <summary>
+	///     A field edit was undone or redone: the window focuses its box, so the
+	///     next keystroke lands where the change did, the selection where the step
+	///     left it, or the caret at the end when no box said.
+	/// </summary>
+	public event Action<DocumentField, Selection?>? FieldFocusRequested;
 	//above zero while a command or an undo changes the document: the fields' reports are not typing
 	private int quiet;
 	//the dirtiness a keystroke taking its run back returns to, for the tree's Edited
@@ -110,8 +116,10 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	//whether this system can spell-check a language: Windows's answer, or a test's
 	private readonly Func<string, bool> spellCheckers;
 
-	public MainWindowViewModel(IDialogs? dialogs = null, WordsFormats? formats = null, Func<string, bool>? spellCheckers = null) {
+	public MainWindowViewModel(IDialogs? dialogs = null, WordsFormats? formats = null, Func<string, bool>? spellCheckers = null, TimeProvider? time = null) {
 		Dialogs = dialogs ?? new WpfDialogs();
+		UndoStack = new UndoStack(time);
+		TextHistory = new BoxHistory(this);
 		Formats = formats ?? WordsFormats.BuiltIn();
 		this.spellCheckers = spellCheckers ?? SpellCheckers.IsInstalled;
 		Tree = new TreeViewModel(Session);
@@ -162,7 +170,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		ToggleConstantCommand = new DelegateCommand(DoToggleConstant, () => Tree.SelectedKey is not null && Tree.SelectedKeyNode is { CanBeConstant: true });
 		TestParametersCommand = new DelegateCommand(() => DoTestParameters(Tree.SelectedKey!), () => Tree.SelectedKey is not null);
 		UndoCommand = new DelegateCommand(() => Step(undoing: true), () => UndoStack.DoneCount > 0);
-		RedoCommand = new DelegateCommand(() => Step(undoing: false), () => UndoStack.UndoneCount > 0);
+		RedoCommand = new DelegateCommand(() => Step(undoing: false), () => UndoStack.CanRedo);
 		ExitCommand = new DelegateCommand(() => ExitRequested?.Invoke());
 		//the table last: it holds the commands above
 		Commands = new CommandTable(this);
@@ -662,12 +670,13 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		typedBack = UndoStack.Type(edit, wasDirty);
 	}
 
-	//Ctrl+Z and Ctrl+Y (SPEC: Undo → Navigate first): a change out of view is gone
-	//to and applied on the next call; once applied, the selection follows it and a
-	//field edit's box takes the focus
-	private void Step(bool undoing) {
+	//Undo and Redo (SPEC: Undo → Navigate first): a change out of view is gone to and
+	//applied on the next call; once applied, the selection follows it and a field edit's
+	//box takes the focus. An editing box steps through a typing run (stepwise), and every
+	//other caller takes it whole
+	private void Step(bool undoing, bool stepwise = false) {
 		UndoStack.EndRun();
-		if ((undoing ? UndoStack.NextUndo : UndoStack.NextRedo) is not { } entry) {
+		if ((undoing ? UndoStack.NextUndo : UndoStack.NextToPutBack) is not { } entry) {
 			return;
 		}
 		if (entry.Site(undoing)?.Resolve(Tree) is { } site && !InView(site, entry)) {
@@ -684,9 +693,13 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			}
 			return;
 		}
+		FieldEdit? edit = entry as FieldEdit;
+		int standing = edit is null ? 0 : stepwise ? edit.Standing + (undoing ? -1 : 1) : undoing ? 0 : edit.Steps;
+		//undone to its last step, or put back from the entries undone; a run stepped part way stays
+		bool crosses = undoing ? edit is null || standing == 0 : entry != UndoStack.NextUndo;
 		NodeRef? follow;
 		try {
-			follow = Quietly(() => entry.Apply(Session, Tree, undoing));
+			follow = Quietly(() => edit is null ? entry.Apply(Session, Tree, undoing) : edit.Apply(Session, Tree, standing));
 		}
 		catch {
 			//the document may be half changed: no entry can be trusted to step from there
@@ -695,7 +708,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			Commands.Refresh();
 			throw;
 		}
-		UndoStack.Take(undoing);
+		if (crosses) {
+			UndoStack.Take(undoing);
+		}
 		//the entry may have changed anything the tree reads off the document
 		Tree.FollowLanguage();
 		Tree.FollowSelectedKey();
@@ -715,10 +730,19 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 		RenderPreviews();
 		Commands.Refresh();
-		IsDirty = undoing ? entry.DirtyBefore : entry.DirtyAfter;
-		if (entry is FieldEdit edit) {
-			FieldFocusRequested?.Invoke(edit.Field);
+		IsDirty = edit?.DirtyAt(standing) ?? (undoing ? entry.DirtyBefore : entry.DirtyAfter);
+		if (edit is not null) {
+			FieldFocusRequested?.Invoke(edit.Field, edit.SelectionAt(standing, undoing));
 		}
+	}
+
+	//the editing boxes' side of the history: the document's, a step at a time
+	private sealed class BoxHistory(MainWindowViewModel vm) : ITextHistory {
+		public bool CanUndo => vm.UndoStack.DoneCount > 0;
+		public bool CanRedo => vm.UndoStack.CanRedo;
+		public void Undo() => vm.Step(undoing: true, stepwise: true);
+		public void Redo() => vm.Step(undoing: false, stepwise: true);
+		public void Typed(string text, Selection found, Selection left) => vm.UndoStack.Typed(text, found, left);
 	}
 
 	//the node selected and, for an entry tied to a language, that language showing,
