@@ -10,8 +10,9 @@ every other byte alone.
 
 Wordsmith has its own spec ([../WordsEdit/SPEC.md](../WordsEdit/SPEC.md)),
 and the format is the runtime's ([../Localization-Core/SPEC.md](../Localization-Core/SPEC.md)).
-This one is all built; what the command line does not do yet is planned in
-the editor's, beside the features it serves.
+Everything up to *Planned upgrades* is built. What the command line does for
+one of the editor's features, the parameter check among them, is planned in
+the editor's, beside the feature it serves.
 
 ## Calls
 
@@ -170,3 +171,55 @@ left alone, a missing or read-only file named without the calls, an empty
 field removed though `get` calls it none, a `[.child]` header before any base
 listed, read and removed but never written, and `list` with a prefix and
 `--missing` by the badges' rule.
+
+# Planned upgrades
+
+Not built yet. Each section here is the shape the feature takes when it is.
+
+## What a caller fixes by hand
+
+The command line is a tool for agents first, the one working on this
+repository among them, and used in earnest it leaves three things for the
+agent to fix by hand after it.
+
+**Cuts.** A new key goes in as a full header after its sibling's chain, a
+blank line before it, where the writer would cut it otherwise: the five
+`.unit` keys the Enums page gained came out as five blocks standing apart,
+`[enums.brew.espresso.unit]` and kin, where Save writes a `[.unit]` in each
+chain (the editor spec's *Round-trip guarantees*). A file Save wrote stops
+reading as Save writes it, and Wordsmith's own words, whose round trip is
+pinned byte for byte, fail their test until the headers are moved by hand.
+The full header was chosen because a full header inserted in a chain
+re-bases the `[.child]` headers after it; a `[.child]` header does not,
+since each one extends the chain's full header and not the one above it. So
+a new key that extends a chain's full header goes into that chain, as a
+`[.child]`, after its nearest sibling's block and with no blank line, as the
+writer chains it; one that extends none is cut as the writer's cut strategy
+(`GroupCuts`) would cut it, which for most is today's full header.
+
+**Field order.** A new field goes after its block's last, where the writer
+has an order: context, comment, the value and its forms, the parameters,
+then each language's value, forms and stale mark. A `context=` added to a
+key with a translation lands after `value-it`, and the same round-trip test
+fails until it is moved. A new field goes where the writer would put it,
+among fields already in its order; in a block written in no order, where
+there is no such place, it goes last as today.
+
+**Fresh.** A default that changes stales every translation with words, which
+is right when the translations are not being touched, and wrong when the
+same caller is about to write each of them: it sets the default, then each
+translation, then removes each stale mark it just caused. `--fresh` on a
+default's `set` stales nothing, so a correction made in every language at
+once leaves the review filter as it was; a mark already there stays, as
+always. It is a default's option, a bad call with a translation's field or
+beside `--stale`.
+
+**Tests.** A new key extending a chain's full header lands in the chain as a
+`[.child]`, after its nearest sibling's block with no blank line, and the
+`[.child]` headers after it keep their base; one extending none lands as the
+cut strategy cuts it; a key added to Wordsmith's words reads back through
+the editor byte for byte. A new `context=` lands before the values, a new
+`value-it` after the default's forms and before a later language's value,
+and a field added to a block in no order lands last. `--fresh` on a default
+stales nothing and keeps a mark already there, and is a bad call on a
+translation or beside `--stale`.
