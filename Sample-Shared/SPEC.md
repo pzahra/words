@@ -6,7 +6,8 @@ words, one in WPF and one in Avalonia. Sample-Shared holds what is framework-fre
 every page — so the twins cannot drift apart where they need not.
 Sample-Console (the console renderer) and LocalizedSample (the analyzer's test
 subject) are out of scope here. The library's own specs are
-[the runtime's](../Localization-Core/SPEC.md) and [the editor's](../WordsEdit/SPEC.md).
+[the runtime's](../Localization-Core/SPEC.md), [the editor's](../WordsEdit/SPEC.md)
+and [the command line's](../WordsCli/SPEC.md).
 
 ## The shell
 

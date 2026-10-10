@@ -5,7 +5,7 @@ using Xunit;
 namespace PatTech.Localization.Tests;
 
 /// <summary>
-///     Plural forms on the authoring side (editor SPEC: Plural forms, Order): the
+///     Plural forms on the authoring side (editor SPEC: Plural forms, Where it lives): the
 ///     reader keeps them and gripes about the ones a runtime never reads, the writer
 ///     puts each after its plain value, a save is stable, and copies, a recode and
 ///     the preview providers carry them.

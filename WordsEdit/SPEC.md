@@ -7,7 +7,8 @@ sends it back. Everything the tool does serves that round trip.
 
 This spec fixes the behavior; layout and controls are the implementation's to
 choose. Everything up to *Planned upgrades* describes what the editor does
-today; that last part describes what it does not do yet.
+today; that last part describes what it does not do yet. `words`, the command
+line that ships beside it, has its own ([../WordsCli/SPEC.md](../WordsCli/SPEC.md)).
 
 ## Architecture rules
 
@@ -214,7 +215,8 @@ flags — constant (only a leaf directly under a file), and needs-review
   the translation has gone unreviewed and why, which "machine translated"
   overwritten by a date would lose. An empty translation is missing, not
   stale. The stamps are part of the typing's undo entry (Undo: Fields), and
-  `words set` does the same (A command line for tools).
+  `words set` does the same (the command line's spec,
+  [../WordsCli/SPEC.md](../WordsCli/SPEC.md)).
 
 ## The translation pane (right)
 
@@ -996,8 +998,7 @@ left the selection. The box takes `TextBox`'s style.
 
 The runtime spec's *Plural forms* gives a key a form per CLDR category beside
 its plain value (`value-mt#few=Kelmiet`). The editor shows one form at a time in
-each value box, and a selector in each pane picks which. The runtime,
-authoring's round trip and the editor are built, in that order (Order, below).
+each value box, and a selector in each pane picks which.
 
 **The selector.** The baseline pane's header toolbar and the translation
 pane's each lead with one: a popup button (`Counter`) holding the forms as ticked
@@ -1096,179 +1097,211 @@ the plain value. A form the language does not use stays reachable, with its
 dot and a gripe, and an empty greyed row cannot be picked. Test Parameters
 selects as the preview does.
 
-**Order.** The runtime comes first, proven in the samples: the grammar, the
-CLDR integer table, the digest, the `{n#key}` selector and the count indexer,
-then a key's forms kept to the level of its words, and the optional categories.
-Authoring's model and round trip come next: `WordsKey.Forms` and
-`WordsEntry.Forms` hold each form's text by category, and `IniWriter` writes
-each form after its plain value. The reader keeps every CLDR category it meets
-and gripes about one a runtime never reads: `#one`, a category the language
-does not count by, any form in a language with one; a word that is no
-category is dropped, with a gripe (Round-trip guarantees). Copies, a recode, a
-split and a merge carry the forms; the preview providers answer `key#few` as
-the runtime flattens it, so a dictionary over them selects; resx and XLIFF
-list the forms as lost. The editor follows, as above. All three are built,
-each its own commit. The command line came after the authoring step, so it
-edits forms like any other field from its first build.
-
-## A command line for tools
-
-A build step, a script or a coding agent that needs to change one entry
-should not have to open the editor, and should not have to hand-edit a
-format with continuation and escaping rules either. Saving through Wordsmith
-normalizes the whole file (Round-trip guarantees), which is fine for a file
-Wordsmith already wrote and noisy for one written by hand. `words`, the
-command line, changes the entry it is asked to change and leaves every other
-byte alone.
-
-**Calls.** One file per call; a field is named as in the file (`value`,
-`value-fr`, `value-mt#few`, `context-fr`, `comment-fr`, `stale-fr`,
-`param-count`), plural forms included (*Plural forms*, above); a value is an
-argument, or `-` for stdin with its last line break (`\r\n`, `\n` or `\r`)
-dropped, so a multi-line value needs no shell quoting. A redirected stdin is
-UTF-8 exactly: bytes that are no UTF-8 are a bad call, never replacement
-characters, and a leading U+FEFF is the value's own, so `get` piped into `set`
-carries it whole; since a tool writing a BOM puts one there too, a line on
-stderr says it was kept. A `param-` text whose words before the first `:` name
-no type is written behind `String:`, with a note, so it reads back whole
-rather than losing them as an unknown type:
-
-- `get <file> <key> [field]` prints a field's value, unescaped, or the whole
-  block as Save writes it, under a full header, when no field is named.
-- `set <file> <key> <field> <value>` sets one field, adding the key, or the
-  field, where it is missing. A default that changes, the plain value or a
-  form, marks every translation with words and no stale mark yet stale with
-  the time, as typing it in Wordsmith does (The baseline pane); one set to
-  the text it holds marks nothing. `--stale [text]` marks the language's entry
-  stale with it (the default's mark keeps no words), so the review filter
-  surfaces a machine-written value. Options go anywhere after the call:
-  `--stale` takes the next argument as its words only once the value is in,
-  and `--stale=text` always does.
-- `remove <file> <key> [field]` drops one field, every declaration of it, or
-  the whole key. A field is there to drop when the file declares it, with
-  words or empty, though `get` reads an empty one as none, exit 1.
-- `list <file> [prefix]` prints the keys in the order their blocks first
-  appear, leaving out a bare group header as the editor drops it; the prefix
-  is plain text, so `menu.` lists a group. `--missing xx` lists only those
-  where `xx` misses its words, by the badges' rule (*Plural forms*, Badges): no
-  words, or on a plural key a form the language requires. A language the file
-  does not declare, or one its default speaks, misses nothing, and a line on
-  stderr says which.
-- `--version` and `--help`.
-
-A key is the file's own, without the session's file-label prefix, and a key's
-name (the runtime spec's *Key names*): `set` writes no other, exit 2, though
-`get` and `remove` reach a block the file already names otherwise, so it can
-be read and cleared. `remove` refuses a constant whose header bases
-`[.child]` headers, which no constant can: its bare header would still be the
-constant, and without one the children re-base. Values go
-to stdout and gripes to stderr: the reader's gripes the edit adds (a field in
-an undeclared language, a form the language never reads), and a note when a
-field declared twice is made one. The exit code is 0 for done, 1 when the
-key or field is not there, 2 for a bad call, a file that is missing, can't be
-read or written, does not parse or is no text the patcher reads, or a refused
-edit; a file's failure names the file, which the system's own message may not,
-and a missing one is no misuse, so the calls are not shown. Redirected streams
-speak UTF-8 with `\n`; a console keeps its own.
-
-**Surgical edits.** `IniPatcher` reads the file's bytes by the BOMs
-Wordsmith's Load reads (*Saving*): UTF-8 with or without one,
-UTF-16 or UTF-32 with one, UTF-32 LE's checked first since it starts with
-UTF-16 LE's. Text holding a NUL is refused: UTF-16 without its BOM reads as
-UTF-8 with a NUL in every other byte, and would otherwise be written into. A
-value holding one is refused too, as it would leave the file unreadable. The
-text is parsed, noting where each header and field sits. The one field's lines (its declaration and its continuations) are
-replaced with what `IniWriter` writes for that one pair: escaping and folding
-as Save would, in the file's own line ending; every other line keeps its own
-break, and a file that ended without one still does. A field already holding
-the text is not touched. A field declared more than once keeps its first
-place and loses the others. A new field goes after the last field of its
-block, or under its header when it has none. A new key goes after the end of
-the header chain holding its nearest sibling — the key sharing the most
-leading segments, the last of them — as a full header: after the chain's last
-header or field line, so the comments above the next block stay with it,
-since inserting one between a base and its `[.child]` headers would re-base
-them. With no sibling it goes after the last chain. A removed key whose
-header bases `[.child]` headers keeps that header bare, which reloads as a
-group (the tradeoff the writer already makes); a removal leaves no doubled
-blank line, and the comments above a removed block stand where they are, as
-in the tree. After the edit the result is parsed again and compared with the
-model before it, the asked-for change applied: every key's fields, the
-language table, the settings references and the comments in order. Anything
-else refuses the write, naming what would have changed. The file is written
-to a temporary sibling and moved over the original only once that passes; a
-link is followed to its file, and a Unix file keeps its mode. As with Save,
-what lands is a new file: a Windows hidden attribute does not carry over, and
-a hard link to the old one keeps the old text.
-
-**Where it lives.** The patcher and `WordsField` — a field's name, parsed,
-read and written on the model — are in Authoring, tested headless. The parser
-reports where it is through `IWordsParserConsumer.VisitLine`, a member with a
-default body, so existing consumers do not change. The command line itself,
-`WordsCli`, is a thin console project over it on plain `net10.0`, with
-invariant globalization: it runs wherever .NET does, references Authoring and
-Core and never the editor, and Authoring stays free of anything Windows-only.
-The unused argument parser from the original import is gone.
-
-**How it ships.** With the editor, at its version (`WordsmithVersion`): each
-`editor/` release carries Wordsmith for Windows and the command line for
-Windows, Linux and macOS (x64, and Arm64 for macOS), each a self-contained,
-compressed single file, so nothing needs .NET installed. They are built and
-packed on a Linux runner: Windows's as a zip, the others as `.tar.gz`, which
-keeps the executable bit a zip made on Windows would lose. The SDK signs the
-macOS builds ad hoc, which Apple Silicon requires to run them at all; they
-are not notarized, so macOS quarantines a download until it is cleared
-(`xattr -d com.apple.quarantine`), and the release notes say so. They are
-trimmed, from about 37 MB to 11. Core's reflection — enum descriptions, the
-markdown constants read from JSON, named format arguments read off an object
-— is nowhere the command line reaches, so the trimmer keeps none of it and
-warns about nothing; every platform's build is the same code as the Windows
-one, which runs every call trimmed as it does untrimmed. Trimming is the
-command line's own setting: passed on the command line it would reach Core's
-build too, whose trim analyzer flags those patterns whether reached or not.
-
-**The agent skill.** The packaged `SKILL.md` tells agents the tools exist and
-where to get them: Wordsmith for a person editing on Windows, the command line
-for an agent or a script on any platform, both from the editor's GitHub
-Releases. An agent checks whether the command line is installed (`words
---version`), uses it for any change to a `words.ini` when it is, marks the
-translations it writes stale, and edits by hand, keeping the format's
-continuation and escaping rules, only when it is not.
-
-**Tests.** Headless: a changed field replaces its lines and nothing else; a
-new field lands after its block's last, and a group's under its header with
-the chain intact; a new key lands after its sibling's chain as a full header,
-a lone one after the last block and before the trailer, and one in a file with
-no blocks at its end; the pair is written as the writer writes it, continued
-and folded, and reads back; a BOM, CRLF and a missing final break survive,
-each line of a mixed file keeps its own break, UTF-16 stays UTF-16 and UTF-32
-UTF-32, either way round; text that is not UTF-8 does not open, nor UTF-16
-without its BOM, and no value writes a NUL; the text a field already holds
-leaves its hand-written lines; a field declared twice keeps its first place; a
-parameter of no type keeps its words behind `String:`; only the gripes an edit
-adds are reported; an edit that would spill into a continued last line is
-refused and changes nothing; a removal drops a field with its continuations,
-an empty one included, a block with one blank line, the last block with none
-left behind, a reopened key everywhere, and keeps bare a header that bases
-children; the parser numbers its visits. The command, in process: each call's
-output and exit code, a dash read from stdin, a lone `\r` its last break, a
-leading U+FEFF kept and said, bytes that are no UTF-8 refused, all through the
-reader the program puts on a pipe; `--stale` with words, without and before
-the value, a changed default staling its translations with words and keeping
-a mark there, gripes passed on, a refused edit leaving the file, BOM-less UTF-16
-left alone, a missing or read-only file named without the calls, an empty
-field removed though `get` calls it none, a `[.child]` header before any base
-listed, read and removed but never written, and `list` with a prefix and
-`--missing` by the badges' rule.
+**Where it lives.** The grammar, the CLDR table, the digest, the `{n#key}`
+selector and the count indexer are the runtime's. Authoring's
+`WordsKey.Forms` and `WordsEntry.Forms` hold each form's text by category,
+and `IniWriter` writes each form after its plain value. The reader keeps every
+CLDR category it meets and gripes about one a runtime never reads: `#one`, a
+category the language does not count by, any form in a language with one; a
+word that is no category is dropped, with a gripe (Round-trip guarantees).
+Copies, a recode, a split and a merge carry the forms; the preview providers
+answer `key#few` as the runtime flattens it, so a dictionary over them
+selects; resx and XLIFF list the forms as lost. The command line edits a form
+like any other field.
 
 ---
 
 # Planned upgrades
 
 Not built yet. Each section here is the shape the feature takes when it is.
-*Plural forms* and *A command line for tools*, planned here once, are built
-above, and shipped with editor 1.3.0 and api 1.5.0. *Undo inside a text box*
-is built above too (Undo: Text boxes).
+
+## Parameters
+
+A parameter is what the code fills in: `{0}`, `{Name}`, or the count a
+selector reads, the `1` in `{1#N}`. The programmer says what each one is; the
+translator tries values to see their words come out right. Today neither has
+a good place. Test Parameters is a dialog out of sight; a key's
+`param-x=Type:sample` mixes what the parameter is with a value to test it
+with; its Add proposes `P0`, a named parameter that fills no `{0}`; and what
+a placeholder means lives in the context's prose ("{0} is the file"). No file
+in the repository declares one.
+
+**In the file.** `param-x=type:Description`, the definition, and the
+programmer's alone: `x` is the parameter as the text names it (`param-0`,
+`param-Name`, `param-1` for `{1#N}`), the type is what the code passes (Types,
+below), and the description says what it is, for the translator:
+`param-0=int:the files deleted`. The type is optional, `str` without one, so
+`param-0=the file` (the field's first intention) is text. The words before the
+first `:` are a type only where they name one, so `param-0=the file: its full
+path` stays whole, where today the reader takes "the file" for an unknown type
+and loses it; the writer writes the type wherever it is not `str`, or the
+description's own first words would read as one. No value is saved:
+`Type:sample` goes, and a sample a 1.3.0 file holds comes up as a
+description; its type names (String, Integer, Double, TimeSpan,
+DateTimeOffset) read as the short ones below and are written short. A value
+kept in the file, if one turns out wanted, is a field of its own beside the
+definition, never mixed into it again, and is an experiment for later. The
+runtime skips `param-` as it always has.
+
+**Types.** Six, in any case, each with the input that reads it:
+- `str`, free text;
+- `int`, a whole number;
+- `real`, a number with a fraction, a `double`;
+- `time`, a span, a `TimeSpan` (`1:30:00`);
+- `date`, a moment, a `DateTimeOffset` (`2026-10-10 09:30`), UTC unless it
+  says otherwise;
+- `enum(prefix)`, one of the keys directly under the prefix:
+  `param-0=enum(enums.brew):the coffee` offers `espresso`, `cappuccino`,
+  `latte` and `affogato`, the members a `[Words("enums.brew.…")]` enum names,
+  and not the slots beside a member, `.tooltip` and the rest, which are its
+  own. The prefix is a key's name, found as a reference finds one,
+  through every loaded file; a prefix with nothing under it gripes, and its
+  input offers nothing.
+
+The prefix sits in parentheses so the type stays one word before the first
+`:`. Numbers, spans and moments are typed in the invariant culture, as the
+file's own are, so `1.5` reads the same for every translator; the previews
+format them in their pane's culture. An `enum` input describes the picked
+member through the runtime's engine, from a describable built off its key
+(the runtime spec's *Describe without the type*). It sends what an app passing
+`brew.Describe()` shows: the member's words in the pane's language, or its
+name, the key's last segment, where it has none. Whether a template's `{0:T}`
+reads the member's `.tooltip` waits on that section's question. What lives
+only on the type, `[Description]`, `[Tooltip]` and the number, stays empty,
+and a `[Flags]` combination is no member.
+
+**In the pane, a conversation.** The baseline pane reads as a chat already:
+the programmer's context on the left, inset from the right, the translator's
+comment on the right, inset from the left. The parameters carry it on below
+the comment, as a thread of pairs. Each definition is the programmer's
+message, left-aligned in their bubble: its placeholder (`{0}`), its type, a
+combo box (with the prefix beside it for `enum`), and its description, a `WordsBox` spell-checked in the default's
+language as the context is, with a trash. Right under it, right-aligned, is
+the translator's answer, the input for that parameter. The parameters found
+and not defined follow, each a faint `+ {0}` with its input under it, and the
++ comes last, where the next pair would go. So the context and the comment,
+the exchange the document keeps, sit where they always do whatever a key's
+parameters, and the comment that raises the hand never slides out of view;
+each value sits under the definition it answers, with no label to match up;
+and what is saved comes first, the scratch after. A key with no definitions
+and nothing found shows no thread, and looks as it does today.
+
+**Defined by hand, found to help.** The definitions are the contract, what
+the code passes, and only the programmer adds them, because the key's text
+cannot say. A key that is only ever referenced needs none: its parameters
+are defined where the code formats the key that refers to it. And the code
+may pass what the default never uses, a count that only Maltese counts with,
+or a value some languages need and English does not, so a definition the
+default does not use is no mistake. It stays as any other, the placeholder
+label dimmed as a hint, with no gripe and no badge. Detection only helps.
+What is found is every parameter the default uses, printed (`{0}`, `{0:N2}`,
+`{Name}`) or counting (`{0#word}`), over its plain value and every form, with
+references and selected forms expanded as the runtime expands them, through
+every loaded file as the previews resolve them, so a `{>files}` whose words
+print `{0}` uses `{0}`. Numbered ones come first, by number, then named ones
+as they first appear; an escaped `{{0}` is none. A parameter found and not
+defined shows faintly under the definitions, `+ {0}`, and a click makes it
+one, its type guessed: `int` for a selector's count, `str` otherwise. The
++ adds the first of those, or else the lowest number no definition has, so
+`{0}` and never `P0`; its placeholder is editable, as the dialog's name was,
+for `{Count}`. Test Parameters goes, its dialog and its rows in the Tools
+menu and the panes' headers with it.
+
+**The inputs.** One per definition, then one per parameter found and not
+defined, so a key nobody has defined still previews filled; each reads as its
+type does (Types), a box for the five and a list for `enum`. What the
+translator types is not the document's: an input dirties nothing and enters no undo (each box keeps WPF's own), and the inputs
+are kept per key for the session, so stepping away and back finds them; Reset
+and closing drop them. While a preview's toggle is on, the inputs are
+converted by their parameters' types and sent to it: the default preview
+formats in the default's language and the translation preview in the
+selected one, selectors picking their forms by the count, as an app's
+`Format` would, and as the samples do today. An empty input previews as its
+placeholder written out, so the preview still renders and shows what is left
+to fill; a selector with no count reads `other`, quietly. An input its type
+cannot read marks its box, the error brush with the type's complaint as the
+tooltip, and heads the preview's gripes, as a sample that will not format
+does now.
+
+**Translation check.** A translation's parameters are found the same way,
+over its plain value and every form, its references expanded in its own
+language. One the default uses and the translation never does is dropped:
+the app's value never shows. One the translation uses that the default does
+not and no definition names is extra: an app passing what the default needs
+throws on a numbered one and shows `#Name#` for a named one, with a
+`WORDS:FIELD` warning. So the default's use is what a translation must keep,
+and the definitions widen what it may use: Maltese counting with a `{0}`
+English never prints is fine where `param-0` says the code passes it. Only
+use is compared, so a translation may print where the default counts (a
+language whose words do not change with the count prints `{0}` and needs no
+`{0#word}`), a form may leave out what another keeps (an English `one` that
+reads "a file"), and a format may differ (`{0:d}` for `{0:D}`). A reference
+that cannot be followed, into a file not loaded, may carry anything, so a
+side with one has nothing called dropped. A mismatch badges the key's node for the selected language, as
+missing words do, has a filter beside Missing, and names what is dropped or
+extra beside the translation box. The rule is Authoring's, as `MissingWords`
+is: the badges read it, `words set` notes on stderr a translation it writes
+that drops or adds one (and writes it, as its other notes do; it sees its
+one file, so a reference into another is one it cannot follow), and machine
+translation's "nothing is written unchecked" and the agent macro go through
+it, widening it there to references, code spans and links.
+
+**Undo.** A description types and undoes as any field does (Undo: Fields), its
+`FieldEdit` naming the parameter as it names a form; a definition added,
+adopted, renamed, retyped or taken away is one entry. `ParametersEdit`, a dialog
+session, goes with the dialog. The inputs are no part of the history.
+
+**What changes.** `WordsParameter`'s `Value` becomes its `Description`, and the
+samples leave the model for the editor's session: `WordsOperations.FormatSample`
+takes the inputs, and `WordsParameterType` holds the six. XLIFF carries a
+parameter as now, its type as an attribute, short, and its description as the
+text; resx still lists parameters as lost. `words set` stops writing
+`String:` before a text whose first words name no type, since the reader now
+keeps such a text whole. The
+dialog's words go (`parameters.*`), and the pane gains its own: the inputs'
+heading, the + and the trash, the unused hint, the mismatch's badge, filter
+and note. Built,
+this replaces the baseline pane's *Parameter testing* bullet, and the inputs
+take the samples' place in *Plural forms*.
+
+**Tests.**
+- What a default finds with `{0}`, `{0:N2}`, `{Name}`, `{1#word}`, `{{2}`,
+  `{>ref}` whose words print `{3}`, a `word#other` that prints `{4}`, and
+  forms of its own: 0, 1, 3, 4 and Name, in that order, with 1 guessed
+  `int`; `{{2}` is none, and a reference into a file not loaded finds
+  nothing.
+- A found parameter adopted becomes a definition with its guess; the + adds
+  the first found and undefined, else the lowest free number; a definition
+  the default does not use stays, hinted, with no gripe and no badge; a key
+  with no definitions gets none of either.
+- Typing a description writes `param-0=` with the type it has and undoes; a
+  definition added, adopted, renamed, retyped or taken away is one entry.
+- `param-0=the file: its full path` reads as one `str` description and
+  writes back as it was; `param-0=INT:` reads as an `int` without one; a
+  description that starts `real:` round-trips; 1.3.0's `Integer:` reads as
+  `int` and writes `int:`; `enum(enums.brew)` keeps its prefix as written.
+- Each input reads its type in the invariant culture and refuses what it
+  cannot; an `enum` lists the keys directly under its prefix and not their
+  `.tooltip` and kin, sends the picked member's words in each pane's
+  language, or its name where it has none, and a prefix with nothing under it
+  gripes.
+- The inputs reach both previews converted, each in its culture; an empty
+  one previews as `{0}`; one its type cannot read marks its box and heads
+  the gripes; typing one leaves the window clean and the stack as it was;
+  they outlive a key switch and go with Reset.
+- A dropped and an extra parameter badge the key for that language, filter,
+  and are named; a translation printing where the default counts, or a form
+  leaving out what another keeps, is no mismatch; a translation counting
+  with a defined `{0}` the default never uses is fine, and an undefined
+  `{2}` is extra; a reference whose translation prints `{0}` is a use of it;
+  a side with a reference it cannot follow drops nothing; `words set` notes
+  a mismatch and writes it.
+- The menu's inventory no longer has Test Parameters.
+
+**Order.** After the runtime's *Describe without the type*, which the `enum`
+input stands on. Finding parameters, references and selected forms expanded, and
+the check first, in Authoring and headless, with the command line's note; then the description in the model,
+the reader and the writer; then the pane; then the badge and the filter.
 
 ## Save as a patch
 

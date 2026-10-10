@@ -3,7 +3,7 @@ using System.Text;
 
 namespace PatTech.Localization.Authoring {
 	/// <summary>
-	///     A <c>words.ini</c> edited in place (editor SPEC: A command line for tools).
+	///     A <c>words.ini</c> edited in place (command line SPEC: Surgical edits).
 	///     A change replaces only the lines of the field it names with what
 	///     <see cref="IniWriter"/> writes for that one pair, in the file's own line
 	///     ending, encoding and BOM, and every other byte stays. Each change is read

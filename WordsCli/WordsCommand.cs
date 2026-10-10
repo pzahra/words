@@ -4,7 +4,7 @@ using System.Text;
 
 namespace PatTech.Localization.Cli {
 	/// <summary>
-	///     The <c>words</c> command (editor SPEC: A command line for tools): one verb,
+	///     The <c>words</c> command (command line SPEC: Calls): one verb,
 	///     one file per call, over <see cref="IniPatcher"/>. Values go to the output
 	///     and gripes to the error stream; the exit code is 0 for done, 1 when the
 	///     key or field is not there, 2 for a bad call, a file that is missing, can't

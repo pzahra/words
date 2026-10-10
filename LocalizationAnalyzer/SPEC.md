@@ -8,7 +8,8 @@ where the compiler cannot look; it ships on the analyzer's release track. Neithe
 references the runtime: each copies the runtime's reading of a `words.ini`, and the
 runtime's spec ([../Localization-Core/SPEC.md](../Localization-Core/SPEC.md)), its *Key
 names* and *Plural forms* above all, is the grammar both follow. Wordsmith, which writes
-the files, has its own ([../WordsEdit/SPEC.md](../WordsEdit/SPEC.md)). Everything up to
+the files, has its own ([../WordsEdit/SPEC.md](../WordsEdit/SPEC.md)), as does `words`, the
+command line ([../WordsCli/SPEC.md](../WordsCli/SPEC.md)). Everything up to
 *Planned upgrades* is what the two do today; the last part is what they do not do yet.
 
 ## Where the words come from

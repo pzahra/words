@@ -5,7 +5,7 @@ using Xunit;
 namespace PatTech.Localization.Tests;
 
 /// <summary>
-///     The patcher behind the command line (editor SPEC: A command line for tools):
+///     The patcher behind the command line (command line SPEC: Surgical edits):
 ///     a change replaces the lines of the field it names and nothing else, new
 ///     fields and keys land where the SPEC puts them, the file keeps its line
 ///     endings, encoding and BOM, and an edit that would change anything else is

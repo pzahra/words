@@ -2,7 +2,8 @@
 
 The runtime is the library an app actually ships: `Localization-Core` and the
 framework packages on top of it (`Localization-Wpf`, `Localization-Ava`).
-Wordsmith, the editor, has its own spec ([../WordsEdit/SPEC.md](../WordsEdit/SPEC.md));
+Wordsmith, the editor, has its own spec ([../WordsEdit/SPEC.md](../WordsEdit/SPEC.md)),
+and so does `words`, the command line ([../WordsCli/SPEC.md](../WordsCli/SPEC.md));
 this one fixes the runtime's behavior. Everything up to *Planned upgrades* is
 what the library does today; the last part is what it does not do yet.
 
@@ -320,7 +321,7 @@ language manager and Wordsmith's startup.
 shorter code's words are branded 🕮 and the default's 📚, the first found
 included where the language has no words of its own. The plural rules look
 a code up the same chain. A region falls back past its script, never across to a
-sibling, so Traditional never reads Simplified. 1.4.0's family fallback, `en-GB`
+sibling, so Traditional never reads Simplified. The family fallback, `en-GB`
 to `en`, is the two-subtag case of this.
 
 Windows names its Chinese cultures by region alone, `zh-TW` and `zh-CN`, while
@@ -353,13 +354,6 @@ a parameter, not a language, so it is read as written; the top-of-file
 `param-xx=` belongs to language `xx`. An ini that borrows the format for
 suffixes of its own turns `WordsParser.LanguageSuffixes` off, as Wordsmith's
 settings file does for `scheme-decode=`.
-
-**What changes.** Old files stay valid, since everything 1.4.0 wrote is a
-subset of the grammar. A three-part code is new, and a 1.4.0 runtime drops its
-fields. A minor version allows that, and the release notes say so. A
-hand-written code outside the grammar, which 1.4.0 read as written, is now
-skipped. A parameter's name is no longer lowercased, so Wordsmith's `P1`
-survives a reload.
 
 **Tests.**
 - The grammar accepts each subtag kind in any case and cases it, and refuses a
@@ -444,22 +438,13 @@ it, and warned about once (`WP:NAME`, with the key it resolved to); so are the
 header too, though no key's: a runtime skips it, warns `WP:NAME` with an empty
 key, and resolves a `[.child]` under it against nothing. The parser itself reads
 past every field under it, since a consumer couldn't tell them from the
-top-of-file fields. Until 1.5.0 it matched no header at all, so its fields read
-as the key above's. A file's top-of-file labels
+top-of-file fields. A file's top-of-file labels
 are read, whichever block the file loaded before it ended in. The one check
 serves every reader: the authoring reader keeps such a block, griping that a
 runtime skips it, so an editor can rename it (the editor spec's *The
 document*), all but `[]`, which has no fields to keep and which a save drops
 with a gripe; the command line writes no key that is none; an import makes a
 foreign name one.
-
-**What changes.** A hand-written file that 1.4.0 read with such a name loses
-that key; none of Wordsmith's can hold one. `WP:HASH` became `WP:NAME`, which
-covers `#` and the rest. The grammar's first cut, never released, read letters
-as the regex `\w`, which lacks spacing marks (the vowel signs of Devanagari and
-its kin), letters past the 16-bit plane and the joiners, so `[हिंदी]` was
-skipped; UAX #31 adds them, and leaves out a mark or a joiner as a segment's
-first character and the few letters NFKC would change.
 
 **Tests.** The grammar accepts dotted segments in any script, dashes inside,
 and a one-segment constant; it refuses an empty name or segment, a leading dot
@@ -619,9 +604,7 @@ So a key that selects its own forms renders the circular mark wherever it is
 referred to, while a form may still refer to its key's plain value
 (`value#other={>item}s`). `RenderText`'s text is the caller's, not its base
 key's words: the base key anchors its relatives and nothing else, so the text
-may refer to that key or select among its forms, given arguments or not. The
-selector's first cut, never released, expanded references first and selected
-after, so a referenced key's selectors picked from the outer key.
+may refer to that key or select among its forms, given arguments or not.
 
 An escaped pair collapses in the same pass, so `{{0#word}` is a brace and text,
 no selector; `string.Format` then wants its own `{{`, as for `{{>key}`. A
@@ -662,18 +645,13 @@ does not know into the invariant culture, which counts as English: Cebuano,
 Ladin and the legacy `iw` and `tl` are among the table's languages it does not
 know, and they still count by their own rules.
 
-**What changes.** The pair grammar admits `#form` after the language, and the
-form travels with the field type, lowercased (`value#other`), so a consumer that
-knows `value` learns `value#other` the same way: Core digests it, the authoring
-side round-trips it. A runtime from before skips every `#` line, so a file with
-forms still loads there with its plain values. Wordsmith shows one form at a
-time, picked in each pane among CLDR's six, the language's own live and the
-rest greyed, so a Maltese translator picks among `two`, `few`, `many` and
-`other` and an English one has `other` (the editor spec's *Plural forms*). Nothing else moves: a file
-with no `#` forms parses, digests and renders byte for byte as before. The
-samples show it on the Format parameters page, the positional card's count
-picking its words in English, Italian and Maltese, which speaks on that page
-alone.
+**Readers.** The pair grammar admits `#form` after the language, and the form
+travels with the field type, lowercased (`value#other`), so a consumer that
+knows `value` learns `value#other` the same way: Core digests it, the
+authoring side round-trips it, and a runtime that knows no forms skips every
+`#` line and loads the plain values. Wordsmith shows the forms one at a time
+(the editor spec's *Plural forms*), and the samples on their Format
+parameters page.
 
 **Tests.** A headless test digests a file with English, Russian, French and
 Japanese, formats a counted key at 1, 2, 5, 11, 21, 22, 25 and 101 under English
@@ -758,3 +736,106 @@ with that thread's `Watch()`. The shape: a trigger per synchronization context,
 each multi-binding taking its own thread's, and a swap pulsing each on its
 own context. The context-less half is built: a `Watch()` from a thread with no
 context leaves the trigger where it was.
+
+## Describe without the type
+
+`Describe` reads five things off an enum member: its name, its number, its key
+(`[Words]`), and the text of `[Description]` and `[Tooltip]`. Then it looks up the key and
+the `.tooltip`, `.sub`, `.desc` and `.unit` beside it, and assembles what the
+format's letters ask for. Both steps do more than they need. The first needs
+the type and reflects on every call: `GetEnumMemberInfo` walks the type's
+names and parses each, then each attribute is asked for by name, whether the
+member has it or not. The second looks up all five keys on every call, though
+`G` reads one. And Wordsmith, which has the keys and never the type, cannot
+describe at all (the editor spec's *Parameters*, Types).
+
+**The seam.** `IDescribable` is what the engine reads: `Name` and `Number`, the
+number as text, so any integer type's value fits, `Key`, and the text it
+holds for a slot, by the slot's letter (Slots, below).
+`Describe(this IDescribable, format, words)` is the engine, and it looks up
+only the keys its letters ask for: `G` the key alone, `T` the key's
+`.tooltip`, and so on. `Describe(this Enum, …)` finds the
+member's describable in a hidden cache, built once per member and kept per
+type, and runs the same engine. The cache holds what the type says and never
+the words, so a language switched live reads afresh. Nothing an app sees
+changes: every letter reads as before, and the `Describe` tests stand
+unchanged.
+
+**Without an enum.** Anything can be described by building one. Wordsmith's
+`enum(prefix)` input builds one per key under the prefix: its name the last
+segment, its key the full name, no attribute text and no number. The letters
+then read the key's `.tooltip` and kin as they would for the real member.
+
+**Flags.** A `[Flags]` combination is no member: it is the members
+`Enum.ToString` names for it, which settles overlapping values the way .NET
+does, each one's describable from the cache. The engine takes that array and
+describes each, so `Describe` on a combination gives one text per member, where
+today it falls back to the joined names. The converters keep their options
+(leaving out `None`, the delimiter, an array or one string) and hand their
+splitting to the engine.
+
+**Slots.** A slot is a format letter, the suffix it reads beside the key, and
+the attribute text it falls back to where the key has none. The canon:
+`G`, the key's own words, then the description, then the name (`N` without
+the description); `d` and `D`, `.desc`, then `[Description]`; `S`, `.sub`,
+then `[Tooltip]`; `T`, `.tooltip`, then `[Tooltip]`; and `s` the name and `i`
+the number, which read no key. A `byte` enum names the canon by its letters,
+`DescribeSlot.Tooltip = (byte)'T'`, cast to `char` where a slot is asked for,
+so `(char)DescribeSlot.Tooltip` and `'T'` are one slot. Any other is an app's own, once it is on
+`[Words]` and keeps more beside each member: `Describable.Slot('H', ".hint")`
+makes `H` read `key.hint`, and the registry can point an attribute at it as
+at any slot. A letter already taken is refused. `.unit` leaves the canon on
+the same footing: a suffix to another value is one app's need, not every
+enum's, and one line puts it back, `Describable.Slot('U', ".unit")`. An app
+that reads `U` without that line reads nothing, so the change goes in a
+release whose notes say so. The samples, whose Enums page shows `U`, register
+it, and show a slot of one's own on the way. The Core readme, the agent skill
+and `WordsAttribute`'s remarks name the canon.
+
+**The registry.** What fills a slot is registered, not searched for: the
+registry maps an attribute type to what it gives, the key or a slot's text,
+and how its text is read. It starts with `[Words]` for the key,
+`[Description]` for `d` and `[Tooltip]` for `S` and `T`. Building a member's
+describable asks its field for its attributes once and looks each one's type
+up; an attribute the registry does not know is passed over, and one it knows
+is never probed for on a member that lacks it. An app registers an attribute
+it already has, `Describable.Fill<HintAttribute>('T', hint => hint.Text)`, so
+`Describe` reads it while moving to `[Words]` is not an option yet, and its
+enums are not touched at all. Where two attributes give the same thing, the
+one registered first wins, so a member's `[Words]` beats an app's own key. An enum
+type can instead be given a key prefix, `Describable.Keys<Brew>("enums.brew")`,
+each member's key the prefix and its name, so it needs no attribute at all;
+a member's own `[Words]` still wins. Registering belongs at startup; a
+registration after a type was described clears the cache, so that type reads
+again. This is the migration `[Tooltip]` stood in for: the Core readme's
+advice to move a custom attribute's text into `[Tooltip]` becomes registering
+that attribute, and `[Tooltip]` stays, obsolete, for the code that already
+uses it.
+
+**First, a question: in a template.** string.Format hands an enum argument to
+`Enum.ToString`, so `{0:T}` throws rather than describing. An `IDescribable`
+that is also `IFormattable` would let a template take one, `{0:T}` reading
+the tooltip, and the preview would pass Wordsmith's own the same way. Handing
+every enum argument over as its describable inside the `Format` family goes
+further. It changes what `{0}` prints for a member with a `[Description]`,
+and `D` means Enum's decimal to one and the description to the other. So it
+would be opt-in, if at all. Until this is answered, Wordsmith's input sends
+the general text, `Describe()` with no letters.
+
+**Tests.** Every letter reads as today through the cache, for a `[Words]`
+member, a `[Description]` one, a bare one, a wide and a narrow number; `G`
+looks up the key alone and `T` its `.tooltip` alone; a member is reflected
+on once however often it is described; a registered attribute fills its
+slot, an unregistered one is passed over, the first registered wins a slot,
+and `[Words]` beats a key prefix; a slot of one's own reads its suffix and
+its attribute, a letter taken is refused, and `U` reads nothing until
+`.unit` is registered; a combination describes as the members .NET names
+for it, an overlap settled as .NET settles it, and both frameworks'
+converters read as today; a registration after a describe reads the
+type again; a language switched live describes in the new one; a
+describable built from a key alone reads its `.tooltip` and kin.
+
+**Order.** This comes before the editor's *Parameters*, whose `enum` input
+stands on it. The engine, the cache, the slots, the registry and the flags
+first, proven in the samples' Enums page, where only the line registering
+`.unit` changes, then Wordsmith's input on the seam.

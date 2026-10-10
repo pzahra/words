@@ -6,8 +6,8 @@ using Xunit;
 namespace PatTech.Localization.Tests;
 
 /// <summary>
-///     The <c>words</c> command, run in process (editor SPEC: A command line for
-///     tools): the calls, their exit codes, values on the output and gripes on the
+///     The <c>words</c> command, run in process (command line SPEC: Calls): the
+///     calls, their exit codes, values on the output and gripes on the
 ///     error stream, a value from stdin, read as the program reads a pipe,
 ///     <c>--stale</c>, and <c>list --missing</c> by the editor's rule.
 /// </summary>
