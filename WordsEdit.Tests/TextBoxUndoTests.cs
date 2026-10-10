@@ -18,11 +18,6 @@ namespace WordsEdit.Tests;
 ///     it; the Edit menu takes a run whole; a plain box keeps WPF's own.
 /// </summary>
 public class TextBoxUndoTests {
-	private sealed class FakeTime : TimeProvider {
-		public DateTimeOffset Now = new(2026, 10, 10, 9, 0, 0, TimeSpan.Zero);
-		public override DateTimeOffset GetUtcNow() => Now;
-	}
-
 	//the document's history as a box sees it, each call written down
 	private sealed class FakeHistory : ITextHistory {
 		public bool CanUndo { get; set; }
@@ -79,7 +74,11 @@ public class TextBoxUndoTests {
 			Vm.Tree.Select(MainWindowViewModelTests.Node(Vm, label));
 			Key = Vm.Tree.SelectedKey!;
 			Box = new WordsBox { History = Vm.TextHistory };
-			Box.SetBinding(TextBox.TextProperty, new Binding(field == DocumentField.KeyComment ? nameof(WordsKey.Comment) : nameof(WordsKey.Context)) {
+			Box.SetBinding(TextBox.TextProperty, new Binding(field switch {
+				DocumentField.KeyComment => nameof(WordsKey.Comment),
+				DocumentField.DefaultValue => nameof(WordsKey.DefaultValue),
+				_ => nameof(WordsKey.Context),
+			}) {
 				Source = Key,
 				UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
 			});
@@ -332,6 +331,24 @@ public class TextBoxUndoTests {
 			h.Vm.UndoCommand.Execute(null);
 			Assert.Equal("", h.Key.Comment);
 			Assert.False(h.Key.NeedsReview);
+		});
+	}
+
+	[Fact]
+	public void TheDefaultsStaleStampsGoWithTheStepThatMadeThem() {
+		NavigationTests.RunSta(() => {
+			var h = new Harness("value-en=English\nvalue-it=Italiano\n\n[k]\nvalue=\nvalue-it=Ciao\n", field: DocumentField.DefaultValue);
+			Type(h.Box, "one two", h.Time);
+			Assert.NotNull(h.Key.Entries["it"].Stale);
+
+			Undo(h.Box);
+			Assert.Equal("one ", h.Key.DefaultValue);
+			Assert.NotNull(h.Key.Entries["it"].Stale); //the first step made them
+			Undo(h.Box);
+			Assert.Equal("", h.Key.DefaultValue);
+			Assert.Null(h.Key.Entries["it"].Stale);
+			Redo(h.Box);
+			Assert.NotNull(h.Key.Entries["it"].Stale);
 		});
 	}
 

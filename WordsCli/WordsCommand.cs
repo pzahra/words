@@ -124,7 +124,15 @@ namespace PatTech.Localization.Cli {
 					gripes.Add("the value from stdin starts with U+FEFF, kept as its own; a tool that writes a BOM may have put it there");
 				}
 			}
+			//a default that changes leaves its translations stale, as Wordsmith's typing does
+			List<string> staling = field is { Type: "value", Language: "" } && patcher.Find(key) is { } before && (field.Read(before) ?? "") != text
+				? [.. before.TranslationsToStale()]
+				: [];
 			gripes.AddRange(patcher.Set(key, field, text));
+			string stamp = WordsKey.StaleStamp(DateTimeOffset.Now);
+			foreach (string code in staling) {
+				gripes.AddRange(patcher.Set(key, new WordsField("stale", code, ""), stamp));
+			}
 			if (call.Stale is { } stale) {
 				if (field.Type is "param" or "stale") {
 					throw new UsageException($"--stale marks a language's entry, and {field} is none");

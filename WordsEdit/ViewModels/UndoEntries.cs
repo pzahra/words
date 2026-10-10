@@ -48,6 +48,10 @@ public sealed class FieldEdit : UndoEntry {
 	}
 	/// <summary>A translator's note: a field whose typing raises Needs Review.</summary>
 	public bool IsNote => Field is DocumentField.KeyComment or DocumentField.EntryComment;
+	/// <summary>The translations typing the default stamped stale; undoing it takes the stamps back.</summary>
+	public IReadOnlyList<string> Staled { get; private set; } = [];
+	//typed back to where it started, a run changes nothing, though a hand it raised stays up;
+	//its stale stamps go with it, as the default is what they were made against again
 	internal bool ChangesNothing => Before == After && !RaisedReview;
 
 	//one step: the text it leaves; the box's selection where its first keystroke found it
@@ -64,9 +68,13 @@ public sealed class FieldEdit : UndoEntry {
 	private readonly List<Step> steps;
 	//the step the hand went up in, counting from one; zero when it stayed down
 	private int raisedAt;
+	//the step the stale stamps went on in, likewise, and the stamp
+	private int staledAt;
+	private string? stamp;
 	//the keystroke folded in last, until its box says where it found and left the selection:
 	//the step it went into, the text that step had before it, and whether it raised the hand
-	private (Step Step, string? Extended, bool Raised)? awaiting;
+	//or stamped the translations
+	private (Step Step, string? Extended, bool Raised, bool Stamped)? awaiting;
 
 	//the text and the dirtiness with so many steps standing
 	private string TextAt(int standing) => standing == 0 ? Before : steps[standing - 1].Text;
@@ -89,6 +97,22 @@ public sealed class FieldEdit : UndoEntry {
 		if (raisedAt > Standing) {
 			raisedAt = 0;
 		}
+		if (staledAt > Standing) {
+			Unstamped();
+		}
+	}
+
+	/// <summary>The keystroke stamped <paramref name="codes"/> stale with <paramref name="mark"/>, typing the default.</summary>
+	internal void Stamped(IReadOnlyList<string> codes, string mark) {
+		Staled = codes;
+		stamp = mark;
+		staledAt = Math.Max(Standing, 1);
+	}
+
+	private void Unstamped() {
+		Staled = [];
+		stamp = null;
+		staledAt = 0;
 	}
 
 	/// <summary>
@@ -102,7 +126,7 @@ public sealed class FieldEdit : UndoEntry {
 	//where it found and left the selection
 	internal void Began(DateTimeOffset now) {
 		steps[0].Last = now;
-		awaiting = (steps[0], null, false);
+		awaiting = (steps[0], null, false, false);
 	}
 
 	//the next keystroke, when it lands in the same field: part of the last step, unless a
@@ -128,7 +152,11 @@ public sealed class FieldEdit : UndoEntry {
 		if (raised) {
 			raisedAt = Standing;
 		}
-		awaiting = (last, extended, raised);
+		bool stamped = next.Staled.Count != 0 && staledAt == 0;
+		if (stamped) {
+			Stamped(next.Staled, next.stamp!);
+		}
+		awaiting = (last, extended, raised, stamped);
 		return true;
 	}
 
@@ -136,7 +164,7 @@ public sealed class FieldEdit : UndoEntry {
 	//it; one whose box's caret moved since the step's last keystroke is a step of its own
 	internal void Typed(string text, Selection found, Selection left) {
 		//another box's text, changed on the way, is not this keystroke's
-		if (awaiting is not (Step step, var extended, var raised) || step.Text != text) {
+		if (awaiting is not (Step step, var extended, var raised, var stamped) || step.Text != text) {
 			return;
 		}
 		awaiting = null;
@@ -146,6 +174,9 @@ public sealed class FieldEdit : UndoEntry {
 			Standing = steps.Count;
 			if (raised) {
 				raisedAt = Standing;
+			}
+			if (stamped) {
+				staledAt = Standing;
 			}
 		}
 		step.Found ??= found;
@@ -181,9 +212,14 @@ public sealed class FieldEdit : UndoEntry {
 			case DocumentField.EntryContext when entry is not null: entry.Context = text; break;
 			case DocumentField.EntryComment when entry is not null: entry.Comment = text; break;
 		}
-		//the text first: the hand goes back to where it stood with it
+		//the text first: the hand and the stamps go back to where they stood with it
 		if (RaisedReview) {
 			key.NeedsReview = standing >= raisedAt;
+		}
+		foreach (string code in Staled) {
+			if (key.Entries.TryGetValue(code, out WordsEntry? staled)) {
+				staled.Stale = standing >= staledAt ? stamp : null;
+			}
 		}
 		return Node;
 	}

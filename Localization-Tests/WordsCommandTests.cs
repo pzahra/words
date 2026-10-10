@@ -1,4 +1,5 @@
 using PatTech.Localization.Cli;
+using System.Globalization;
 using System.Text;
 using Xunit;
 
@@ -196,6 +197,47 @@ public sealed class WordsCommandTests : IDisposable {
 		Assert.Contains("value-it=Modifica\nstale-it=machine translated\n", text);
 		Assert.Contains("value-it=Archivio\nstale-it=\n", text);
 		Assert.Contains("value-it=file\nstale=\n", text); //the default's mark keeps no words
+	}
+
+	[Fact]
+	public void Set_ADefaultThatChanges_StalesTheTranslationsWithWords_KeepingAMarkThere() {
+		File.WriteAllText(path, Ini(
+			"value=!en",
+			"value-it=Italiano",
+			"value-de=Deutsch",
+			"value-fr=Français",
+			"",
+			"[k]",
+			"value=Hello",
+			"value-it=Ciao",
+			"value-de=Hallo",
+			"stale-de=machine translated",
+			"value-fr=",
+			"",
+			"[same]",
+			"value=Same",
+			"value-it=Uguale",
+			"",
+			"[files]",
+			"value=file",
+			"value#other=files",
+			"value-it=file"));
+
+		Assert.Equal(0, Run("set", "FILE", "k", "value", "Hello!").Code);
+		Assert.Equal(0, Run("set", "FILE", "same", "value", "Same").Code); //no change, nothing stale
+		Assert.Equal(0, Run("set", "FILE", "files", "value#other", "filez").Code); //a form is the default too
+
+		var (code, stamp, _) = Run("get", "FILE", "k", "stale-it");
+		Assert.Equal(0, code);
+		Assert.True(DateTimeOffset.TryParse(stamp.TrimEnd('\n'), CultureInfo.InvariantCulture, out _));
+		Assert.Equal((0, "machine translated\n", ""), Run("get", "FILE", "k", "stale-de")); //a mark there stays
+		Assert.Equal(1, Run("get", "FILE", "k", "stale-fr").Code); //no words: missing, not stale
+		Assert.Equal(1, Run("get", "FILE", "same", "stale-it").Code);
+		Assert.Equal(0, Run("get", "FILE", "files", "stale-it").Code);
+
+		//a translation's own value stales nothing else
+		Assert.Equal(0, Run("set", "FILE", "same", "value-it", "Uguali").Code);
+		Assert.Equal(1, Run("get", "FILE", "same", "stale-it").Code);
 	}
 
 	[Fact]

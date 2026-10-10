@@ -64,6 +64,18 @@ namespace PatTech.Localization.Authoring {
 			=> Entries.TryGetValue(languageCode, out var entry) && entry.Stale is not null;
 
 		/// <summary>
+		///     The translations a change to the default leaves stale: every language
+		///     with words of its own and no stale mark yet. A mark already there
+		///     stays, since its words and its date say how long the translation has
+		///     gone unreviewed and why. An empty translation is missing, not stale.
+		/// </summary>
+		public IEnumerable<string> TranslationsToStale()
+			=> Entries.Where(pair => pair.Value.Stale is null && (pair.Value.Value != "" || pair.Value.Forms.HasWords())).Select(pair => pair.Key);
+
+		/// <summary>The stale mark Wordsmith and <c>words</c> write when the default changes: the time, in the invariant culture.</summary>
+		public static string StaleStamp(DateTimeOffset now) => now.ToString(CultureInfo.InvariantCulture);
+
+		/// <summary>
 		///     True when a regional variant of <paramref name="languageCode"/>
 		///     (<c>en-GB</c> for <c>en</c>) carries a value of its own, so what the
 		///     family renders is overridden somewhere below it.

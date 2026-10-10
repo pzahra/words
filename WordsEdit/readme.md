@@ -23,9 +23,10 @@ the command line that ships beside it.
   picks a form its language counts by, listed with the counts that take it,
   so nobody has to know what CLDR means by "few" to fill it in. A form the
   language needs and lacks is flagged like any missing word.
-- **Stale tracking** — mark a value stale (per language, or all at once) when
-  the source text changes, filter the tree down to what still needs
-  re-translating, and clear the flag when the translation catches up.
+- **Stale tracking** — change the default and every translation it leaves
+  behind is marked stale for you (or mark them yourself, per language or all
+  at once), filter the tree down to what still needs re-translating, and
+  clear the flag when the translation catches up.
 - **Review flags** — keys with translator comments get flagged for the
   programmer's attention.
 - **Constants** — toggle a key into a `$constant` that other keys can

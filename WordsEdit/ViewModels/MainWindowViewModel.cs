@@ -115,10 +115,13 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public IDialogs Dialogs { get; }
 	//whether this system can spell-check a language: Windows's answer, or a test's
 	private readonly Func<string, bool> spellCheckers;
+	//the clock typing reads: when a keystroke landed, and the stale stamps it writes
+	private readonly TimeProvider time;
 
 	public MainWindowViewModel(IDialogs? dialogs = null, WordsFormats? formats = null, Func<string, bool>? spellCheckers = null, TimeProvider? time = null) {
 		Dialogs = dialogs ?? new WpfDialogs();
-		UndoStack = new UndoStack(time);
+		this.time = time ?? TimeProvider.System;
+		UndoStack = new UndoStack(this.time);
 		TextHistory = new BoxHistory(this);
 		Formats = formats ?? WordsFormats.BuiltIn();
 		this.spellCheckers = spellCheckers ?? SpellCheckers.IsInstalled;
@@ -655,8 +658,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 	}
 
-	//typing: a run of keystrokes in one field is one entry, and a note raises the
-	//key's hand as it is typed
+	//typing: a run of keystrokes in one field is one entry; a note raises the key's hand
+	//as it is typed, and the default stamps the translations it leaves behind stale
 	private void OnFieldEdited(FieldEdit edit) {
 		typedBack = null;
 		if (quiet > 0) {
@@ -667,7 +670,20 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			edit.RaisedReview = true;
 			key.NeedsReview = true;
 		}
-		typedBack = UndoStack.Type(edit, wasDirty);
+		if (edit.Field == DocumentField.DefaultValue && Tree.SelectedKey is { } changed && changed.TranslationsToStale().ToList() is { Count: > 0 } codes) {
+			string stamp = WordsKey.StaleStamp(time.GetLocalNow());
+			foreach (string code in codes) {
+				changed.Entries[code].Stale = stamp;
+			}
+			edit.Stamped(codes, stamp);
+		}
+		FieldEdit? open = UndoStack.NextUndo as FieldEdit;
+		bool? back = UndoStack.Type(edit, wasDirty);
+		//typed back to where it started: the stamps the run made go too
+		if (back is not null && open is { Staled.Count: > 0 }) {
+			Quietly(() => open.Apply(Session, Tree, 0));
+		}
+		typedBack = back;
 	}
 
 	//Undo and Redo (SPEC: Undo → Navigate first): a change out of view is gone to and

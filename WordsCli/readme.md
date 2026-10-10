@@ -36,6 +36,11 @@ words list   strings.ini --missing it                # the keys Italian still mi
   BOM.
 - **`--stale`** marks the language's entry stale as well, so a machine-written
   value turns up in Wordsmith's review filter instead of in production.
+- **A new default** (`value`, or a form like `value#other`) marks every
+  translation that has words stale with the time, the way editing it in
+  Wordsmith does. A mark already there stays put, so "machine translated"
+  doesn't quietly become a date. Setting a default to the words it already
+  has marks nothing.
 - **`--missing xx`** asks Wordsmith's badge rule about one language: keys with
   no words in `xx`, or a plural key missing a form `xx` counts by. A language
   the default speaks misses nothing, since its empty entries fall back. (The

@@ -137,7 +137,10 @@ read or written or does not parse, or an edit refused because it would change
 more than asked; the file is left as it was.
 Read stderr: a field in a language the file does not declare, or a form the
 language never reads, is griped about as it is written. Mark the translations
-you write `--stale`, so the person reviewing in Wordsmith finds them.
+you write `--stale`, so the person reviewing in Wordsmith finds them. Setting
+a default (`value`, `value#few`) to new words marks every translation that has
+words stale with the time, as Wordsmith does; a mark already there stays.
+Translate those again and mark them yourself.
 `--missing xx` follows Wordsmith's badges: no words in `xx`, or a plural key
 missing a form `xx` counts by; a language the default speaks misses nothing.
 

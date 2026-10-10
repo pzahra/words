@@ -207,6 +207,14 @@ flags — constant (only a leaf directly under a file), and needs-review
   Close only closes.
 - **Stale-all-languages**: one action for "I changed the default, every
   translation needs another look".
+- **Stale as the default changes**: typing the default, its plain value or
+  a form, marks every translation that has words and no stale mark yet stale
+  with the time (`WordsKey.TranslationsToStale`), from the run's first
+  keystroke. A mark already there stays: its words and its date say how long
+  the translation has gone unreviewed and why, which "machine translated"
+  overwritten by a date would lose. An empty translation is missing, not
+  stale. The stamps are part of the typing's undo entry (Undo: Fields), and
+  `words set` does the same (A command line for tools).
 
 ## The translation pane (right)
 
@@ -775,7 +783,9 @@ whatever was waiting to be redone.
   (`FieldEdited`) with both texts. A note — a key's or an entry's comment —
   raises Needs Review as it is typed, and only as it is typed: not while a
   command or an undo runs. Its entry says so, and undoing the typing lowers
-  the hand again.
+  the hand again. Typing the default stamps its translations stale the same
+  way (The baseline pane): the stamps go with the step that made them, so
+  undoing the typing, or stepping back past that step, takes them back.
 - **Commands.** Each toggle — Needs Review, Stale in the selected language,
   Constant — is a `KeyEdit` of its own (`ReviewEdit`, `StaleEdit`,
   `ConstantEdit`): the key, the flag, its value before and after; Constant
@@ -841,7 +851,9 @@ undo takes back the typing, not a character. Inside the entry the typing
 keeps its steps, a word or a pause apart, for an editing box to undo one at
 a time (Text boxes). A different field, another entry, an undo or a redo, a
 save, or moving to another node ends the run, and a run typed back to where
-it started leaves no entry at all, and the title as the run found it.
+it started leaves no entry at all, and the title as the run found it. Its
+stale stamps go with it, since the default is what they were made against
+again; a hand a note raised stays up.
 
 **Depth.** The stack is unbounded. An entry holds only what its action
 changed — a field's text before and after, a removed subtree's keys — and
@@ -934,7 +946,10 @@ declaration of the default's language drops a form pick the restored rules
 lack; a drop whose node a redo took away does nothing; an entry that throws
 as it applies clears the stack and stars the title; a note that raised
 the hand undoes both, and undoing the clearing of a note leaves a hand that
-was lowered down. An undo out of view selects the node through a search
+was lowered down. Typing the default stamps the translations with words and
+no mark, once a run, keeping a mark there; undoing it takes the stamps back
+and redoing puts them back, a box's step back past the first step takes them
+too, and a run typed back to where it started leaves no stamps. An undo out of view selects the node through a search
 that hides it and switches the language, changing nothing until the second
 call, which applies it, focuses the field and keeps the node in view; Back
 returns from the navigation; an undo in view applies at once and focuses
@@ -1098,7 +1113,10 @@ rather than losing them as an unknown type:
 - `get <file> <key> [field]` prints a field's value, unescaped, or the whole
   block as Save writes it, under a full header, when no field is named.
 - `set <file> <key> <field> <value>` sets one field, adding the key, or the
-  field, where it is missing. `--stale [text]` marks the language's entry
+  field, where it is missing. A default that changes, the plain value or a
+  form, marks every translation with words and no stale mark yet stale with
+  the time, as typing it in Wordsmith does (The baseline pane); one set to
+  the text it holds marks nothing. `--stale [text]` marks the language's entry
   stale with it (the default's mark keeps no words), so the review filter
   surfaces a machine-written value. Options go anywhere after the call:
   `--stale` takes the next argument as its words only once the value is in,
@@ -1213,7 +1231,8 @@ children; the parser numbers its visits. The command, in process: each call's
 output and exit code, a dash read from stdin, a lone `\r` its last break, a
 leading U+FEFF kept and said, bytes that are no UTF-8 refused, all through the
 reader the program puts on a pipe; `--stale` with words, without and before
-the value, gripes passed on, a refused edit leaving the file, BOM-less UTF-16
+the value, a changed default staling its translations with words and keeping
+a mark there, gripes passed on, a refused edit leaving the file, BOM-less UTF-16
 left alone, a missing or read-only file named without the calls, an empty
 field removed though `get` calls it none, a `[.child]` header before any base
 listed, read and removed but never written, and `list` with a prefix and

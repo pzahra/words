@@ -564,4 +564,55 @@ public class UndoTests {
 		Assert.True(vm.IsDirty);
 		Assert.DoesNotContain(vm.Tree.KnownLanguages, language => language.Code == "en-GB");
 	}
+
+	//a translation with words, one with none, and one already marked
+	private const string Translated = "value-en=English\nvalue-it=Italiano\nvalue-fr=Français\nvalue-de=Deutsch\n\n[k]\nvalue=Hello\nvalue-it=Ciao\nvalue-fr=\nvalue-de=Hallo\nstale-de=machine translated\n";
+
+	private static (MainWindowViewModel vm, WordsKey key, FakeTime time) LoadTranslated() {
+		var time = new FakeTime();
+		var vm = new MainWindowViewModel(new FakeDialogs(), time: time);
+		vm.LoadFile(new StringReader(Translated), "Ex");
+		vm.Tree.Select(Node(vm, "Ex.k"));
+		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.Single(language => language.Code == "it");
+		return (vm, vm.Tree.SelectedKey!, time);
+	}
+
+	[Fact]
+	public void TypingTheDefaultStampsItsTranslationsStaleAndUndoTakesTheStampsBack() {
+		var (vm, key, time) = LoadTranslated();
+		string loaded = State(vm);
+		string stamp = WordsKey.StaleStamp(time.GetLocalNow());
+
+		key.DefaultValue = "Hello!";
+		Assert.Equal(stamp, key.Entries["it"].Stale); //words of its own: stale from the first keystroke
+		Assert.True(Node(vm, "Ex.k").IsStale);
+		Assert.Null(key.Entries["fr"].Stale); //no words: missing, not stale
+		Assert.Equal("machine translated", key.Entries["de"].Stale); //a mark already there stays
+		time.Now += TimeSpan.FromMinutes(1);
+		key.DefaultValue = "Hello!!"; //the run's later keystrokes stamp nothing more
+		Assert.Equal(stamp, key.Entries["it"].Stale);
+		Assert.Equal(1, vm.UndoStack.DoneCount);
+
+		Undo(vm);
+		Assert.Equal(loaded, State(vm));
+		Assert.False(Node(vm, "Ex.k").IsStale);
+		Redo(vm);
+		Assert.Equal("Hello!!", key.DefaultValue);
+		Assert.Equal(stamp, key.Entries["it"].Stale);
+		Assert.Equal("machine translated", key.Entries["de"].Stale);
+	}
+
+	[Fact]
+	public void TypingTheDefaultBackToWhereItStartedTakesItsStampsWithIt() {
+		var (vm, key, _) = LoadTranslated();
+		string loaded = State(vm);
+
+		key.DefaultValue = "Hello!";
+		Assert.True(vm.IsDirty);
+		key.DefaultValue = "Hello";
+		Assert.Null(key.Entries["it"].Stale);
+		Assert.Equal(0, vm.UndoStack.DoneCount);
+		Assert.False(vm.IsDirty);
+		Assert.Equal(loaded, State(vm));
+	}
 }
