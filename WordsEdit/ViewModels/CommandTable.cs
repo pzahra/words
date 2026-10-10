@@ -270,9 +270,9 @@ public sealed class CommandTable {
 		var addComment = new CommandItem(Words.Known["menu.add-comment"], PackIconKind.CommentPlus, vm.AddOrganizerCommand);
 		var rename = new CommandItem(Words.Known["menu.rename"], PackIconKind.RenameBox, vm.RenameNodeCommand, new KeyGesture(Key.F2));
 		var remove = new CommandItem(Words.Known["menu.remove"], PackIconKind.Delete, vm.RemoveNodeCommand, new KeyGesture(Key.Delete));
-		var toggleReview = new ToggleItem(Words.Known["menu.toggle-review"], PackIconKind.HandFrontLeft, () => tree.SelectedKeyNode?.NeedsReview ?? false, vm.ToggleNeedsReviewCommand);
-		var toggleConstant = new ToggleItem(Words.Known["menu.toggle-constant"], PackIconKind.TranslateOff, () => tree.SelectedKeyNode?.IsConstant ?? false, vm.ToggleConstantCommand);
-		var toggleStale = new ToggleItem(Words.Known["menu.toggle-stale"], PackIconKind.ClockAlertOutline, () => tree.SelectedKeyNode?.IsStale ?? false, vm.ToggleStaleLanguageCommand);
+		var toggleReview = new ToggleItem(Words.Known["menu.toggle-review"], PackIconKind.HandFrontLeft, () => tree.SelectedNeedsReview, vm.ToggleNeedsReviewCommand);
+		var toggleConstant = new ToggleItem(Words.Known["menu.toggle-constant"], PackIconKind.TranslateOff, () => tree.SelectedIsConstant, vm.ToggleConstantCommand);
+		var toggleStale = new ToggleItem(Words.Known["menu.toggle-stale"], PackIconKind.ClockAlertOutline, () => tree.SelectedIsStale, vm.ToggleStaleLanguageCommand);
 		var staleAll = new CommandItem(Words.Known["menu.stale-all"], PackIconKind.ClockAlert, vm.StaleAllLanguagesCommand, new KeyGesture(Key.S, ModifierKeys.Control | ModifierKeys.Shift));
 		var removeKey = new CommandItem(Words.Known["menu.remove-key"], PackIconKind.KeyRemove, vm.RemoveKeyCommand);
 		//View: the filters and the previews flip a property of their own; Back and Forward step the tree's history,

@@ -184,6 +184,26 @@ public class CommandTableTests {
 	}
 
 	[Fact]
+	public void AFlagToggleHearsOfAFlagNoToggleChanged() {
+		var vm = LoadedVm();
+		ToggleItem review = ToggleOf(vm, "menu.toggle-review");
+		ToggleItem stale = ToggleOf(vm, "menu.toggle-stale");
+		vm.Tree.SelectedKeyNode = vm.Tree.KeyNodes[0].Children.Single();
+		List<string?> raised = [];
+		review.PropertyChanged += (_, e) => raised.Add($"review.{e.PropertyName}");
+		stale.PropertyChanged += (_, e) => raised.Add($"stale.{e.PropertyName}");
+
+		vm.Tree.SelectedEntry!.Comment = "check this"; //a note typed raises the hand
+		Assert.True(vm.Tree.SelectedKey!.NeedsReview);
+		Assert.Contains("review.IsChecked", raised);
+
+		raised.Clear();
+		vm.StaleAllLanguagesCommand.Execute(null); //a button, not the toggle
+		Assert.True(stale.IsChecked);
+		Assert.Contains("stale.IsChecked", raised);
+	}
+
+	[Fact]
 	public void AChoiceMirrorsItsOwner() {
 		var vm = LoadedVm();
 		ChoiceItem language = ChoiceOf(vm, "menu.translation-language");

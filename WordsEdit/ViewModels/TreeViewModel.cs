@@ -303,6 +303,7 @@ public class TreeViewModel : ViewModelBase {
 		SelectedOrganizer = SelectedKeyNode as OrganizerNode;
 		FollowSelectedKey();
 		RefreshFileLanguages();
+		FollowFlags();
 		//no selection is a passing state (the tree drops one row before it takes the next) or a reset
 		if (SelectedKeyNode is { } node) {
 			if (!navigating) {
@@ -607,6 +608,21 @@ public class TreeViewModel : ViewModelBase {
 		return false;
 	}
 
+	//The selected key's flags as its badges show them, for the flag toggles to read
+	//(SPEC: Menu and toolbars): each is told of whatever changed the badge
+	/// <summary>The selected key's Needs Review.</summary>
+	public bool SelectedNeedsReview { get; private set => ChangeProperty(ref field, value); }
+	/// <summary>The selected key is stale in the selected language.</summary>
+	public bool SelectedIsStale { get; private set => ChangeProperty(ref field, value); }
+	/// <summary>The selected key is a constant.</summary>
+	public bool SelectedIsConstant { get; private set => ChangeProperty(ref field, value); }
+
+	private void FollowFlags() {
+		SelectedNeedsReview = SelectedKeyNode?.NeedsReview ?? false;
+		SelectedIsStale = SelectedKeyNode?.IsStale ?? false;
+		SelectedIsConstant = SelectedKeyNode?.IsConstant ?? false;
+	}
+
 	//Badges: computed from the document, for the selected language, in one pass
 	public void RefreshBadges() {
 		foreach (KeyNode root in KeyNodes) {
@@ -632,7 +648,16 @@ public class TreeViewModel : ViewModelBase {
 		root.LacksLanguages = lacks.Any() ? Words.Known.Format("main.library-lacks", string.Join(", ", lacks)) : "";
 	}
 
+	//every path that changes a key's flags refreshes its badges, so the selected key's
+	//flags follow from here
 	private void RefreshBadges(KeyNode node, WordsFile? file) {
+		SetBadges(node, file);
+		if (node == SelectedKeyNode) {
+			FollowFlags();
+		}
+	}
+
+	private void SetBadges(KeyNode node, WordsFile? file) {
 		if (node is OrganizerNode) {
 			return;
 		}

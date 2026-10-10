@@ -664,14 +664,18 @@ behind it (`ToggleItem`: a filter, a preview, a flag on the selected key) is
 checkable in the menu and a toggle on a toolbar; its command flips the state
 and the row reads it back, and the owner tells the row when the state, or
 whether it applies, changed elsewhere, so the tick, the popup's button and
-the pane's toggle agree. A pick among options (`ChoiceItem`: the two
-languages, each pane's plural form) is a submenu of ticked rows in the menu
-and a combo box on a toolbar, or a popup button of ticked rows (the forms), its
-options mirrored from the owner's; an option may be greyed, marked or out of
-reach, and a choice that does not apply greys whole. The window binds the table's
-gestures once, from the rows that carry one, and the mouse buttons a row
-names beside them; Find is a routed command and carries Ctrl+F of its own. The captions are looked up by literal key in the
-table, so the editor's own words name every one of them.
+the pane's toggle agree. A flag toggle reads the tree's copy of the selected
+key's flags (`SelectedNeedsReview`, `SelectedIsStale`, `SelectedIsConstant`),
+which follows its badges and is told whatever changed them: a command, an
+undo, or a note's typing that raises the hand. A pick among options
+(`ChoiceItem`: the two languages, each pane's plural form) is a submenu of
+ticked rows in the menu and a combo box on a toolbar, or a popup button of
+ticked rows (the forms), its options mirrored from the owner's; an option
+may be greyed, marked or out of reach, and a choice that does not apply
+greys whole. The window binds the table's gestures once, from the rows that
+carry one, and the mouse buttons a row names beside them; Find is a routed
+command and carries Ctrl+F of its own. The captions are looked up by literal
+key in the table, so the editor's own words name every one of them.
 
 **Disabled, not hidden.** A toolbar button whose command does not apply is
 greyed, not removed, and a greyed button still says what it would do; the
@@ -691,9 +695,10 @@ Back, Forward, Undo and Redo are rows like any other (Navigation, Undo).
 once (the two badge commands excepted); the toolbars and the context menu
 draw from the menu's rows; every caption, tooltip and option renders without
 a key leaking; a key, or a mouse button, is bound once; a toggle mirrors its
-state whichever way it changes and a flag toggle reads the selected key; a
-choice mirrors its owner's options and pick, and a pick of Wordsmith's
-language is a request; Exit asks the window.
+state whichever way it changes and a flag toggle reads the selected key,
+hearing of a flag a typed note or another command set; a choice mirrors its
+owner's options and pick, and a pick of Wordsmith's language is a request;
+Exit asks the window.
 
 ## Navigation
 
