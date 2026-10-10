@@ -30,7 +30,7 @@ public sealed class FieldEdit : UndoEntry {
 	public NodeRef Node { get; }
 	public override string? Language { get; }
 	public DocumentField Field { get; }
-	/// <summary>The plural form typed into (SPEC: Plural forms); null for the plain value and every other field.</summary>
+	/// <summary>The plural form typed into (SPEC: Plural forms), or the parameter whose description it is; null for the plain value and every other field.</summary>
 	public string? Form { get; }
 	public string Before { get; }
 	/// <summary>The run's last text, every step standing.</summary>
@@ -211,6 +211,7 @@ public sealed class FieldEdit : UndoEntry {
 			case DocumentField.EntryValue when entry is not null: entry.Value = text; break;
 			case DocumentField.EntryContext when entry is not null: entry.Context = text; break;
 			case DocumentField.EntryComment when entry is not null: entry.Comment = text; break;
+			case DocumentField.ParameterDescription when key.Parameters.FirstOrDefault(parameter => parameter.Key == Form) is { } parameter: parameter.Description = text; break;
 		}
 		//the text first: the hand and the stamps go back to where they stood with it
 		if (RaisedReview) {
@@ -316,7 +317,10 @@ public sealed class ConstantEdit(string before, string after, bool madeConstant,
 	}
 }
 
-/// <summary>A Test Parameters session: the key's parameters before and after.</summary>
+/// <summary>
+///     A definition added, adopted, renamed, retyped or taken away (SPEC: Parameters →
+///     Undo): the key's parameters before and after.
+/// </summary>
 public sealed class ParametersEdit(string label, IReadOnlyList<WordsParameter> before, IReadOnlyList<WordsParameter> after) : KeyEdit(label) {
 	/// <summary>The key's parameters as they stand, copied.</summary>
 	public static IReadOnlyList<WordsParameter> Copy(WordsKey key) => [.. key.Parameters.Select(parameter => new WordsParameter(parameter))];

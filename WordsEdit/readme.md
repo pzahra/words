@@ -40,8 +40,10 @@ the command line that ships beside it.
   as the `words.ini` they become, and write a loaded file back out in either.
   Export shows the files it will write and what the format has no slot for
   before it writes a byte; Save keeps writing `words.ini`.
-- **Parameters** — try out `param-` values against the format string before a
-  user finds out it throws.
+- **Parameters** — the programmer says what each `{0}` is right under the
+  context, and the translator types a value under it and watches both
+  previews fill in, before a user finds out it throws. An enum offers its
+  members; a `{0}` nobody defined shows up anyway, one click from defined.
 - **Round-trip saving** — files are written back in a stable, canonical format;
   saving an already-canonical file again produces the same bytes, so a real edit
   shows up in the diff as just that edit (the tests insist).

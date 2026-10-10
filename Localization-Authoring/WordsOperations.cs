@@ -288,20 +288,56 @@ namespace PatTech.Localization.Authoring {
 
 		/// <summary>
 		///     The values an editor's inputs stand for (editor SPEC: Parameters → The
-		///     inputs): each input with text, read as its parameter's type; an input
-		///     left empty passes nothing.
+		///     inputs), each read as its parameter's type. An input left empty stands
+		///     as its placeholder written out, <c>{0}</c>, so the text still formats and
+		///     shows what is left to fill; so does one its type cannot read, whose
+		///     complaint comes back beside the values.
 		/// </summary>
-		/// <param name="inputs">What was typed, by parameter name, with the type it is read as: its definition's, or a guess for one found and not defined.</param>
-		/// <param name="words">The words an <c>enum</c>'s member is described in.</param>
-		/// <exception cref="FormatException">An input is none of what its type reads.</exception>
-		public static Dictionary<string, object?> ReadInputs(IEnumerable<(string Name, WordsParameterType Type, string Input)> inputs, IWords words) {
+		/// <param name="inputs">What was typed, by parameter name, with the type it is read as (<see cref="ParameterUse.Slots"/>).</param>
+		public static (Dictionary<string, object?> Values, IReadOnlyList<string> Complaints) ReadInputs(IEnumerable<(string Name, WordsParameterType Type, string Input)> inputs) {
 			var values = new Dictionary<string, object?>();
+			List<string> complaints = [];
 			foreach (var (name, type, input) in inputs) {
+				object value = FoundParameters.Placeholder(name);
 				if (input != "") {
-					values[name] = type.Read(name, input, words);
+					try {
+						value = type.Read(name, input);
+					}
+					catch (FormatException ex) {
+						complaints.Add(ex.Message);
+					}
+				}
+				values[name] = value;
+			}
+			return (values, complaints);
+		}
+
+		//a describable's slots beside its key, which are the member's and no member
+		private static readonly HashSet<string> slotSuffixes = ["desc", "sub", "tooltip"];
+
+		/// <summary>
+		///     The members an <c>enum</c> parameter offers (editor SPEC: Parameters →
+		///     Types): the keys directly under <paramref name="prefix"/>, found as a
+		///     reference finds one, through every file in <paramref name="fileLabels"/>,
+		///     each by its last segment, once, in the order the files hold them. A key
+		///     beside a member, its <c>.tooltip</c> and kin, is the member's own and
+		///     lies deeper; the prefix's own slots and its constants are no members.
+		/// </summary>
+		/// <param name="keys">Every loaded key, by full label.</param>
+		/// <param name="fileLabels">The loaded files' labels, in tree order.</param>
+		/// <param name="prefix">The prefix, as the type names it: <c>enums.brew</c>.</param>
+		public static IReadOnlyList<string> MembersUnder(IReadOnlyDictionary<string, WordsKey> keys, IEnumerable<string> fileLabels, string prefix) {
+			List<string> members = [];
+			foreach (string file in fileLabels) {
+				string under = $"{file}.{prefix}.";
+				foreach (string label in keys.Keys) {
+					if (label.StartsWith(under, StringComparison.Ordinal) && label[under.Length..] is var member
+							&& WordsParser.IsKeySegment(member) && !member.StartsWith('$') && !slotSuffixes.Contains(member) && !members.Contains(member)) {
+						members.Add(member);
+					}
 				}
 			}
-			return values;
+			return members;
 		}
 
 		//the values as a host app would hand them: numbered ones in their slots, the rest by name

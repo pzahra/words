@@ -21,19 +21,20 @@ public partial class MainWindow : Window {
 
 	//an undone or redone field edit: its box takes the focus once the panes have
 	//caught up with the selection, the selection where the step left it, or the caret
-	//at the end
-	private void FocusField(DocumentField field, Selection? selection) {
-		TextBox box = field switch {
+	//at the end. A description's box is its definition's row's, found by the parameter
+	private void FocusField(DocumentField field, string? form, Selection? selection) {
+		TextBox? named = field switch {
 			DocumentField.DefaultValue => DefaultValueBox,
 			DocumentField.KeyContext => KeyContextBox,
 			DocumentField.KeyComment => KeyCommentBox,
 			DocumentField.EntryValue => EntryValueBox,
 			DocumentField.EntryContext => EntryContextBox,
 			DocumentField.EntryComment => EntryCommentBox,
+			DocumentField.ParameterDescription => null,
 			_ => CommentTextBox,
 		};
 		Dispatcher.BeginInvoke(() => {
-			if (!box.Focus()) {
+			if ((named ?? DescriptionBox(form)) is not { } box || !box.Focus()) {
 				return;
 			}
 			if (selection is { } kept && kept.Start + kept.Length <= box.Text.Length) {
@@ -43,6 +44,18 @@ public partial class MainWindow : Window {
 				box.CaretIndex = box.Text.Length;
 			}
 		}, DispatcherPriority.Input);
+	}
+
+	//the description box of the definition named, in the parameters' thread
+	private TextBox? DescriptionBox(string? name) {
+		foreach (object item in DefinitionsList.Items) {
+			if (item is DefinitionRow row && row.Parameter.Key == name
+					&& DefinitionsList.ItemContainerGenerator.ContainerFromItem(item) is ContentPresenter presenter) {
+				presenter.ApplyTemplate();
+				return presenter.ContentTemplate?.FindName("DescriptionBox", presenter) as TextBox;
+			}
+		}
+		return null;
 	}
 
 	//the command table's keys and mouse buttons, bound once (SPEC: Menu and toolbars):

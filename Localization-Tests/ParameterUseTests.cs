@@ -256,6 +256,52 @@ public class ParameterUseTests {
 		Assert.Same(ParameterMismatch.None, Check(keys, "missing", "de"));
 	}
 
+	[Fact]
+	public void TheSlots_AreTheDefinitionsInTheirOrder_ThenWhatIsFoundAndUndefined() {
+		// a definition the default does not use is still a slot, marked unused; one
+		// found and not defined takes the type guessed, int for a count
+		var keys = Keys("""
+			[word]
+			value=word
+
+			[k]
+			value={Name} {01} {2} {3#word}
+			param-1=real:the share
+			param-9=the spare
+			param-Name=the name
+			""");
+		WordsKey key = keys["k"];
+
+		IReadOnlyList<ParameterSlot> slots = ParameterUse.Slots(key, InDefault(keys, "k"));
+
+		Assert.Equal([
+			("1", WordsParameterType.Real, true, true),
+			("9", WordsParameterType.Str, true, false),
+			("Name", WordsParameterType.Str, true, true),
+			("2", WordsParameterType.Str, false, true),
+			("3", WordsParameterType.Int, false, true),
+		], slots.Select(slot => (slot.Name, slot.Type, slot.Definition is not null, slot.Used)));
+		Assert.Same(key.Parameters[0], slots[0].Definition);
+	}
+
+	[Theory]
+	[InlineData("0", true)]
+	[InlineData("12", true)]
+	[InlineData("Count", true)]
+	[InlineData("_x1", true)]
+	[InlineData("1x", false)]
+	[InlineData("two words", false)]
+	[InlineData("", false)]
+	[InlineData("{0}", false)]
+	public void AName_IsANumberOrAnIdentifier(string name, bool valid) => Assert.Equal(valid, ParameterUse.IsName(name));
+
+	[Fact]
+	public void TwoNames_AreTheSame_AsStringFormatReadsThem() {
+		Assert.True(ParameterUse.SameName("1", "01"));
+		Assert.False(ParameterUse.SameName("1", "10"));
+		Assert.False(ParameterUse.SameName("Count", "count"));
+	}
+
 	private sealed class MismatchComparer : IEqualityComparer<ParameterMismatch> {
 		public bool Equals(ParameterMismatch? x, ParameterMismatch? y)
 			=> x is not null && y is not null && x.Dropped.SequenceEqual(y.Dropped) && x.Extra.SequenceEqual(y.Extra);

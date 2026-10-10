@@ -287,25 +287,26 @@ public class WordsOperationsTests {
 		Assert.Equal("plain", WordsOperations.FormatSample("plain", new Dictionary<string, object?> { ["a+(b)"] = "x" }));
 	}
 
-	private static readonly IWords NoWords = new CulturedWords(new DefaultWordsProvider(new Dictionary<string, WordsKey>(), []), System.Globalization.CultureInfo.InvariantCulture);
-
 	[Fact]
 	public void WordsOperations_ReadInputsReadsEachTypeInTheInvariantCulture() {
-		var values = WordsOperations.ReadInputs([
+		var (values, complaints) = WordsOperations.ReadInputs([
 			("0", WordsParameterType.Str, "the file"),
 			("1", WordsParameterType.Int, "-42"),
 			("2", WordsParameterType.Real, "1,234.5"),
 			("3", WordsParameterType.Time, "1:30:00"),
 			("4", WordsParameterType.Date, "2026-10-10 09:30"),
 			("5", WordsParameterType.Int, ""),
-		], NoWords);
+			("Count", WordsParameterType.Int, ""),
+		]);
 
 		Assert.Equal("the file", values["0"]);
 		Assert.Equal(-42, values["1"]);
 		Assert.Equal(1234.5, values["2"]);
 		Assert.Equal(new TimeSpan(1, 30, 0), values["3"]);
 		Assert.Equal(new DateTimeOffset(2026, 10, 10, 9, 30, 0, TimeSpan.Zero), values["4"]);
-		Assert.False(values.ContainsKey("5")); //an empty input passes nothing
+		Assert.Equal("{5}", values["5"]); //an empty input is its placeholder written out
+		Assert.Equal("{Count}", values["Count"]);
+		Assert.Empty(complaints);
 	}
 
 	[Theory]
@@ -315,26 +316,50 @@ public class WordsOperationsTests {
 	[InlineData("time", "soon", "{n}: \"soon\" is no span of time, such as 1:30:00")]
 	[InlineData("date", "someday", "{n}: \"someday\" is no moment, such as 2026-10-10 09:30")]
 	[InlineData("enum(enums.brew)", "flat white", "{n}: \"flat white\" is no member under enums.brew")]
-	public void WordsOperations_ReadInputsRefusesWhatItsTypeCannotRead(string type, string input, string complaint) {
+	public void WordsOperations_ReadInputsComplainsOfWhatItsTypeCannotRead(string type, string input, string complaint) {
 		Assert.True(WordsParameterType.TryParse(type, out var parsed));
 
-		var ex = Assert.Throws<FormatException>(() => WordsOperations.ReadInputs([("n", parsed, input)], NoWords));
+		var (values, complaints) = WordsOperations.ReadInputs([("n", parsed, input), ("m", WordsParameterType.Str, "fine")]);
 
-		Assert.Equal(complaint, ex.Message);
+		Assert.Equal([complaint], complaints);
+		Assert.Equal("{n}", values["n"]); //its placeholder, as though nothing were typed
+		Assert.Equal("fine", values["m"]);
 	}
 
 	[Fact]
-	public void WordsOperations_ReadInputsDescribesAnEnumsMemberInTheWordsGiven() {
-		// the member's words in the pane's language, or its name where it has none
+	public void WordsOperations_AnEnumInputDescribesInTheLanguageItFormatsIn() {
+		// the member's words in the pane's language, or its name where it has none,
+		// and its tooltip through the template's letter
 		var latte = new WordsKey("A.enums.brew.latte") { DefaultValue = "Latte" };
 		latte.Entries["it"] = new WordsEntry { Value = "Caffellatte" };
-		Dictionary<string, WordsKey> keys = new() { ["A.enums.brew.latte"] = latte };
+		var tip = new WordsKey("A.enums.brew.latte.tooltip") { DefaultValue = "Milky" };
+		tip.Entries["it"] = new WordsEntry { Value = "Con latte" };
+		Dictionary<string, WordsKey> keys = new() { [latte.BlockKey] = latte, [tip.BlockKey] = tip };
 		var brew = WordsParameterType.Enum("enums.brew");
+		var english = new CulturedWords(new DefaultWordsProvider(keys, ["A"]), System.Globalization.CultureInfo.InvariantCulture);
 		var italian = new CulturedWords(new LanguageWordsProvider(keys, "it", ["A"]), System.Globalization.CultureInfo.GetCultureInfo("it"));
+		string Sample(IWords words, string input) => WordsOperations.FormatSample(words, "A.sample", WordsOperations.ReadInputs([("0", brew, input)]).Values);
+		keys["A.sample"] = new WordsKey("A.sample") { DefaultValue = "{0}: {0:T}" };
+		keys["A.sample"].Entries["it"] = new WordsEntry { Value = "{0}: {0:T}" };
 
-		Assert.Equal("Latte", WordsOperations.ReadInputs([("0", brew, "latte")], new CulturedWords(new DefaultWordsProvider(keys, ["A"]), System.Globalization.CultureInfo.InvariantCulture))["0"]);
-		Assert.Equal("Caffellatte", WordsOperations.ReadInputs([("0", brew, "latte")], italian)["0"]);
-		Assert.Equal("affogato", WordsOperations.ReadInputs([("0", brew, "affogato")], italian)["0"]);
+		Assert.Equal("Latte: Milky", Sample(english, "latte"));
+		Assert.Equal("Caffellatte: Con latte", Sample(italian, "latte"));
+		Assert.Equal("affogato: ", Sample(italian, "affogato"));
+	}
+
+	[Fact]
+	public void WordsOperations_MembersUnderAPrefixAreTheKeysDirectlyUnderIt() {
+		// through every file, once each, in the files' order; a member's own slots
+		// lie deeper, and the prefix's own slots and constants are no members
+		Dictionary<string, WordsKey> keys = [];
+		foreach (string label in (string[])["A.brew", "A.brew.tooltip", "A.brew.$house", "A.brew.latte", "A.brew.latte.tooltip", "A.brew.mocha",
+				"B.brew.desc", "B.brew.sub", "B.brew.ristretto", "B.brew.latte", "B.other.cola"]) {
+			keys[label] = new WordsKey(label);
+		}
+
+		Assert.Equal(["latte", "mocha", "ristretto"], WordsOperations.MembersUnder(keys, ["A", "B"], "brew"));
+		Assert.Equal(["ristretto", "latte"], WordsOperations.MembersUnder(keys, ["B"], "brew"));
+		Assert.Empty(WordsOperations.MembersUnder(keys, ["A", "B"], "nowhere"));
 	}
 
 	[Fact]

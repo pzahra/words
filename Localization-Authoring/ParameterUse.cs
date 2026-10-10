@@ -24,6 +24,13 @@ namespace PatTech.Localization.Authoring {
 		public static string Placeholder(string name) => $"{{{name}}}";
 	}
 
+	/// <summary>A parameter an editor offers an input for (<see cref="ParameterUse.Slots"/>).</summary>
+	/// <param name="Name">The parameter as the text names it.</param>
+	/// <param name="Type">What its input is read as: its definition's type, or the one guessed.</param>
+	/// <param name="Definition">Its definition; <see langword="null"/> for one found and not defined.</param>
+	/// <param name="Used">Whether the default uses it: a definition the default does not use is no mistake, only a hint.</param>
+	public sealed record ParameterSlot(string Name, WordsParameterType Type, WordsParameter? Definition, bool Used);
+
 	/// <summary>What a translation's parameters miss beside its default's (editor SPEC: Parameters → Translation check).</summary>
 	/// <param name="Dropped">Those the default uses and the translation never does: the app's value never shows.</param>
 	/// <param name="Extra">
@@ -73,6 +80,25 @@ namespace PatTech.Localization.Authoring {
 		/// <param name="language">The language the default is written in, whose rules pick a selector's forms; English when the file declares none.</param>
 		public static FoundParameters InDefault(WordsKey key, IWordsProvider provider, string? language)
 			=> Find(key, provider, language ?? "en", key.DefaultValue, key.Forms);
+
+		/// <summary>
+		///     The parameters an editor shows a key's inputs for (editor SPEC: Parameters
+		///     → The inputs): each definition, in the key's order, and whether the
+		///     default uses it; then each parameter <paramref name="found"/> that no
+		///     definition names, its type guessed, <c>int</c> for a selector's count and
+		///     <c>str</c> otherwise.
+		/// </summary>
+		/// <param name="key">The key whose definitions come first.</param>
+		/// <param name="found">What its default uses (<see cref="InDefault"/>).</param>
+		public static IReadOnlyList<ParameterSlot> Slots(WordsKey key, FoundParameters found) {
+			var used = found.Names.ToHashSet();
+			List<ParameterSlot> slots = [.. key.Parameters.Select(parameter => new ParameterSlot(parameter.Key, parameter.DataType, parameter, used.Contains(Normal(parameter.Key))))];
+			var defined = key.Parameters.Select(parameter => Normal(parameter.Key)).ToHashSet();
+			foreach (string name in found.Names.Where(name => !defined.Contains(name))) {
+				slots.Add(new ParameterSlot(name, found.Counted.Contains(name) ? WordsParameterType.Int : WordsParameterType.Str, null, true));
+			}
+			return slots;
+		}
 
 		/// <summary>
 		///     What the translation in <paramref name="code"/> uses, followed through its
@@ -134,8 +160,15 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		//a number as string.Format reads it, 01 being 1; a name as written
+		/// <summary>Whether <paramref name="name"/> names a parameter a text can use: a number, <c>{0}</c>, or a name, <c>{Count}</c>, as FormatByName reads one.</summary>
+		public static bool IsName(string name) => rxName.IsMatch(name);
+		private static readonly Regex rxName = new(@"^(?:\d+|(?=[_a-zA-Z])\w+)\z", RegexOptions.Compiled);
+
+		/// <summary>Whether two names are one parameter, as string.Format reads a number: <c>01</c> is <c>1</c>.</summary>
+		public static bool SameName(string a, string b) => Normal(a) == Normal(b);
+
 		private static string Normal(string name)
-			=> char.IsAsciiDigit(name[0]) && int.TryParse(name, NumberStyles.None, CultureInfo.InvariantCulture, out int index) ? index.ToString(CultureInfo.InvariantCulture) : name;
+			=> name.Length > 0 && char.IsAsciiDigit(name[0]) && int.TryParse(name, NumberStyles.None, CultureInfo.InvariantCulture, out int index) ? index.ToString(CultureInfo.InvariantCulture) : name;
 
 		//one key's rendering, followed as Words follows it, the uses gathered on the way
 		private sealed class Walk(IWordsProvider provider, string language) {

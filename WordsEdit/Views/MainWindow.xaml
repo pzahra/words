@@ -32,6 +32,43 @@
 			<uc:ConverterCondition When="{StaticResource True}" Then="ExtraBlack" />
 		</uc:GenericValueConverter>
         <l:WordsConverter x:Key="WordsConverter" />
+        <!-- the translator's answer under a parameter (SPEC: Parameters → The inputs): a box, or an enum's
+             members to pick from; the error brush and the complaint when the type cannot read it -->
+        <DataTemplate x:Key="ParameterInput" DataType="{x:Type vm:ParameterRow}">
+            <Border CornerRadius="3"
+                    BorderThickness="1"
+                    Margin="30px 0 0 2.5px"
+                    ToolTip="{Binding InputError}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="BorderBrush" Value="{DynamicResource MaterialDesignValidationErrorBrush}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding InputError}" Value="{x:Null}">
+                                <Setter Property="BorderBrush" Value="{DynamicResource MaterialDesignBody}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid Margin="2.5px">
+                    <TextBox Text="{Binding Input, UpdateSourceTrigger=PropertyChanged}"
+                             md:HintAssist.Hint="{l:Words parameters.input}"
+                             Visibility="{Binding IsEnum, Converter={StaticResource IsFalse}}"/>
+                    <ComboBox ItemsSource="{Binding Members}"
+                              SelectedItem="{Binding Input}"
+                              md:HintAssist.Hint="{l:Words parameters.input}"
+                              Visibility="{Binding IsEnum, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                </Grid>
+            </Border>
+        </DataTemplate>
+        <!-- a box that says what is wrong with what it holds -->
+        <Style x:Key="CheckedBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ToolTip, RelativeSource={RelativeSource Self}, Converter={StaticResource IsNotNull}}" Value="Visible">
+                    <Setter Property="BorderBrush" Value="{DynamicResource MaterialDesignValidationErrorBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource MaterialDesignValidationErrorBrush}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <DockPanel>
@@ -271,6 +308,111 @@
                                      TextAlignment="Left"
                                      Margin="2.5px"/>
                     </Border>
+                    <!-- the parameters carry the conversation on (SPEC: Parameters → In the pane): each definition the
+                         programmer's message, the translator's input under it; then what the default uses and nobody
+                         defined, faint, each with its input; the + last, where the next pair would go -->
+                    <StackPanel Visibility="{Binding ParametersPane.IsShown, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock TextWrapping="Wrap"
+                                   Margin="2.5px"
+                                   Text="{l:Words parameters.heading}"
+                                   FontWeight="SemiBold"
+                                   FontSize="14"
+                                   Visibility="{Binding ParametersPane.HasThread, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        <ItemsControl x:Name="DefinitionsList" ItemsSource="{Binding ParametersPane.Definitions}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:DefinitionRow}">
+                                    <StackPanel>
+                                        <Border CornerRadius="3"
+                                                BorderThickness="1"
+                                                Margin="0 0 30px 2.5px"
+                                                BorderBrush="{DynamicResource PrimaryHueLightBrush}">
+                                            <StackPanel Margin="2.5px">
+                                                <DockPanel>
+                                                    <Button DockPanel.Dock="Right"
+                                                            Command="{Binding RemoveCommand}"
+                                                            ToolTip="{l:Words parameters.remove}"
+                                                            Style="{StaticResource ToolButton}"
+                                                            VerticalAlignment="Center">
+                                                        <md:PackIcon Kind="Delete"/>
+                                                    </Button>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <!-- the placeholder, renamed as it is written; dimmed where the default does not use it -->
+                                                        <StackPanel Orientation="Horizontal" ToolTip="{Binding UnusedTip}">
+                                                            <StackPanel.Style>
+                                                                <Style TargetType="StackPanel">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsUnused}" Value="True">
+                                                                            <Setter Property="Opacity" Value="0.5"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </StackPanel.Style>
+                                                            <TextBlock Text="{}{" FontFamily="Consolas" VerticalAlignment="Center"/>
+                                                            <TextBox Text="{Binding NameText}"
+                                                                     ToolTip="{Binding NameError}"
+                                                                     Style="{StaticResource CheckedBox}"
+                                                                     FontFamily="Consolas"
+                                                                     MinWidth="24"
+                                                                     VerticalAlignment="Center"/>
+                                                            <TextBlock Text="}" FontFamily="Consolas" VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                        <ComboBox ItemsSource="{x:Static vm:DefinitionRow.TypeNames}"
+                                                                  SelectedItem="{Binding TypeName}"
+                                                                  ToolTip="{l:Words parameters.type}"
+                                                                  MinWidth="70"
+                                                                  Margin="10 0 0 0"
+                                                                  VerticalAlignment="Center"/>
+                                                        <TextBox Text="{Binding PrefixText}"
+                                                                 ToolTip="{Binding PrefixError}"
+                                                                 Style="{StaticResource CheckedBox}"
+                                                                 md:HintAssist.Hint="{l:Words parameters.prefix}"
+                                                                 Visibility="{Binding IsEnumPicked, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                                 MinWidth="120"
+                                                                 Margin="6 0 0 0"
+                                                                 VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </DockPanel>
+                                                <uc:WordsBox x:Name="DescriptionBox"
+                                                             History="{Binding History}"
+                                                             Text="{Binding Parameter.Description, UpdateSourceTrigger=PropertyChanged}"
+                                                             uc:Spelling.Language="{Binding Language}"
+                                                             uc:Spelling.WhenEditing="True"
+                                                             md:HintAssist.Hint="{l:Words parameters.description}"
+                                                             TextWrapping="Wrap"
+                                                             TextAlignment="Left"
+                                                             Margin="0 2.5px 0 0"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ParameterInput}" Focusable="False"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ItemsControl ItemsSource="{Binding ParametersPane.Found}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:FoundRow}">
+                                    <StackPanel>
+                                        <Button Command="{Binding AdoptCommand}"
+                                                ToolTip="{Binding AdoptTip}"
+                                                Style="{StaticResource ToolButton}"
+                                                HorizontalAlignment="Left"
+                                                Opacity="0.55"
+                                                Margin="2.5px">
+                                            <TextBlock FontFamily="Consolas" Text="{Binding Placeholder, Mode=OneWay, StringFormat='+ {0}'}"/>
+                                        </Button>
+                                        <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ParameterInput}" Focusable="False"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Command="{Binding ParametersPane.AddCommand}"
+                                ToolTip="{l:Words parameters.add}"
+                                Style="{StaticResource ToolButton}"
+                                HorizontalAlignment="Left"
+                                Margin="2.5px">
+                            <md:PackIcon Kind="Plus"/>
+                        </Button>
+                    </StackPanel>
                 </StackPanel>
                 <StackPanel Visibility="{Binding Tree.SelectedOrganizer, Converter={StaticResource IsNotNull}}">
                     <TextBlock TextWrapping="Wrap"
@@ -337,7 +479,7 @@
                                 Padding="4 0"
                                 Margin="2.5px" />
                     </md:Badged>
-                    <!-- the header's commands, from the table (SPEC: Menu and toolbars): the form, the test, the key's
+                    <!-- the header's commands, from the table (SPEC: Menu and toolbars): the form, the key's
                          flags, the eye; unclipped, so the form's badge shows above its button -->
                     <ToolBar ItemsSource="{Binding Commands.DefaultTools}"
                              ToolBarTray.IsLocked="True"
@@ -486,7 +628,7 @@
                             Padding="4 0"
                             Margin="2.5px" />
                 </md:Badged>
-                    <!-- the form, the test, the stale flag in the selected language, the eye -->
+                    <!-- the form, the stale flag in the selected language, the eye -->
                     <ToolBar ItemsSource="{Binding Commands.TranslationTools}"
                              ToolBarTray.IsLocked="True"
                              ClipToBounds="False"

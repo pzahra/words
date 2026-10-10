@@ -83,7 +83,7 @@ public class TextBoxUndoTests {
 				UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
 			});
 			LayOut(Box);
-			Vm.FieldFocusRequested += (_, selection) => {
+			Vm.FieldFocusRequested += (_, _, selection) => {
 				Restored = selection;
 				Focused++;
 			};

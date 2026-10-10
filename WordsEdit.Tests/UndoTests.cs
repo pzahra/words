@@ -92,17 +92,19 @@ public class UndoTests {
 		Twin("typing the new comment", () => vm.Tree.SelectedOrganizer!.Text = " fresh note");
 		Twin("remove the preamble", () => { vm.Tree.Select(vm.Tree.KeyNodes[0].Children[0]); vm.RemoveNodeCommand.Execute(null); });
 		Twin("remove key", () => { vm.Tree.Select(Node(vm, "Example.enum.none")); vm.RemoveKeyCommand.Execute(null); });
-		Twin("parameters", () => {
+		Twin("describing a parameter", () => {
 			vm.Tree.Select(Node(vm, "Example.view.section-name.key"));
-			dialogs.OnShow = shown => {
-				var parameters = (TestParametersViewModel)shown;
-				parameters.Rows[0].Parameter.Description = "the cut";
-				parameters.Rows[0].Sample = "1"; //the session's: no part of the entry
-				parameters.AddParameterCommand.Execute(null);
-			};
-			vm.TestParametersCommand.Execute(null);
-			dialogs.OnShow = null;
+			vm.ParametersPane.Definitions[0].Parameter.Description = "the";
+			vm.ParametersPane.Definitions[0].Parameter.Description = "the cut";
+			vm.ParametersPane.Definitions[0].Input = "1"; //the session's: no part of the entry
 		});
+		Twin("adding a parameter", () => vm.ParametersPane.AddCommand.Execute(null));
+		Twin("renaming a parameter", () => vm.ParametersPane.Definitions[1].NameText = "item");
+		Twin("retyping a parameter", () => vm.ParametersPane.Definitions[1].TypeName = "int");
+		Twin("an enum's prefix", () => { vm.ParametersPane.Definitions[1].TypeName = "enum"; vm.ParametersPane.Definitions[1].PrefixText = "enum"; });
+		Twin("removing a parameter", () => vm.ParametersPane.Definitions[^1].RemoveCommand.Execute(null));
+		vm.Tree.SelectedKey!.DefaultValue = "{Count}"; //an entry of its own, before the twin
+		Twin("adopting a parameter", () => vm.ParametersPane.Found[0].AdoptCommand.Execute(null));
 		Twin("drag under another parent", () => vm.KeyDrag.Drop(new FakeDropInfo(Node(vm, "Example.enum.two"), Node(vm, "Example.format"), RelativeInsertPosition.TargetItemCenter)));
 		Twin("drag among siblings", () => vm.KeyDrag.Drop(new FakeDropInfo(Node(vm, "Example.format.named"), Node(vm, "Example.format.object"), RelativeInsertPosition.BeforeTargetItem)));
 		Twin("drag a comment", () => vm.KeyDrag.Drop(new FakeDropInfo(Node(vm, "Example.main").Children.OfType<CommentNode>().First(), Node(vm, "Example.enum.none"), RelativeInsertPosition.AfterTargetItem)));
@@ -258,7 +260,7 @@ public class UndoTests {
 		entry.Value = "changed";
 		string changed = State(vm);
 		DocumentField? focused = null;
-		vm.FieldFocusRequested += (field, _) => focused = field;
+		vm.FieldFocusRequested += (field, _, _) => focused = field;
 
 		//away: another node, the default language, and a search that hides the change
 		vm.Tree.Select(Node(vm, "Example.main.title"));
@@ -294,7 +296,7 @@ public class UndoTests {
 		WordsKey key = vm.Tree.SelectedKey!;
 		string context = key.Context;
 		DocumentField? focused = null;
-		vm.FieldFocusRequested += (field, _) => focused = field;
+		vm.FieldFocusRequested += (field, _, _) => focused = field;
 		key.Context = "typed";
 
 		vm.UndoCommand.Execute(null);
@@ -304,6 +306,35 @@ public class UndoTests {
 		vm.RedoCommand.Execute(null);
 		Assert.Equal("typed", key.Context);
 		Assert.Equal(DocumentField.KeyContext, focused);
+	}
+
+	[Fact]
+	public void ADescriptionUndoesAsAFieldDoes_ItsBoxNamedByItsParameter() {
+		var (vm, _) = Load();
+		KeyNode site = Node(vm, "Example.view.section-name.key");
+		vm.Tree.Select(site);
+		WordsParameter parameter = vm.ParametersPane.Definitions[1].Parameter;
+		string description = parameter.Description;
+		(DocumentField, string?)? focused = null;
+		vm.FieldFocusRequested += (field, form, _) => focused = (field, form);
+		parameter.Description = "typed";
+
+		//away, it is gone to first
+		vm.Tree.Select(Node(vm, "Example.main.title"));
+		vm.UndoCommand.Execute(null);
+		Assert.Same(site, vm.Tree.SelectedKeyNode);
+		Assert.Equal("typed", parameter.Description);
+		Assert.Null(focused);
+
+		vm.UndoCommand.Execute(null);
+		Assert.Equal(description, parameter.Description);
+		Assert.Equal((DocumentField.ParameterDescription, "1"), focused);
+		Assert.Same(parameter, vm.ParametersPane.Definitions[1].Parameter);
+		Assert.Equal(0, vm.UndoStack.DoneCount); //the undo typed nothing of its own
+
+		vm.RedoCommand.Execute(null);
+		Assert.Equal("typed", parameter.Description);
+		Assert.Equal(0, vm.UndoStack.UndoneCount);
 	}
 
 	[Fact]
@@ -403,7 +434,7 @@ public class UndoTests {
 
 	[Fact]
 	public void TypingBackToWhereTheRunStartedLeavesNothingAndNoStar() {
-		var (vm, dialogs) = Load();
+		var (vm, _) = Load();
 		vm.Tree.Select(Node(vm, "Example.main.title"));
 		WordsKey key = vm.Tree.SelectedKey!;
 		string value = key.DefaultValue;
@@ -421,16 +452,15 @@ public class UndoTests {
 		Assert.Equal(1, vm.UndoStack.DoneCount);
 		Assert.True(vm.IsDirty);
 
-		//a parameter added and removed again in the dialog is no change at all
-		(vm, dialogs) = Load();
+		//so with a parameter's description; an input typed is no change at all
+		(vm, _) = Load();
 		vm.Tree.Select(Node(vm, "Example.view.section-name.key"));
-		dialogs.OnShow = shown => {
-			var parameters = (TestParametersViewModel)shown;
-			parameters.AddParameterCommand.Execute(null);
-			parameters.Rows[^1].RemoveCommand.Execute(null);
-			parameters.Rows[0].Sample = "1"; //nor is a sample typed
-		};
-		vm.TestParametersCommand.Execute(null);
+		WordsParameter parameter = vm.ParametersPane.Definitions[0].Parameter;
+		string description = parameter.Description;
+		parameter.Description = description + "x";
+		Assert.True(vm.IsDirty);
+		parameter.Description = description;
+		vm.ParametersPane.Definitions[0].Input = "1";
 		Assert.Equal(0, vm.UndoStack.DoneCount);
 		Assert.False(vm.IsDirty);
 	}

@@ -11,6 +11,8 @@ public enum DocumentField {
 	EntryContext,
 	EntryComment,
 	CommentText,
+	/// <summary>A definition's description, its parameter named as a value names its form (SPEC: Parameters → Undo).</summary>
+	ParameterDescription,
 }
 
 /// <summary>

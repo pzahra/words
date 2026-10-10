@@ -381,22 +381,19 @@ public class PluralFormsTests {
 	}
 
 	[Fact]
-	public void TestParametersSelectAsThePreviewDoes() {
-		var dialogs = new FakeDialogs();
-		var vm = new MainWindowViewModel(dialogs);
-		vm.LoadFile(new StringReader(Ini), "Example");
+	public void AnInputSelectsTheForm_NoneReadsOtherQuietly() {
+		var vm = Load();
+		vm.ShowDefaultPreview = true;
 		Select(vm, "count");
-		TestParametersViewModel? dialog = null;
-		dialogs.OnShow = shown => {
-			dialog = (TestParametersViewModel)shown;
-			dialog.Rows[0].Sample = "4";
-			Assert.Equal("4 files", dialog.Result);
-			Assert.False(dialog.IsError);
-			dialog.Rows[0].Sample = "1"; //the sample picks the form
-			Assert.Equal("1 file", dialog.Result);
-		};
-		vm.TestParametersCommand.Execute(null);
-		Assert.NotNull(dialog);
+		Assert.Equal("{0} files", vm.DefaultPreview.Text); //nothing typed: the placeholder, counted as other
+		Assert.Empty(vm.DefaultPreview.Gripes);
+
+		DefinitionRow row = vm.ParametersPane.Definitions[0];
+		row.Input = "4";
+		Assert.Equal("4 files", vm.DefaultPreview.Text);
+		row.Input = "1"; //the input picks the form
+		Assert.Equal("1 file", vm.DefaultPreview.Text);
+		Assert.Empty(vm.DefaultPreview.Gripes);
 	}
 
 	[Fact]

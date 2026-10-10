@@ -96,10 +96,9 @@ public class CommandTableTests {
 		//files in and out are the menu's alone, with their keys
 		Assert.DoesNotContain(Tools(vm.Commands).OfType<CommandItem>(), tool => tool.Command == vm.LoadFileCommand);
 		Assert.DoesNotContain(Tools(vm.Commands).OfType<CommandItem>(), tool => tool.Command == vm.ResetCommand);
-		//the test sits in both pane headers, the same row; each header toggles its own preview
-		//and leads with its own plural form, a popup
-		Assert.Same(vm.Commands.DefaultTools.OfType<CommandItem>().Single(tool => tool.Command == vm.TestParametersCommand),
-			vm.Commands.TranslationTools.OfType<CommandItem>().Single(tool => tool.Command == vm.TestParametersCommand));
+		//each pane header toggles its own preview and leads with its own plural form, a popup;
+		//the parameters are the baseline pane's, so no row tests them (SPEC: Parameters)
+		Assert.DoesNotContain(rows.OfType<CommandItem>(), row => row.Caption.Contains("Parameters", StringComparison.Ordinal));
 		Assert.Contains(vm.Commands.DefaultTools.OfType<CommandItem>(), tool => tool.Caption == Words.Known["menu.default-preview"]);
 		Assert.Contains(vm.Commands.TranslationTools.OfType<CommandItem>(), tool => tool.Caption == Words.Known["menu.translation-preview"]);
 		Assert.Equal(Words.Known["menu.default-form"], Assert.IsType<ChoiceItem>(vm.Commands.DefaultTools[0]).Caption);

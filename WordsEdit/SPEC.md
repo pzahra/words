@@ -198,19 +198,18 @@ flags — constant (only a leaf directly under a file), and needs-review
   dialect in place of the raw text (image handling is the editor's own — see
   Markdown previews). Its parameter samples format in the default's language
   when the file declares one, as the translation's do in the selected one.
-- **Parameter testing**: keys with `param-` definitions can run sample
-  values through `Format` to prove the placeholders work before shipping.
-  `{>reference}` and `{$constant}` tokens work across files for this purpose,
-  simulating a host app loading multiple dictionaries. The Test Parameters
-  window is a table of name, type, description and sample with a trash on
-  each row and a + under them, which adds the lowest number no definition
-  has, and shows the formatted result as the samples are typed — or why they
-  will not read or format — formatted as the default preview formats it,
-  plural selectors included. Its definitions land in the key as they are
-  made, the window one undo entry; the samples are the session's, each read
-  as its definition's type in the invariant culture (Parameters → Types):
-  they dirty nothing and enter no undo, are kept per key until Reset, and
-  fill the previews once one has text. Close only closes.
+- **Parameters**: below the comment, the key's parameters carry the
+  conversation on as a thread of pairs (Parameters → In the pane): each
+  definition the programmer's message, its placeholder, type and
+  description, with the translator's input right under it; then each
+  parameter the default uses and nobody defined, a faint `+ {0}` with its
+  input; then the +. The inputs fill both previews as they are typed, read as
+  their parameters' types in the invariant culture and formatted through
+  `Format`, plural selectors and `{>reference}` and `{$constant}` tokens
+  across files included, as a host app loading multiple dictionaries would,
+  so the placeholders are proven before shipping. They are the session's:
+  they dirty nothing and enter no undo, and are kept per key until Reset. A
+  key with no thread shows only the +; a constant shows none.
 - **Stale-all-languages**: one action for "I changed the default, every
   translation needs another look".
 - **Stale as the default changes**: typing the default, its plain value or
@@ -681,13 +680,13 @@ File (New, Open, Import, Merge, Save, Export, Reset, Exit), Edit (Undo and Redo,
 the node and key operations, then the flags), View (the filters, the previews, Find, then each
 pane's plural form, then the translation language and Wordsmith's own, all
 four submenus), Tools (Languages,
-Project Settings, Test Parameters) — with an access key on each menu and
+Project Settings) — with an access key on each menu and
 gesture text on each entry, so everything is reachable by name and by
 keyboard, not only by icon. The toolbars are toolbar controls populated from
 the same commands and carry only what is convenient: the node operations
 under the tree, the key operations under the baseline pane, the filters as
 a vertical toolbar in the popup beside the search box, Back and Forward on
-the box's other side, Rename at the right of the selected node's name, each pane's header (its plural form, Test Parameters, the key's
+the box's other side, Rename at the right of the selected node's name, each pane's header (its plural form, the key's
 flags, its preview) and, above the translation pane, Languages beside the
 translation language as a combo box.
 Files in and out, Merge, Reset and Project Settings live in the menu alone,
@@ -823,7 +822,7 @@ whatever was waiting to be redone.
   Languages, on the selected key, is a `KeyEdit` too (`StaleAllEdit`), the
   stamps it replaced kept with it. Adding key information is `KeyAdded`;
   removing it is `KeyRemoved`, which keeps a copy of the key, plural forms
-  and all, and puts a copy back. A Test Parameters session is one `ParametersEdit`, the key's
+  and all, and puts a copy back. A parameter defined, adopted, renamed, retyped or taken away in the pane is one `ParametersEdit`, the key's
   parameters before and after, made only when they differ.
 - **Structure.** Adding a node or a comment is `NodeAdded`; removing one is
   `NodeRemoved`: the parent, the position, the node itself — its subtree,
@@ -863,7 +862,7 @@ command through one door (`Perform`, on the main view model): the command
 makes its change and returns its entry, or nothing when it changed nothing,
 and while it runs the field reports are not typing — a constant clearing its
 translations is not typing. A dialog a command opens belongs to the command,
-so a Test Parameters session or a Settings Okay is one entry, and the dialog
+so a Settings Okay is one entry, and the dialog
 dirties nothing itself: `Perform` stars the title when the entry is made.
 Each entry records whether the document was dirty before its action, and
 undo restores `IsDirty` to that; a save moves the marks, so an undo or redo
@@ -1081,11 +1080,10 @@ current CLDR. The rule itself is Authoring's `MissingWords`, which the tree's
 badges and the command line's `list --missing` both read.
 
 **Everything else.** The previews render the selected form. A value that
-selects (`{0#word}`) previews with the Test Parameters samples, so changing
-the sample changes the form spliced in, in the previews and in the dialog's
-own result alike. A `FieldEdit` carries the form beside
-its field, so typing into a form undoes as any field does (Undo: Fields). The
-search reads every form. A recode, a split or a merge carries an entry's forms
+selects (`{0#word}`) previews with the parameters' inputs, so changing the
+count typed changes the form spliced in; with none typed it reads `other`.
+A `FieldEdit` carries the form beside its field, so typing into a form
+undoes as any field does (Undo: Fields). The search reads every form. A recode, a split or a merge carries an entry's forms
 with it. Stale stays one per entry and one per key, as do the notes. XLIFF and
 resx have no slot for a form, so an export lists the forms as lost
 (`WordsFeatures.PluralForms`), the way it lists the default's language.
@@ -1099,8 +1097,8 @@ and none where the default speaks the language. Typing into a form writes
 `value-mt#few` and undoes. Picking Maltese `few` moves the baseline to
 `other`. A key that is not plural greys the translation's selector and shows
 the plain value. A form the language does not use stays reachable, with its
-dot and a gripe, and an empty greyed row cannot be picked. Test Parameters
-selects as the preview does.
+dot and a gripe, and an empty greyed row cannot be picked. A count typed
+picks the form the previews splice in, and none reads `other`, quietly.
 
 **Where it lives.** The grammar, the CLDR table, the digest, the `{n#key}`
 selector and the count indexer are the runtime's. Authoring's
@@ -1124,12 +1122,12 @@ Not built yet. Each section here is the shape the feature takes when it is.
 
 A parameter is what the code fills in: `{0}`, `{Name}`, or the count a
 selector reads, the `1` in `{1#N}`. The programmer says what each one is; the
-translator tries values to see their words come out right. Today neither has
-a good place. Test Parameters is a dialog out of sight; a key's
-`param-x=Type:sample` mixes what the parameter is with a value to test it
-with; its Add proposes `P0`, a named parameter that fills no `{0}`; and what
-a placeholder means lives in the context's prose ("{0} is the file"). No file
-in the repository declares one.
+translator tries values to see their words come out right. In 1.3.0 neither
+had a good place. Test Parameters was a dialog out of sight; a key's
+`param-x=Type:sample` mixed what the parameter is with a value to test it
+with; its Add proposed `P0`, a named parameter that fills no `{0}`; and what
+a placeholder means lived in the context's prose ("{0} is the file"). No file
+in the repository declared one.
 
 **In the file.** `param-x=type:Description`, the definition, and the
 programmer's alone: `x` is the parameter as the text names it (`param-0`,
@@ -1170,9 +1168,9 @@ format them in their pane's culture. An `enum` input describes the picked
 member through the runtime's engine, from a describable built off its key,
 `Describable.OfKey` (the runtime spec's *Describe without the type*). It sends what an app passing
 `brew.Describe()` shows: the member's words in the pane's language, or its
-name, the key's last segment, where it has none. Whether a template's `{0:T}`
-reads the member's `.tooltip` waits on the runtime spec's *Describe in a
-template*. What lives
+name, the key's last segment, where it has none. A template's `{0:T}` reads
+the member's `.tooltip`, as `Format` describes any describable it is handed
+(the runtime spec's *Describe in a template*). What lives
 only on the type, `[Description]`, `[Tooltip]` and the number, stays empty,
 and a `[Flags]` combination is no member. The runtime's registry is one per
 process, so Wordsmith cannot hold the slots each app adds side by side; the
@@ -1193,7 +1191,8 @@ the exchange the document keeps, sit where they always do whatever a key's
 parameters, and the comment that raises the hand never slides out of view;
 each value sits under the definition it answers, with no label to match up;
 and what is saved comes first, the scratch after. A key with no definitions
-and nothing found shows no thread, and looks as it does today.
+and nothing found shows no thread, only the + under the comment; a constant,
+which formats nothing, shows neither.
 
 **Defined by hand, found to help.** The definitions are the contract, what
 the code passes, and only the programmer adds them, because the key's text
@@ -1217,24 +1216,27 @@ defined shows faintly under the definitions, `+ {0}`, and a click makes it
 one, its type guessed: `int` for a selector's count, `str` otherwise. The
 + adds the first of those, or else the lowest number no definition has, so
 `{0}` and never `P0`; its placeholder is editable, as the dialog's name was,
-for `{Count}`. Test Parameters goes, its dialog and its rows in the Tools
-menu and the panes' headers with it.
+for `{Count}`, its input going with it; a name no parameter can have, or
+another definition's (`{01}` is `{1}`), marks the box and is not taken.
+Test Parameters went, its dialog and its rows in the Tools menu and the
+panes' headers with it.
 
 **The inputs.** One per definition, then one per parameter found and not
 defined, so a key nobody has defined still previews filled; each reads as its
 type does (Types), a box for the five and a list for `enum`. What the
-translator types is not the document's: an input dirties nothing and enters no undo (each box keeps WPF's own), and the inputs
-are kept per key for the session, so stepping away and back finds them; Reset
-and closing drop them. While a preview's toggle is on, the inputs are
-converted by their parameters' types and sent to it: the default preview
-formats in the default's language and the translation preview in the
-selected one, selectors picking their forms by the count, as an app's
-`Format` would, and as the samples do today. An empty input previews as its
-placeholder written out, so the preview still renders and shows what is left
-to fill; a selector with no count reads `other`, quietly. An input its type
-cannot read marks its box, the error brush with the type's complaint as the
-tooltip, and heads the preview's gripes, as a sample that will not format
-does now.
+translator types is not the document's: an input dirties nothing and
+enters no undo (each box keeps WPF's own), and the inputs are kept per key
+for the session, so stepping away and back finds them; Reset and closing
+drop them. While a preview's toggle is on, the inputs are converted by their
+parameters' types and sent to it: the default preview formats in the
+default's language and the translation preview in the selected one,
+selectors picking their forms by the count, as an app's `Format` would, and
+as the dialog's samples did. An empty input previews as its placeholder
+written out, so the preview still renders and shows what is left to fill; a
+selector with no count reads `other`, quietly. An input its type cannot read
+previews as its placeholder too, and marks its box, the error brush with the
+type's complaint as the tooltip, and heads the preview's gripes, as a text
+that will not format does.
 
 **Translation check.** A translation's parameters are found the same way,
 over its plain value and every form, its references expanded in its own
@@ -1265,8 +1267,9 @@ it, widening it there to references, code spans and links.
 
 **Undo.** A description types and undoes as any field does (Undo: Fields), its
 `FieldEdit` naming the parameter as it names a form; a definition added,
-adopted, renamed, retyped or taken away is one entry. `ParametersEdit`, a dialog
-session, goes with the dialog. The inputs are no part of the history.
+adopted, renamed, retyped or taken away is one entry, a `ParametersEdit` of
+the key's definitions before and after, as a dialog session was. The inputs
+are no part of the history.
 
 **What changes.** `WordsParameter`'s `Value` becomes its `Description`, and the
 samples leave the model for the editor's session: `WordsOperations.FormatSample`
@@ -1274,12 +1277,9 @@ takes the inputs, and `WordsParameterType` holds the six. XLIFF carries a
 parameter as now, its type as an attribute, short, and its description as the
 text; resx still lists parameters as lost. `words set` stops writing
 `String:` before a text whose first words name no type, since the reader now
-keeps such a text whole. The
-dialog's words go (`parameters.*`), and the pane gains its own: the inputs'
-heading, the + and the trash, the unused hint, the mismatch's badge, filter
-and note. Built,
-this replaces the baseline pane's *Parameter testing* bullet, and the inputs
-take the samples' place in *Plural forms*.
+keeps such a text whole. The dialog's words go (`parameters.*`), and the
+pane gains its own: the thread's heading, the + and the trash, the unused
+hint, the mismatch's badge, filter and note.
 
 **Tests.**
 - What a default finds with `{0}`, `{0:N2}`, `{Name}`, `{1#word}`,
@@ -1323,9 +1323,11 @@ Built so far: the first, `ParameterUse` in Authoring, and the note (the
 command line spec's *Calls*); the second, `WordsParameterType`'s six and
 `param-x=type:Description` read and written, XLIFF's short type, `words set`
 writing a text as given, and `FormatSample` taking values that
-`WordsOperations.ReadInputs` reads. Until the pane, Test Parameters edits the
-definitions and keeps its samples for the session (*Parameter testing*); an
-`enum` is read and written, and its prefix is set in the file.
+`WordsOperations.ReadInputs` reads; the third, the thread in the baseline
+pane (`ParametersPane`, its rows `DefinitionRow` and `FoundRow`, and
+`ParameterUse.Slots` and `WordsOperations.MembersUnder` under them), Test
+Parameters gone with it, and an `enum` input a describable that `Format`
+describes in the pane's language. The badge and the filter are next.
 
 ## Save as a patch
 

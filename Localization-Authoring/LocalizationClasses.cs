@@ -299,20 +299,20 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>
 		///     What the code would pass, read from <paramref name="input"/> in the
 		///     invariant culture: the text, the number, the span or the moment; for an
-		///     <c>enum</c>, the member the input names under the prefix, described in
-		///     <paramref name="words"/> as an app's <c>Describe()</c> shows it.
+		///     <c>enum</c>, the member the input names under the prefix, as a describable
+		///     built off its key (<see cref="Describable.OfKey"/>), which a template
+		///     describes in its own words, as it describes an app's enum.
 		/// </summary>
 		/// <param name="name">The parameter's name, for the complaint.</param>
 		/// <param name="input">What was typed.</param>
-		/// <param name="words">The words an <c>enum</c>'s member is described in.</param>
 		/// <exception cref="FormatException">The input is none of what the type reads.</exception>
-		public object Read(string name, string input, IWords words) {
+		public object Read(string name, string input) {
 			object? value = Name switch {
 				"int" => int.TryParse(input, NumberStyles.Integer, CultureInfo.InvariantCulture, out int whole) ? whole : null,
 				"real" => double.TryParse(input, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out double real) ? real : null,
 				"time" => TimeSpan.TryParse(input, CultureInfo.InvariantCulture, out TimeSpan span) ? span : null,
 				"date" => DateTimeOffset.TryParse(input, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset moment) ? moment : null,
-				"enum" => WordsParser.IsKeySegment(input) ? Describable.OfKey($"{Prefix}.{input}").Describe(null, words) : null,
+				"enum" => WordsParser.IsKeySegment(input) ? Describable.OfKey($"{Prefix}.{input}") : null,
 				_ => input,
 			};
 			return value ?? throw new FormatException(Name switch {

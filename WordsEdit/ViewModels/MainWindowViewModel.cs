@@ -23,6 +23,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public WordsSession Session { get; } = new();
 	/// <summary>What the translator typed for each key's parameters, for the session: no part of the document (SPEC: Parameters → The inputs).</summary>
 	public ParameterInputs Inputs { get; } = new();
+	/// <summary>The baseline pane's parameters: the selected key's definitions and the inputs under them (SPEC: Parameters → In the pane).</summary>
+	public ParametersPane ParametersPane { get; }
 	public TreeViewModel Tree { get; }
 	public KeyDrag KeyDrag { get; }
 	/// <summary>The formats the editor imports from and exports to (SPEC: Import and export).</summary>
@@ -79,7 +81,6 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public ICommand ShowGripesCommand { get; }
 	public ICommand ShowFileGripesCommand { get; }
 	public ICommand ClearFiltersCommand { get; }
-	public ICommand TestParametersCommand { get; }
 	public ICommand RemoveNodeCommand { get; }
 	public ICommand RenameNodeCommand { get; }
 	public ICommand AddNodeCommand { get; }
@@ -108,7 +109,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	///     next keystroke lands where the change did, the selection where the step
 	///     left it, or the caret at the end when no box said.
 	/// </summary>
-	public event Action<DocumentField, Selection?>? FieldFocusRequested;
+	public event Action<DocumentField, string?, Selection?>? FieldFocusRequested;
 	//above zero while a command or an undo changes the document: the fields' reports are not typing
 	private int quiet;
 	//the dirtiness a keystroke taking its run back returns to, for the tree's Edited
@@ -130,6 +131,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Formats = formats ?? WordsFormats.BuiltIn();
 		this.spellCheckers = spellCheckers ?? SpellCheckers.IsInstalled;
 		Tree = new TreeViewModel(Session);
+		ParametersPane = new ParametersPane(this);
 		Tree.Edited += () => {
 			//a keystroke that took its run back leaves the document as the run found it
 			IsDirty = typedBack ?? true;
@@ -176,7 +178,6 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		ToggleStaleLanguageCommand = new DelegateCommand(() => DoToggleStaleLanguage(Tree.SelectedLanguage.Code), () => Tree.SelectedEntry is not null);
 		ToggleNeedsReviewCommand = new DelegateCommand(DoToggleNeedsReview, () => Tree.SelectedKey is not null);
 		ToggleConstantCommand = new DelegateCommand(DoToggleConstant, () => Tree.SelectedKey is not null && Tree.SelectedKeyNode is { CanBeConstant: true });
-		TestParametersCommand = new DelegateCommand(() => DoTestParameters(Tree.SelectedKey!), () => Tree.SelectedKey is not null);
 		UndoCommand = new DelegateCommand(() => Step(undoing: true), () => UndoStack.DoneCount > 0);
 		RedoCommand = new DelegateCommand(() => Step(undoing: false), () => UndoStack.CanRedo);
 		ExitCommand = new DelegateCommand(() => ExitRequested?.Invoke());
@@ -661,18 +662,6 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		});
 	}
 
-	//the session is one entry, the parameters before and after
-	private void DoTestParameters(WordsKey key) {
-		Perform(() => {
-			IReadOnlyList<WordsParameter> before = ParametersEdit.Copy(key);
-			Dialogs.Show(new TestParametersViewModel(this, key));
-			IReadOnlyList<WordsParameter> after = ParametersEdit.Copy(key);
-			return ParametersEdit.Same(before, after) ? null : new ParametersEdit(key.BlockKey, before, after);
-		});
-		//the inputs are what the previews format with
-		RenderPreviews();
-	}
-
 	//Undo
 	/// <summary>
 	///     Runs one action on the document (SPEC: Undo → Recording):
@@ -790,7 +779,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Commands.Refresh();
 		IsDirty = edit?.DirtyAt(standing) ?? (undoing ? entry.DirtyBefore : entry.DirtyAfter);
 		if (edit is not null) {
-			FieldFocusRequested?.Invoke(edit.Field, edit.SelectionAt(standing, undoing));
+			FieldFocusRequested?.Invoke(edit.Field, edit.Form, edit.SelectionAt(standing, undoing));
 		}
 	}
 
@@ -810,7 +799,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			&& (entry is not FieldEdit edit || Tree.FormsOf(edit.Field) is not { } pane || pane.Form == (edit.Form ?? FormPane.Plain));
 
 	//Previews
-	private bool RenderPreviews() {
+	internal bool RenderPreviews() {
+		//the thread first: its definitions and found parameters are what the previews fill
+		ParametersPane.Follow();
 		WordsKey? key = Tree.SelectedKey;
 		WordsFile? file = Tree.SelectedFile;
 		if (key is null || file is null || !ShowDefaultPreview) {
@@ -841,12 +832,14 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		using (Gripes.Listen(gripes)) {
 			IWordsProvider provider = PaneProvider(key, languageCode, forms);
 			text = Words.RenderKey(provider, key.BlockKey);
+			List<string> complaints = [];
 			try {
-				text = Fill(key, provider, forms, WordsOperations.CultureFor(cultureCode)) ?? text;
+				text = Fill(key, provider, forms, WordsOperations.CultureFor(cultureCode), complaints) ?? text;
 			}
 			catch (Exception ex) when (ex is FormatException or OverflowException) {
-				gripes.Insert(0, ex.Message);
+				complaints.Add(ex.Message);
 			}
+			gripes.InsertRange(0, complaints);
 		}
 		pane.Show(text, settings, gripes.Concat(settings.Errors), Gripes);
 	}
@@ -857,27 +850,45 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		return forms.IsPlain ? provider : new FormAsKey(provider, key.BlockKey, Words.FormKey(provider, forms.Language, key.BlockKey, forms.Form));
 	}
 
-	/// <summary>
-	///     The default as the baseline pane shows it, filled with the key's inputs
-	///     the way the default preview fills it, selectors and all, or as rendered
-	///     where none is typed: Test Parameters' result. Throws
-	///     <see cref="FormatException"/> or <see cref="OverflowException"/> where an
-	///     input will not read or the text will not format.
-	/// </summary>
-	internal string FormatDefaultSample(WordsKey key) {
-		IWordsProvider provider = PaneProvider(key, null, Tree.DefaultForms);
-		CultureInfo culture = WordsOperations.CultureFor(Session.FileOfKey(key.BlockKey)?.DefaultLanguage);
-		return Fill(key, provider, Tree.DefaultForms, culture) ?? Words.RenderKey(provider, key.BlockKey);
-	}
-
 	//the key's words in a pane filled with its inputs, as an app's Format fills them, an
-	//enum described in the pane's language; null where no input has text
-	private string? Fill(WordsKey key, IWordsProvider provider, FormPane forms, CultureInfo culture) {
-		if (!Inputs.AnyTyped(key)) {
+	//enum described in the pane's language (SPEC: Parameters → The inputs). An input left
+	//empty, or one its type cannot read, previews as its placeholder written out, and a
+	//selector counting by one reads other, quietly; what will not read or is nothing under
+	//its prefix goes into complaints. Null for a key that uses and defines no parameter
+	private string? Fill(WordsKey key, IWordsProvider provider, FormPane forms, CultureInfo culture, List<string> complaints) {
+		if (ParametersPane.Slots is not { Count: > 0 } slots) {
 			return null;
 		}
+		Dictionary<string, string> typed = Inputs.Of(key);
+		var (values, unread) = WordsOperations.ReadInputs(slots.Select(slot => (slot.Name, slot.Type, typed.GetValueOrDefault(slot.Name, ""))));
+		complaints.AddRange(unread);
+		complaints.AddRange(ParametersPane.PrefixComplaints());
+		HashSet<string> quietly = [.. values.Where(pair => Equals(pair.Value, FoundParameters.Placeholder(pair.Key))).Select(pair => $"WORDS:COUNT:`{pair.Value}`")];
 		var words = new CulturedWords(provider, culture) { Language = forms.Language };
-		return WordsOperations.FormatSample(words, key.BlockKey, Inputs.Read(key, words), culture);
+		List<string> heard = [];
+		try {
+			using (Gripes.Listen(heard)) {
+				return WordsOperations.FormatSample(words, key.BlockKey, values, culture);
+			}
+		}
+		finally {
+			//back to the pane's own listener, all but the placeholders' counts
+			foreach (string gripe in heard.Where(gripe => !quietly.Contains(gripe))) {
+				Gripes.Warn(gripe);
+			}
+		}
+	}
+
+	/// <summary>
+	///     A field outside the tree's selection was typed into, a definition's
+	///     description (SPEC: Parameters → Undo): typing, as the tree's fields
+	///     report it.
+	/// </summary>
+	internal void Typed(FieldEdit edit) {
+		OnFieldEdited(edit);
+		IsDirty = typedBack ?? true;
+		typedBack = null;
+		RenderPreviews();
 	}
 
 	//a provider whose key reads as one of its entries: the form a pane shows

@@ -20,9 +20,6 @@
         <DataTemplate DataType="{x:Type vm:KeyNameViewModel}">
             <v:KeyNameView/>
         </DataTemplate>
-        <DataTemplate DataType="{x:Type vm:TestParametersViewModel}">
-            <v:TestParametersView/>
-        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:MergeControlViewModel}">
             <v:MergeControlView/>
         </DataTemplate>

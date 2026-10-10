@@ -234,9 +234,9 @@ public sealed class CommandTable {
 	public IReadOnlyList<CommandItem> FilterTools { get; }
 	/// <summary>Beside the selected node's name: Rename.</summary>
 	public IReadOnlyList<CommandItem> NameTools { get; }
-	/// <summary>The baseline pane's header: the form, the test, the key's flags, its preview.</summary>
+	/// <summary>The baseline pane's header: the form, the key's flags, its preview.</summary>
 	public IReadOnlyList<MenuRow> DefaultTools { get; }
-	/// <summary>The translation pane's header: the form, the test, the stale flag, its preview.</summary>
+	/// <summary>The translation pane's header: the form, the stale flag, its preview.</summary>
 	public IReadOnlyList<MenuRow> TranslationTools { get; }
 	/// <summary>Above the translation pane: the languages, and the one selected as a combo box.</summary>
 	public IReadOnlyList<MenuRow> LanguageTools { get; }
@@ -301,22 +301,21 @@ public sealed class CommandTable {
 		//Tools
 		var languages = new CommandItem(Words.Known["menu.languages"], PackIconKind.Translate, vm.ManageLanguagesCommand);
 		var settings = new CommandItem(Words.Known["menu.settings"], PackIconKind.Cog, vm.SettingsCommand);
-		var parameters = new CommandItem(Words.Known["menu.parameters"], PackIconKind.CodeBraces, vm.TestParametersCommand);
 
 		MenuGroup edit = new(Words.Known["menu.edit"], [undo, redo, new MenuBreak(), addNode, addKey, addComment, rename, remove, new MenuBreak(), toggleReview, toggleConstant, toggleStale, staleAll, removeKey]);
 		Menu = [
 			new MenuGroup(Words.Known["menu.file"], [create, load, import, merge, new MenuBreak(), save, export, new MenuBreak(), reset, exit]),
 			edit,
 			new MenuGroup(Words.Known["menu.view"], [staleView, reviewView, missingView, clearFilters, new MenuBreak(), defaultPreview, translationPreview, new MenuBreak(), back, forward, find, new MenuBreak(), defaultForm, translationForm, new MenuBreak(), translationLanguage, uiLanguage]),
-			new MenuGroup(Words.Known["menu.tools"], [languages, settings, parameters]),
+			new MenuGroup(Words.Known["menu.tools"], [languages, settings]),
 		];
 		EditRows = edit.Items;
 		NodeTools = [addNode, remove, addComment];
 		KeyTools = [addKey, removeKey, staleAll];
 		FilterTools = [staleView, reviewView, missingView, clearFilters];
 		NameTools = [rename];
-		DefaultTools = [defaultForm, parameters, toggleConstant, toggleReview, defaultPreview];
-		TranslationTools = [translationForm, parameters, toggleStale, translationPreview];
+		DefaultTools = [defaultForm, toggleConstant, toggleReview, defaultPreview];
+		TranslationTools = [translationForm, toggleStale, translationPreview];
 		LanguageTools = [languages, translationLanguage];
 		NavigationTools = [back, forward];
 	}

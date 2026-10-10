@@ -139,23 +139,20 @@ value=x
 		Assert.Equal("Base", vm.DefaultPreview.Text);
 
 		vm.Tree.SelectedKey!.DefaultValue = "Base {0:N1} {1}";
-		Assert.Equal("Base {0:N1} {1}", vm.DefaultPreview.Text); //nothing typed: as written
+		Assert.Equal("Base {0} {1}", vm.DefaultPreview.Text); //nothing typed: the placeholders written out
 		Assert.Empty(vm.DefaultPreview.Gripes);
 
-		//the parameter dialog closes: the samples typed in it are applied
-		dialogs.OnShow = shown => {
-			var rows = ((TestParametersViewModel)shown).Rows;
-			rows[0].Sample = "22";
-			rows[1].Sample = "one";
-		};
-		vm.TestParametersCommand.Execute(vm.Tree.SelectedKey);
+		//the inputs under the parameters fill it as they are typed
+		vm.ParametersPane.Definitions[0].Input = "22";
+		vm.ParametersPane.Definitions[1].Input = "one";
 		Assert.Equal("Base 22.0 one", vm.DefaultPreview.Text);
 		Assert.Empty(vm.DefaultPreview.Gripes);
 
-		dialogs.OnShow = shown => ((TestParametersViewModel)shown).Rows[0].Sample = "twenty-two";
-		vm.TestParametersCommand.Execute(vm.Tree.SelectedKey);
-		Assert.Equal("Base {0:N1} {1}", vm.DefaultPreview.Text);
-		Assert.NotEmpty(vm.DefaultPreview.Gripes);
+		//one its type cannot read previews as its placeholder, and heads the gripes
+		vm.ParametersPane.Definitions[0].Input = "twenty-two";
+		Assert.Equal("Base {0} one", vm.DefaultPreview.Text);
+		Assert.Contains("twenty-two", vm.DefaultPreview.Gripes[0]);
+		Assert.Equal(vm.DefaultPreview.Gripes[0], vm.ParametersPane.Definitions[0].InputError);
 
 		vm.Tree.SelectedKeyNode = Node(vm, "Example.main.single-line");
 		Assert.Equal("line 1 still line 1", vm.DefaultPreview.Text);
@@ -262,17 +259,17 @@ value-de=n={0:N1}
 		var shown = Assert.IsType<GripesViewModel>(Assert.Single(dialogs.Shown));
 		Assert.Contains("nowhere", shown.Text);
 
-		//a sample that will not format heads the list and the text stays raw
+		//an input its type cannot read heads the list, and previews as its placeholder
 		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
 		vm.Inputs.Of(vm.Tree.SelectedKey!)["0"] = "twenty-two";
 		vm.Tree.SelectedKey!.DefaultValue = "Base {0:N1}";
-		Assert.Equal("Base {0:N1}", vm.DefaultPreview.Text);
+		Assert.Equal("Base {0}", vm.DefaultPreview.Text);
 		Assert.Contains("twenty-two", vm.DefaultPreview.Gripes[0]);
 
 		//the translation pane keeps a list of its own
 		vm.ShowLocalizationPreview = true;
 		vm.Tree.SelectedEntry!.Value = "Basis {0:N1}";
-		Assert.Equal("Basis {0:N1}", vm.TranslationPreview.Text);
+		Assert.Equal("Basis {0}", vm.TranslationPreview.Text);
 		Assert.Contains("twenty-two", vm.TranslationPreview.Gripes[0]);
 
 		//a hidden preview holds nothing
@@ -1138,72 +1135,74 @@ value=x
 	}
 
 	[Fact]
-	public void MainWindowViewModel_TestParametersShowTheFormattedResult() {
-		var dialogs = new FakeDialogs();
-		var vm = new MainWindowViewModel(dialogs);
-		vm.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
+	public void ParametersPane_ThreadsTheDefinitionsThenTheFound() {
+		//the definitions in the key's order, one the default does not use dimmed; then
+		//what the default uses and nobody defined, an int guessed for a count
+		var vm = LoadExample();
 		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
-		vm.Tree.SelectedKey!.DefaultValue = "Base {0:N1} {1}";
-		vm.IsDirty = false;
+		vm.Tree.SelectedKey!.DefaultValue = "Base {0:N1} {1} {3} {Count#item}";
+		ParametersPane pane = vm.ParametersPane;
 
-		TestParametersViewModel? dialog = null;
-		dialogs.OnShow = shown => {
-			dialog = (TestParametersViewModel)shown;
-			Assert.Equal(["0", "1", "2"], dialog.Rows.Select(row => row.Parameter.Key));
-			Assert.Equal(["real", "str", "date"], dialog.Rows.Select(row => row.Parameter.DataType.ToString()));
-			Assert.Equal(["the share", "the item", "when it was sent"], dialog.Rows.Select(row => row.Parameter.Description));
-			Assert.Equal("Base {0:N1} {1}", dialog.Result); //nothing typed: as written
+		Assert.True(pane.IsShown);
+		Assert.True(pane.HasThread);
+		Assert.Equal(["0", "1", "2"], pane.Definitions.Select(row => row.Name));
+		Assert.Equal(["real", "str", "date"], pane.Definitions.Select(row => row.TypeName));
+		Assert.Equal(["the share", "the item", "when it was sent"], pane.Definitions.Select(row => row.Parameter.Description));
+		Assert.Equal([false, false, true], pane.Definitions.Select(row => row.IsUnused));
+		Assert.Null(pane.Definitions[0].UnusedTip);
+		Assert.NotNull(pane.Definitions[2].UnusedTip);
+		Assert.Equal([("3", WordsParameterType.Str), ("Count", WordsParameterType.Int)], pane.Found.Select(row => (row.Name, row.Type)));
+		Assert.Equal(["{3}", "{Count}"], pane.Found.Select(row => row.Placeholder));
 
-			dialog.Rows[0].Sample = "22";
-			dialog.Rows[1].Sample = "one";
-			Assert.Equal("Base 22.0 one", dialog.Result);
-			Assert.False(dialog.IsError);
-
-			dialog.Rows[0].Sample = "twenty-two"; //no number: the result says why
-			Assert.True(dialog.IsError);
-			Assert.Contains("twenty-two", dialog.Result);
-
-			dialog.Rows[0].Sample = "7";
-			Assert.Equal("Base 7.0 one", dialog.Result);
-			Assert.False(dialog.IsError);
-			dialog.CloseCommand.Execute(null);
-		};
-		vm.TestParametersCommand.Execute(vm.Tree.SelectedKey);
-		Assert.NotNull(dialog);
-		Assert.False(vm.IsDirty); //the samples are the session's
-		Assert.Equal(1, vm.UndoStack.DoneCount); //the default's edit alone
+		//a constant has no thread and no +, nor has nothing selected
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.prefix-whitespace");
+		vm.ToggleConstantCommand.Execute(null);
+		Assert.False(pane.IsShown);
+		Assert.Empty(pane.Definitions);
+		Assert.Empty(pane.Found);
+		vm.ToggleConstantCommand.Execute(null);
+		Assert.True(pane.IsShown); //the + alone
+		Assert.False(pane.HasThread);
+		vm.Tree.SelectedKeyNode = null;
+		Assert.False(pane.IsShown);
 	}
 
 	[Fact]
-	public void TestParameters_SamplesAreTheSessions() {
-		// a sample follows its definition's renaming, outlives a key switch, and
-		// goes with Reset; the definitions are the document's
-		var dialogs = new FakeDialogs();
-		var vm = new MainWindowViewModel(dialogs);
-		vm.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
+	public void ParametersPane_TheInputsFillBothPreviewsAndAreTheSessions() {
+		// typed under a parameter, an input fills the previews at once and leaves the
+		// window clean; it follows its definition's renaming, outlives a key switch,
+		// and goes with Reset
+		var vm = LoadExample();
+		vm.ShowDefaultPreview = true;
+		vm.ShowLocalizationPreview = true;
 		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
 		WordsKey key = vm.Tree.SelectedKey!;
-		key.DefaultValue = "Base {count}";
+		key.DefaultValue = "Base {0:N1} {1}";
+		vm.Tree.SelectedEntry!.Value = "Basis {1} {0:N1}";
 		vm.IsDirty = false;
-		vm.ShowDefaultPreview = true;
+		int done = vm.UndoStack.DoneCount;
+		ParametersPane pane = vm.ParametersPane;
 
-		dialogs.OnShow = shown => {
-			var dialog = (TestParametersViewModel)shown;
-			dialog.Rows[1].Sample = "pens";
-			dialog.Rows[1].Parameter.Key = "count";
-			Assert.Equal("pens", dialog.Rows[1].Sample);
-			Assert.Equal("Base pens", dialog.Result);
+		pane.Definitions[0].Input = "22";
+		pane.Definitions[1].Input = "pens";
+		Assert.Equal("Base 22.0 pens", vm.DefaultPreview.Text);
+		Assert.Equal("Basis pens 22.0", vm.TranslationPreview.Text);
+		Assert.Null(pane.Definitions[0].InputError);
+		Assert.False(vm.IsDirty); //the inputs are the session's
+		Assert.Equal(done, vm.UndoStack.DoneCount);
+		Assert.Equal("22", vm.Inputs.Of(key)["0"]);
 
-			dialog.AddParameterCommand.Execute(null); //the lowest free number, never P0
-			Assert.Equal(("1", WordsParameterType.Str, ""), (dialog.Rows[^1].Parameter.Key, dialog.Rows[^1].Parameter.DataType, dialog.Rows[^1].Parameter.Description));
-		};
-		vm.TestParametersCommand.Execute(key);
-		Assert.True(vm.IsDirty);
-		Assert.Equal(["0", "count", "2", "1"], key.Parameters.Select(parameter => parameter.Key));
+		pane.Definitions[1].NameText = "count"; //the input goes with the name
+		Assert.Equal("count", key.Parameters[1].Key);
+		Assert.Equal("pens", pane.Definitions[1].Input);
+		key.DefaultValue = "Base {count}";
 		Assert.Equal("Base pens", vm.DefaultPreview.Text);
+		Assert.Empty(pane.Found);
 
 		vm.Tree.SelectedKeyNode = Node(vm, "Example.main.single-line");
+		Assert.False(pane.HasThread);
 		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
+		Assert.Equal("pens", pane.Definitions[1].Input);
 		Assert.Equal("Base pens", vm.DefaultPreview.Text);
 
 		vm.ResetCore();
@@ -1211,23 +1210,79 @@ value=x
 	}
 
 	[Fact]
-	public void TestParameters_LetsGoOfTheKeyWhenItsWindowCloses() {
-		//the window closed without Close being pressed (Escape, the X): the dialog
-		//stops following the key's parameters all the same
-		var dialogs = new FakeDialogs();
-		var vm = new MainWindowViewModel(dialogs);
-		vm.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
+	public void ParametersPane_ANameMustBeAParametersAndNoOtherDefinitions() {
+		var vm = LoadExample();
 		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
-		vm.Tree.SelectedKey!.DefaultValue = "Base {0:N1}";
-		vm.Inputs.Of(vm.Tree.SelectedKey)["0"] = "22";
-		TestParametersViewModel? dialog = null;
-		dialogs.OnShow = shown => dialog = (TestParametersViewModel)shown;
-		vm.TestParametersCommand.Execute(vm.Tree.SelectedKey);
-		Assert.Equal("Base 22.0", dialog!.Result);
+		DefinitionRow row = vm.ParametersPane.Definitions[1];
+		int done = vm.UndoStack.DoneCount;
 
-		vm.Tree.SelectedKey.Parameters[0].DataType = WordsParameterType.Time; //22 days, which N1 refuses
-		vm.Tree.SelectedKey.Parameters.RemoveAt(0); //heard, either would change the result
-		Assert.Equal("Base 22.0", dialog.Result); //not heard
+		row.NameText = "2"; //another's
+		Assert.NotNull(row.NameError);
+		row.NameText = "two words";
+		Assert.NotNull(row.NameError);
+		row.NameText = "02"; //the same number as string.Format reads it
+		Assert.NotNull(row.NameError);
+		Assert.Equal("1", row.Parameter.Key);
+		Assert.Equal(done, vm.UndoStack.DoneCount);
+
+		row.NameText = "Item";
+		Assert.Null(row.NameError);
+		Assert.Equal("Item", row.Parameter.Key);
+		Assert.Equal(done + 1, vm.UndoStack.DoneCount);
+	}
+
+	[Fact]
+	public void ParametersPane_ThePlusAdoptsWhatIsFoundThenNumbers() {
+		var vm = LoadExample();
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
+		WordsKey key = vm.Tree.SelectedKey!;
+		key.DefaultValue = "Base {0} {Count#item}";
+		ParametersPane pane = vm.ParametersPane;
+		pane.Found[0].Input = "3";
+
+		pane.AddCommand.Execute(null); //the first found, as its own + does
+		Assert.Equal(("Count", WordsParameterType.Int, ""), (key.Parameters[^1].Key, key.Parameters[^1].DataType, key.Parameters[^1].Description));
+		Assert.Empty(pane.Found);
+		Assert.Equal("Count", pane.Definitions[^1].Name);
+		Assert.Equal("3", pane.Definitions[^1].Input); //the input stays with its name
+
+		pane.AddCommand.Execute(null); //the lowest number no definition has, never P0
+		Assert.Equal(("3", WordsParameterType.Str, ""), (key.Parameters[^1].Key, key.Parameters[^1].DataType, key.Parameters[^1].Description));
+		Assert.True(pane.Definitions[^1].IsUnused);
+
+		pane.Definitions[^1].RemoveCommand.Execute(null);
+		Assert.Equal(["0", "1", "2", "Count"], key.Parameters.Select(parameter => parameter.Key));
+	}
+
+	[Fact]
+	public void ParametersPane_AnEnumOffersTheKeysUnderItsPrefix() {
+		var vm = LoadExample();
+		vm.ShowDefaultPreview = true;
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
+		vm.Tree.SelectedKey!.DefaultValue = "Base {1}";
+		DefinitionRow row = vm.ParametersPane.Definitions[1];
+
+		row.TypeName = "enum"; //waits for its prefix
+		Assert.True(row.IsEnumPicked);
+		Assert.Equal(WordsParameterType.Str, row.Parameter.DataType);
+		row.PrefixText = "not a key!";
+		Assert.NotNull(row.PrefixError);
+		row.PrefixText = "enum";
+		Assert.Null(row.PrefixError);
+		Assert.Equal(WordsParameterType.Enum("enum"), row.Parameter.DataType);
+
+		row = vm.ParametersPane.Definitions[1];
+		Assert.True(row.IsEnum);
+		Assert.Equal(["none", "two"], row.Members);
+		row.Input = "two";
+		Assert.Equal("Base Two Selection", vm.DefaultPreview.Text);
+
+		//a prefix with nothing under it says so, on the input and in the gripes
+		row.PrefixText = "nowhere";
+		row = vm.ParametersPane.Definitions[1];
+		Assert.Empty(row.Members);
+		Assert.Contains("nowhere", row.InputError);
+		Assert.Contains(vm.DefaultPreview.Gripes, gripe => gripe == row.InputError);
 	}
 
 	[Fact]
@@ -1304,12 +1359,11 @@ value=x
 			Dirties("organizer edit", () => { vm.Tree.SelectedKeyNode = Node(vm, "Example.main").Children.OfType<OrganizerNode>().First(); vm.Tree.SelectedOrganizer!.Text = " edited"; });
 			Dirties("remove key", () => { vm.Tree.SelectedKeyNode = Node(vm, "Example.enum.none"); vm.RemoveKeyCommand.Execute(null); });
 			Dirties("remove node", () => { vm.Tree.SelectedKeyNode = Node(vm, "Example.enum.two"); vm.RemoveNodeCommand.Execute(null); });
-			Dirties("parameters", () => {
+			Dirties("describing a parameter", () => {
 				vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
-				dialogs.OnShow = shown => ((TestParametersViewModel)shown).Rows[0].Parameter.Description = "the cut";
-				vm.TestParametersCommand.Execute(vm.Tree.SelectedKey);
-				dialogs.OnShow = null;
+				vm.ParametersPane.Definitions[0].Parameter.Description = "the cut";
 			});
+			Dirties("adding a parameter", () => vm.ParametersPane.AddCommand.Execute(null));
 
 			vm.Save();
 			Assert.False(vm.IsDirty);
