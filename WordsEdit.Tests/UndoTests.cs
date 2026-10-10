@@ -96,7 +96,8 @@ public class UndoTests {
 			vm.Tree.Select(Node(vm, "Example.view.section-name.key"));
 			dialogs.OnShow = shown => {
 				var parameters = (TestParametersViewModel)shown;
-				parameters.Parameters[0].Value = "1";
+				parameters.Rows[0].Parameter.Description = "the cut";
+				parameters.Rows[0].Sample = "1"; //the session's: no part of the entry
 				parameters.AddParameterCommand.Execute(null);
 			};
 			vm.TestParametersCommand.Execute(null);
@@ -426,7 +427,8 @@ public class UndoTests {
 		dialogs.OnShow = shown => {
 			var parameters = (TestParametersViewModel)shown;
 			parameters.AddParameterCommand.Execute(null);
-			parameters.RemoveParameterCommand.Execute(parameters.Parameters[^1]);
+			parameters.Rows[^1].RemoveCommand.Execute(null);
+			parameters.Rows[0].Sample = "1"; //nor is a sample typed
 		};
 		vm.TestParametersCommand.Execute(null);
 		Assert.Equal(0, vm.UndoStack.DoneCount);

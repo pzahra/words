@@ -173,14 +173,17 @@ public class IniPatcherTests {
 	}
 
 	[Fact]
-	public void Set_AParameterOfNoType_KeepsItsWordsBehindString() {
+	public void Set_AParameterOfNoType_IsWrittenAsGiven() {
+		// the reader keeps a text whose first words name no type whole, so it
+		// needs nothing in front
 		var patcher = Patch(Ini("[a]", "value=A"));
 
 		var gripes = patcher.Set("a", F("param-u"), "http://x");
 
-		Assert.Equal(Ini("[a]", "value=A", "param-u=String:http://x"), patcher.Text);
-		Assert.Equal("String:http://x", F("param-u").Read(patcher.Find("a")!));
-		Assert.Contains("names no type http", Assert.Single(gripes));
+		Assert.Equal(Ini("[a]", "value=A", "param-u=http://x"), patcher.Text);
+		Assert.Equal("http://x", F("param-u").Read(patcher.Find("a")!));
+		Assert.Equal(WordsParameterType.Str, Assert.Single(patcher.Find("a")!.Parameters).DataType);
+		Assert.Empty(gripes);
 	}
 
 	[Fact]

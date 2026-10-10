@@ -1,7 +1,9 @@
 using PatTech.Localization;
+using PatTech.Utils;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace PatTech.Localization.Authoring {
 
@@ -180,54 +182,147 @@ namespace PatTech.Localization.Authoring {
 		}
 	}
 
+	/// <summary>
+	///     A parameter's definition, the programmer's (editor SPEC: Parameters → In the
+	///     file): <c>param-x=type:Description</c>, what the code passes for <c>{x}</c> and
+	///     what it is, for the translator. A value to try it with is the editor's
+	///     session's, never the document's.
+	/// </summary>
 	public class WordsParameter : ViewModelBase {
+		/// <summary>The parameter as the text names it: <c>0</c> for <c>{0}</c>, <c>Name</c> for <c>{Name}</c>.</summary>
 		public string Key {
 			get => field;
 			set => ChangeProperty(ref field, value);
 		}
 
-		public string Value {
+		/// <summary>What it is, for the translator.</summary>
+		public string Description {
 			get => field;
 			set => ChangeProperty(ref field, value);
 		}
 
+		/// <summary>What the code passes.</summary>
 		public WordsParameterType DataType {
 			get => field;
 			set => ChangeProperty(ref field, value);
 		}
-		public WordsParameter(string key, WordsParameterType dataType, string value) {
+
+		public WordsParameter(string key, WordsParameterType dataType, string description) {
 			Key = key;
 			DataType = dataType;
-			Value = value;
+			Description = description;
 		}
 
 		public WordsParameter(WordsParameter parameter) {
 			Key = parameter.Key;
-			Value = parameter.Value;
+			Description = parameter.Description;
 			DataType = parameter.DataType;
 		}
 
-		public object ToObject() => DataType.Parse(Key, Value);
+		/// <summary>The field's text as the writer writes it (<see cref="WordsParameterType.Join"/>).</summary>
+		public string FieldText => WordsParameterType.Join(DataType, Description);
 	}
 
-	public class WordsParameterType(string name, Type dataType, Func<string, object?> parse) {
-		public static readonly WordsParameterType[] All = [
-			new("String", typeof(string), v => v),
-			new("Integer", typeof(int), v => int.TryParse(v, out var result) ? result : null),
-			new("Double", typeof(double), v => double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out var result) ? result : null),
-			new("TimeSpan", typeof(TimeSpan), v => TimeSpan.TryParse(v, CultureInfo.InvariantCulture, out var result) ? result : null),
-			new("DateTimeOffset", typeof(DateTimeOffset), v => DateTimeOffset.TryParse(v, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var result) ? result : null),
-		];
-		public static readonly WordsParameterType String = All[0];
-		public static WordsParameterType Select(string name) => All.FirstOrDefault(t => t.Name == name) ?? String;
+	/// <summary>
+	///     What the code passes for a parameter (editor SPEC: Parameters → Types): one of
+	///     six, named in any case, each read from an input in the invariant culture, as
+	///     the file's own numbers are. <c>enum</c> carries a key prefix, its members the
+	///     keys directly under it. 1.3.0's names read as the short ones, and are written
+	///     short.
+	/// </summary>
+	public sealed record WordsParameterType {
+		/// <summary>Free text.</summary>
+		public static WordsParameterType Str { get; } = new("str");
+		/// <summary>A whole number, an <see cref="int"/>.</summary>
+		public static WordsParameterType Int { get; } = new("int");
+		/// <summary>A number with a fraction, a <see cref="double"/>.</summary>
+		public static WordsParameterType Real { get; } = new("real");
+		/// <summary>A span, a <see cref="TimeSpan"/>: <c>1:30:00</c>.</summary>
+		public static WordsParameterType Time { get; } = new("time");
+		/// <summary>A moment, a <see cref="DateTimeOffset"/>: <c>2026-10-10 09:30</c>, UTC unless it says otherwise.</summary>
+		public static WordsParameterType Date { get; } = new("date");
 
-		public string Name { get; } = name;
-		public Type DataType { get; } = dataType;
+		/// <summary>The five no prefix completes, in the order a list offers them.</summary>
+		public static IReadOnlyList<WordsParameterType> Plain { get; } = [Str, Int, Real, Time, Date];
 
-		private readonly Func<string, string, object> ParseCore = (key, value) => parse(value)
-				?? throw new FormatException($"Invalid value \"{value}\" for parameter {key} of type {name}");
+		/// <summary>One of the keys directly under <paramref name="prefix"/>: <c>enum(enums.brew)</c>.</summary>
+		public static WordsParameterType Enum(string prefix) => new("enum", prefix);
 
-		public object Parse(string key, string value) => ParseCore(key, value);
+		//1.3.0's names, which a file it wrote still holds
+		private static readonly Dictionary<string, WordsParameterType> legacy = new(StringComparer.OrdinalIgnoreCase) {
+			["String"] = Str, ["Integer"] = Int, ["Double"] = Real, ["TimeSpan"] = Time, ["DateTimeOffset"] = Date,
+		};
+		private static readonly Regex rxEnum = new(@"^enum\((?<prefix>[^()]*)\)\z", RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture);
+
+		private WordsParameterType(string name, string? prefix = null) {
+			Name = name;
+			Prefix = prefix;
+		}
+
+		/// <summary>The type's word, short and lower case: <c>str</c>, <c>enum</c>.</summary>
+		public string Name { get; }
+		/// <summary>An <c>enum</c>'s key prefix, as written; <see langword="null"/> for the others.</summary>
+		public string? Prefix { get; }
+
+		/// <summary>The type as the file writes it: <c>int</c>, <c>enum(enums.brew)</c>.</summary>
+		public override string ToString() => Prefix is null ? Name : $"{Name}({Prefix})";
+
+		/// <summary>
+		///     The type <paramref name="text"/> names, in any case: one of the six, its
+		///     <c>enum</c> with a prefix that is a key's name, or one of 1.3.0's names.
+		/// </summary>
+		public static bool TryParse(string text, [NotNullWhen(true)] out WordsParameterType? type) {
+			type = Plain.FirstOrDefault(plain => string.Equals(plain.Name, text, StringComparison.OrdinalIgnoreCase))
+				?? legacy.GetValueOrDefault(text)
+				?? (rxEnum.Match(text) is { Success: true } match && WordsParser.IsKeyName(match.Groups["prefix"].Value) ? Enum(match.Groups["prefix"].Value) : null);
+			return type is not null;
+		}
+
+		/// <summary>
+		///     A <c>param-x</c> field's text read: the words before the first <c>:</c> are
+		///     the type only where they name one, so <c>the file: its full path</c> is a
+		///     <c>str</c>'s description, whole, and so is a text with no <c>:</c>.
+		/// </summary>
+		public static (WordsParameterType Type, string Description) Split(string text) {
+			int colon = text.IndexOf(':');
+			return colon >= 0 && TryParse(text[..colon], out var type) ? (type, text[(colon + 1)..]) : (Str, text);
+		}
+
+		/// <summary>
+		///     A <c>param-x</c> field's text as the writer writes it: the type before a
+		///     <c>:</c> wherever it is not <c>str</c>, and for a <c>str</c> only where the
+		///     description's own first words would read as a type.
+		/// </summary>
+		public static string Join(WordsParameterType type, string description)
+			=> type == Str && Split(description) == (Str, description) ? description : $"{type}:{description}";
+
+		/// <summary>
+		///     What the code would pass, read from <paramref name="input"/> in the
+		///     invariant culture: the text, the number, the span or the moment; for an
+		///     <c>enum</c>, the member the input names under the prefix, described in
+		///     <paramref name="words"/> as an app's <c>Describe()</c> shows it.
+		/// </summary>
+		/// <param name="name">The parameter's name, for the complaint.</param>
+		/// <param name="input">What was typed.</param>
+		/// <param name="words">The words an <c>enum</c>'s member is described in.</param>
+		/// <exception cref="FormatException">The input is none of what the type reads.</exception>
+		public object Read(string name, string input, IWords words) {
+			object? value = Name switch {
+				"int" => int.TryParse(input, NumberStyles.Integer, CultureInfo.InvariantCulture, out int whole) ? whole : null,
+				"real" => double.TryParse(input, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out double real) ? real : null,
+				"time" => TimeSpan.TryParse(input, CultureInfo.InvariantCulture, out TimeSpan span) ? span : null,
+				"date" => DateTimeOffset.TryParse(input, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset moment) ? moment : null,
+				"enum" => WordsParser.IsKeySegment(input) ? Describable.OfKey($"{Prefix}.{input}").Describe(null, words) : null,
+				_ => input,
+			};
+			return value ?? throw new FormatException(Name switch {
+				"int" => $"{{{name}}}: \"{input}\" is no whole number, such as 42",
+				"real" => $"{{{name}}}: \"{input}\" is no number, such as 1.5",
+				"time" => $"{{{name}}}: \"{input}\" is no span of time, such as 1:30:00",
+				"date" => $"{{{name}}}: \"{input}\" is no moment, such as 2026-10-10 09:30",
+				_ => $"{{{name}}}: \"{input}\" is no member under {Prefix}",
+			});
+		}
 	}
 
 	/// <summary>

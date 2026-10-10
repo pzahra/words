@@ -70,8 +70,9 @@ A session holds one or more files. Each file contributes:
   file names otherwise loads all the same, with a gripe that a runtime skips
   it, and saves back as it was; renaming it is the fix. A key carries:
   default value, context (programmer → translator), comment (translator-facing),
-  format parameters (`param-x=Type:sample`), a needs-review flag, and a
-  **banner** (the freeform `;` comment run above its header).
+  format parameters' definitions (`param-x=type:Description`, Parameters), a
+  needs-review flag, and a **banner** (the freeform `;` comment run above its
+  header).
 - A file-level **preamble** (comments above the language labels) and
   **trailer** (comments after the last block).
 - Per language, each key carries: value, context, comment, and an optional
@@ -197,15 +198,19 @@ flags — constant (only a leaf directly under a file), and needs-review
   dialect in place of the raw text (image handling is the editor's own — see
   Markdown previews). Its parameter samples format in the default's language
   when the file declares one, as the translation's do in the selected one.
-- **Parameter testing**: keys with `param-` declarations can run their sample
+- **Parameter testing**: keys with `param-` definitions can run sample
   values through `Format` to prove the placeholders work before shipping.
   `{>reference}` and `{$constant}` tokens work across files for this purpose,
   simulating a host app loading multiple dictionaries. The Test Parameters
-  window is a table of name, type and sample with a trash on each row and a +
-  under them, and shows the formatted result as the samples are edited — or
-  why they will not format — formatted as the default preview formats it,
-  plural selectors included; its edits land in the key as they are made, and
-  Close only closes.
+  window is a table of name, type, description and sample with a trash on
+  each row and a + under them, which adds the lowest number no definition
+  has, and shows the formatted result as the samples are typed — or why they
+  will not read or format — formatted as the default preview formats it,
+  plural selectors included. Its definitions land in the key as they are
+  made, the window one undo entry; the samples are the session's, each read
+  as its definition's type in the invariant culture (Parameters → Types):
+  they dirty nothing and enter no undo, are kept per key until Reset, and
+  fill the previews once one has text. Close only closes.
 - **Stale-all-languages**: one action for "I changed the default, every
   translation needs another look".
 - **Stale as the default changes**: typing the default, its plain value or
@@ -1315,7 +1320,12 @@ input stands on. Finding parameters, references and selected forms expanded, and
 the check first, in Authoring and headless, with the command line's note; then the description in the model,
 the reader and the writer; then the pane; then the badge and the filter.
 Built so far: the first, `ParameterUse` in Authoring, and the note (the
-command line spec's *Calls*).
+command line spec's *Calls*); the second, `WordsParameterType`'s six and
+`param-x=type:Description` read and written, XLIFF's short type, `words set`
+writing a text as given, and `FormatSample` taking values that
+`WordsOperations.ReadInputs` reads. Until the pane, Test Parameters edits the
+definitions and keeps its samples for the session (*Parameter testing*); an
+`enum` is read and written, and its prefix is set in the file.
 
 ## Save as a patch
 

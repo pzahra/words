@@ -345,9 +345,7 @@ namespace PatTech.Localization.Authoring {
 
 			if (key.Parameters.Count != 0) {
 				foreach (WordsParameter parameter in key.Parameters) {
-					WritePair(
-						$"param-{parameter.Key}",
-						$"{parameter.DataType.Name}:{parameter.Value}");
+					WritePair($"param-{parameter.Key}", parameter.FieldText);
 				}
 			}
 

@@ -252,7 +252,7 @@ public class LanguageCodeTests {
 		var output = new StringWriter { NewLine = "\n" };
 		session.Save(file, KeyTree.Build(session, file), output);
 		Assert.Contains("param-sr-Latn=rules-sr.ini\n", output.ToString());
-		Assert.Contains("param-P1=String:a\nparam-Count=Integer:2\n", output.ToString()); //1.4.0 reloaded them as p1 and count
+		Assert.Contains("param-P1=a\nparam-Count=int:2\n", output.ToString()); //1.4.0 reloaded them as p1 and count; 1.3.0's types are written short
 	}
 
 	[Fact]

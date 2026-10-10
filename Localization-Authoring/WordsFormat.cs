@@ -25,7 +25,7 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>A language entry's <c>comment-xx=</c>.</summary>
 		[Words("feature.entry-comment")]
 		EntryComment = 1 << 3,
-		/// <summary>Format parameters, <c>param-x=Type:sample</c>.</summary>
+		/// <summary>Format parameters' definitions, <c>param-x=type:Description</c>.</summary>
 		[Words("feature.parameters")]
 		Parameters = 1 << 4,
 		/// <summary>Per-language stale marks, <c>stale-xx=</c>.</summary>

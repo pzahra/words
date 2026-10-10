@@ -1,27 +1,28 @@
-using PatTech.Localization;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
-using System.ComponentModel;
+using System.Globalization;
 using System.Windows.Input;
 using WordsEdit.Utils;
 
 namespace WordsEdit.ViewModels;
 
 /// <summary>
-///     The key's parameters — name, sample value, type — and the default they
-///     format into, live: what the previews will show, or why they will not.
-///     Every edit lands in the document as it is made; Close just closes, and
-///     the window closing, however it closes, lets go of the key.
+///     The key's parameters — name, type, description — each with a sample typed
+///     for it, and the default they format into, live: what the previews will
+///     show, or why they will not. Every edit to a definition lands in the
+///     document as it is made; the samples are the session's (SPEC: Parameters →
+///     The inputs). Close just closes, and the window closing, however it closes,
+///     lets go of the key.
 /// </summary>
 public class TestParametersViewModel : DialogViewModel {
 	private readonly WordsKey key;
+	private readonly Dictionary<string, string> inputs;
 
 	public override string Title => Words.Known["parameters.title"];
 	public MainWindowViewModel Parent { get; }
 
-	public ObservableCollection<WordsParameter> Parameters => key.Parameters;
-
-	public IEnumerable<WordsParameterType> DataTypes { get; } = WordsParameterType.All;
+	/// <summary>One row per definition, in the key's order.</summary>
+	public ObservableCollection<TestParameterRow> Rows { get; } = [];
 
 	/// <summary>The default formatted with the samples; the complaint when it will not format.</summary>
 	public string Result { get; private set => ChangeProperty(ref field, value); } = "";
@@ -29,41 +30,40 @@ public class TestParametersViewModel : DialogViewModel {
 
 	public ICommand CloseCommand { get; }
 	public ICommand AddParameterCommand { get; }
-	public ICommand RemoveParameterCommand { get; }
 
 	public TestParametersViewModel(MainWindowViewModel parent, WordsKey key) {
 		ArgumentNullException.ThrowIfNull(parent);
 		ArgumentNullException.ThrowIfNull(key);
 		this.key = key;
 		Parent = parent;
+		inputs = parent.Inputs.Of(key);
 		CloseCommand = new DelegateCommand(Close);
 		AddParameterCommand = new DelegateCommand(DoAddParameter);
-		RemoveParameterCommand = new DelegateCommand<WordsParameter>(DoRemoveParameter, CanRemoveParameter);
 		//the collection is the key's own: any edit to a row, or the row set, is a
 		//document change. Watch both for the life of the dialog
-		Parameters.CollectionChanged += OnParametersChanged;
-		foreach (var parameter in Parameters) {
-			parameter.PropertyChanged += OnParameterEdited;
-		}
+		key.Parameters.CollectionChanged += OnParametersChanged;
+		BuildRows();
 		Refresh();
 	}
 
 	private void OnParametersChanged(object? sender, NotifyCollectionChangedEventArgs e) {
-		if (e.OldItems is not null) {
-			foreach (WordsParameter parameter in e.OldItems) {
-				parameter.PropertyChanged -= OnParameterEdited;
-			}
-		}
-		if (e.NewItems is not null) {
-			foreach (WordsParameter parameter in e.NewItems) {
-				parameter.PropertyChanged += OnParameterEdited;
-			}
-		}
+		BuildRows();
 		Refresh();
 	}
 
-	//the window's Perform compares the parameters before and after, and dirties on a change
-	private void OnParameterEdited(object? sender, PropertyChangedEventArgs e) => Refresh();
+	private void BuildRows() {
+		DisposeRows();
+		foreach (var parameter in key.Parameters) {
+			Rows.Add(new(parameter, inputs, Refresh, DoRemoveParameter));
+		}
+	}
+
+	private void DisposeRows() {
+		foreach (var row in Rows) {
+			row.Dispose();
+		}
+		Rows.Clear();
+	}
 
 	//the default, references expanded, formatted the way the default preview does it
 	private void Refresh() {
@@ -77,22 +77,19 @@ public class TestParametersViewModel : DialogViewModel {
 		}
 	}
 
+	//the lowest number no definition has, so {0} and never P0 (SPEC: Parameters)
 	private void DoAddParameter() {
-		//the first free P<n>
 		int i = 0;
-		while (Parameters.Any(p => p.Key == $"P{i}")) {
+		while (key.Parameters.Any(p => p.Key == i.ToString(CultureInfo.InvariantCulture))) {
 			i++;
 		}
-		Parameters.Add(new($"P{i}", WordsParameterType.String, ""));
+		key.Parameters.Add(new(i.ToString(CultureInfo.InvariantCulture), WordsParameterType.Str, ""));
 	}
 
-	private bool CanRemoveParameter(WordsParameter p) => p is not null;
-	private void DoRemoveParameter(WordsParameter p) => Parameters.Remove(p);
+	private void DoRemoveParameter(WordsParameter p) => key.Parameters.Remove(p);
 
 	public override void Closed() {
-		Parameters.CollectionChanged -= OnParametersChanged;
-		foreach (var parameter in Parameters) {
-			parameter.PropertyChanged -= OnParameterEdited;
-		}
+		key.Parameters.CollectionChanged -= OnParametersChanged;
+		DisposeRows();
 	}
 }

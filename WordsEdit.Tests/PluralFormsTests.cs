@@ -27,7 +27,7 @@ public class PluralFormsTests {
 
 		[count]
 		value={0} {0#word}
-		param-0=Integer:4
+		param-0=int:the files
 
 		[plain]
 		value=hello
@@ -342,11 +342,12 @@ public class PluralFormsTests {
 		Assert.Equal("files", vm.DefaultPreview.Text);
 		vm.Tree.PickTranslationForm("few");
 		Assert.Equal("fajls", vm.TranslationPreview.Text); //an empty few reads other
-		//a value that selects previews with the Test Parameters samples
+		//a value that selects previews with the inputs typed for it
+		vm.Inputs.Of(vm.Session.Keys["Example.count"])["0"] = "4";
 		Select(vm, "count");
 		Assert.Equal("4 files", vm.DefaultPreview.Text);
 		Assert.Equal("4 fajls", vm.TranslationPreview.Text);
-		vm.Tree.SelectedKey!.Parameters[0].Value = "1";
+		vm.Inputs.Of(vm.Tree.SelectedKey!)["0"] = "1";
 		Select(vm, "word");
 		Select(vm, "count");
 		Assert.Equal("1 file", vm.DefaultPreview.Text);
@@ -368,9 +369,10 @@ public class PluralFormsTests {
 			[count]
 			value={0} {0#word}
 			value-ceb={0} {0#word}
-			param-0=Integer:5
+			param-0=int:the files
 
 			""");
+		vm.Inputs.Of(vm.Session.Keys["Example.count"])["0"] = "5";
 		vm.ShowDefaultPreview = true;
 		vm.ShowLocalizationPreview = true;
 		Select(vm, "count", "ceb");
@@ -387,9 +389,10 @@ public class PluralFormsTests {
 		TestParametersViewModel? dialog = null;
 		dialogs.OnShow = shown => {
 			dialog = (TestParametersViewModel)shown;
+			dialog.Rows[0].Sample = "4";
 			Assert.Equal("4 files", dialog.Result);
 			Assert.False(dialog.IsError);
-			dialog.Parameters[0].Value = "1"; //the sample picks the form
+			dialog.Rows[0].Sample = "1"; //the sample picks the form
 			Assert.Equal("1 file", dialog.Result);
 		};
 		vm.TestParametersCommand.Execute(null);

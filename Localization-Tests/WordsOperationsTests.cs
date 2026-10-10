@@ -49,14 +49,15 @@ public class WordsOperationsTests {
 	public void WordsOperations_MergeCopiesParametersAndReviewFlags() {
 		// the WordsKey copy constructor used to drop these silently
 		var keys = TwoFiles();
-		keys["A.title"].Parameters.Add(new WordsParameter("0", WordsParameterType.String, "sample"));
+		keys["A.title"].Parameters.Add(new WordsParameter("0", WordsParameterType.Int, "the files"));
 		keys["A.title"].NeedsReview = true;
 
 		var merged = WordsOperations.Merge(keys, "A", new Dictionary<string, string>(), "M", out _);
 
 		Assert.NotNull(merged);
 		var parameter = Assert.Single(merged["M.title"].Parameters);
-		Assert.Equal("sample", parameter.Value);
+		Assert.Equal(WordsParameterType.Int, parameter.DataType);
+		Assert.Equal("the files", parameter.Description);
 		Assert.True(merged["M.title"].NeedsReview);
 	}
 
@@ -272,27 +273,68 @@ public class WordsOperationsTests {
 
 	[Fact]
 	public void WordsOperations_FormatSampleFillsNumberedAndNamedParameters() {
-		var key = new WordsKey("F.k");
-		key.Parameters.Add(new WordsParameter("0", WordsParameterType.Select("Double"), "22"));
-		key.Parameters.Add(new WordsParameter("Top", WordsParameterType.Select("Double"), "1.2345"));
-		key.Parameters.Add(new WordsParameter("1", WordsParameterType.String, "one"));
+		Dictionary<string, object?> values = new() { ["0"] = 22.0, ["Top"] = 1.2345, ["1"] = "one" };
 
-		var text = WordsOperations.FormatSample(key, "{0:N1} {1} N{Top:g2} {Nope}", System.Globalization.CultureInfo.InvariantCulture);
+		var text = WordsOperations.FormatSample("{0:N1} {1} N{Top:g2} {Nope}", values, System.Globalization.CultureInfo.InvariantCulture);
 
 		Assert.Equal("22.0 one N1.2 #Nope#", text);
 	}
 
 	[Fact]
-	public void WordsOperations_FormatSampleSurvivesMetacharactersAndReportsBadSamples() {
+	public void WordsOperations_FormatSampleSurvivesMetacharacters() {
 		// a parameter named with regex metacharacters used to throw from the
 		// pattern the editor built; now names are only ever looked up
-		var key = new WordsKey("F.k");
-		key.Parameters.Add(new WordsParameter("a+(b)", WordsParameterType.String, "x"));
+		Assert.Equal("plain", WordsOperations.FormatSample("plain", new Dictionary<string, object?> { ["a+(b)"] = "x" }));
+	}
 
-		Assert.Equal("plain", WordsOperations.FormatSample(key, "plain"));
+	private static readonly IWords NoWords = new CulturedWords(new DefaultWordsProvider(new Dictionary<string, WordsKey>(), []), System.Globalization.CultureInfo.InvariantCulture);
 
-		key.Parameters.Add(new WordsParameter("n", WordsParameterType.Select("Integer"), "not a number"));
-		Assert.Throws<FormatException>(() => WordsOperations.FormatSample(key, "{n}"));
+	[Fact]
+	public void WordsOperations_ReadInputsReadsEachTypeInTheInvariantCulture() {
+		var values = WordsOperations.ReadInputs([
+			("0", WordsParameterType.Str, "the file"),
+			("1", WordsParameterType.Int, "-42"),
+			("2", WordsParameterType.Real, "1,234.5"),
+			("3", WordsParameterType.Time, "1:30:00"),
+			("4", WordsParameterType.Date, "2026-10-10 09:30"),
+			("5", WordsParameterType.Int, ""),
+		], NoWords);
+
+		Assert.Equal("the file", values["0"]);
+		Assert.Equal(-42, values["1"]);
+		Assert.Equal(1234.5, values["2"]);
+		Assert.Equal(new TimeSpan(1, 30, 0), values["3"]);
+		Assert.Equal(new DateTimeOffset(2026, 10, 10, 9, 30, 0, TimeSpan.Zero), values["4"]);
+		Assert.False(values.ContainsKey("5")); //an empty input passes nothing
+	}
+
+	[Theory]
+	[InlineData("int", "1.5", "{n}: \"1.5\" is no whole number, such as 42")]
+	[InlineData("int", "not a number", "{n}: \"not a number\" is no whole number, such as 42")]
+	[InlineData("real", "1,5,x", "{n}: \"1,5,x\" is no number, such as 1.5")]
+	[InlineData("time", "soon", "{n}: \"soon\" is no span of time, such as 1:30:00")]
+	[InlineData("date", "someday", "{n}: \"someday\" is no moment, such as 2026-10-10 09:30")]
+	[InlineData("enum(enums.brew)", "flat white", "{n}: \"flat white\" is no member under enums.brew")]
+	public void WordsOperations_ReadInputsRefusesWhatItsTypeCannotRead(string type, string input, string complaint) {
+		Assert.True(WordsParameterType.TryParse(type, out var parsed));
+
+		var ex = Assert.Throws<FormatException>(() => WordsOperations.ReadInputs([("n", parsed, input)], NoWords));
+
+		Assert.Equal(complaint, ex.Message);
+	}
+
+	[Fact]
+	public void WordsOperations_ReadInputsDescribesAnEnumsMemberInTheWordsGiven() {
+		// the member's words in the pane's language, or its name where it has none
+		var latte = new WordsKey("A.enums.brew.latte") { DefaultValue = "Latte" };
+		latte.Entries["it"] = new WordsEntry { Value = "Caffellatte" };
+		Dictionary<string, WordsKey> keys = new() { ["A.enums.brew.latte"] = latte };
+		var brew = WordsParameterType.Enum("enums.brew");
+		var italian = new CulturedWords(new LanguageWordsProvider(keys, "it", ["A"]), System.Globalization.CultureInfo.GetCultureInfo("it"));
+
+		Assert.Equal("Latte", WordsOperations.ReadInputs([("0", brew, "latte")], new CulturedWords(new DefaultWordsProvider(keys, ["A"]), System.Globalization.CultureInfo.InvariantCulture))["0"]);
+		Assert.Equal("Caffellatte", WordsOperations.ReadInputs([("0", brew, "latte")], italian)["0"]);
+		Assert.Equal("affogato", WordsOperations.ReadInputs([("0", brew, "affogato")], italian)["0"]);
 	}
 
 	[Fact]

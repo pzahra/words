@@ -76,7 +76,7 @@ param=wordsmith.ini
 context=shown at login
 comment=keep it short
 value=Hello {0}
-param-0=String:Pat
+param-0=enum(enums.title):how the visitor is addressed
 stale=
 value-fr=Bonjour {0}
 stale-fr=2026-01-01
@@ -155,7 +155,7 @@ context-fr=untranslated, with a note
 			Assert.Equal("keep it short", greeting.Comment);
 			Assert.True(greeting.NeedsReview);
 			WordsParameter parameter = Assert.Single(greeting.Parameters);
-			Assert.Equal(("0", "String", "Pat"), (parameter.Key, parameter.DataType.Name, parameter.Value));
+			Assert.Equal(("0", WordsParameterType.Str, "Pat"), (parameter.Key, parameter.DataType, parameter.Description)); //1.3.0's type name, read short
 			Assert.Equal("Bonjour {0}", greeting.Entries["fr"].Value);
 			Assert.Equal("2026-01-01", greeting.Entries["fr"].Stale);
 			Assert.Equal("formal", greeting.Entries["fr"].Context);
@@ -386,7 +386,7 @@ context-fr=untranslated, with a note
 		Assert.Equal([("developer", "source", "shown at login"), ("translator", "source", "keep it short"), ("developer", "target", "formal"), ("translator", "target", "vu")],
 			greeting.Elements(X + "note").Select(note => ((string)note.Attribute("from")!, (string)note.Attribute("annotates")!, note.Value)));
 		XElement parameter = Assert.Single(greeting.Elements(W + "param"));
-		Assert.Equal(("0", "String", "Pat"), ((string)parameter.Attribute("name")!, (string)parameter.Attribute("type")!, parameter.Value));
+		Assert.Equal(("0", "enum(enums.title)", "how the visitor is addressed"), ((string)parameter.Attribute("name")!, (string)parameter.Attribute("type")!, parameter.Value));
 
 		Assert.Equal("no", (string)units2[1].Attribute("translate")!); //the constant
 		Assert.Equal("needs-translation", (string)units2[1].Element(X + "target")!.Attribute("state")!);
@@ -443,7 +443,7 @@ context-fr=untranslated, with a note
 				Assert.Equal(before.Comment, after.Comment);
 				Assert.Equal(before.NeedsReview, after.NeedsReview);
 				Assert.Equal(before.IsConstant, after.IsConstant);
-				Assert.Equal(before.Parameters.Select(p => (p.Key, p.DataType.Name, p.Value)), after.Parameters.Select(p => (p.Key, p.DataType.Name, p.Value)));
+				Assert.Equal(before.Parameters.Select(p => (p.Key, p.DataType, p.Description)), after.Parameters.Select(p => (p.Key, p.DataType, p.Description)));
 				foreach (string code in (string[])["en", "fr"]) {
 					Assert.Equal(before.Entries[code].Value, after.Entries[code].Value);
 					Assert.Equal(before.Entries[code].Stale, after.Entries[code].Stale);

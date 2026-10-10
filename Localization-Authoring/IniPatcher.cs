@@ -120,9 +120,9 @@ namespace PatTech.Localization.Authoring {
 		///     missing. A field already holding the text is left alone; a field declared
 		///     more than once keeps its first place, and its others go. A new field goes
 		///     after the last of its block, a new key after the header chain holding
-		///     its nearest sibling, as a full header. A parameter whose text names no
-		///     type before its first <c>:</c> is written as a String's, behind
-		///     <c>String:</c>, so its words read back whole.
+		///     its nearest sibling, as a full header. A parameter's text is written as
+		///     given: the reader keeps a text whose words before the first <c>:</c> name
+		///     no type whole.
 		/// </summary>
 		/// <returns>The gripes the change adds to the file's.</returns>
 		/// <exception cref="ArgumentException"><paramref name="key"/> is no key name (<see cref="WordsParser.IsKeyName"/>), or <paramref name="text"/> holds a NUL.</exception>
@@ -137,11 +137,6 @@ namespace PatTech.Localization.Authoring {
 				text = ""; //the default's stale mark keeps no words
 			}
 			List<string> notes = [];
-			if (field.Type == "param" && text.Split(':', count: 2) is [var type, _] && !WordsParameterType.All.Any(known => known.Name == type)) {
-				//read as written, the words before the first ':' would go as the type
-				text = $"{WordsParameterType.String.Name}:{text}";
-				notes.Add($"{key}: {field} names no type {type} ({string.Join(", ", WordsParameterType.All.Select(known => known.Name))}), so it is written as a String's words: {text}");
-			}
 			var own = Declarations(key, field);
 			if (own.Count == 1 && Find(key) is { } found && field.Read(found) == text) {
 				return notes;

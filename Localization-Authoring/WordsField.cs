@@ -66,8 +66,9 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>
 		///     The field's text in <paramref name="key"/>, or <see langword="null"/>
 		///     when it is not there. An empty text is none, except a stale mark, which
-		///     is there with or without words; the default's stale mark keeps no words,
-		///     and a parameter reads as written, <c>Type:value</c>.
+		///     is there with or without words, and a parameter, which is there when it
+		///     is defined; the default's stale mark keeps no words, and a parameter
+		///     reads as the writer writes it, <c>type:Description</c>.
 		/// </summary>
 		public string? Read(WordsKey key) {
 			string name = Language;
@@ -81,15 +82,16 @@ namespace PatTech.Localization.Authoring {
 				("comment", false) => entry?.Comment,
 				("stale", true) => key.NeedsReview ? "" : null,
 				("stale", false) => entry?.Stale,
-				_ => key.Parameters.FirstOrDefault(parameter => parameter.Key == name) is { } parameter ? $"{parameter.DataType.Name}:{parameter.Value}" : null,
+				_ => key.Parameters.FirstOrDefault(parameter => parameter.Key == name)?.FieldText,
 			};
-			return text == "" && Type != "stale" ? null : text;
+			return text == "" && Type is not ("stale" or "param") ? null : text;
 		}
 
 		/// <summary>
 		///     Sets the field's text in <paramref name="key"/> as reading the file back
 		///     would, or clears it for <see langword="null"/>: the default's stale mark
-		///     keeps no words, and a parameter without a <c>Type:</c> is a string.
+		///     keeps no words, and a parameter's text is split as the reader splits it
+		///     (<see cref="WordsParameterType.Split"/>).
 		/// </summary>
 		public void Write(WordsKey key, string? text) {
 			if (Type == "param") {
@@ -99,10 +101,8 @@ namespace PatTech.Localization.Authoring {
 					key.Parameters.Remove(existing);
 				}
 				if (text is not null) {
-					string[] parts = text.Split(':', count: 2);
-					key.Parameters.Add(parts.Length > 1
-						? new WordsParameter(Language, WordsParameterType.Select(parts[0]), parts[1])
-						: new WordsParameter(Language, WordsParameterType.String, parts[0]));
+					var (type, description) = WordsParameterType.Split(text);
+					key.Parameters.Add(new WordsParameter(Language, type, description));
 				}
 				return;
 			}

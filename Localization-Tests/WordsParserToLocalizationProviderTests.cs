@@ -166,7 +166,27 @@ def
 
 		var parameter = Assert.Single(consumer.WordKeys["k"].Parameters);
 		Assert.Equal("x", parameter.Key);
-		Assert.Equal("abcdef", parameter.Value);
+		Assert.Equal(WordsParameterType.Str, parameter.DataType);
+		Assert.Equal("abcdef", parameter.Description);
+	}
+
+	[Fact]
+	public void WordsParserToLocalizationProvider_ParamFoldInsideTheType() {
+		// a fold may fall anywhere, the type included: the whole text is split again
+		// as each continuation lands, so the type reads as one word
+		WordsParserToLocalizationProvider consumer = new();
+		new WordsParser(consumer).Load(new StringReader(@"
+value-en=English
+
+[k]
+param-0=re_
+al:the share_
+ done
+"));
+
+		var parameter = Assert.Single(consumer.WordKeys["k"].Parameters);
+		Assert.Equal(WordsParameterType.Real, parameter.DataType);
+		Assert.Equal("the share done", parameter.Description);
 	}
 
 	[Fact]
@@ -256,14 +276,14 @@ value=x
 		Assert.Equal("context line 1\nsecond line\nthird line", localizationKeyDictionary["key1"].Context);
 		Assert.Equal("comment", localizationKeyDictionary["key1"].Comment);
 		Assert.Equal("0", localizationKeyDictionary["key1"].Parameters[0].Key);
-		Assert.Equal(typeof(double), localizationKeyDictionary["key1"].Parameters[0].DataType.DataType);
-		Assert.Equal("22", localizationKeyDictionary["key1"].Parameters[0].Value);
+		Assert.Equal(WordsParameterType.Real, localizationKeyDictionary["key1"].Parameters[0].DataType);
+		Assert.Equal("22", localizationKeyDictionary["key1"].Parameters[0].Description);
 		Assert.Equal("one", localizationKeyDictionary["key1"].Parameters[1].Key);
-		Assert.Equal(typeof(string), localizationKeyDictionary["key1"].Parameters[1].DataType.DataType);
-		Assert.Equal("one", localizationKeyDictionary["key1"].Parameters[1].Value);
+		Assert.Equal(WordsParameterType.Str, localizationKeyDictionary["key1"].Parameters[1].DataType);
+		Assert.Equal("one", localizationKeyDictionary["key1"].Parameters[1].Description);
 		Assert.Equal("date", localizationKeyDictionary["key1"].Parameters[2].Key);
-		Assert.Equal(typeof(DateTimeOffset), localizationKeyDictionary["key1"].Parameters[2].DataType.DataType);
-		Assert.Equal("6/13/2023", localizationKeyDictionary["key1"].Parameters[2].Value);
+		Assert.Equal(WordsParameterType.Date, localizationKeyDictionary["key1"].Parameters[2].DataType);
+		Assert.Equal("6/13/2023", localizationKeyDictionary["key1"].Parameters[2].Description);
 		Assert.True(localizationKeyDictionary["key1"].NeedsReview);
 		Assert.Equal("Override check", localizationKeyDictionary["key1"].Entries["en-US"].Value);
 		Assert.Equal("US context", localizationKeyDictionary["key1"].Entries["en-US"].Context);

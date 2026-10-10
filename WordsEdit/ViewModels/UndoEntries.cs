@@ -323,7 +323,7 @@ public sealed class ParametersEdit(string label, IReadOnlyList<WordsParameter> b
 
 	public static bool Same(IReadOnlyList<WordsParameter> a, IReadOnlyList<WordsParameter> b)
 		=> a.Count == b.Count && a.Zip(b).All(pair => pair.First.Key == pair.Second.Key
-			&& pair.First.Value == pair.Second.Value
+			&& pair.First.Description == pair.Second.Description
 			&& Equals(pair.First.DataType, pair.Second.DataType));
 
 	protected override void Change(WordsKey key, bool undoing) {

@@ -24,9 +24,9 @@ dropped, so a multi-line value needs no shell quoting. A redirected stdin is
 UTF-8 exactly: bytes that are no UTF-8 are a bad call, never replacement
 characters, and a leading U+FEFF is the value's own, so `get` piped into `set`
 carries it whole; since a tool writing a BOM puts one there too, a line on
-stderr says it was kept. A `param-` text whose words before the first `:` name
-no type is written behind `String:`, with a note, so it reads back whole
-rather than losing them as an unknown type:
+stderr says it was kept. A `param-` text is written as given, since its words
+before the first `:` are a type only where they name one (the editor spec's
+*Parameters*), so a text that names none reads back whole:
 
 - `get <file> <key> [field]` prints a field's value, unescaped, or the whole
   block as Save writes it, under a full header, when no field is named.
@@ -154,7 +154,7 @@ each line of a mixed file keeps its own break, UTF-16 stays UTF-16 and UTF-32
 UTF-32, either way round; text that is not UTF-8 does not open, nor UTF-16
 without its BOM, and no value writes a NUL; the text a field already holds
 leaves its hand-written lines; a field declared twice keeps its first place; a
-parameter of no type keeps its words behind `String:`; only the gripes an edit
+parameter of no type is written as given; only the gripes an edit
 adds are reported; an edit that would spill into a continued last line is
 refused and changes nothing; a removal drops a field with its continuations,
 an empty one included, a block with one blank line, the last block with none

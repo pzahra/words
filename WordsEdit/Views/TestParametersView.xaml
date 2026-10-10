@@ -5,14 +5,13 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes"
-             xmlns:uc="clr-namespace:WordsEdit.Utils"
              xmlns:vm="clr-namespace:WordsEdit.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:TestParametersViewModel}"
              Padding="10">
     <!-- the Test Parameters window (SPEC: The baseline pane): the key's parameters as a
-         table of name, type and sample, a trash on each row and a + under them; the
-         default formatted with the samples below, live -->
+         table of name, type, description and sample, a trash on each row and a + under
+         them; the default formatted with the samples below, live -->
     <StackPanel Grid.IsSharedSizeScope="True">
         <TextBlock Text="{l:Words parameters.title}"
                    FontWeight="Bold"
@@ -22,46 +21,52 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" SharedSizeGroup="Name"/>
                 <ColumnDefinition Width="Auto" SharedSizeGroup="Type"/>
+                <ColumnDefinition Width="Auto" SharedSizeGroup="Description"/>
                 <ColumnDefinition Width="Auto" SharedSizeGroup="Sample"/>
                 <ColumnDefinition Width="Auto" SharedSizeGroup="Trash"/>
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Text="{l:Words parameters.name}" FontWeight="SemiBold" Margin="2.5px"/>
             <TextBlock Grid.Column="1" Text="{l:Words parameters.type}" FontWeight="SemiBold" Margin="2.5px"/>
-            <TextBlock Grid.Column="2" Text="{l:Words parameters.sample}" FontWeight="SemiBold" Margin="2.5px"/>
+            <TextBlock Grid.Column="2" Text="{l:Words parameters.description}" FontWeight="SemiBold" Margin="2.5px"/>
+            <TextBlock Grid.Column="3" Text="{l:Words parameters.sample}" FontWeight="SemiBold" Margin="2.5px"/>
         </Grid>
         <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="250">
-            <ItemsControl ItemsSource="{Binding Parameters}">
+            <ItemsControl ItemsSource="{Binding Rows}">
                 <ItemsControl.ItemTemplate>
-                    <DataTemplate>
+                    <DataTemplate DataType="{x:Type vm:TestParameterRow}">
                         <Grid Margin="2.5px 0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" SharedSizeGroup="Name"/>
                                 <ColumnDefinition Width="Auto" SharedSizeGroup="Type"/>
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="Description"/>
                                 <ColumnDefinition Width="Auto" SharedSizeGroup="Sample"/>
                                 <ColumnDefinition Width="Auto" SharedSizeGroup="Trash"/>
                             </Grid.ColumnDefinitions>
                             <TextBox Grid.Column="0"
-                                     Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}"
+                                     Text="{Binding Parameter.Key, UpdateSourceTrigger=PropertyChanged}"
                                      VerticalAlignment="Top"
                                      Width="110"
                                      Margin="2.5px"/>
                             <ComboBox Grid.Column="1"
-                                      ItemsSource="{Binding DataContext.DataTypes, RelativeSource={uc:FindAncestor UserControl}}"
-                                      SelectedItem="{Binding DataType}"
-                                      DisplayMemberPath="Name"
+                                      ItemsSource="{Binding Types}"
+                                      SelectedItem="{Binding Parameter.DataType}"
                                       VerticalAlignment="Top"
                                       Width="110"
                                       Margin="2.5px"/>
                             <TextBox Grid.Column="2"
-                                     Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                                     Text="{Binding Parameter.Description, UpdateSourceTrigger=PropertyChanged}"
                                      VerticalAlignment="Top"
                                      TextWrapping="Wrap"
-                                     AcceptsReturn="True"
-                                     Width="240"
+                                     Width="200"
                                      Margin="2.5px"/>
-                            <Button Grid.Column="3"
-                                    Command="{Binding DataContext.RemoveParameterCommand, RelativeSource={uc:FindAncestor UserControl}}"
-                                    CommandParameter="{Binding}"
+                            <TextBox Grid.Column="3"
+                                     Text="{Binding Sample, UpdateSourceTrigger=PropertyChanged}"
+                                     VerticalAlignment="Top"
+                                     TextWrapping="Wrap"
+                                     Width="160"
+                                     Margin="2.5px"/>
+                            <Button Grid.Column="4"
+                                    Command="{Binding RemoveCommand}"
                                     ToolTip="{l:Words parameters.remove}"
                                     Style="{StaticResource ToolButton}"
                                     VerticalAlignment="Top"

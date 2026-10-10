@@ -56,6 +56,9 @@ namespace PatTech.Localization.Authoring {
 		private readonly Dictionary<string, string> blockComments = [];
 		private readonly Dictionary<string, string> languageSettings = [];
 		private readonly HashSet<(string Key, string Type, string Language)> valuesRead = [];
+		//each parameter's text as read so far, split again as each line extends it, so
+		//a type is read from the whole text however the writer folded it
+		private readonly Dictionary<WordsParameter, string> parameterTexts = [];
 
 		public WordsParserToLocalizationProvider() { }
 
@@ -183,14 +186,9 @@ namespace PatTech.Localization.Authoring {
 						break;
 					case (not "", "param"):
 						if (!localizationKey.Parameters.Any(parameter => parameter.Key == languageCode)) {
-							var values = value.Split(':', count: 2);
-							string dataTypeName = values.Length > 1 ? values[0] : "String";
-							string providedValue = values.Length > 1 ? values[1] : values[0];
-							WordsParameter parameterToAdd = new(
-								key: languageCode,
-								dataType: WordsParameterType.Select(dataTypeName),
-								value: providedValue
-							);
+							var (type, description) = WordsParameterType.Split(value);
+							WordsParameter parameterToAdd = new(languageCode, type, description);
+							parameterTexts[parameterToAdd] = value;
 							localizationKey.Parameters.Add(parameterToAdd);
 						}
 						break;
@@ -261,12 +259,10 @@ namespace PatTech.Localization.Authoring {
 					localizationKey.Entries[languageCode].Stale += value;
 					break;
 				case (not "", "param"):
-					// continue the value of the parameter this line belongs to
-					foreach (var parameter in localizationKey.Parameters) {
-						if (parameter.Key == languageCode) {
-							parameter.Value += value;
-							break;
-						}
+					// continue the text of the parameter this line belongs to
+					if (localizationKey.Parameters.FirstOrDefault(parameter => parameter.Key == languageCode) is { } continued) {
+						string text = parameterTexts[continued] += value;
+						(continued.DataType, continued.Description) = WordsParameterType.Split(text);
 					}
 					break;
 				default:

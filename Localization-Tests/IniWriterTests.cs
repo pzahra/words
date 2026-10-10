@@ -339,6 +339,28 @@ public class IniWriterTests {
 		Assert.Equal(@"one\", reloaded["trailing"].DefaultValue);
 	}
 
+	[Theory]
+	[InlineData("the file: its full path", "str", "the file: its full path", "the file: its full path")] //no type, so whole
+	[InlineData("INT:", "int", "", "int:")]
+	[InlineData("str:real: a share", "str", "real: a share", "str:real: a share")] //words that would read as a type keep str
+	[InlineData("Integer:2", "int", "2", "int:2")] //1.3.0's name, written short; its sample is a description now
+	[InlineData("DateTimeOffset:6/13/2023", "date", "6/13/2023", "date:6/13/2023")]
+	[InlineData("ENUM(enums.Brew):the coffee", "enum(enums.Brew)", "the coffee", "enum(enums.Brew):the coffee")] //its prefix as written
+	[InlineData("enum(no key):x", "str", "enum(no key):x", "enum(no key):x")]
+	public void IniWriter_ParameterDefinitionsRoundTrip(string text, string type, string description, string written) {
+		var reloaded = Reload($"value-en=English\n\n[k]\nvalue=x\nparam-0={text}\n");
+		var parameter = Assert.Single(reloaded["k"].Parameters);
+		Assert.Equal((type, description), (parameter.DataType.ToString(), parameter.Description));
+
+		var key = new WordsKey("F.k") { DefaultValue = "x" };
+		key.Parameters.Add(parameter);
+		var output = Write(new FakeNode("F", new FakeNode("F.k")), new() { ["F.k"] = key });
+
+		Assert.Contains($"\nparam-0={written}\n", output.ReplaceLineEndings("\n"));
+		var again = Assert.Single(Reload(output)["k"].Parameters);
+		Assert.Equal((type, description), (again.DataType.ToString(), again.Description));
+	}
+
 	[Fact]
 	public void IniWriter_TerminalBackslashInContextDoesNotSwallowTheNextField() {
 		// a context ending in a literal backslash used to write as a naked

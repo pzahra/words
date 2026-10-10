@@ -261,44 +261,62 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		/// <summary>
-		///     Try the key's sample parameters on <paramref name="text"/> (its
-		///     rendered value) exactly the way a host app formats it: numbered
-		///     parameters (<c>0</c>, <c>1</c>…) fill the positional slots, the rest go
-		///     by name through <see cref="Words.FormatByName(IFormatProvider?, string, object?, object?[])"/>, which reads a dictionary by name.
-		///     A sample that doesn't parse as its declared type throws
-		///     <see cref="FormatException"/>, as does a template
-		///     <see cref="string.Format(string, object[])"/> rejects — the same
-		///     failure the host would see.
+		///     Try <paramref name="values"/> on <paramref name="text"/> (a rendered
+		///     value) exactly the way a host app formats it: numbered parameters
+		///     (<c>0</c>, <c>1</c>…) fill the positional slots, the rest go by name
+		///     through <see cref="Words.FormatByName(IFormatProvider?, string, object?, object?[])"/>, which reads a dictionary by name.
+		///     A template <see cref="string.Format(string, object[])"/> rejects throws
+		///     <see cref="FormatException"/>: the same failure the host would see.
 		/// </summary>
-		public static string FormatSample(WordsKey key, string text, IFormatProvider? provider = null) {
-			var (named, positional) = Samples(key);
+		/// <param name="text">The template.</param>
+		/// <param name="values">What the code would pass, by parameter name (<see cref="ReadInputs"/>).</param>
+		/// <param name="provider">The culture to format in.</param>
+		public static string FormatSample(string text, IReadOnlyDictionary<string, object?> values, IFormatProvider? provider = null) {
+			var (named, positional) = Arguments(values);
 			return Words.FormatByName(provider, text, named, positional);
 		}
 
 		/// <summary>
-		///     The same, looked up in <paramref name="words"/> by the key's name, so a
-		///     plural selector (<c>{0#word}</c>) picks its form by the samples, in the
-		///     dictionary's language, as a host app's <c>Format</c> would.
+		///     The same, looked up in <paramref name="words"/> by <paramref name="key"/>,
+		///     so a plural selector (<c>{0#word}</c>) picks its form by the values, in
+		///     the dictionary's language, as a host app's <c>Format</c> would.
 		/// </summary>
-		public static string FormatSample(IWords words, WordsKey key, IFormatProvider? provider = null) {
-			var (named, positional) = Samples(key);
-			return words.FormatByName(provider, key.BlockKey, named, positional);
+		public static string FormatSample(IWords words, string key, IReadOnlyDictionary<string, object?> values, IFormatProvider? provider = null) {
+			var (named, positional) = Arguments(values);
+			return words.FormatByName(provider, key, named, positional);
 		}
 
-		//the samples as a host app would hand them: numbered ones in their slots, the rest by name
-		private static (Dictionary<string, object?> Named, object?[] Positional) Samples(WordsKey key) {
+		/// <summary>
+		///     The values an editor's inputs stand for (editor SPEC: Parameters → The
+		///     inputs): each input with text, read as its parameter's type; an input
+		///     left empty passes nothing.
+		/// </summary>
+		/// <param name="inputs">What was typed, by parameter name, with the type it is read as: its definition's, or a guess for one found and not defined.</param>
+		/// <param name="words">The words an <c>enum</c>'s member is described in.</param>
+		/// <exception cref="FormatException">An input is none of what its type reads.</exception>
+		public static Dictionary<string, object?> ReadInputs(IEnumerable<(string Name, WordsParameterType Type, string Input)> inputs, IWords words) {
+			var values = new Dictionary<string, object?>();
+			foreach (var (name, type, input) in inputs) {
+				if (input != "") {
+					values[name] = type.Read(name, input, words);
+				}
+			}
+			return values;
+		}
+
+		//the values as a host app would hand them: numbered ones in their slots, the rest by name
+		private static (Dictionary<string, object?> Named, object?[] Positional) Arguments(IReadOnlyDictionary<string, object?> values) {
 			var named = new Dictionary<string, object?>();
 			var positional = new List<object?>();
-			foreach (WordsParameter parameter in key.Parameters) {
-				object value = parameter.ToObject();
-				if (int.TryParse(parameter.Key, NumberStyles.None, CultureInfo.InvariantCulture, out int index)) {
+			foreach (var (name, value) in values) {
+				if (int.TryParse(name, NumberStyles.None, CultureInfo.InvariantCulture, out int index)) {
 					while (positional.Count <= index) {
 						positional.Add(null);
 					}
 					positional[index] = value;
 				}
 				else {
-					named[parameter.Key] = value;
+					named[name] = value;
 				}
 			}
 			return (named, [.. positional]);

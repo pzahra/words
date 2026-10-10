@@ -220,7 +220,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 			foreach (XElement parameter in unit.Elements(Ext + "param")) {
 				string named = (string?)parameter.Attribute("name") ?? "";
 				if (named != "" && !key.Parameters.Any(existing => existing.Key == named)) {
-					key.Parameters.Add(new WordsParameter(named, WordsParameterType.Select((string?)parameter.Attribute("type") ?? "String"), parameter.Value));
+					key.Parameters.Add(new WordsParameter(named, WordsParameterType.TryParse((string?)parameter.Attribute("type") ?? "", out var type) ? type : WordsParameterType.Str, parameter.Value));
 				}
 			}
 		}
@@ -343,7 +343,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 					Note(trans, "translator", "target", entry.Comment);
 				}
 				foreach (WordsParameter parameter in key.Parameters) {
-					trans.Add(new XElement(Ext + "param", new XAttribute("name", parameter.Key), new XAttribute("type", parameter.DataType.Name), parameter.Value));
+					trans.Add(new XElement(Ext + "param", new XAttribute("name", parameter.Key), new XAttribute("type", parameter.DataType.ToString()), parameter.Description));
 				}
 				body.Add(trans);
 			}

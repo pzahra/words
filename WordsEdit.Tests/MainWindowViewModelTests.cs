@@ -139,11 +139,20 @@ value=x
 		Assert.Equal("Base", vm.DefaultPreview.Text);
 
 		vm.Tree.SelectedKey!.DefaultValue = "Base {0:N1} {1}";
+		Assert.Equal("Base {0:N1} {1}", vm.DefaultPreview.Text); //nothing typed: as written
+		Assert.Empty(vm.DefaultPreview.Gripes);
+
+		//the parameter dialog closes: the samples typed in it are applied
+		dialogs.OnShow = shown => {
+			var rows = ((TestParametersViewModel)shown).Rows;
+			rows[0].Sample = "22";
+			rows[1].Sample = "one";
+		};
+		vm.TestParametersCommand.Execute(vm.Tree.SelectedKey);
 		Assert.Equal("Base 22.0 one", vm.DefaultPreview.Text);
 		Assert.Empty(vm.DefaultPreview.Gripes);
 
-		//the parameter dialog closes: the samples are re-applied
-		dialogs.OnShow = _ => vm.Tree.SelectedKey.Parameters[0].Value = "twenty-two";
+		dialogs.OnShow = shown => ((TestParametersViewModel)shown).Rows[0].Sample = "twenty-two";
 		vm.TestParametersCommand.Execute(vm.Tree.SelectedKey);
 		Assert.Equal("Base {0:N1} {1}", vm.DefaultPreview.Text);
 		Assert.NotEmpty(vm.DefaultPreview.Gripes);
@@ -162,9 +171,10 @@ value-de=Deutsch
 
 [k]
 value=n={0:N1}
-param-0=Double:22.5
+param-0=real:the count
 value-de=n={0:N1}
 "), "T");
+		vm.Inputs.Of(vm.Session.Keys["T.k"])["0"] = "22.5"; //typed in the invariant culture, shown in each pane's
 		vm.ShowDefaultPreview = true;
 		vm.ShowLocalizationPreview = true;
 		vm.Tree.SelectedKeyNode = Node(vm, "T.k");
@@ -254,8 +264,8 @@ value-de=n={0:N1}
 
 		//a sample that will not format heads the list and the text stays raw
 		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
-		vm.Tree.SelectedKey!.Parameters[0].Value = "twenty-two";
-		vm.Tree.SelectedKey.DefaultValue = "Base {0:N1}";
+		vm.Inputs.Of(vm.Tree.SelectedKey!)["0"] = "twenty-two";
+		vm.Tree.SelectedKey!.DefaultValue = "Base {0:N1}";
 		Assert.Equal("Base {0:N1}", vm.DefaultPreview.Text);
 		Assert.Contains("twenty-two", vm.DefaultPreview.Gripes[0]);
 
@@ -292,7 +302,7 @@ value-de=n={0:N1}
 			Assert.Equal(key1.Entries.Keys, key2.Entries.Keys);
 			foreach (var (parameter1, parameter2) in key1.Parameters.Zip(key2.Parameters)) {
 				Assert.Equal(parameter1.Key, parameter2.Key);
-				Assert.Equal(parameter1.Value, parameter2.Value);
+				Assert.Equal(parameter1.Description, parameter2.Description);
 				Assert.Equal(parameter1.DataType, parameter2.DataType);
 			}
 			foreach (string languageCode in key1.Entries.Keys) {
@@ -1139,21 +1149,65 @@ value=x
 		TestParametersViewModel? dialog = null;
 		dialogs.OnShow = shown => {
 			dialog = (TestParametersViewModel)shown;
+			Assert.Equal(["0", "1", "2"], dialog.Rows.Select(row => row.Parameter.Key));
+			Assert.Equal(["real", "str", "date"], dialog.Rows.Select(row => row.Parameter.DataType.ToString()));
+			Assert.Equal(["the share", "the item", "when it was sent"], dialog.Rows.Select(row => row.Parameter.Description));
+			Assert.Equal("Base {0:N1} {1}", dialog.Result); //nothing typed: as written
+
+			dialog.Rows[0].Sample = "22";
+			dialog.Rows[1].Sample = "one";
 			Assert.Equal("Base 22.0 one", dialog.Result);
 			Assert.False(dialog.IsError);
 
-			dialog.Parameters[0].Value = "twenty-two"; //no double: the result says why
+			dialog.Rows[0].Sample = "twenty-two"; //no number: the result says why
 			Assert.True(dialog.IsError);
-			Assert.NotEqual("", dialog.Result);
+			Assert.Contains("twenty-two", dialog.Result);
 
-			dialog.Parameters[0].Value = "7";
+			dialog.Rows[0].Sample = "7";
 			Assert.Equal("Base 7.0 one", dialog.Result);
 			Assert.False(dialog.IsError);
 			dialog.CloseCommand.Execute(null);
 		};
 		vm.TestParametersCommand.Execute(vm.Tree.SelectedKey);
 		Assert.NotNull(dialog);
+		Assert.False(vm.IsDirty); //the samples are the session's
+		Assert.Equal(1, vm.UndoStack.DoneCount); //the default's edit alone
+	}
+
+	[Fact]
+	public void TestParameters_SamplesAreTheSessions() {
+		// a sample follows its definition's renaming, outlives a key switch, and
+		// goes with Reset; the definitions are the document's
+		var dialogs = new FakeDialogs();
+		var vm = new MainWindowViewModel(dialogs);
+		vm.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
+		WordsKey key = vm.Tree.SelectedKey!;
+		key.DefaultValue = "Base {count}";
+		vm.IsDirty = false;
+		vm.ShowDefaultPreview = true;
+
+		dialogs.OnShow = shown => {
+			var dialog = (TestParametersViewModel)shown;
+			dialog.Rows[1].Sample = "pens";
+			dialog.Rows[1].Parameter.Key = "count";
+			Assert.Equal("pens", dialog.Rows[1].Sample);
+			Assert.Equal("Base pens", dialog.Result);
+
+			dialog.AddParameterCommand.Execute(null); //the lowest free number, never P0
+			Assert.Equal(("1", WordsParameterType.Str, ""), (dialog.Rows[^1].Parameter.Key, dialog.Rows[^1].Parameter.DataType, dialog.Rows[^1].Parameter.Description));
+		};
+		vm.TestParametersCommand.Execute(key);
 		Assert.True(vm.IsDirty);
+		Assert.Equal(["0", "count", "2", "1"], key.Parameters.Select(parameter => parameter.Key));
+		Assert.Equal("Base pens", vm.DefaultPreview.Text);
+
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.main.single-line");
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
+		Assert.Equal("Base pens", vm.DefaultPreview.Text);
+
+		vm.ResetCore();
+		Assert.Empty(vm.Inputs.Of(key));
 	}
 
 	[Fact]
@@ -1165,12 +1219,14 @@ value=x
 		vm.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
 		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
 		vm.Tree.SelectedKey!.DefaultValue = "Base {0:N1}";
+		vm.Inputs.Of(vm.Tree.SelectedKey)["0"] = "22";
 		TestParametersViewModel? dialog = null;
 		dialogs.OnShow = shown => dialog = (TestParametersViewModel)shown;
 		vm.TestParametersCommand.Execute(vm.Tree.SelectedKey);
 		Assert.Equal("Base 22.0", dialog!.Result);
 
-		vm.Tree.SelectedKey.Parameters[0].Value = "7";
+		vm.Tree.SelectedKey.Parameters[0].DataType = WordsParameterType.Time; //22 days, which N1 refuses
+		vm.Tree.SelectedKey.Parameters.RemoveAt(0); //heard, either would change the result
 		Assert.Equal("Base 22.0", dialog.Result); //not heard
 	}
 
@@ -1250,7 +1306,7 @@ value=x
 			Dirties("remove node", () => { vm.Tree.SelectedKeyNode = Node(vm, "Example.enum.two"); vm.RemoveNodeCommand.Execute(null); });
 			Dirties("parameters", () => {
 				vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
-				dialogs.OnShow = shown => ((TestParametersViewModel)shown).Parameters[0].Value = "1";
+				dialogs.OnShow = shown => ((TestParametersViewModel)shown).Rows[0].Parameter.Description = "the cut";
 				vm.TestParametersCommand.Execute(vm.Tree.SelectedKey);
 				dialogs.OnShow = null;
 			});

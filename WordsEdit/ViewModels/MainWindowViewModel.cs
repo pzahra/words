@@ -21,6 +21,8 @@ namespace WordsEdit.ViewModels;
 /// </summary>
 public class MainWindowViewModel : ViewModelSaveBase {
 	public WordsSession Session { get; } = new();
+	/// <summary>What the translator typed for each key's parameters, for the session: no part of the document (SPEC: Parameters → The inputs).</summary>
+	public ParameterInputs Inputs { get; } = new();
 	public TreeViewModel Tree { get; }
 	public KeyDrag KeyDrag { get; }
 	/// <summary>The formats the editor imports from and exports to (SPEC: Import and export).</summary>
@@ -340,6 +342,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	public void ResetCore() {
 		Session.Reset();
+		Inputs.Clear();
 		Tree.Clear();
 		IsDirty = false;
 	}
@@ -666,7 +669,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			IReadOnlyList<WordsParameter> after = ParametersEdit.Copy(key);
 			return ParametersEdit.Same(before, after) ? null : new ParametersEdit(key.BlockKey, before, after);
 		});
-		//the samples are what the previews format with
+		//the inputs are what the previews format with
 		RenderPreviews();
 	}
 
@@ -827,25 +830,22 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	//every loaded file in tree order resolves {>references} and {$constants}, like a
 	//host app stacking dictionaries; the pane's form reads as the runtime picks it for
-	//a count in that form. The samples then go through the same formatting the host
+	//a count in that form. The inputs then go through the same formatting the host
 	//applies, selectors and all, in the language's culture where there is one, and the
-	//default in the one it is written in. A sample that will not format keeps the raw
-	//text and heads the pane's gripes; what Words complained about on the way, and
-	//what is wrong with the rules, follow
+	//default in the one it is written in. An input that will not read, or a text that
+	//will not format, keeps the raw text and heads the pane's gripes; what Words
+	//complained about on the way, and what is wrong with the rules, follow
 	private void Render(PreviewPane pane, WordsKey key, string? languageCode, string? cultureCode, FormPane forms, ProjectSettings settings) {
 		List<string> gripes = [];
 		string text;
 		using (Gripes.Listen(gripes)) {
 			IWordsProvider provider = PaneProvider(key, languageCode, forms);
 			text = Words.RenderKey(provider, key.BlockKey);
-			if (key.Parameters.Count != 0) {
-				CultureInfo culture = WordsOperations.CultureFor(cultureCode);
-				try {
-					text = WordsOperations.FormatSample(new CulturedWords(provider, culture) { Language = forms.Language }, key, culture);
-				}
-				catch (Exception ex) when (ex is FormatException or OverflowException) {
-					gripes.Insert(0, ex.Message);
-				}
+			try {
+				text = Fill(key, provider, forms, WordsOperations.CultureFor(cultureCode)) ?? text;
+			}
+			catch (Exception ex) when (ex is FormatException or OverflowException) {
+				gripes.Insert(0, ex.Message);
 			}
 		}
 		pane.Show(text, settings, gripes.Concat(settings.Errors), Gripes);
@@ -858,14 +858,26 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	/// <summary>
-	///     The default as the baseline pane shows it, formatted with the key's
-	///     samples the way the default preview formats it, selectors and all: Test
-	///     Parameters' result. Throws <see cref="FormatException"/> or
-	///     <see cref="OverflowException"/> where a sample will not format.
+	///     The default as the baseline pane shows it, filled with the key's inputs
+	///     the way the default preview fills it, selectors and all, or as rendered
+	///     where none is typed: Test Parameters' result. Throws
+	///     <see cref="FormatException"/> or <see cref="OverflowException"/> where an
+	///     input will not read or the text will not format.
 	/// </summary>
 	internal string FormatDefaultSample(WordsKey key) {
+		IWordsProvider provider = PaneProvider(key, null, Tree.DefaultForms);
 		CultureInfo culture = WordsOperations.CultureFor(Session.FileOfKey(key.BlockKey)?.DefaultLanguage);
-		return WordsOperations.FormatSample(new CulturedWords(PaneProvider(key, null, Tree.DefaultForms), culture) { Language = Tree.DefaultForms.Language }, key, culture);
+		return Fill(key, provider, Tree.DefaultForms, culture) ?? Words.RenderKey(provider, key.BlockKey);
+	}
+
+	//the key's words in a pane filled with its inputs, as an app's Format fills them, an
+	//enum described in the pane's language; null where no input has text
+	private string? Fill(WordsKey key, IWordsProvider provider, FormPane forms, CultureInfo culture) {
+		if (!Inputs.AnyTyped(key)) {
+			return null;
+		}
+		var words = new CulturedWords(provider, culture) { Language = forms.Language };
+		return WordsOperations.FormatSample(words, key.BlockKey, Inputs.Read(key, words), culture);
 	}
 
 	//a provider whose key reads as one of its entries: the form a pane shows
