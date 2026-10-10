@@ -105,8 +105,14 @@ public class CommandTableTests {
 		Assert.Equal(Words.Known["menu.translation-form"], Assert.IsType<ChoiceItem>(vm.Commands.TranslationTools[0]).Caption);
 		Assert.All([vm.Commands.DefaultTools[0], vm.Commands.TranslationTools[0]], tool => Assert.True(((ChoiceItem)tool).IsPopup));
 		Assert.False(ChoiceOf(vm, "menu.translation-language").IsPopup);
-		//the filter popup: the three views and the clear; Rename alone beside the name
-		Assert.Equal(3, vm.Commands.FilterTools.OfType<ToggleItem>().Count());
+		//the filter popup: the four views, the mismatch beside the missing, and the clear; Rename alone beside the name
+		Assert.Equal(new[] { "menu.stale-view", "menu.review-view", "menu.missing-view", "menu.mismatch-view" }.Select(key => Words.Known[key]),
+			vm.Commands.FilterTools.OfType<ToggleItem>().Select(tool => tool.Caption));
+		ToggleOf(vm, "menu.mismatch-view").IsChecked = true;
+		Assert.True(vm.Tree.MismatchFilter);
+		Assert.True(vm.Tree.IsFiltering);
+		vm.ClearFiltersCommand.Execute(null);
+		Assert.False(vm.Tree.MismatchFilter);
 		Assert.Contains(vm.Commands.FilterTools, tool => tool.Command == vm.ClearFiltersCommand);
 		Assert.Equal(vm.RenameNodeCommand, Assert.Single(vm.Commands.NameTools).Command);
 		//by the search: Back and Forward

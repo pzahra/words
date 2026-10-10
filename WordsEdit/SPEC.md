@@ -148,7 +148,9 @@ One tree presents every loaded file:
   hosts that list it, since an app offering it reads the library's default;
   declaring it, `!` and all, clears the flag), the file's load gripes as a count that opens
   the list, constant, needs-review, stale (in the selected language),
-  overwritten-by-later-file; keys whose default or selected-language value is
+  overwritten-by-later-file, a parameter mismatch (in the selected language:
+  the translation drops or adds a parameter beside its default's, Parameters
+  → Translation check); keys whose default or selected-language value is
   empty render emphasized. The selected-language half applies only
   when the key's file **registers** that language — declares it in its
   top-of-file table, listed or `!`-hidden. A hidden language is still a
@@ -159,11 +161,11 @@ One tree presents every loaded file:
   language its default speaks (The document): an empty entry there falls back
   to the default and misses nothing, so an `en` default leaves `en` and
   `en-AU` plain, while `en-US` under an `en-AU` default still shows its gaps.
-- **Filters**: substring search, stale-only, needs-review-only, missing-only —
-  composable; ancestors of a match stay visible so the path is readable. The
+- **Filters**: substring search, stale-only, needs-review-only, missing-only,
+  mismatch-only — composable; ancestors of a match stay visible so the path is readable. The
   search reads what a translator searches for: a key's name, its default and
   selected-language words, the context and comments around them, and a
-  comment node's text. The three toggles and the clear button are a vertical
+  comment node's text. The four toggles and the clear button are a vertical
   toolbar from the command table, in a popup beside the search box; while a
   filter narrows the tree the popup's button wears the number of hidden rows
   as a badge and the clear button clears the lot in one click; a selection
@@ -171,8 +173,9 @@ One tree presents every loaded file:
   Forward brought it there (Navigation). The
   stale filter is per selected language
   and means stale, nothing more: this is the translator's work queue. The
-  missing filter takes the empty values (file by file — see Badges). The
-  needs-review filter is the programmer's work queue in reverse — the
+  missing filter takes the empty values (file by file — see Badges), and the
+  mismatch filter the keys whose translation in the selected language drops
+  or adds a parameter. The needs-review filter is the programmer's work queue in reverse — the
   translator raises a hand by setting the unlocalised `stale=` flag
   (recycled as the "raise hand" action), and the programmer filters for it.
 - **Structure edits**: add/rename/remove nodes and keys; renames rewrite every
@@ -239,7 +242,10 @@ with a toggle that sets and clears it), and the markdown preview.
   words of its own.
 - Changing the dropdown re-contextualizes the whole window: tree badges and
   empty-value emphasis refresh to the new language (file by file — see
-  Badges), and the stale filter re-evaluates against it.
+  Badges), and the stale and mismatch filters re-evaluate against it.
+- Under the title, beside the stale stamp, a note names what the translation
+  drops or adds beside its default's parameters (Parameters → Translation
+  check).
 - **Spelling**, in both panes: a box checks its text once it has the focus
   and stops when a new node's text arrives, so moving through the tree never
   waits on the speller (seconds per kilobyte of markdown). The translation
@@ -1112,22 +1118,12 @@ answer `key#few` as the runtime flattens it, so a dictionary over them
 selects; resx and XLIFF list the forms as lost. The command line edits a form
 like any other field.
 
----
-
-# Planned upgrades
-
-Not built yet. Each section here is the shape the feature takes when it is.
-
 ## Parameters
 
 A parameter is what the code fills in: `{0}`, `{Name}`, or the count a
-selector reads, the `1` in `{1#N}`. The programmer says what each one is; the
-translator tries values to see their words come out right. In 1.3.0 neither
-had a good place. Test Parameters was a dialog out of sight; a key's
-`param-x=Type:sample` mixed what the parameter is with a value to test it
-with; its Add proposed `P0`, a named parameter that fills no `{0}`; and what
-a placeholder means lived in the context's prose ("{0} is the file"). No file
-in the repository declared one.
+selector reads, the `1` in `{1#N}`. The programmer says what each one is, in
+the file; the translator tries values under it to see their words come out
+right; and every translation is held to what its default uses.
 
 **In the file.** `param-x=type:Description`, the definition, and the
 programmer's alone: `x` is the parameter as the text names it (`param-0`,
@@ -1136,11 +1132,11 @@ below), and the description says what it is, for the translator:
 `param-0=int:the files deleted`. The type is optional, `str` without one, so
 `param-0=the file` (the field's first intention) is text. The words before the
 first `:` are a type only where they name one, so `param-0=the file: its full
-path` stays whole, where today the reader takes "the file" for an unknown type
-and loses it; the writer writes the type wherever it is not `str`, or the
-description's own first words would read as one. No value is saved:
-`Type:sample` goes, and a sample a 1.3.0 file holds comes up as a
-description; its type names (String, Integer, Double, TimeSpan,
+path` stays whole, where 1.3.0's reader took "the file" for an unknown type
+and lost it; the writer writes the type wherever it is not `str`, or the
+description's own first words would read as one. No value is saved: the
+sample a 1.3.0 file holds (`Type:sample`) comes up as a description; its
+type names (String, Integer, Double, TimeSpan,
 DateTimeOffset) read as the short ones below and are written short. A value
 kept in the file, if one turns out wanted, is a field of its own beside the
 definition, never mixed into it again, and is an experiment for later. The
@@ -1215,11 +1211,9 @@ use, and only `{{{{0}}` is a brace. That is a runtime bug (the runtime spec's
 defined shows faintly under the definitions, `+ {0}`, and a click makes it
 one, its type guessed: `int` for a selector's count, `str` otherwise. The
 + adds the first of those, or else the lowest number no definition has, so
-`{0}` and never `P0`; its placeholder is editable, as the dialog's name was,
-for `{Count}`, its input going with it; a name no parameter can have, or
-another definition's (`{01}` is `{1}`), marks the box and is not taken.
-Test Parameters went, its dialog and its rows in the Tools menu and the
-panes' headers with it.
+`{0}` and never `P0`; its placeholder is editable, for `{Count}`, its input
+going with it; a name no parameter can have, or another definition's (`{01}`
+is `{1}`), marks the box and is not taken.
 
 **The inputs.** One per definition, then one per parameter found and not
 defined, so a key nobody has defined still previews filled; each reads as its
@@ -1230,8 +1224,8 @@ for the session, so stepping away and back finds them; Reset and closing
 drop them. While a preview's toggle is on, the inputs are converted by their
 parameters' types and sent to it: the default preview formats in the
 default's language and the translation preview in the selected one,
-selectors picking their forms by the count, as an app's `Format` would, and
-as the dialog's samples did. An empty input previews as its placeholder
+selectors picking their forms by the count, as an app's `Format` would. An
+empty input previews as its placeholder
 written out, so the preview still renders and shows what is left to fill; a
 selector with no count reads `other`, quietly. An input its type cannot read
 previews as its placeholder too, and marks its box, the error brush with the
@@ -1256,30 +1250,36 @@ nothing is dropped from a translation with one, and nothing is extra beside
 a default with one. A translation with forms and no plain value reads the
 plain value it falls back to, as the runtime does; a translation without
 words is missing rather than mismatched, and a constant is checked for
-nothing. A mismatch badges the key's node for the selected language, as
-missing words do, has a filter beside Missing, and names what is dropped or
-extra beside the translation box. The rule is Authoring's, as `MissingWords`
-is: the badges read it, `words set` notes on stderr a translation it writes
-that drops or adds one (and writes it, as its other notes do; it sees its
-one file, so a reference into another is one it cannot follow), and machine
-translation's "nothing is written unchecked" and the agent macro go through
-it, widening it there to references, code spans and links.
+nothing.
+
+A mismatch badges the key's node for the selected language, as missing words
+do: orange braces, whose tooltip says what is dropped and what is extra.
+Mismatch View, beside Missing View, filters for it, and a note under the
+translation's title says the same, with what each costs as its tooltip. An
+edit checks its own key again, and every key whose words bring in another's,
+a reference, a constant or a selector, since what they bring in may have
+changed; a definition added, renamed, retyped or taken away checks its key
+again too. A full pass, as a language picked or an undo makes one, checks
+every key. The rule is Authoring's, as `MissingWords` is: the badges read
+it, `words set` notes on stderr a translation it writes that drops or adds
+one (and writes it, as its other notes do; it sees its one file, so a
+reference into another is one it cannot follow), and machine translation's
+"nothing is written unchecked" and the agent macro will go through it,
+widening it there to references, code spans and links.
 
 **Undo.** A description types and undoes as any field does (Undo: Fields), its
 `FieldEdit` naming the parameter as it names a form; a definition added,
 adopted, renamed, retyped or taken away is one entry, a `ParametersEdit` of
-the key's definitions before and after, as a dialog session was. The inputs
-are no part of the history.
+the key's definitions before and after. The inputs are no part of the
+history.
 
-**What changes.** `WordsParameter`'s `Value` becomes its `Description`, and the
-samples leave the model for the editor's session: `WordsOperations.FormatSample`
-takes the inputs, and `WordsParameterType` holds the six. XLIFF carries a
-parameter as now, its type as an attribute, short, and its description as the
-text; resx still lists parameters as lost. `words set` stops writing
-`String:` before a text whose first words name no type, since the reader now
-keeps such a text whole. The dialog's words go (`parameters.*`), and the
-pane gains its own: the thread's heading, the + and the trash, the unused
-hint, the mismatch's badge, filter and note.
+**Elsewhere.** `WordsParameter` holds a `Description` and a
+`WordsParameterType`, one of the six; the inputs are the editor's session's,
+never the model's, read by `WordsOperations.ReadInputs` and formatted by
+`FormatSample`. XLIFF carries a parameter, its type as an attribute, short,
+and its description as the text; resx lists parameters as lost. `words set`
+writes a `param-` text as given, with no `String:` before one whose first
+words name no type, since the reader keeps such a text whole.
 
 **Tests.**
 - What a default finds with `{0}`, `{0:N2}`, `{Name}`, `{1#word}`,
@@ -1313,21 +1313,16 @@ hint, the mismatch's badge, filter and note.
   `{2}` is extra; a reference whose translation prints `{0}` is a use of it;
   a side with a reference it cannot follow is not held to the other; `words
   set` notes a mismatch and writes it.
-- The menu's inventory no longer has Test Parameters.
+- An edit to a key checks the keys whose words follow it again; a definition
+  added or renamed clears an extra, and its undo brings it back.
+- The menu's inventory has no Test Parameters, and Mismatch View sits beside
+  Missing View in the menu and the filter popup.
 
-**Order.** After the runtime's *Describe without the type*, which the `enum`
-input stands on. Finding parameters, references and selected forms expanded, and
-the check first, in Authoring and headless, with the command line's note; then the description in the model,
-the reader and the writer; then the pane; then the badge and the filter.
-Built so far: the first, `ParameterUse` in Authoring, and the note (the
-command line spec's *Calls*); the second, `WordsParameterType`'s six and
-`param-x=type:Description` read and written, XLIFF's short type, `words set`
-writing a text as given, and `FormatSample` taking values that
-`WordsOperations.ReadInputs` reads; the third, the thread in the baseline
-pane (`ParametersPane`, its rows `DefinitionRow` and `FoundRow`, and
-`ParameterUse.Slots` and `WordsOperations.MembersUnder` under them), Test
-Parameters gone with it, and an `enum` input a describable that `Format`
-describes in the pane's language. The badge and the filter are next.
+---
+
+# Planned upgrades
+
+Not built yet. Each section here is the shape the feature takes when it is.
 
 ## Save as a patch
 

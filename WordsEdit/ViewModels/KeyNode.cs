@@ -84,6 +84,16 @@ public class KeyNode : ViewModelBase, IKeyTreeNode {
 	/// <summary>On a file node: how much the parser griped about while loading it (SPEC: Out of scope → now in).</summary>
 	public int GripeCount { get; set => ChangeProperty(ref field, value); }
 	public bool EmptyValue { get; set => ChangeProperty(ref field, value); }
+	/// <summary>What the selected language's translation drops or adds beside its default's parameters, as its badge says it; empty when nothing (SPEC: Parameters → Translation check).</summary>
+	public string Mismatch {
+		get;
+		set {
+			if (ChangeProperty(ref field, value)) {
+				AffectProperty(nameof(HasMismatch));
+			}
+		}
+	} = "";
+	public bool HasMismatch => Mismatch != "";
 
 	public KeyNode(string label, string fullLabel) {
 		Children = new KeyNodeCollection(this);
@@ -103,6 +113,7 @@ public class KeyNode : ViewModelBase, IKeyTreeNode {
 		LacksLanguages = original.LacksLanguages;
 		GripeCount = original.GripeCount;
 		EmptyValue = original.EmptyValue;
+		Mismatch = original.Mismatch;
 		foreach (KeyNode child in original.Children) {
 			Children.Add(child.Clone());
 		}

@@ -103,7 +103,8 @@ public sealed class ParametersPane : ViewModelBase {
 		}
 	}
 
-	//one entry per change to the definitions, the key's parameters before and after
+	//one entry per change to the definitions, the key's parameters before and after; the
+	//definitions widen what a translation may use, so the key's badge follows
 	private void Change(Action<WordsKey> change) {
 		if (key is not { } changed) {
 			return;
@@ -112,6 +113,9 @@ public sealed class ParametersPane : ViewModelBase {
 			IReadOnlyList<WordsParameter> before = ParametersEdit.Copy(changed);
 			change(changed);
 			IReadOnlyList<WordsParameter> after = ParametersEdit.Copy(changed);
+			if (vm.Tree.SelectedKeyNode is { } node) {
+				vm.Tree.RefreshBadges(node);
+			}
 			return ParametersEdit.Same(before, after) ? null : new ParametersEdit(changed.BlockKey, before, after);
 		});
 		vm.RenderPreviews();

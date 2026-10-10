@@ -281,6 +281,7 @@ public sealed class CommandTable {
 		var staleView = new ToggleItem(Words.Known["menu.stale-view"], PackIconKind.ClockAlert, () => tree.IsStaleFilter, new DelegateCommand(() => tree.IsStaleFilter = !tree.IsStaleFilter));
 		var reviewView = new ToggleItem(Words.Known["menu.review-view"], PackIconKind.HandFrontLeft, () => tree.NeedsReviewFilter, new DelegateCommand(() => tree.NeedsReviewFilter = !tree.NeedsReviewFilter));
 		var missingView = new ToggleItem(Words.Known["menu.missing-view"], PackIconKind.TextBoxRemoveOutline, () => tree.MissingFilter, new DelegateCommand(() => tree.MissingFilter = !tree.MissingFilter));
+		var mismatchView = new ToggleItem(Words.Known["menu.mismatch-view"], PackIconKind.CodeBraces, () => tree.MismatchFilter, new DelegateCommand(() => tree.MismatchFilter = !tree.MismatchFilter));
 		var clearFilters = new CommandItem(Words.Known["menu.clear-filters"], PackIconKind.FilterRemoveOutline, vm.ClearFiltersCommand);
 		var defaultPreview = new ToggleItem(Words.Known["menu.default-preview"], PackIconKind.Eye, () => vm.ShowDefaultPreview, new DelegateCommand(() => vm.ShowDefaultPreview = !vm.ShowDefaultPreview));
 		var translationPreview = new ToggleItem(Words.Known["menu.translation-preview"], PackIconKind.EyeOutline, () => vm.ShowLocalizationPreview, new DelegateCommand(() => vm.ShowLocalizationPreview = !vm.ShowLocalizationPreview));
@@ -306,13 +307,13 @@ public sealed class CommandTable {
 		Menu = [
 			new MenuGroup(Words.Known["menu.file"], [create, load, import, merge, new MenuBreak(), save, export, new MenuBreak(), reset, exit]),
 			edit,
-			new MenuGroup(Words.Known["menu.view"], [staleView, reviewView, missingView, clearFilters, new MenuBreak(), defaultPreview, translationPreview, new MenuBreak(), back, forward, find, new MenuBreak(), defaultForm, translationForm, new MenuBreak(), translationLanguage, uiLanguage]),
+			new MenuGroup(Words.Known["menu.view"], [staleView, reviewView, missingView, mismatchView, clearFilters, new MenuBreak(), defaultPreview, translationPreview, new MenuBreak(), back, forward, find, new MenuBreak(), defaultForm, translationForm, new MenuBreak(), translationLanguage, uiLanguage]),
 			new MenuGroup(Words.Known["menu.tools"], [languages, settings]),
 		];
 		EditRows = edit.Items;
 		NodeTools = [addNode, remove, addComment];
 		KeyTools = [addKey, removeKey, staleAll];
-		FilterTools = [staleView, reviewView, missingView, clearFilters];
+		FilterTools = [staleView, reviewView, missingView, mismatchView, clearFilters];
 		NameTools = [rename];
 		DefaultTools = [defaultForm, toggleConstant, toggleReview, defaultPreview];
 		TranslationTools = [translationForm, toggleStale, translationPreview];

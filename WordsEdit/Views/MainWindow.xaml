@@ -226,6 +226,11 @@
                                                  Visibility="{Binding IsStale, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                     <md:PackIcon Kind="Eraser" 
                                                  Visibility="{Binding IsOverwritten, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    <!-- the selected language's translation drops or adds a parameter beside the default's -->
+                                    <md:PackIcon Kind="CodeBraces"
+                                                 Foreground="{StaticResource WordsmithOrangeBrush}"
+                                                 ToolTip="{Binding Mismatch}"
+                                                 Visibility="{Binding HasMismatch, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                     <TextBlock Text="{Binding Label}"
                                                FontWeight="{Binding EmptyValue, Converter={StaticResource BooleanToBoldConverter}}"
                                                TextTrimming="CharacterEllipsis"
@@ -610,6 +615,12 @@
                             <Run Text="{l:Words main.stale}" />
                             <Run Text="{Binding Tree.SelectedEntry.Stale, Mode=OneWay}" />
                         </TextBlock>
+                    </Label>
+                    <!-- what the translation drops or adds beside the default's parameters (SPEC: Parameters → Translation check) -->
+                    <Label ToolTip="{l:Words parameters.mismatch-tip}"
+                           Foreground="{StaticResource WordsmithOrangeBrush}"
+                           Visibility="{Binding Tree.SelectedKeyNode.HasMismatch, Converter={StaticResource BooleanToVisibilityConverter}, FallbackValue=Collapsed}">
+                        <TextBlock Margin="4 -1" Text="{Binding Tree.SelectedKeyNode.Mismatch}" TextWrapping="Wrap"/>
                     </Label>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal"

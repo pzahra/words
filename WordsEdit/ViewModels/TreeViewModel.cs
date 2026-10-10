@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using System.Windows.Input;
 using WordsEdit.Utils;
 
@@ -497,6 +498,8 @@ public class TreeViewModel : ViewModelBase {
 	public bool NeedsReviewFilter { get; set => Filter(ref field, value); }
 	/// <summary>Keys wanting words in the default, or in the selected language where their file registers it.</summary>
 	public bool MissingFilter { get; set => Filter(ref field, value); }
+	/// <summary>Keys whose translation in the selected language drops or adds a parameter beside the default's.</summary>
+	public bool MismatchFilter { get; set => Filter(ref field, value); }
 	public string SearchFilterText { get; set => Filter(ref field, value); } = "";
 
 	//a filter that changed re-runs the pass
@@ -506,7 +509,7 @@ public class TreeViewModel : ViewModelBase {
 		}
 	}
 	/// <summary>True while any filter narrows the tree.</summary>
-	public bool IsFiltering => IsStaleFilter || NeedsReviewFilter || MissingFilter || SearchFilterText != "";
+	public bool IsFiltering => IsStaleFilter || NeedsReviewFilter || MissingFilter || MismatchFilter || SearchFilterText != "";
 	/// <summary>How many rows the filters hide.</summary>
 	public int HiddenCount { get; private set => ChangeProperty(ref field, value); }
 
@@ -515,6 +518,7 @@ public class TreeViewModel : ViewModelBase {
 		IsStaleFilter = false;
 		NeedsReviewFilter = false;
 		MissingFilter = false;
+		MismatchFilter = false;
 	}
 
 	public IEnumerable<KeyNode> AllNodes => KeyNodes.SelectMany(root => root.SelfAndDescendants());
@@ -566,6 +570,9 @@ public class TreeViewModel : ViewModelBase {
 		}
 		if (MissingFilter) {
 			passesFilter &= node.EmptyValue;
+		}
+		if (MismatchFilter) {
+			passesFilter &= node.HasMismatch;
 		}
 		if (!string.IsNullOrEmpty(SearchFilterText)) {
 			passesFilter &= Matches(node, SearchFilterText);
@@ -625,11 +632,12 @@ public class TreeViewModel : ViewModelBase {
 
 	//Badges: computed from the document, for the selected language, in one pass
 	public void RefreshBadges() {
+		var check = new ParameterCheck(session, FileLabels, SelectedLanguage.Code);
 		foreach (KeyNode root in KeyNodes) {
 			WordsFile? file = session.FileOf(root.FullLabel);
 			RefreshFileBadges(root, file);
 			foreach (KeyNode node in root.SelfAndDescendants()) {
-				RefreshBadges(node, file);
+				RefreshBadges(node, file, check);
 			}
 		}
 		//every path that changes the language table passes here
@@ -637,7 +645,20 @@ public class TreeViewModel : ViewModelBase {
 		RaiseDefault();
 	}
 
-	public void RefreshBadges(KeyNode node) => RefreshBadges(node, session.FileOf(node.Root.FullLabel));
+	/// <summary>
+	///     One node's badges, after an edit to its key; and the parameter check of
+	///     every key whose words follow another's, a reference, a constant or a
+	///     selector, since the edit may have changed what they bring in.
+	/// </summary>
+	public void RefreshBadges(KeyNode node) {
+		var check = new ParameterCheck(session, FileLabels, SelectedLanguage.Code);
+		RefreshBadges(node, session.FileOf(node.Root.FullLabel), check);
+		foreach (KeyNode other in AllNodes) {
+			if (other != node && other is not OrganizerNode && session.Keys.TryGetValue(other.FullLabel, out var key) && check.Follows(key)) {
+				other.Mismatch = check.Note(key, session.FileOf(other.Root.FullLabel));
+			}
+		}
+	}
 
 	//a file node's own: whether the file is a library, as a manager may have made it
 	//one or none, and the languages a host lists that it has no words for (SPEC: Badges)
@@ -650,14 +671,14 @@ public class TreeViewModel : ViewModelBase {
 
 	//every path that changes a key's flags refreshes its badges, so the selected key's
 	//flags follow from here
-	private void RefreshBadges(KeyNode node, WordsFile? file) {
-		SetBadges(node, file);
+	private void RefreshBadges(KeyNode node, WordsFile? file, ParameterCheck check) {
+		SetBadges(node, file, check);
 		if (node == SelectedKeyNode) {
 			FollowFlags();
 		}
 	}
 
-	private void SetBadges(KeyNode node, WordsFile? file) {
+	private void SetBadges(KeyNode node, WordsFile? file, ParameterCheck check) {
 		if (node is OrganizerNode) {
 			return;
 		}
@@ -667,6 +688,7 @@ public class TreeViewModel : ViewModelBase {
 			node.IsStale = false;
 			node.IsOverwritten = false;
 			node.EmptyValue = false;
+			node.Mismatch = "";
 			return;
 		}
 		string code = SelectedLanguage.Code;
@@ -684,6 +706,39 @@ public class TreeViewModel : ViewModelBase {
 		//list --missing reads the same rule
 		node.EmptyValue = MissingWords.InDefault(key, file?.DefaultLanguage)
 			|| (Wants(file, code) && MissingWords.InLanguage(key, code));
+		//what the translation drops or adds beside the default's parameters, which the
+		//definitions widen; the command line's set notes the same (SPEC: Parameters →
+		//Translation check)
+		node.Mismatch = check.Note(key, file);
+	}
+
+	/// <summary>What a translation drops and adds, as its badge and its note say it; empty when nothing.</summary>
+	public static string MismatchNote(ParameterMismatch mismatch) {
+		List<string> parts = [];
+		if (mismatch.Dropped.Count != 0) {
+			parts.Add(Words.Known.Format("parameters.dropped", Placeholders(mismatch.Dropped)));
+		}
+		if (mismatch.Extra.Count != 0) {
+			parts.Add(Words.Known.Format("parameters.extra", Placeholders(mismatch.Extra)));
+		}
+		return string.Join(" · ", parts);
+
+		static string Placeholders(IEnumerable<string> names) => string.Join(", ", names.Select(FoundParameters.Placeholder));
+	}
+
+	//the translation check in one language, its words read once for a pass
+	private sealed class ParameterCheck(WordsSession session, IEnumerable<string> fileLabels, string code) {
+		//a reference, a constant or a selector: words another key brings in
+		private static readonly Regex rxFollows = new(@"\{(?:[>$]|\w+#)", RegexOptions.Compiled);
+		private readonly IWordsProvider defaults = session.Provider(fileLabels);
+		private readonly IWordsProvider translations = session.Provider(fileLabels, code);
+
+		public string Note(WordsKey key, WordsFile? file) => MismatchNote(ParameterUse.Check(key, code, defaults, file?.DefaultLanguage, translations));
+
+		//whether the key's default or translation brings in another key's words, whose edit may change its check
+		public bool Follows(WordsKey key)
+			=> rxFollows.IsMatch(key.DefaultValue) || key.Forms.Values.Any(rxFollows.IsMatch)
+				|| (key.Entries.GetValueOrDefault(code) is { } entry && (rxFollows.IsMatch(entry.Value) || entry.Forms.Values.Any(rxFollows.IsMatch)));
 	}
 
 	//a language the file registers (listed or !-hidden) wants words; one the file never
@@ -747,6 +802,7 @@ public class TreeViewModel : ViewModelBase {
 		IsStaleFilter = false;
 		NeedsReviewFilter = false;
 		MissingFilter = false;
+		MismatchFilter = false;
 	}
 
 	//the dropdown's entry may have been replaced or pruned: follow the code, never go without

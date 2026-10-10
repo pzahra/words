@@ -44,6 +44,9 @@ the command line that ships beside it.
   context, and the translator types a value under it and watches both
   previews fill in, before a user finds out it throws. An enum offers its
   members; a `{0}` nobody defined shows up anyway, one click from defined.
+  A translation that drops a `{0}` its default uses, or adds one nobody
+  passes, gets orange braces in the tree, a view of its own, and a note
+  saying which.
 - **Round-trip saving** — files are written back in a stable, canonical format;
   saving an already-canonical file again produces the same bytes, so a real edit
   shows up in the diff as just that edit (the tests insist).
