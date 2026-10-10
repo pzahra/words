@@ -5,7 +5,8 @@
     <Nullable>enable</Nullable>
     <RootNamespace>PatTech.Localization</RootNamespace>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
-    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <!-- a Release build packs as it builds, for a local feed; a Debug build only builds -->
+    <GeneratePackageOnBuild Condition="'$(Configuration)' == 'Release'">True</GeneratePackageOnBuild>
     <PackageId>PatTech.Localization.Core</PackageId>
     <Version>$(ApiVersion)</Version>
     <AssemblyName>PatTech.Localization.Core</AssemblyName>

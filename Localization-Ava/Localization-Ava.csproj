@@ -5,7 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>PatTech.Localization.Avalonia</RootNamespace>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
-    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <!-- a Release build packs as it builds, for a local feed; a Debug build only builds -->
+    <GeneratePackageOnBuild Condition="'$(Configuration)' == 'Release'">True</GeneratePackageOnBuild>
     <PackageId>PatTech.Localization.Avalonia</PackageId>
     <Version>$(ApiVersion)</Version>
     <Title>Words for Avalonia</Title>
