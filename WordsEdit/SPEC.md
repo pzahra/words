@@ -1420,59 +1420,176 @@ room, undecided between:
 
 ## Machine translation
 
-A button that fills a language from a translation service the user already
-has. Wordsmith brings the selection, the context and the checking; the
-service and its credentials are the user's.
+A loop that fills a language from a translation service the user already
+has. Wordsmith and the command line bring the selection, the context and the
+checking; the user's own tool does the translating. The two meet in one JSON
+document: the command line writes it for the keys a language needs, a
+translator fills it in, and the command line reads it back into the file.
+Wordsmith's Tools menu runs the same loop with a review grid in the middle.
+Wordsmith keeps no integration per vendor and never holds a secret: a key
+lives in the user's tool or its environment.
 
-**What goes.** The user picks a target language and a filter: the keys
-missing it (`MissingWords`, as the badges count), the keys stale in it, or
-everything under the selected node, combined as the tree's filter combines
-them. A language not in the table yet is added through the language manager
-first, and then filled. Constants never go, since they aren't translated.
+**What goes.** A target language and a selection, as the tree's filters make
+one: the keys missing it (`MissingWords`, as the badges count), the keys
+stale in it, or both, any key either takes, under a prefix or the selected
+node. A language not in the table yet is added first, through the language
+manager or a `words set` of its label. Constants never go, since they aren't
+translated.
 
-**The request is a template.** The user writes the request once, and
-Wordsmith fills it per key from fields:
-- `{key}`, `{default}`, `{context}` and `{comment}`;
-- the target's existing text, for a stale key;
-- the source and target codes and names;
-- the form being asked for.
+**The request is a document.** One JSON object that explains itself, so a
+translator needs nothing else:
 
-The template is a command line that reads the request on stdin and answers
-on stdout, so a script, a vendor's CLI, a local model or `curl` all serve.
-Wordsmith keeps no integration per vendor and never holds a secret: the key
-lives in the user's tool or environment. If a built-in HTTP transport is
-added later, its credentials go to the Windows Credential Manager, never to
-`config.ini` (plain text) or anything beside the words files.
+```json
+{
+  "words": "translation/1",
+  "instructions": "Translate each item's default from English into Italian…",
+  "brief": "Informal: tu, not Lei. Wordsmith stays Wordsmith.",
+  "file": "words.ini",
+  "source": { "code": "en", "name": "English", "forms": { "value": "1", "value#other": "0, 2…" } },
+  "target": { "code": "it", "name": "Italian", "forms": { "value": "1", "value#other": "0, 2…" } },
+  "items": [
+    {
+      "key": "files.saved",
+      "default": { "value": "{0} file saved", "value#other": "{0} files saved" },
+      "context": "The status line after Save.",
+      "parameters": { "0": { "type": "int", "description": "the files saved" } },
+      "translation": { "value": null, "value#other": null }
+    }
+  ]
+}
+```
 
-**The answer has to map back.** Values can hold line breaks, so a
-line-per-key answer cannot be trusted. Undecided between:
-- one request per key: robust, but slow, and the service sees no
-  neighbouring context;
-- a batch whose lines carry the key (`key<TAB>text`, with the value's
-  escapes);
-- a JSON object keyed by key.
+`words` names the document and its version, and a reader refuses another.
+`instructions` is the brief every translator gets, in English as the field
+names are: fill each null under `translation` with the item's default in the
+target language; keep every `{…}` token, code span and link target as it is,
+and the line breaks; read `context`, `comment` and `parameters` for where the
+text shows and what each token becomes; improve a `current` translation
+rather than start over; return the whole document as JSON and change nothing
+else; leave a null that cannot be filled. `brief` is the user's own, for the
+tone and the terms. A slot is named as in the file less the language, `value`
+for the plain value and `value#other` for a form, and is written back as
+`value-it#other`. A plural key asks for the plain value and every form the
+target counts by and does not leave optional (`MissingWords.Requires`), and
+`source.forms` and `target.forms` say which counts read each slot, as the
+form selector's rows do (*Plural forms*); a key that is not plural asks for
+`value` alone. `default` holds the default's words and forms; `context`,
+`comment` and `parameters` are there when the key has them, and `current`
+holds the target's words now, for a stale key. Text is a value's own,
+unescaped, as `words get` prints it: no doubled `_` or `'`, no continuation,
+real line breaks.
 
-**Nothing is written unchecked.** Each answer's placeholders are compared
-with the default's: `{0}`, `{Name}`, `{>ref}`, `{$const}`, `{n#key}`, code
-spans and markdown links. An answer that adds, drops or changes one is
-flagged and not applied; services routinely translate inside braces. A key
-with plural forms asks for the target's categories (`PluralRules.Categories`),
-not just the plain value, and an answer missing a form the language needs is
-flagged the same way.
+**The answer is the same document**, its nulls filled. Only `target.code`
+and each item's `key`, `default`, `current` and `translation` are read back,
+so a script may drop the rest. A null left, or an empty string, is a slot not
+translated, and no error. A document is one batch: the command line takes a
+limit, the editor a batch size (50 keys by default), so an answer fits a
+model's output and a failure costs one batch.
 
-**It lands for review.** The answers open in a preview grid (key, default,
-proposed text, flags), where rows can be edited, unticked or retried. Apply
-writes the ticked rows with `stale-xx=machine <date>`, so the stale filter
-surfaces them for a translator to review, as it does any stale translation.
-The batch is one undo entry, as any action is (*Undo*).
+**Which service.** The document is built for a language model first. It
+carries its own instructions, so `claude -p`, `llm`, `ollama run` or a chat
+window it is pasted into answers it whole, plural forms and placeholders
+included; an agent with the command line at hand can also read the file's
+other translations for the terms they use. A machine translation service,
+DeepL, Google Cloud Translation, Azure AI Translator or Amazon Translate,
+translates strings rather than documents: a short script maps the items to
+its batch call, passes `context` where the service takes one, protects the
+`{…}` tokens with the service's tag handling and fills `value`. Those
+services know no plural categories, so a plural key's forms stay null and
+show up as missing, for a person. Translation management systems (Crowdin,
+Phrase, Lokalise and the like) trade XLIFF, which Export already writes, and
+are not this loop's concern. Wordsmith ships no adapter.
 
-**Privacy.** The first use says that the app's strings go to the service
-the template names, and the user confirms once per template.
+**On the command line.**
+- `list <file> [prefix] --stale xx` lists the keys whose `xx` entry carries a
+  stale mark, beside `--missing xx`; with both, a key either takes is listed.
+- `request <file> [prefix] --missing xx`, `--stale xx` or both (one
+  language) prints the request for the keys `list` would list; `--limit n`
+  takes the first n, and `--brief text` fills `brief`. It exits 1, printing
+  nothing, when nothing is selected, so a loop ends there.
+- `apply <file> <answer>`, `-` for stdin, writes each key's filled slots that
+  pass the check below as `set` writes them, its `stale-xx` marked `machine
+  translated` or with the words `--stale` gives, and prints nothing. stderr
+  names each key skipped and why, then counts the slots written, left and
+  skipped. The writes are one patch, saved once, so an edit the patcher
+  refuses writes nothing. It exits 0 when every filled slot was written, 1
+  when any was skipped, and 2 for a bad call, an answer that is no such
+  document, or a refused edit.
 
-**Where it lives.** Authoring does the work, tested headless: selecting the
-keys, rendering a request, running the command behind a seam the tests can
-fake, parsing the answer and checking it. The editor's view model holds the
-intent (filter, template, target) and shows the grid. The pieces exist on
-the command line already: `words list --missing`, a script, then
-`words set --stale … -` per key is the same loop without the grid, and is
-the way to try a service before the button exists.
+An agent or a script loops `request --limit 50`, translate, `apply`, until
+`request` selects nothing or `apply` writes nothing, since a skipped key is
+still missing.
+
+**Nothing is written unchecked.** Each key's answer is compared with its
+default across all its slots, as the translation check compares parameters
+(*Parameters*). It must keep the parameters the default uses and add none
+that no definition names; keep every reference, constant and selector the
+default holds and hold no `{…}` token the default does not, since services
+translate inside braces (`{>menu.file}` comes back `{>menu.archivio}`); and
+keep the default's code spans and link targets as they are. A slot that was
+not asked for, a key whose default or current words changed since the
+request, and a key that is gone are flagged too. A flagged key is not
+written, none of its slots: stricter than `set`, which writes a person's
+translation with a note.
+
+**In Wordsmith.** Tools > Machine Translation… opens a dialog: the target
+(the selected language), the selection (Missing, Stale, under the selected
+node), the brief, and the translator. The translator is a command line, run
+with the request on stdin and read for the answer on stdout, or the user by
+hand: the dialog copies the request or saves it to a file and takes the
+answer pasted or opened, so a chat window serves with nothing set up. A
+command runs as a shortcut's target does, a program and its arguments, with
+no shell unless it names one (`cmd /c`, `pwsh -Command`). The batches run one
+after another, with progress and Cancel, which stops the one running; a batch
+whose command fails or whose answer is no document is reported with the exit
+code and stderr, and the next one runs. The command, the brief per language,
+the batch size and the mark are remembered in the editor's settings.
+
+**It lands for review.** The answers open in a grid, a row per slot: the key,
+the form, the default, the proposed text and the flags. A row is edited in
+place, unticked or asked for again (a retry sends the selected rows alone); a
+flagged key's rows start unticked and say why, and ticking one is the
+person's call. Apply writes the ticked rows into the open file as edits, each
+entry marked stale with the mark, as one undo entry (*Undo*). Save writes the
+file as ever, and the stale filter surfaces the rows for a translator to
+review, as it does any stale translation. The command line writes the file;
+the editor writes its document, so undo and an unsaved file stay whole.
+
+**Privacy.** The first run of a command says that the file's strings go
+wherever the command sends them, and the user confirms once per command. If
+a built-in HTTP transport is added later, its credentials go to the Windows
+Credential Manager, never to `config.ini` (plain text) or anything beside the
+words files.
+
+**Where it lives.** Authoring builds the request and reads the answer, tested
+headless: `TranslationRequest` selects as `list` does and writes the document
+with `Utf8JsonWriter`, and `TranslationAnswer` reads it with `JsonDocument`
+and checks each key, with no reflection, since the command line is trimmed.
+The counts a form reads, `FormPane`'s today, move to Authoring, in invariant
+digits for the document. `apply` writes the passing slots through the
+patcher; the editor's grid writes the ticked ones as `FieldEdit`s. The
+command runs behind a seam, `ITranslator`, so the tests fake it; the process
+behind it is the editor's. The Core skill gains the loop, the agent its own
+translator.
+
+**Tests.** The request: selected as `list --missing` and `--stale` select,
+under a prefix and up to a limit; constants never; a language the file does
+not want selects nothing and exits 1; an item carries the default and its
+forms, the context, the comment, the parameters and, for a stale key, the
+current words; a plural key asks for the plain value and each form the target
+requires, Maltese's `few` and not `two`, `many` or `other`, with the counts
+each reads; text is unescaped. The answer: filled slots written with the mark
+in the writer's order, nulls and empty strings left; a dropped or added
+parameter, a translated reference, a lost code span or link target, a slot
+not asked for, a default changed since and a key gone each skip their key and
+are named; a refused edit writes nothing; the request sent back untouched
+writes nothing and exits 0. The editor, with a fake translator: a batch's
+answer fills the grid, a flagged key's rows unticked with the reason, an
+edited row applied as edited, Apply one undo entry that marks stale; a failed
+batch reported and the next one run; Cancel stops; a pasted answer fills the
+grid.
+
+**Order.** Authoring's document and check with the command line's `list
+--stale`, `request` and `apply` first, since an agent can run the loop with
+them at once and the skill can say so; then the editor's dialog by hand and
+its grid; then the command runner and the batches.

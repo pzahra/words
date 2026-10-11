@@ -210,4 +210,5 @@ Wordsmith's own words read back through the editor byte for byte.
 
 # Planned upgrades
 
-Nothing is planned for now.
+Nothing of the command line's own. Its part in the editor's *Machine
+translation*, `list --stale`, `request` and `apply`, is planned there.
