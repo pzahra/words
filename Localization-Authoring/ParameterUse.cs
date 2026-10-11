@@ -159,6 +159,19 @@ namespace PatTech.Localization.Authoring {
 			return walk.Found();
 		}
 
+		/// <summary>
+		///     The references, constants and selectors <paramref name="text"/> holds,
+		///     as written, <c>{&gt;key}</c>, <c>{$name}</c> and <c>{0#word}</c>, which
+		///     <c>Selects</c>; read as rendering reads them, so an escaped brace holds none.
+		/// </summary>
+		public static IEnumerable<(string Token, bool Selects)> Tokens(string text) {
+			for (Match match = rxRender.Match(text); match.Success; match = match.NextMatch()) {
+				if (!match.Groups[1].Success) {
+					yield return (match.Value, match.Groups[3].Success);
+				}
+			}
+		}
+
 		//a number as string.Format reads it, 01 being 1; a name as written
 		/// <summary>Whether <paramref name="name"/> names a parameter a text can use: a number, <c>{0}</c>, or a name, <c>{Count}</c>, as FormatByName reads one.</summary>
 		public static bool IsName(string name) => rxName.IsMatch(name);

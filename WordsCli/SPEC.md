@@ -53,7 +53,22 @@ before the first `:` are a type only where they name one (the editor spec's
   where `xx` misses its words, by the badges' rule (the editor spec's *Plural forms*, Badges): no
   words, or on a plural key a form the language requires. A language the file
   does not declare, or one its default speaks, misses nothing, and a line on
-  stderr says which.
+  stderr says which. `--stale xx` lists those whose `xx` entry carries a stale
+  mark; with both, which name one language, a key either takes is listed.
+- `request <file> [prefix] --missing xx` and/or `--stale xx` prints a
+  translation request (the editor spec's *Machine translation*) for the keys
+  `list` would list, less those whose default has no words; `--limit n`
+  takes the first n of them, and `--brief text` gives the translator the
+  user's own words. Nothing to ask exits 1, printing nothing.
+- `apply <file> <answer>`, `-` for stdin, reads the request filled in and
+  writes each key whose answer passes the check (the same section, *Nothing
+  is written unchecked*): its filled slots as `set` writes them, and its
+  entry's stale mark, `machine translated` or the words `--stale` gives. A
+  key skipped is named on stderr with why, and a last line counts the slots
+  written, left and skipped; any skipped exits 1. A key answered twice keeps
+  its first answer. The writes are one patch, saved once: an edit the
+  patcher refuses writes nothing. The answer's language must be one the file
+  declares.
 - `--version` and `--help`.
 
 A key is the file's own, without the session's file-label prefix, and a key's
@@ -64,10 +79,11 @@ be read and cleared. `remove` refuses a constant whose header bases
 constant, and without one the children re-base. Values go
 to stdout and gripes to stderr: the reader's gripes the edit adds (a field in
 an undeclared language, a form the language never reads), and a note when a
-field declared twice is made one, or a translation drops or adds a parameter. The exit code is 0 for done, 1 when the
-key or field is not there, 2 for a bad call, a file that is missing, can't be
-read or written, does not parse or is no text the patcher reads, or a refused
-edit; a file's failure names the file, which the system's own message may not,
+field declared twice is made one, or a translation drops or adds a parameter.
+The exit code is 0 for done, 1 when the key or field is not there, `request`
+finds nothing to ask or `apply` skips a key, 2 for a bad call, a file that is
+missing, can't be read or written, does not parse or is no text the patcher
+reads, an answer that is no translation document, or a refused edit; a file's failure names the file, which the system's own message may not,
 and a missing one is no misuse, so the calls are not shown. Redirected streams
 speak UTF-8 with `\n`; a console keeps its own.
 
@@ -205,10 +221,19 @@ passed on, a refused edit leaving the file, BOM-less UTF-16
 left alone, a missing or read-only file named without the calls, an empty
 field removed though `get` calls it none, a `[.child]` header before any base
 listed, read and removed but never written, and `list` with a prefix and
-`--missing` by the badges' rule. The editor's: new keys and fields set in
-Wordsmith's own words read back through the editor byte for byte.
+`--missing` by the badges' rule; `list --stale`, alone and beside
+`--missing`; `request` for what `list` lists, under a prefix and up to a
+limit, with a brief, and exit 1 with nothing to ask; `apply` writing filled
+slots, fenced as a model answers, each key marked stale in the writer's
+order, with `--stale`'s words from a file, the request sent back untouched
+writing nothing, a key with a broken token or a default changed since
+skipped and named (exit 1), and no document, an undeclared language or a
+refused edit leaving the file (exit 2). The document's own, headless, are
+the editor spec's *Machine translation*. The editor's: new keys and fields
+set in Wordsmith's own words read back through the editor byte for byte.
 
 # Planned upgrades
 
 Nothing of the command line's own. Its part in the editor's *Machine
-translation*, `list --stale`, `request` and `apply`, is planned there.
+translation*, `list --stale`, `request` and `apply`, is built (*Calls*); the
+editor's part is planned there.

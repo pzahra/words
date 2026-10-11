@@ -127,14 +127,18 @@ words set    words.ini menu.file value-it "Archivio" --stale "machine translated
 words remove words.ini menu.file comment-it          # one field, or the whole key
 words list   words.ini menu.                         # keys under a prefix, in file order
 words list   words.ini --missing it                  # keys Italian still misses
+words list   words.ini --stale it                    # keys whose Italian is marked stale
+words request words.ini --missing it --limit 50 > ask.json  # those keys as a document to fill
+words apply  words.ini ask.json                      # writes the filled document back
 ```
 
 Fields are named as in the file (`value`, `value-fr`, `value-mt#few`,
 `context-fr`, `comment-fr`, `stale-fr`, `param-name`); a key is its full dotted
 name, whatever `[.child]` header the file wrote it under. Exit codes: 0 done,
-1 the key or field is not there, 2 a bad call, a file that is missing, can't be
-read or written or does not parse, or an edit refused because it would change
-more than asked; the file is left as it was.
+1 the key or field is not there (or `request` found nothing to ask, or `apply`
+skipped a key), 2 a bad call, a file that is missing, can't be read or written
+or does not parse, an answer that is no translation document, or an edit
+refused because it would change more than asked; the file is left as it was.
 Read stderr: a field in a language the file does not declare, or a form the
 language never reads, is griped about as it is written, and so is a
 translation that drops a placeholder the default uses, or uses one it does not
@@ -145,6 +149,18 @@ words stale with the time, as Wordsmith does; a mark already there stays.
 Translate those again and mark them yourself.
 `--missing xx` follows Wordsmith's badges: no words in `xx`, or a plural key
 missing a form `xx` counts by; a language the default speaks misses nothing.
+
+To translate many keys, request them rather than `set` each: `request` (with
+`--missing xx`, `--stale xx` or both) prints a JSON document whose
+`instructions` say what to do. Be the translator: fill each `null` under an
+item's `translation` (`value`, and a plural's forms such as `value#few` for
+the counts `target.forms` gives), keeping every `{…}` token, code span and
+link target as the default has them and reading `context`, `comment` and
+`parameters`; change nothing else, and leave a null you can't fill. `apply`
+writes the filled slots, each key's entry marked stale `machine translated`,
+and skips a key whose answer drops or invents a token, or whose default or
+translation changed since, naming why on stderr (exit 1): fix those with
+`set`. Repeat until `request` finds nothing (exit 1).
 
 Without the tool, edit by hand and keep the format's rules: a literal `\`, `_`
 or `'` is written doubled, a trailing `\` continues a value on the next line

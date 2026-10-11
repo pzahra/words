@@ -21,6 +21,7 @@ words remove strings.ini menu.file value-it          # drops a field
 words remove strings.ini menu.file                   # drops the whole key
 words list   strings.ini menu.                       # the keys under a prefix
 words list   strings.ini --missing it                # the keys Italian still misses
+words list   strings.ini --stale it                  # the keys whose Italian is marked stale
 ```
 
 - **Fields** are named as in the file: `value`, `value-fr`, `value-mt#few`,
@@ -54,6 +55,37 @@ Values go to stdout and gripes to stderr. The exit code is 0 for done, 1 when
 the key or field is not there, and 2 for a bad call, a file that is missing,
 can't be read or written or does not parse, or an edit `words` refused.
 
+## Machine translation
+
+`words` doesn't translate anything. It writes down what needs translating,
+in a form any translator can fill in, and puts the answers back:
+
+```sh
+words request strings.ini --missing it --limit 50 > ask.json   # what Italian lacks, as JSON
+# ... a translator fills in every null under "translation" ...
+words apply   strings.ini ask.json                            # writes the answers back
+```
+
+The request explains itself: each key's default, its plural forms, context,
+comment and parameters, Italian's words where it has some, and a `null` for
+each thing to fill, with instructions at the top saying how. So the
+translator can be a language model with nothing set up (`claude -p`, `llm`, a
+chat window you paste it into), or a short script around a translation
+service. Services translate strings, not documents, and know nothing of
+plural forms, so a script fills the plain values and leaves the forms for a
+person. `--stale it` asks for the stale ones instead, or as well, and
+`--brief` passes on your own word about tone and terms.
+
+`apply` reads the same document back, code fence and chatter around it
+included, and is fussy about what it writes. A key is skipped, with its
+reason on stderr, when its answer drops or invents a `{0}` or a `{>reference}`,
+loses a `` `code span` `` or a link's target, fills a form the language
+doesn't use, or when the key's default or its Italian changed since the
+request. Everything it writes is marked stale (`machine translated`, or your
+own words with `--stale`), so it turns up in Wordsmith's review filter. A
+`null` left is fine: that slot just stays missing. It exits 1 when it skipped
+anything, and writes nothing at all if the file would refuse one of the edits.
+
 ## Where things go
 
 - A changed field keeps its place; its lines are replaced with exactly what
@@ -86,9 +118,10 @@ Or build it: `dotnet run --project WordsCli -- --help`.
 
 ## Tests
 
-The patcher it runs on lives in Localization-Authoring (`IniPatcher`), and
-[Localization-Tests](../Localization-Tests) covers both it and the calls:
+The patcher it runs on lives in Localization-Authoring (`IniPatcher`), with
+the translation document (`TranslationRequest`, `TranslationAnswer`), and
+[Localization-Tests](../Localization-Tests) covers them and the calls:
 
 ```
-dotnet test Localization-Tests --filter "FullyQualifiedName~IniPatcherTests|FullyQualifiedName~WordsCommandTests"
+dotnet test Localization-Tests --filter "FullyQualifiedName~IniPatcherTests|FullyQualifiedName~WordsCommandTests|FullyQualifiedName~TranslationDocumentTests"
 ```

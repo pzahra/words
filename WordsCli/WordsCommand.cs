@@ -1,4 +1,5 @@
 using PatTech.Localization.Authoring;
+using System.Globalization;
 using System.Reflection;
 using System.Text;
 
@@ -7,8 +8,10 @@ namespace PatTech.Localization.Cli {
 	///     The <c>words</c> command (command line SPEC: Calls): one verb,
 	///     one file per call, over <see cref="IniPatcher"/>. Values go to the output
 	///     and gripes to the error stream; the exit code is 0 for done, 1 when the
-	///     key or field is not there, 2 for a bad call, a file that is missing, can't
-	///     be read or written or does not parse, or a refused edit.
+	///     key or field is not there, a request finds nothing to ask or an answer
+	///     has a key skipped, 2 for a bad call, a file that is missing, can't be read
+	///     or written or does not parse, an answer that is no translation document,
+	///     or a refused edit.
 	/// </summary>
 	public static class WordsCommand {
 		public const int Done = 0, NotThere = 1, BadCall = 2;
@@ -21,7 +24,13 @@ namespace PatTech.Localization.Cli {
 			            [--stale [text]]              and marks the language's entry stale
 			  words remove <file> <key> [field]       drops a field, or the whole key
 			  words list <file> [prefix]              the keys, in the file's order
-			            [--missing <code>]            only those missing words in a language
+			            [--missing <code>]            only those missing words in a language,
+			            [--stale <code>]              or marked stale in it
+			  words request <file> [prefix]           a translation request, as JSON, for the
+			            --missing/--stale <code>      keys list would list
+			            [--limit <n>] [--brief <text>]
+			  words apply <file> <answer>             writes the translations a filled request
+			            [--stale [text]]              holds, marked "machine translated" or text
 			  words --version
 
 			A field is named as in the file: value, value-fr, value-mt#few, context-fr,
@@ -30,9 +39,16 @@ namespace PatTech.Localization.Cli {
 			whatever [.child] header holds it: segments of letters, digits, _ and -, or
 			a $constant of one segment. set writes no other name.
 
-			Exit codes: 0 done, 1 the key or field is not there, 2 a bad call, a file
-			that is missing, can't be read or written or does not parse, or an edit
-			refused because it would change more than asked.
+			A request explains itself: hand it to a language model, or to a script for a
+			translation service, and give apply the same document back, its nulls filled
+			(an answer of - is read from stdin). apply writes a key only when its answer
+			keeps the default's {...} tokens, code spans and link targets, and neither the
+			default nor the translation changed since the request.
+
+			Exit codes: 0 done, 1 the key or field is not there, request found nothing
+			to ask or apply skipped a key, 2 a bad call, a file that is missing, can't be
+			read or written or does not parse, an answer that is no translation
+			document, or an edit refused because it would change more than asked.
 			""";
 
 		/// <summary>
@@ -78,8 +94,12 @@ namespace PatTech.Localization.Cli {
 					return Remove(Call.Parse(args, 2, 3), error);
 				case "list":
 					return List(Call.Parse(args, 1, 2), output, error);
+				case "request":
+					return Request(Call.Parse(args, 1, 2), output, error);
+				case "apply":
+					return Apply(Call.Parse(args, 2, 2), input, error);
 				default:
-					throw new UsageException($"'{args[0]}' is no call: get, set, remove or list");
+					throw new UsageException($"'{args[0]}' is no call: get, set, remove, list, request or apply");
 			}
 		}
 
@@ -204,25 +224,99 @@ namespace PatTech.Localization.Cli {
 		}
 
 		private static int List(Call call, TextWriter output, TextWriter error) {
-			var patcher = Open(call.File);
-			string prefix = call.Positionals.Count > 1 ? call.Positionals[1] : "";
-			var keys = patcher.Keys.Where(key => key.BlockKey.StartsWith(prefix, StringComparison.Ordinal));
-			if (call.Missing is { } missing) {
-				if (!LanguageCode.TryParse(missing, out var parsed)) {
-					throw new UsageException($"--missing {missing}: {WordsParserToLocalizationProvider.LanguageCodeRule}");
-				}
-				string code = parsed.ToString();
-				if (!MissingWords.Wants(patcher.Languages, patcher.DefaultLanguage, code)) {
-					error.WriteLine(patcher.Languages.Contains(code)
-						? $"words: the default speaks {code}, so an empty entry reads it and misses nothing"
-						: $"words: {call.File} does not declare {code}, so nothing misses it");
-				}
-				keys = keys.Where(key => MissingWords.Wants(patcher.Languages, patcher.DefaultLanguage, code) && MissingWords.InLanguage(key, code));
-			}
-			foreach (var key in keys) {
+			foreach (var key in Selected(Open(call.File), call, error, out _)) {
 				output.WriteLine(key.BlockKey);
 			}
 			return Done;
+		}
+
+		//the keys under the prefix, in the file's order, narrowed to those --missing
+		//or --stale selects in their one language, either taking a key; code is that
+		//language, null when neither is given
+		private static IEnumerable<WordsKey> Selected(IniPatcher patcher, Call call, TextWriter error, out string? code) {
+			string prefix = call.Positionals.Count > 1 ? call.Positionals[1] : "";
+			var keys = patcher.Keys.Where(key => key.BlockKey.StartsWith(prefix, StringComparison.Ordinal));
+			string? missing = call.Missing is { } m ? Code("--missing", m) : null;
+			string? stale = call.StaleIn is { } s ? Code("--stale", s) : null;
+			if (missing is not null && stale is not null && missing != stale) {
+				throw new UsageException($"--missing and --stale name one language, not {missing} and {stale}");
+			}
+			code = missing ?? stale;
+			if (code is not { } language) {
+				return keys;
+			}
+			bool wants = MissingWords.Wants(patcher.Languages, patcher.DefaultLanguage, language);
+			if (missing is not null && !wants) {
+				error.WriteLine(patcher.Languages.Contains(language)
+					? $"words: the default speaks {language}, so an empty entry reads it and misses nothing"
+					: $"words: {call.File} does not declare {language}, so nothing misses it");
+			}
+			return keys.Where(key => missing is not null && wants && MissingWords.InLanguage(key, language) || stale is not null && TranslationRequest.Stale(key, language));
+		}
+
+		private static string Code(string option, string text)
+			=> LanguageCode.TryParse(text, out var parsed) ? parsed.ToString() : throw new UsageException($"{option} {text}: {WordsParserToLocalizationProvider.LanguageCodeRule}");
+
+		private static int Request(Call call, TextWriter output, TextWriter error) {
+			if (call.Missing is null && call.StaleIn is null) {
+				throw new UsageException("request wants --missing <code>, --stale <code> or both");
+			}
+			var patcher = Open(call.File);
+			var keys = Selected(patcher, call, error, out string? code)
+				.Where(key => TranslationRequest.HasWords(key) && TranslationRequest.Asked(key, code!).Count != 0);
+			var selected = (call.Limit is { } limit ? keys.Take(limit) : keys).ToList();
+			if (selected.Count == 0) {
+				error.WriteLine($"words: nothing in {call.File} to ask for in {code}");
+				return NotThere;
+			}
+			string source = patcher.DefaultLanguage ?? "en";
+			output.WriteLine(TranslationRequest.Write(Path.GetFileName(call.File), new(source, patcher.LanguageName(source)), new(code!, patcher.LanguageName(code!)), selected, call.Brief ?? ""));
+			return Done;
+		}
+
+		//a filled request's translations, each key's checked and written with its stale
+		//mark, in one patch saved once; what is skipped is named, and all is counted
+		private static int Apply(Call call, TextReader input, TextWriter error) {
+			var patcher = Open(call.File);
+			string document = call.Positionals[1] == "-" ? Stdin(input) : Read(call.Positionals[1]);
+			var answer = TranslationAnswer.Read(document);
+			string code = LanguageCode.TryParse(answer.Target, out var parsed) ? parsed.ToString()
+				: throw new InvalidDataException($"the answer's target.code {answer.Target}: {WordsParserToLocalizationProvider.LanguageCodeRule}");
+			if (!patcher.Languages.Contains(code)) {
+				throw new InvalidDataException($"{call.File} does not declare {code}, so it takes no {code} words");
+			}
+			var keys = patcher.Keys.ToDictionary(key => key.BlockKey);
+			var defaults = new DefaultWordsProvider(keys, []);
+			var translations = new LanguageWordsProvider(keys, code, []);
+			var mark = new WordsField("stale", code, "");
+			List<string> gripes = [];
+			HashSet<string> answered = [];
+			int written = 0, left = 0, skipped = 0;
+			foreach (var item in answer.Items) {
+				var verdict = item.Check(keys.GetValueOrDefault(item.Key), code, defaults, patcher.DefaultLanguage, translations);
+				left += verdict.Left;
+				var flags = verdict.Flags;
+				if (!answered.Add(item.Key) && (verdict.Writes.Count != 0 || flags.Count != 0)) {
+					flags = ["answered twice, and the first answer stands"];
+				}
+				if (flags.Count != 0) {
+					skipped += item.Translation.Count - verdict.Left;
+					gripes.Add($"{item.Key}: skipped: {string.Join("; ", flags)}");
+					continue;
+				}
+				foreach (var (field, text) in verdict.Writes) {
+					gripes.AddRange(patcher.Set(item.Key, field, text));
+					written++;
+				}
+				if (verdict.Writes.Count != 0) {
+					gripes.AddRange(patcher.Set(item.Key, mark, call.Stale ?? "machine translated"));
+				}
+			}
+			if (written != 0) {
+				Save(patcher, call.File);
+			}
+			Gripe(error, [.. gripes, $"{written} written, {left} left, {skipped} skipped"]);
+			return skipped != 0 ? NotThere : Done;
 		}
 
 		//a file's failures name the file, which the system's messages may not
@@ -235,6 +329,19 @@ namespace PatTech.Localization.Cli {
 			}
 			catch (InvalidDataException ex) {
 				throw new InvalidDataException($"{path}: {ex.Message}", ex);
+			}
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+				throw new IOException($"{path}: can't be read: {ex.Message}", ex);
+			}
+		}
+
+		//a text file the call reads, by its BOM or as UTF-8, its failures naming it
+		private static string Read(string path) {
+			if (!File.Exists(path)) {
+				throw new FileNotFoundException($"{path}: no such file", path);
+			}
+			try {
+				return File.ReadAllText(path);
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
 				throw new IOException($"{path}: can't be read: {ex.Message}", ex);
@@ -265,6 +372,9 @@ namespace PatTech.Localization.Cli {
 			public string File => Positionals[0];
 			public string? Stale { get; private set; }
 			public string? Missing { get; private set; }
+			public string? StaleIn { get; private set; }
+			public int? Limit { get; private set; }
+			public string? Brief { get; private set; }
 
 			//options go anywhere after the verb; --stale takes the next argument as its
 			//words only once every positional is in, and -- ends the options
@@ -286,11 +396,22 @@ namespace PatTech.Localization.Cli {
 					string name = equals < 0 ? arg : arg[..equals];
 					string? value = equals < 0 ? null : arg[(equals + 1)..];
 					switch (name) {
-						case "--stale" when verb == "set":
+						case "--stale" when verb is "set" or "apply":
 							call.Stale = value ?? (call.Positionals.Count >= most && i + 1 < args.Count && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[++i] : "");
 							break;
-						case "--missing" when verb == "list":
+						case "--stale" when verb is "list" or "request":
+							call.StaleIn = value ?? (i + 1 < args.Count ? args[++i] : throw new UsageException("--stale wants a language code"));
+							break;
+						case "--missing" when verb is "list" or "request":
 							call.Missing = value ?? (i + 1 < args.Count ? args[++i] : throw new UsageException("--missing wants a language code"));
+							break;
+						case "--limit" when verb == "request":
+							string limit = value ?? (i + 1 < args.Count ? args[++i] : throw new UsageException("--limit wants a count"));
+							call.Limit = int.TryParse(limit, NumberStyles.None, CultureInfo.InvariantCulture, out int count) && count > 0 ? count
+								: throw new UsageException($"--limit {limit}: a count from 1 up");
+							break;
+						case "--brief" when verb == "request":
+							call.Brief = value ?? (i + 1 < args.Count ? args[++i] : throw new UsageException("--brief wants its words"));
 							break;
 						default:
 							throw new UsageException($"{verb} takes no {name}");
@@ -301,6 +422,8 @@ namespace PatTech.Localization.Cli {
 						"get" => "get <file> <key> [field]",
 						"set" => "set <file> <key> <field> <value>",
 						"remove" => "remove <file> <key> [field]",
+						"request" => "request <file> [prefix] --missing <code> | --stale <code>",
+						"apply" => "apply <file> <answer>",
 						_ => "list <file> [prefix]",
 					});
 				}

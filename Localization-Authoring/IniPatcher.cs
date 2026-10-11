@@ -106,6 +106,9 @@ namespace PatTech.Localization.Authoring {
 		public IReadOnlyList<string> Languages => reading.Words.DeclaredLanguages;
 		/// <summary>The language the default is written in, or <see langword="null"/>.</summary>
 		public string? DefaultLanguage => reading.Words.DefaultLanguage;
+		/// <summary>What the file's table names <paramref name="code"/>: its English name, else its own; null when the table has neither.</summary>
+		public string? LanguageName(string code)
+			=> reading.Words.KnownLanguages.TryGetValue(code, out var entry) && !(entry.IsPlaceholder && entry.EnglishName == "") ? entry.DisplayName : null;
 
 		/// <summary>
 		///     The file's keys in the order their blocks first appear. A bare header

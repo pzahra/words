@@ -1469,20 +1469,24 @@ rather than start over; return the whole document as JSON and change nothing
 else; leave a null that cannot be filled. `brief` is the user's own, for the
 tone and the terms. A slot is named as in the file less the language, `value`
 for the plain value and `value#other` for a form, and is written back as
-`value-it#other`. A plural key asks for the plain value and every form the
-target counts by and does not leave optional (`MissingWords.Requires`), and
-`source.forms` and `target.forms` say which counts read each slot, as the
-form selector's rows do (*Plural forms*); a key that is not plural asks for
-`value` alone. `default` holds the default's words and forms; `context`,
-`comment` and `parameters` are there when the key has them, and `current`
-holds the target's words now, for a stale key. Text is a value's own,
-unescaped, as `words get` prints it: no doubled `_` or `'`, no continuation,
-real line breaks.
+`value-it#other`. A key's slots are the plain value and, on a plural key,
+every form the target counts by and does not leave optional
+(`MissingWords.Requires`); a stale entry asks for all of them, any other for
+those without words, so a plural key whose plain value is translated asks
+for its forms alone. `source.forms` and `target.forms` say which counts read
+each slot, as the form selector's rows do (*Plural forms*). `default` holds
+the default's words and forms; `context`, `comment` and `parameters` are
+there when the key has them, and `current` holds the target's words where it
+has some. A key whose default has no words, and a constant, ask nothing.
+Text is a value's own, unescaped, as `words get` prints it: no doubled `_` or
+`'`, no continuation, real line breaks.
 
 **The answer is the same document**, its nulls filled. Only `target.code`
 and each item's `key`, `default`, `current` and `translation` are read back,
-so a script may drop the rest. A null left, or an empty string, is a slot not
-translated, and no error. A document is one batch: the command line takes a
+so a script may drop the rest. It is read from its first `{` to its last
+`}`, so a model's code fence or a sentence around it does no harm, and
+comments and trailing commas are let by. A null left, or blank text, is a
+slot not translated, and no error. A document is one batch: the command line takes a
 limit, the editor a batch size (50 keys by default), so an answer fits a
 model's output and a failure costs one batch.
 
@@ -1500,23 +1504,13 @@ show up as missing, for a person. Translation management systems (Crowdin,
 Phrase, Lokalise and the like) trade XLIFF, which Export already writes, and
 are not this loop's concern. Wordsmith ships no adapter.
 
-**On the command line.**
-- `list <file> [prefix] --stale xx` lists the keys whose `xx` entry carries a
-  stale mark, beside `--missing xx`; with both, a key either takes is listed.
-- `request <file> [prefix] --missing xx`, `--stale xx` or both (one
-  language) prints the request for the keys `list` would list; `--limit n`
-  takes the first n, and `--brief text` fills `brief`. It exits 1, printing
-  nothing, when nothing is selected, so a loop ends there.
-- `apply <file> <answer>`, `-` for stdin, writes each key's filled slots that
-  pass the check below as `set` writes them, its `stale-xx` marked `machine
-  translated` or with the words `--stale` gives, and prints nothing. stderr
-  names each key skipped and why, then counts the slots written, left and
-  skipped. The writes are one patch, saved once, so an edit the patcher
-  refuses writes nothing. It exits 0 when every filled slot was written, 1
-  when any was skipped, and 2 for a bad call, an answer that is no such
-  document, or a refused edit.
-
-An agent or a script loops `request --limit 50`, translate, `apply`, until
+**On the command line**, built (the command line spec's *Calls*): `list
+--stale xx` beside `--missing xx`; `request` for the keys `list` would list,
+up to `--limit n`, with a `--brief`, exiting 1 with nothing to ask; and
+`apply`, which writes each passing key's filled slots and its entry's stale
+mark, `machine translated` or `--stale`'s words, in one patch saved once,
+names each key it skips and why, and exits 1 when it skips any. An agent or
+a script loops `request --limit 50`, translate, `apply`, until
 `request` selects nothing or `apply` writes nothing, since a skipped key is
 still missing.
 
@@ -1526,9 +1520,10 @@ default across all its slots, as the translation check compares parameters
 that no definition names; keep every reference, constant and selector the
 default holds and hold no `{…}` token the default does not, since services
 translate inside braces (`{>menu.file}` comes back `{>menu.archivio}`); and
-keep the default's code spans and link targets as they are. A slot that was
-not asked for, a key whose default or current words changed since the
-request, and a key that is gone are flagged too. A flagged key is not
+keep the default's code spans and link targets as they are. A slot the key
+has no use for in the target, a key whose default or current words changed
+since the request, a key that is gone and a constant are flagged too, but
+only where the answer filled something: a key it left alone is no error. A flagged key is not
 written, none of its slots: stricter than `set`, which writes a person's
 translation with a note.
 
@@ -1562,34 +1557,38 @@ Credential Manager, never to `config.ini` (plain text) or anything beside the
 words files.
 
 **Where it lives.** Authoring builds the request and reads the answer, tested
-headless: `TranslationRequest` selects as `list` does and writes the document
-with `Utf8JsonWriter`, and `TranslationAnswer` reads it with `JsonDocument`
-and checks each key, with no reflection, since the command line is trimmed.
-The counts a form reads, `FormPane`'s today, move to Authoring, in invariant
-digits for the document. `apply` writes the passing slots through the
-patcher; the editor's grid writes the ticked ones as `FieldEdit`s. The
+headless (built): `TranslationRequest` writes the document for the keys a
+caller selects, by `MissingWords` and `TranslationRequest.Stale`, with
+`Utf8JsonWriter`; `TranslationAnswer` reads it with `JsonDocument`, and
+`TranslationItem.Check` checks each key, with no reflection, since the
+command line is trimmed. The counts a form reads are Authoring's
+`FormNumbers`, in the editor's digits for its rows and invariant ones for the
+document. `apply` writes the passing slots through the patcher; the editor's
+grid writes the ticked ones as `FieldEdit`s. The
 command runs behind a seam, `ITranslator`, so the tests fake it; the process
 behind it is the editor's. The Core skill gains the loop, the agent its own
 translator.
 
-**Tests.** The request: selected as `list --missing` and `--stale` select,
-under a prefix and up to a limit; constants never; a language the file does
-not want selects nothing and exits 1; an item carries the default and its
-forms, the context, the comment, the parameters and, for a stale key, the
-current words; a plural key asks for the plain value and each form the target
-requires, Maltese's `few` and not `two`, `many` or `other`, with the counts
-each reads; text is unescaped. The answer: filled slots written with the mark
-in the writer's order, nulls and empty strings left; a dropped or added
-parameter, a translated reference, a lost code span or link target, a slot
-not asked for, a default changed since and a key gone each skip their key and
-are named; a refused edit writes nothing; the request sent back untouched
-writes nothing and exits 0. The editor, with a fake translator: a batch's
-answer fills the grid, a flagged key's rows unticked with the reason, an
-edited row applied as edited, Apply one undo entry that marks stale; a failed
-batch reported and the next one run; Cancel stops; a pasted answer fills the
-grid.
+**Tests.** Built, in `TranslationDocumentTests` and the command line's: the
+request: selected as `list --missing` and `--stale` select, under a prefix and
+up to a limit; constants never; a language the file does not want selects
+nothing and exits 1; an item carries the default and its forms, the context,
+the comment, the parameters and the target's current words; a plural key's
+slots are the plain value and each form the target requires, Maltese's `few`
+and not `two`, `many` or `other`, and it asks for those without words, or all
+of them when stale, with the counts each reads; text is unescaped. The answer:
+filled slots written with the mark in the writer's order, nulls and empty
+strings left; a dropped or added parameter, a translated reference, a lost
+code span or link target, a slot of no use in the target, a default changed
+since and a key gone each skip their key and are named; a refused edit writes
+nothing; the request sent back untouched writes nothing and exits 0; an answer
+in a code fence reads, and what is no document says why. To build, the
+editor's, with a fake translator: a batch's answer fills the grid, a flagged
+key's rows unticked with the reason, an edited row applied as edited, Apply
+one undo entry that marks stale; a failed batch reported and the next one run;
+Cancel stops; a pasted answer fills the grid.
 
 **Order.** Authoring's document and check with the command line's `list
 --stale`, `request` and `apply` first, since an agent can run the loop with
-them at once and the skill can say so; then the editor's dialog by hand and
-its grid; then the command runner and the batches.
+them at once and the skill can say so (built); then the editor's dialog by
+hand and its grid; then the command runner and the batches.

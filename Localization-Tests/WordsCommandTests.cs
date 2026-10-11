@@ -1,6 +1,7 @@
 using PatTech.Localization.Cli;
 using System.Globalization;
 using System.Text;
+using System.Text.Json.Nodes;
 using Xunit;
 
 namespace PatTech.Localization.Tests;
@@ -9,7 +10,8 @@ namespace PatTech.Localization.Tests;
 ///     The <c>words</c> command, run in process (command line SPEC: Calls): the
 ///     calls, their exit codes, values on the output and gripes on the
 ///     error stream, a value from stdin, read as the program reads a pipe,
-///     <c>--stale</c>, and <c>list --missing</c> by the editor's rule.
+///     <c>--stale</c>, <c>list --missing</c> by the editor's rule and <c>--stale</c>,
+///     and a translation's request and answer (editor SPEC: Machine translation).
 /// </summary>
 public sealed class WordsCommandTests : IDisposable {
 	private readonly string path = Path.Combine(Path.GetTempPath(), $"words-{Guid.NewGuid():N}.ini");
@@ -84,6 +86,12 @@ public sealed class WordsCommandTests : IDisposable {
 	[InlineData("set", "FILE", "menu.edit", "param-n", "x", "--stale")]
 	[InlineData("set", "FILE", "menu edit", "value", "x")]
 	[InlineData("set", "FILE", "lang.c#", "value", "x")]
+	[InlineData("list", "FILE", "--missing", "it", "--stale", "en-GB")]
+	[InlineData("request", "FILE")]
+	[InlineData("request", "FILE", "--missing", "it", "--limit", "0")]
+	[InlineData("request", "FILE", "--missing", "it", "--brief")]
+	[InlineData("apply", "FILE")]
+	[InlineData("apply", "FILE", "no-such-answer.json")]
 	public void ABadCall_ExitsTwo_AndSaysWhy(params string[] args) {
 		File.WriteAllText(path, Sample);
 
@@ -356,5 +364,131 @@ public sealed class WordsCommandTests : IDisposable {
 		Assert.Contains("the default speaks en-GB", speaks.Error);
 		Assert.Equal((0, ""), (silent.Code, silent.Output));
 		Assert.Contains("does not declare fr", silent.Error);
+	}
+
+	[Fact]
+	public void List_Stale_ListsTheKeysMarkedStale_AndWithMissing_EitherTakes() {
+		File.WriteAllText(path, Sample);
+		Run("set", "FILE", "menu.file", "value-it", "Archivio", "--stale");
+
+		Assert.Equal((0, "menu.file\n", ""), Run("list", "FILE", "--stale", "it"));
+		Assert.Equal((0, "menu.file\nmenu.edit\nfiles\n", ""), Run("list", "FILE", "--missing", "it", "--stale", "it"));
+		Assert.Equal((0, "", ""), Run("list", "FILE", "--stale", "en-GB"));
+	}
+
+	//the request a call prints, its items' keys, and the document to fill
+	private JsonNode Requested(params string[] args) {
+		var (code, output, error) = Run(["request", "FILE", .. args]);
+		Assert.Equal((0, ""), (code, error));
+		return JsonNode.Parse(output)!;
+	}
+
+	private static IEnumerable<string> Keys(JsonNode request) => request["items"]!.AsArray().Select(item => (string)item!["key"]!);
+
+	[Fact]
+	public void Request_AsksForWhatListWouldList_UnderAPrefix_AndUpToALimit() {
+		File.WriteAllText(path, Sample);
+		Run("set", "FILE", "menu.file", "value-it", "Archivio", "--stale");
+
+		Assert.Equal(["menu.edit", "files"], Keys(Requested("--missing", "it")));
+		Assert.Equal(["menu.file", "menu.edit", "files"], Keys(Requested("--stale", "it", "--missing", "it")));
+		Assert.Equal(["files"], Keys(Requested("files", "--missing", "it")));
+		Assert.Equal(["menu.edit"], Keys(Requested("--missing", "it", "--limit", "1")));
+		var request = Requested("--missing", "it", "--brief", "Informal: tu.");
+		Assert.Equal("Informal: tu.", (string)request["brief"]!);
+		Assert.Equal(Path.GetFileName(path), (string)request["file"]!);
+		Assert.Equal("Italiano", (string)request["target"]!["name"]!);
+		//files has its Italian plain value, and lacks its plural
+		Assert.Equal("""{"value#other":null}""", request["items"]![1]!["translation"]!.ToJsonString());
+	}
+
+	[Fact]
+	public void Request_WithNothingToAsk_ExitsOne_PrintingNothing() {
+		File.WriteAllText(path, Sample);
+
+		var undeclared = Run("request", "FILE", "--missing", "fr");
+		var none = Run("request", "FILE", "--stale", "it");
+
+		Assert.Equal((1, ""), (undeclared.Code, undeclared.Output));
+		Assert.Contains("does not declare fr", undeclared.Error);
+		Assert.Equal((1, ""), (none.Code, none.Output));
+		Assert.Contains("nothing in", none.Error);
+	}
+
+	[Fact]
+	public void Apply_WritesTheFilledSlots_EachKeyMarkedStale_InTheWritersOrder() {
+		File.WriteAllText(path, Sample);
+		var answer = Requested("--missing", "it");
+		answer["items"]![0]!["translation"]!["value"] = "Modifica";
+		answer["items"]![1]!["translation"]!["value#other"] = "file";
+
+		var (code, output, error) = RunWith("Here it is:\n```json\n" + answer.ToJsonString() + "\n```\n", "apply", "FILE", "-");
+
+		Assert.Equal((0, "", "words: 2 written, 0 left, 0 skipped\n"), (code, output, error));
+		string text = File.ReadAllText(path);
+		Assert.Contains("[menu.edit]\nvalue=Edit\nvalue-it=Modifica\nstale-it=machine translated\n", text);
+		Assert.Contains("[files]\nvalue=file\nvalue#other=files\nvalue-it=file\nvalue-it#other=file\nstale-it=machine translated\n", text);
+	}
+
+	[Fact]
+	public void Apply_MarksWithTheWordsStaleGives_FromAFile() {
+		File.WriteAllText(path, Sample);
+		var answer = Requested("--missing", "it", "--limit", "1");
+		answer["items"]![0]!["translation"]!["value"] = "Modifica";
+		string file = path + ".json";
+		File.WriteAllText(file, answer.ToJsonString());
+		try {
+			Assert.Equal(0, Run("apply", "FILE", file, "--stale", "DeepL").Code);
+		}
+		finally {
+			File.Delete(file);
+		}
+
+		Assert.Contains("value-it=Modifica\nstale-it=DeepL\n", File.ReadAllText(path));
+	}
+
+	[Fact]
+	public void Apply_TheRequestSentBackUntouched_WritesNothing_AndExitsZero() {
+		File.WriteAllText(path, Sample);
+		var (_, request, _) = Run("request", "FILE", "--missing", "it");
+
+		Assert.Equal((0, "", "words: 0 written, 2 left, 0 skipped\n"), RunWith(request, "apply", "FILE", "-"));
+		Assert.Equal(Sample, File.ReadAllText(path));
+	}
+
+	[Fact]
+	public void Apply_SkipsAKeyWhoseAnswerBreaksATokenOrChangedSince_NamingIt_AndExitsOne() {
+		File.WriteAllText(path, Sample);
+		var answer = Requested("--missing", "it");
+		answer["items"]![0]!["translation"]!["value"] = "Modifica {0}";
+		answer["items"]![1]!["translation"]!["value#other"] = "file";
+		Run("set", "FILE", "files", "value#other", "filez"); //since the request
+
+		var (code, _, error) = RunWith(answer.ToJsonString(), "apply", "FILE", "-");
+
+		Assert.Equal(1, code);
+		Assert.Contains("words: menu.edit: skipped: the it words use {0}, which the default does not and no param- defines\n", error);
+		Assert.Contains("words: files: skipped: its default changed since the request\n", error);
+		Assert.EndsWith("words: 0 written, 0 left, 2 skipped\n", error);
+		Assert.DoesNotContain("Modifica", File.ReadAllText(path));
+	}
+
+	[Fact]
+	public void Apply_WhatIsNoTranslationDocument_OrARefusedEdit_ExitsTwo_AndLeavesTheFile() {
+		//the last line continues, so a field added after it would become its text
+		string text = Ini("value=!en", "value-it=Italiano", "", "[b]", "value=B", "", "[a]") + "value=A\\";
+		File.WriteAllText(path, text);
+		var answer = Requested("--missing", "it");
+		answer["items"]![0]!["translation"]!["value"] = "Bi";
+		answer["items"]![1]!["translation"]!["value"] = "Ah";
+		var undeclared = JsonNode.Parse(answer.ToJsonString())!;
+		undeclared["target"]!["code"] = "fr";
+
+		Assert.Equal(2, RunWith("{}", "apply", "FILE", "-").Code);
+		Assert.Contains("does not declare fr", RunWith(undeclared.ToJsonString(), "apply", "FILE", "-").Error);
+		var refused = RunWith(answer.ToJsonString(), "apply", "FILE", "-");
+		Assert.Equal(2, refused.Code);
+		Assert.Contains("refused", refused.Error);
+		Assert.Equal(text, File.ReadAllText(path)); //b's translation too
 	}
 }
