@@ -77,11 +77,26 @@ namespace PatTech.Localization.Authoring {
 				if (!OperatingSystem.IsWindows() && File.Exists(full)) {
 					File.SetUnixFileMode(temp, File.GetUnixFileMode(full));
 				}
-				File.Move(temp, full, overwrite: true);
+				MoveOver(temp, full);
 			}
 			catch {
 				try { File.Delete(temp); } catch { /* the write's own error is the one worth raising */ }
 				throw;
+			}
+		}
+
+		//a program that holds the file a moment, a scanner or an editor watching it,
+		//refuses the move on Windows: it is tried again over half a second, and only
+		//then does the write fail
+		private static void MoveOver(string temp, string full) {
+			for (int attempt = 1; ; attempt++) {
+				try {
+					File.Move(temp, full, overwrite: true);
+					return;
+				}
+				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && attempt < 5 && OperatingSystem.IsWindows()) {
+					Thread.Sleep(50 * attempt);
+				}
 			}
 		}
 
@@ -119,10 +134,13 @@ namespace PatTech.Localization.Authoring {
 		///     <paramref name="text"/>, adding the field, or the key, where it is
 		///     missing. A field already holding the text is left alone; a field declared
 		///     more than once keeps its first place, and its others go. A new field goes
-		///     after the last of its block, a new key after the header chain holding
-		///     its nearest sibling, as a full header. A parameter's text is written as
-		///     given: the reader keeps a text whose words before the first <c>:</c> name
-		///     no type whole.
+		///     where the writer puts it among fields already in the writer's order, and
+		///     last in a block in none (<see cref="NewFieldLine"/>); a new key goes into
+		///     the chain whose full header it extends, as a <c>[.child]</c>, else after
+		///     the chain holding its nearest sibling, as a full header
+		///     (<see cref="NewKeyLines"/>). A parameter's text is written as given: the
+		///     reader keeps a text whose words before the first <c>:</c> name no type
+		///     whole.
 		/// </summary>
 		/// <returns>The gripes the change adds to the file's.</returns>
 		/// <exception cref="ArgumentException"><paramref name="key"/> is no key name (<see cref="WordsParser.IsKeyName"/>), or <paramref name="text"/> holds a NUL.</exception>
@@ -153,15 +171,11 @@ namespace PatTech.Localization.Authoring {
 				}
 			}
 			else if (reading.Headers.Any(header => header.Key == key)) {
-				//after the last field of its block, or right under its header
-				int last = reading.Declarations.Where(declaration => declaration.InBlock && declaration.Key == key).Select(declaration => declaration.End)
-					.DefaultIfEmpty(reading.Headers.Last(header => header.Key == key).Line).Max();
-				edit.Insert(last + 1, pair);
+				edit.Insert(NewFieldLine(key, field), pair);
 			}
 			else {
-				int at = NewKeyLine(key);
-				bool spaced = at == 0 || lines[at - 1].Text.Trim() == "";
-				edit.Insert(at, [.. spaced ? [] : (Line[])[new("", newLine)], new($"[{key}]", newLine), .. pair]);
+				var (at, added) = NewKeyLines(key, pair, field is { Type: "value", Language: "", Form: "" } && text != "");
+				edit.Insert(at, added);
 			}
 			return [.. notes, .. Commit(edit.Apply(), keys => {
 				if (!keys.TryGetValue(key, out var changed)) {
@@ -246,15 +260,54 @@ namespace PatTech.Localization.Authoring {
 			return Split(writer.ToString());
 		}
 
-		//where a new key's block goes: after the header chain holding the key that
-		//shares the most leading segments with it, the last of them; after the last
-		//chain when none shares any, and at the end of a file with no blocks
-		private int NewKeyLine(string key) {
+		/// <summary>
+		///     Where a new key's block goes, and its lines (command line SPEC: Surgical
+		///     edits). A key that extends a chain's full header goes into that chain as
+		///     a <c>[.child]</c>, as the writer chains it: after the block of the header
+		///     in it sharing the most leading segments, the last of them. A
+		///     <c>[.child]</c> header extends the chain's full header and not the one
+		///     above it, so the headers after it keep their base. A key that extends
+		///     none goes after the chain holding its nearest sibling, as a full header,
+		///     since a full header inside a chain would re-base the <c>[.child]</c>
+		///     headers after it; after the last chain when no key shares a segment, and
+		///     at the end of a file with no blocks. Either way it is spaced as the
+		///     blocks around it are (<see cref="After"/>). The cut a writer makes at a
+		///     group a second key now fills would re-base headers already written, and
+		///     no line but the key's own changes.
+		/// </summary>
+		private (int At, List<Line> Lines) NewKeyLines(string key, List<Line> pair, bool valued) {
 			var headers = reading.Headers;
 			if (headers.Count == 0) {
-				return lines.Count;
+				//under the languages, after their blank line or with one, and with one
+				//of its own when the file ends in one, as the writer ends it
+				bool ends = lines.Count != 0 && IsBlank(lines.Count - 1);
+				List<Line> added = [.. lines.Count == 0 || ends ? [] : (Line[])[new("", newLine)], new($"[{key}]", newLine), .. pair];
+				if (ends && valued) {
+					added.Add(new("", newLine));
+				}
+				return (lines.Count, added);
 			}
-			int nearest = headers.Count - 1, most = 0;
+			//each header's chain: the index of the full header it runs from
+			var bases = new int[headers.Count];
+			for (int i = 0; i < headers.Count; i++) {
+				bases[i] = headers[i].IsFull || i == 0 ? i : bases[i - 1];
+			}
+			int chained = -1, longest = 0, most = 0;
+			for (int i = 0; i < headers.Count; i++) {
+				string based = headers[bases[i]].Key;
+				if (!headers[bases[i]].IsFull || !key.StartsWith(based + ".", StringComparison.Ordinal) || based.Length < longest) {
+					continue;
+				}
+				int shared = Shared(key, headers[i].Key);
+				if (based.Length > longest || shared >= most) {
+					(chained, longest, most) = (i, based.Length, shared);
+				}
+			}
+			if (chained >= 0) {
+				return After(chained, BlockEnd(chained, chained), $"[{key[longest..]}]", pair, valued);
+			}
+			int nearest = headers.Count - 1;
+			most = 0;
 			for (int i = 0; i < headers.Count; i++) {
 				int shared = Shared(key, headers[i].Key);
 				if (shared > 0 && shared >= most) {
@@ -263,20 +316,110 @@ namespace PatTech.Localization.Authoring {
 			}
 			//the chain runs from its full header to the next one; it ends at its last
 			//header or field line, so the comments above the next block stay with it
-			int first = nearest, end = nearest + 1;
-			while (first > 0 && !headers[first].IsFull) {
-				first--;
+			int last = nearest + 1;
+			while (last < headers.Count && !headers[last].IsFull) {
+				last++;
 			}
-			while (end < headers.Count && !headers[end].IsFull) {
-				end++;
+			return After(last - 1, BlockEnd(bases[nearest], last - 1), $"[{key}]", pair, valued);
+		}
+
+		/// <summary>
+		///     A new block after the block of <paramref name="header"/>, whose last
+		///     line is <paramref name="end"/>, spaced as the writer spaces blocks in a
+		///     file spaced so: the writer writes a blank line after each block with a
+		///     value, so a blank line there is that block's own, and the new block goes
+		///     past it and has one of its own when it has a value. A block with a value
+		///     and no blank line after it is a file written without them, and the new
+		///     block gets none.
+		/// </summary>
+		private (int At, List<Line> Lines) After(int header, int end, string name, List<Line> pair, bool valued) {
+			bool blank = end + 1 < lines.Count && IsBlank(end + 1);
+			bool spaced = blank || !(reading.Words.WordKeys.TryGetValue(reading.Headers[header].Key, out var above) && above.DefaultValue != "");
+			int at = blank ? end + 2 : end + 1;
+			List<Line> added = [new(name, newLine), .. pair];
+			if (spaced && valued && (at == lines.Count || !IsBlank(at))) {
+				added.Add(new("", newLine));
 			}
-			int last = headers[end - 1].Line;
+			return (at, added);
+		}
+
+		private bool IsBlank(int line) => lines[line].Text.Trim() == "";
+
+		//the last line of the blocks under headers first..last: the last header, or a field's last line
+		private int BlockEnd(int first, int last) {
+			int end = reading.Headers[last].Line;
 			foreach (var declaration in reading.Declarations) {
-				if (declaration.Header >= first && declaration.Header < end) {
-					last = Math.Max(last, declaration.End);
+				if (declaration.Header >= first && declaration.Header <= last) {
+					end = Math.Max(end, declaration.End);
 				}
 			}
-			return last + 1;
+			return end;
+		}
+
+		/// <summary>
+		///     Where a new field of a key the file has goes: where the writer puts it,
+		///     when the key's fields stand in the writer's order (<see cref="Rank"/>),
+		///     ahead of the first that ranks after it and of the comment lines right
+		///     above that one; else, in a block written in no order, after the last of
+		///     its fields, or right under its header when it has none.
+		/// </summary>
+		private int NewFieldLine(string key, WordsField field) {
+			var own = reading.Declarations.Where(declaration => declaration.InBlock && declaration.Key == key).ToList();
+			if (own.Count == 0) {
+				return reading.Headers.Last(header => header.Key == key).Line + 1;
+			}
+			//a block of nothing but empty fields reads as a group, no key
+			List<string> languages = [], parameters = [];
+			if (reading.Words.WordKeys.TryGetValue(key, out var found)) {
+				languages = [.. found.Entries.Keys];
+				parameters = [.. found.Parameters.Select(parameter => parameter.Key)];
+			}
+			var ranks = own.Select(declaration => Rank(declaration.Field, languages, parameters)).ToList();
+			bool ordered = ranks.Zip(ranks.Skip(1)).All(pair => pair.First.CompareTo(pair.Second) <= 0);
+			var rank = Rank(field, languages, parameters);
+			int later = ordered ? ranks.FindIndex(other => other.CompareTo(rank) > 0) : -1;
+			if (later < 0) {
+				return own.Max(declaration => declaration.End) + 1;
+			}
+			int at = own[later].Start;
+			while (at > 0 && lines[at - 1].Text.TrimStart().StartsWith(';') && !reading.Declarations.Any(declaration => at - 1 >= declaration.Start && at - 1 <= declaration.End)) {
+				at--;
+			}
+			return at;
+		}
+
+		//CLDR's categories, in the order the writer writes a key's forms
+		private static readonly List<string> categories = [.. PluralRules.Names];
+
+		/// <summary>
+		///     A field's place as the writer writes a block (<see cref="IniWriter"/>):
+		///     the context, the comment, the value and its forms in CLDR's order, the
+		///     parameters in the key's order, the default's stale mark; then each
+		///     language in the order the key's entries came in, its value, its forms,
+		///     its stale mark, its context and its comment. A language or a parameter
+		///     the key does not have yet comes after the ones it has.
+		/// </summary>
+		private static (int Group, int Index, int Place) Rank(WordsField field, List<string> languages, List<string> parameters) {
+			int form = field.Form == "" ? 0 : 1 + categories.IndexOf(field.Form);
+			if (field.Type == "param") {
+				int index = parameters.IndexOf(field.Language);
+				return (3, index < 0 ? parameters.Count : index, 0);
+			}
+			if (field.Language == "") {
+				return field.Type switch {
+					"context" => (0, 0, 0),
+					"comment" => (1, 0, 0),
+					"value" => (2, 0, form),
+					_ => (4, 0, 0),
+				};
+			}
+			int language = languages.IndexOf(field.Language);
+			return (5, language < 0 ? languages.Count : language, field.Type switch {
+				"value" => form,
+				"stale" => 10,
+				"context" => 11,
+				_ => 12,
+			});
 		}
 
 		//the dotted segments two keys start with alike

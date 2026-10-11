@@ -495,7 +495,7 @@ changes, saves the choice and restarts the editor with the same files open.
 `[Localized]`, and the analyzer runs on the project, so a hardcoded string is
 a build warning (PTL001), never a silent one. The file is also the editor's
 standing test subject: it must round-trip through the editor byte for byte,
-name exactly the keys the source asks for, and open in Wordsmith to add a
+the command line's edits to it included, name exactly the keys the source asks for, and open in Wordsmith to add a
 language, translate, relaunch in it. What stays hard-coded is file syntax and
 key caps, not words: `[images]`, `shellexec`, `F2`.
 [The Core skill](../Localization-Core/SKILL.md) is the how-to.

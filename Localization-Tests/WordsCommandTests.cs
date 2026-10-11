@@ -118,7 +118,7 @@ public sealed class WordsCommandTests : IDisposable {
 
 		Assert.Equal(0, RunWith("first\r\nsecond\r\n", "set", "FILE", "menu.edit", "comment", "-").Code);
 
-		Assert.Contains("value=Edit\ncomment=first\\\nsecond\n", File.ReadAllText(path));
+		Assert.Contains("[menu.edit]\ncomment=first\\\nsecond\nvalue=Edit\n", File.ReadAllText(path));
 	}
 
 	[Fact]
@@ -196,7 +196,7 @@ public sealed class WordsCommandTests : IDisposable {
 		string text = File.ReadAllText(path);
 		Assert.Contains("value-it=Modifica\nstale-it=machine translated\n", text);
 		Assert.Contains("value-it=Archivio\nstale-it=\n", text);
-		Assert.Contains("value-it=file\nstale=\n", text); //the default's mark keeps no words
+		Assert.Contains("value#other=files\nstale=\nvalue-it=file\n", text); //the default's mark keeps no words
 	}
 
 	[Fact]
@@ -284,7 +284,7 @@ public sealed class WordsCommandTests : IDisposable {
 		string text = "[a]\nvalue=A\\";
 		File.WriteAllText(path, text);
 
-		var (code, _, error) = Run("set", "FILE", "a", "context", "c");
+		var (code, _, error) = Run("set", "FILE", "a", "value-fr", "A");
 
 		Assert.Equal(2, code);
 		Assert.Contains("refused", error);

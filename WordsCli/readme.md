@@ -58,9 +58,12 @@ can't be read or written or does not parse, or an edit `words` refused.
 
 - A changed field keeps its place; its lines are replaced with exactly what
   Wordsmith would write for it, folded and escaped.
-- A new field goes after the last field of its block.
-- A new key goes after the header chain of its nearest sibling, as a full
-  header, so it never re-bases somebody's `[.child]` headers.
+- A new field goes where Wordsmith would write it (context, comment, value,
+  then each language), or last, if its block was never in that order anyway.
+- A new key joins the chain it belongs to as a `[.child]`, next to its nearest
+  sibling; with no chain to join it gets a full header after its sibling's
+  chain. Either way it never re-bases somebody's `[.child]` headers, and it
+  takes its blank lines from the blocks around it.
 - A removed key whose header bases `[.child]` headers keeps that header, bare.
 
 Every edit is read back before the file is touched. If anything changed

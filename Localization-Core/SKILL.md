@@ -148,8 +148,9 @@ missing a form `xx` counts by; a language the default speaks misses nothing.
 
 Without the tool, edit by hand and keep the format's rules: a literal `\`, `_`
 or `'` is written doubled, a trailing `\` continues a value on the next line
-keeping the line break and a trailing `_` without it, and a new block never
-goes between a base and its `[.child]` headers, which would re-base them.
+keeping the line break and a trailing `_` without it, and a new key in a chain
+goes in as a `[.child]` of its base, never as a full header between the base
+and its `[.child]` headers, which would re-base them.
 
 ## Load once, look up anywhere
 

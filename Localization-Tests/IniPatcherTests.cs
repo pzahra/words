@@ -49,12 +49,38 @@ public class IniPatcherTests {
 	}
 
 	[Fact]
-	public void Set_ANewField_GoesAfterTheLastOfItsBlock() {
+	public void Set_ANewField_InABlockInNoOrder_GoesAfterTheLastOfIt() {
 		var patcher = Patch(Menu);
 
-		patcher.Set("menu.edit", F("value-fr"), "Édition");
+		//[.edit] has its comment after its value, where the writer puts none
+		patcher.Set("menu.edit", F("context"), "a top menu");
 
-		Assert.Equal(Menu.Replace("comment=the edit menu\n", "comment=the edit menu\nvalue-fr=Édition\n"), patcher.Text);
+		Assert.Equal(Menu.Replace("comment=the edit menu\n", "comment=the edit menu\ncontext=a top menu\n"), patcher.Text);
+	}
+
+	[Fact]
+	public void Set_ANewField_InABlockInTheWritersOrder_GoesWhereTheWriterPutsIt() {
+		string languages = Ini("value=!en", "value-it=Italiano", "value-de=Deutsch", "value-fr=Français", "");
+		var patcher = Patch(languages + Ini("[a]", "value=A", "value#other=As", ";the Italian", "value-it=A", "value-de=A", "", "[b]", "value=B"));
+
+		patcher.Set("a", F("context"), "c"); //ahead of the value
+		patcher.Set("a", F("value-it#other"), "A"); //after its plain value, ahead of the next language
+		patcher.Set("a", F("stale"), ""); //ahead of the languages, and of the comment right above them
+		patcher.Set("a", F("param-0"), "int:the count"); //after the default's forms, ahead of its stale mark
+		patcher.Set("a", F("value-fr"), "A"); //a language the key lacks: after the ones it has
+
+		Assert.Equal(languages + Ini("[a]", "context=c", "value=A", "value#other=As", "param-0=int:the count", "stale=", ";the Italian",
+			"value-it=A", "value-it#other=A", "value-de=A", "value-fr=A", "", "[b]", "value=B"), patcher.Text);
+	}
+
+	[Fact]
+	public void Set_ANewField_OfABlockReadAsAGroup_GoesInTheWritersOrderToo() {
+		var patcher = Patch(Ini("[a]", "context=", "comment="));
+
+		patcher.Set("a", F("value"), "A");
+
+		Assert.Equal(Ini("[a]", "context=", "comment=", "value=A"), patcher.Text);
+		Assert.Equal("A", patcher.Find("a")!.DefaultValue);
 	}
 
 	[Fact]
@@ -68,14 +94,48 @@ public class IniPatcherTests {
 	}
 
 	[Fact]
-	public void Set_ANewKey_GoesAfterItsNearestSiblingsChain_AsAFullHeader() {
+	public void Set_ANewKey_ExtendingAChain_GoesIntoIt_AfterItsNearestSibling() {
 		var patcher = Patch(Menu);
 
 		patcher.Set("menu.view", F("value"), "View");
+		patcher.Set("menu.file.recent", F("value"), "Recent");
 
-		//after the chain [menu] [.file] [.edit], not inside it, and the comment above [about] stays with it
-		Assert.Equal(Menu.Replace("comment=the edit menu\n", "comment=the edit menu\n\n[menu.view]\nvalue=View\n"), patcher.Text);
-		Assert.Equal(["menu.file", "menu.edit", "menu.view", "about"], patcher.Keys.Select(key => key.BlockKey));
+		//[.view] after [.edit], past its blank line and with one of its own, the comment
+		//above [about] staying with it; [.file.recent] after [.file], and the [.edit]
+		//after it still extends [menu]
+		Assert.Equal(Menu
+			.Replace("value=File\n\n", "value=File\n\n[.file.recent]\nvalue=Recent\n\n")
+			.Replace("comment=the edit menu\n\n", "comment=the edit menu\n\n[.view]\nvalue=View\n\n"), patcher.Text);
+		Assert.Equal(["menu.file", "menu.file.recent", "menu.edit", "menu.view", "about"], patcher.Keys.Select(key => key.BlockKey));
+	}
+
+	[Fact]
+	public void Set_ANewKey_ExtendingNoChain_GoesAfterItsNearestSiblingsChain_AsAFullHeader() {
+		var patcher = Patch(Ini("[app.title]", "value=Words", "", ";about", "[about]", "value=About", ""));
+
+		patcher.Set("app.version", F("value"), "1.0");
+
+		//[app.title] is no group to extend, and the cut at [app] a writer now makes would re-base it
+		Assert.Equal(Ini("[app.title]", "value=Words", "", "[app.version]", "value=1.0", "", ";about", "[about]", "value=About", ""), patcher.Text);
+	}
+
+	[Fact]
+	public void Set_ANewKey_InAFileWrittenWithoutBlankLines_GetsNone() {
+		var patcher = Patch(Ini("[menu]", "[.file]", "value=File", "[.edit]", "value=Edit", "[about]", "value=About"));
+
+		patcher.Set("menu.view", F("value"), "View");
+
+		Assert.Equal(Ini("[menu]", "[.file]", "value=File", "[.edit]", "value=Edit", "[.view]", "value=View", "[about]", "value=About"), patcher.Text);
+	}
+
+	[Fact]
+	public void Set_ANewKey_HasABlankLineOfItsOwn_OnlyWithAValue_AsTheWriterSpacesBlocks() {
+		var patcher = Patch(Ini("[a]", "comment=no value, so no blank line", "[b]", "value=B", ""));
+
+		patcher.Set("a.x", F("value"), "X"); //after [a], with no blank line to step past
+		patcher.Set("b.y", F("comment"), "Y"); //past [b]'s blank line, with none of its own
+
+		Assert.Equal(Ini("[a]", "comment=no value, so no blank line", "[.x]", "value=X", "", "[b]", "value=B", "", "[.y]", "comment=Y"), patcher.Text);
 	}
 
 	[Fact]
@@ -116,8 +176,9 @@ public class IniPatcherTests {
 		var patcher = IniPatcher.FromBytes(bytes);
 
 		patcher.Set("a", F("comment"), "first\nsecond");
+		patcher.Set("a", F("stale"), "");
 
-		Assert.Equal([.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes("value=!en\r\n\r\n[a]\r\nvalue=A\r\ncomment=first\\\r\nsecond")], patcher.ToBytes());
+		Assert.Equal([.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes("value=!en\r\n\r\n[a]\r\ncomment=first\\\r\nsecond\r\nvalue=A\r\nstale=")], patcher.ToBytes());
 	}
 
 	[Fact]
@@ -234,7 +295,7 @@ public class IniPatcherTests {
 		string text = "[a]\nvalue=A\\";
 		var patcher = Patch(text);
 
-		var refused = Assert.Throws<IniPatchException>(() => patcher.Set("a", F("context"), "c"));
+		var refused = Assert.Throws<IniPatchException>(() => patcher.Set("a", F("value-fr"), "A"));
 
 		Assert.Contains("a value", refused.Message);
 		Assert.Equal(text, patcher.Text);

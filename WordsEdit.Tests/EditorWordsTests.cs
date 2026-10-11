@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 using PatTech.Localization;
 using PatTech.Localization.Authoring;
@@ -137,6 +138,35 @@ public class EditorWordsTests {
 
 		Assert.Equal(text, writer.ToString());
 		Assert.Empty(vm.Session.FileOf("words")!.Errors);
+	}
+
+	//the command line's edits keep the file the editor's (command line SPEC:
+	//Surgical edits): a key goes into its chain or after it, spaced as the editor
+	//spaces it, and a field where the editor writes it
+	[Fact]
+	public void TheCommandLinesEdits_RoundTripThroughTheEditorByteForByte() {
+		static WordsField F(string name) => WordsField.TryParse(name, out var field, out string? problem) ? field : throw new ArgumentException(problem);
+		var patcher = IniPatcher.FromBytes(Encoding.UTF8.GetBytes(EditorWords.Text()));
+
+		patcher.Set("menu.recent", F("value"), "Recent Files"); //the last of [menu]'s chain
+		patcher.Set("menu.recent", F("context"), "A File entry: the files opened lately.");
+		patcher.Set("app.name.short", F("value"), "WS"); //after [.name], ahead of [.title]
+		patcher.Set("solo.key", F("comment"), "no value, no blank line after it"); //no sibling: a full header, last
+		patcher.Set("dialog.ok", F("comment"), "The button that accepts a dialog.");
+		patcher.Set("dialog.ok", F("value#other"), "Oks");
+		patcher.Set("dialog.ok", F("value-it#other"), "OK");
+		patcher.Set("dialog.ok", F("stale-it"), "machine translated");
+		patcher.Set("dialog.ok", F("context-it"), "Il pulsante che accetta un dialogo.");
+		patcher.Set("dialog.ok", F("value-en"), "Ok");
+		string text = patcher.Text;
+		Assert.Contains("[.name.short]", text);
+		var vm = new MainWindowViewModel(new FakeDialogs());
+		vm.LoadFile(new StringReader(text), "words");
+
+		var writer = new StringWriter();
+		vm.Session.Save(vm.Session.FileOf("words")!, vm.Tree.KeyNodes.Single(), writer);
+
+		Assert.Equal(text, writer.ToString());
 	}
 
 	//the dogfood, headless: open the editor's words in the editor, add a language,

@@ -84,24 +84,53 @@ replaced with what `IniWriter` writes for that one pair: escaping and folding
 as Save would, in the file's own line ending; every other line keeps its own
 break, and a file that ended without one still does. A field already holding
 the text is not touched. A field declared more than once keeps its first
-place and loses the others. A new field goes after the last field of its
-block, or under its header when it has none. A new key goes after the end of
-the header chain holding its nearest sibling — the key sharing the most
-leading segments, the last of them — as a full header: after the chain's last
-header or field line, so the comments above the next block stay with it,
-since inserting one between a base and its `[.child]` headers would re-base
-them. With no sibling it goes after the last chain. A removed key whose
-header bases `[.child]` headers keeps that header bare, which reloads as a
-group (the tradeoff the writer already makes); a removal leaves no doubled
-blank line, and the comments above a removed block stand where they are, as
-in the tree. After the edit the result is parsed again and compared with the
+place and loses the others.
+
+A new field goes where the writer puts it, when its block's fields stand in
+the writer's order: the context, the comment, the value and its forms in
+CLDR's order, the parameters, the default's stale mark, then each language in
+the order the key's entries came in, with its value, its forms, its stale
+mark, its context and its comment; a language or a parameter the key does not
+have yet comes after the ones it has. It goes ahead of the first field that
+ranks after it, and of the comment lines right above that one. In a block
+written in no order, where there is no such place, it goes after the last
+field, and under its header when there is none.
+
+A new key that extends a chain's full header goes into that chain as a
+`[.child]`, as the writer chains it: after the block of the header in it
+sharing the most leading segments, the last of them. A `[.child]` header
+extends the chain's full header and not the one above it, so the headers
+after it keep their base. A key that extends none goes in as a full header
+after the end of the chain holding its nearest sibling (the key sharing the
+most leading segments, the last of them): after the chain's last header or
+field line, so the comments above the next block stay with it, since a full
+header between a base and its `[.child]` headers would re-base them. With no
+sibling it goes after the last chain. The writer cuts at a group once it
+holds two keys (`GroupCuts`), but cutting at the group a new key makes two of
+would rewrite headers already written, and no line but the new key's
+changes. A new key is spaced as the blocks around it are: the writer writes
+a blank line after each block with a value, so a blank line after the block
+it follows is that block's own, and the new key goes past it and gets one of
+its own when it has a value. A block with a value and no blank line after it
+is a file written without them, and the new key gets none. So a file Save
+wrote still reads as Save writes it, and Wordsmith's own words keep their
+byte-for-byte round trip. A value added to a key that had none, or removed
+from one, leaves the blank lines as they were.
+
+A removed key whose header bases `[.child]` headers keeps that header bare,
+which reloads as a group (the tradeoff the writer already makes); a removal
+leaves no doubled blank line, and the comments above a removed block stand
+where they are, as in the tree. After the edit the result is parsed again and compared with the
 model before it, the asked-for change applied: every key's fields, the
 language table, the settings references and the comments in order. Anything
 else refuses the write, naming what would have changed. The file is written
 to a temporary sibling and moved over the original only once that passes; a
-link is followed to its file, and a Unix file keeps its mode. As with Save,
-what lands is a new file: a Windows hidden attribute does not carry over, and
-a hard link to the old one keeps the old text.
+link is followed to its file, and a Unix file keeps its mode. On Windows a
+move refused while something holds the file for a moment, as an editor or a
+virus scanner reading it does, is tried again a few times over half a second
+before the call fails. As with Save, what lands is a new file: a Windows
+hidden attribute does not carry over, and a hard link to the old one keeps the
+old text.
 
 ## Where it lives
 
@@ -145,10 +174,16 @@ continuation and escaping rules, only when it is not.
 ## Tests
 
 Headless: a changed field replaces its lines and nothing else; a
-new field lands after its block's last, and a group's under its header with
-the chain intact; a new key lands after its sibling's chain as a full header,
-a lone one after the last block and before the trailer, and one in a file with
-no blocks at its end; the pair is written as the writer writes it, continued
+new field lands where the writer puts it in a block in its order, ahead of the
+comment above the field after it, in a block of empty fields too, after the
+last in a block in none, and a group's under its header with the chain
+intact; a new key extending a chain
+lands in it as a `[.child]` after its nearest sibling, the `[.child]` headers
+after it keeping their base, one extending none after its sibling's chain as
+a full header, a lone one after the last block and before the trailer, and
+one in a file with no blocks at its end; a new key gets a blank line of its
+own only with a value, and none in a file written without them; the pair is
+written as the writer writes it, continued
 and folded, and reads back; a BOM, CRLF and a missing final break survive,
 each line of a mixed file keeps its own break, UTF-16 stays UTF-16 and UTF-32
 UTF-32, either way round; text that is not UTF-8 does not open, nor UTF-16
@@ -170,56 +205,9 @@ passed on, a refused edit leaving the file, BOM-less UTF-16
 left alone, a missing or read-only file named without the calls, an empty
 field removed though `get` calls it none, a `[.child]` header before any base
 listed, read and removed but never written, and `list` with a prefix and
-`--missing` by the badges' rule.
+`--missing` by the badges' rule. The editor's: new keys and fields set in
+Wordsmith's own words read back through the editor byte for byte.
 
 # Planned upgrades
 
-Not built yet. Each section here is the shape the feature takes when it is.
-
-## What a caller fixes by hand
-
-The command line is a tool for agents first, the one working on this
-repository among them, and used in earnest it leaves three things for the
-agent to fix by hand after it.
-
-**Cuts.** A new key goes in as a full header after its sibling's chain, a
-blank line before it, where the writer would cut it otherwise: the five
-`.unit` keys the Enums page gained came out as five blocks standing apart,
-`[enums.brew.espresso.unit]` and kin, where Save writes a `[.unit]` in each
-chain (the editor spec's *Round-trip guarantees*). A file Save wrote stops
-reading as Save writes it, and Wordsmith's own words, whose round trip is
-pinned byte for byte, fail their test until the headers are moved by hand.
-The full header was chosen because a full header inserted in a chain
-re-bases the `[.child]` headers after it; a `[.child]` header does not,
-since each one extends the chain's full header and not the one above it. So
-a new key that extends a chain's full header goes into that chain, as a
-`[.child]`, after its nearest sibling's block and with no blank line, as the
-writer chains it; one that extends none is cut as the writer's cut strategy
-(`GroupCuts`) would cut it, which for most is today's full header.
-
-**Field order.** A new field goes after its block's last, where the writer
-has an order: context, comment, the value and its forms, the parameters,
-then each language's value, forms and stale mark. A `context=` added to a
-key with a translation lands after `value-it`, and the same round-trip test
-fails until it is moved. A new field goes where the writer would put it,
-among fields already in its order; in a block written in no order, where
-there is no such place, it goes last as today.
-
-**Fresh.** A default that changes stales every translation with words, which
-is right when the translations are not being touched, and wrong when the
-same caller is about to write each of them: it sets the default, then each
-translation, then removes each stale mark it just caused. `--fresh` on a
-default's `set` stales nothing, so a correction made in every language at
-once leaves the review filter as it was; a mark already there stays, as
-always. It is a default's option, a bad call with a translation's field or
-beside `--stale`.
-
-**Tests.** A new key extending a chain's full header lands in the chain as a
-`[.child]`, after its nearest sibling's block with no blank line, and the
-`[.child]` headers after it keep their base; one extending none lands as the
-cut strategy cuts it; a key added to Wordsmith's words reads back through
-the editor byte for byte. A new `context=` lands before the values, a new
-`value-it` after the default's forms and before a later language's value,
-and a field added to a block in no order lands last. `--fresh` on a default
-stales nothing and keeps a mark already there, and is a bad call on a
-translation or beside `--stale`.
+Nothing is planned for now.
