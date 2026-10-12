@@ -609,7 +609,7 @@ may refer to that key or select among its forms, given arguments or not.
 An escaped pair collapses in the same pass, so `{{0#word}` is a brace and text,
 no selector; `string.Format` then wants its own `{{`, as for `{{>key}`. A
 `{{{{` pair still reaches `string.Format` as `{{`. That a formatted brace takes
-two escapes is a bug, planned (*One escape for a brace*). The `Format` family renders the
+two escapes is a bug, planned (*One pass for every brace*). The `Format` family renders the
 key from `Provider`, as `RenderKey` does; an `IWords` of one's own whose indexer
 dresses words up is read through only for a key its provider lacks. What it
 answers is rendered already, so only its selectors are left, each resolved
@@ -892,18 +892,69 @@ each multi-binding taking its own thread's, and a swap pulsing each on its
 own context. The context-less half is built: a `Watch()` from a thread with no
 context leaves the trigger where it was.
 
-## One escape for a brace
+## One pass for every brace
 
-A brace is escaped once in words, `{{`, and rendering collapses it, so
-`{{>key}` shows as `{>key}`. A value handed to `Format` is rendered first and
-then read by string.Format, which wants an escape of its own: `{{0}` renders
-to `{0}` and is filled, `{{>key}` renders to `{>key}` and throws, and a
-literal brace in a formatted value takes `{{{{`. That is a bug: whoever writes
-a value should not have to know whether the code formats it, and a
-translator cannot. The shape of the fix: on the `Format` path, rendering
-leaves an escaped brace for string.Format to collapse, so one `{{` is one
-brace either way. Undecided: `}`, which Words does not escape and
-string.Format does, so `{{0}}` would read `{0}` formatted and `{0}}` plain.
-A file that wrote `{{{{` for a formatted brace would then read two, so the
-fix's release notes say so. Wordsmith's parameter finder reads the runtime
-as it is, `{{0}` a use (the editor spec's *Parameters*), and follows the fix.
+A formatted value is read twice: rendering expands its escapes, references,
+constants and selectors, and string.Format then parses what came out for format
+items. Two parsers over the same braces cause two bugs.
+
+**Double escaping.** A brace is escaped once in words, `{{`, and rendering collapses
+it, so `{{>key}` shows as `{>key}`. string.Format wants an escape of its own, so
+`{{0}` renders to `{0}` and is filled, `{{>key}` renders to `{>key}` and throws, and a
+literal brace in a formatted value takes `{{{{`. Whoever writes a value should not
+have to know whether the code formats it, and a translator cannot.
+
+**Format injection.** A format item's spec, what follows the `:` in `{0:…}`, is
+parsed after the words render, so a `{>key}` or `{$constant}` written inside one is
+pasted into the spec first: `{0:{>fmt}}` with `[fmt] value=N2` formats `7.00`. Another
+key, or a translation of it, can then rewrite how a parameter formats. A value
+holding a brace adds format items of its own: a constant `N2}{1`, pasted unrendered,
+makes `{0:N2}{1}`. And no checker sees it: the parameter finder, scanning each piece
+of text, finds no `{0}`.
+
+**The shape.** One parser reads a value once, in the order it was written, into its
+pieces: text, an escaped brace, a reference, a constant, a selector, and a format
+item `{n}` or `{Name}` with its alignment and spec. The `Format` family fills format
+items itself, each by its argument's own formatting, instead of handing rendered
+text to string.Format, and `FormatByName`'s names are read in the same pass rather
+than rewritten to numbers first. A referenced key's or a form's text is parsed the
+same way, as its own pieces, so a `{0}` written there is still filled by the outer
+call, as *Where it resolves* says. But a piece never crosses into its neighbour: what
+a reference or a constant brings in is never re-read as raw characters with the text
+around it.
+- One `{{` is one brace, formatted or not.
+- A format item's spec is literal text, so a brace in it is no reference and no
+  constant. `{0:{>fmt}}` is malformed: the runtime leaves it unexpanded and warns. The
+  authoring reader gripes on load, Wordsmith and the command line refuse to write it,
+  and a translation answer that brings one is refused.
+- A constant's value is text, so it adds no format item.
+
+The parameter finder, the translation check and Wordsmith's previews use the same
+parser, so they agree with the runtime by construction.
+
+Undecided:
+- `}`, which Words does not escape and string.Format does. With `}}` as its escape,
+  `{{0}}` reads `{0}` plain.
+- Whether a malformed item shows marked, or `Format` throws as it does on any malformed
+  item.
+
+A file that wrote `{{{{` for a formatted brace then reads two, and the release notes
+say so. No file in the repository writes a reference inside a format item. Until the
+fix, Wordsmith's parameter finder reads the runtime as it is, `{{0}` a use (the editor
+spec's *Parameters*).
+
+## Describe's registry, frozen at Digest
+
+The registry is process-wide today (*Describe without the type*): `Describable.Fill`,
+`FillKey` and `Keys` replace it while descriptions may be under way, and a test or a second
+dictionary built beside the first shares whatever anyone registered. The shape: the
+registrations move onto the builder,
+`WordsBuilder.Create().Fill<HintAttribute>('T', hint => hint.Text).Keys<Brew>("enums.brew")`,
+and `Digest` freezes them into the `IWords` it makes, beside the words; `Describe` reads
+the registry of the words it describes with, `Words.Known`'s unless it is handed others.
+Nothing registers into a frozen registry, so a description under way cannot see a slot
+registered meanwhile, and each dictionary describes by its own registrations alone. The
+cache becomes the dictionary's, still built once per type when two threads first describe
+it together. A live swap digests from the builder `Live()` keeps, so the registrations come
+along. Undecided: whether registering after `Digest` throws or waits for the next one.
+Nothing here has shipped, so `Describable`'s statics can move without a compatibility cost.

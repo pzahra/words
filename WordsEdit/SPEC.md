@@ -432,25 +432,61 @@ loaded, ready to be worked on separately and merged back.
 ## New
 
 File > New (Ctrl+N) starts a file, so someone trying Wordsmith out need not
-write one by hand first. The save dialog names it before anything else, so
-it has a path and a label like any loaded file, and it is presented the way
-an import is, as unsaved work: nothing reaches the disk until Save, and
-closing asks. It comes up selected, so Add works at once. Its text is
-`MainWindowViewModel.Starter`: a header as comment lines, which the file's
-preamble keeps, then `value=!en` and `value-en=English`, which make English
-the default's language, then the blank line Save writes between the table
-and the first key, so Save writes back exactly what New started with. The
-header (`file.new-preamble`, in Wordsmith's language) is boilerplate a
-familiar hand leaves in as readily as a newcomer reads it, not a tutorial:
-the file by name and what it holds, that it ships in the app's assets for
-`WordsBuilder` to load, that Wordsmith or `words` edits it, and a link to
-the Core readme for the format. A path already loaded is replaced and one on disk is overwritten at
-Save, as the dialog's overwrite ask agreed to.
+write one by hand first. It asks nothing: a new root, `anonymous-words`, joins
+the tree with no path, selected, its label open for renaming at once, so the
+first thing typed names it and Escape keeps the name. The root is just the
+file: its name is the file's, and no key carries it. A second New before the
+first is saved makes `anonymous-words-2`, and so on, so the two are told apart.
+It is unsaved work, as an import is: nothing reaches the disk until Save, and
+closing asks.
 
-**Tests.** A cancelled dialog does nothing. The new file is selected, dirty
-and not yet on disk, English by default, without gripes, its preamble
-naming it, linking the Core readme and showing as the pinned organizer; Save writes the starter byte
-for byte and leaves the window clean.
+**Its text.** `MainWindowViewModel.Starter`: a header as comment lines, which
+the file's preamble keeps, then `value=!en` and `value-en=English`, which make
+English the default's language, then the blank line Save writes between the
+table and the first key, so Save writes back exactly what New started with.
+The header (`file.new-preamble`, in Wordsmith's language) is boilerplate a
+familiar hand leaves in as readily as a newcomer reads it, not a tutorial: what
+the file holds, that it ships in the app's assets for `WordsBuilder` to load,
+that Wordsmith or `words` edits it, and a link to the Core readme for the
+format.
+
+**Saving it.** The first Save of a file with no path asks where, as Save As
+does, proposing its label with `.ini` (`anonymous-words.ini`, or the name it
+was given). The dialog's own overwrite ask covers a file on disk. A path another
+file in the session already has is refused with a message, and the dialog asks
+again: two files never share a path. Cancelling leaves the file unsaved, dirty
+and pathless, and a Save of several files stops there, the ones before it
+saved. Once saved it has a path like any loaded file, and later Saves go there.
+
+**Renaming a root.** A pathless file's root renames in place, and the name is what
+its first Save proposes. A file that exists on disk renames through the Save As
+dialog, so it is plain that a file is being written. Renaming moves the file:
+it is saved at the chosen path, the file at the old path is removed, and the root
+follows it. Words files are expected to live in the user's own git repository,
+which sees the move at its next status (git pairs the removal with the new file
+once both are staged), and from which the old file can always be recovered.
+Wordsmith moves it on disk and runs no git command.
+
+Why: a location asked up front is a question before there is anything to save,
+and most people expect the one asked at Save. It also removes the hazard of a
+New over a path already loaded, which replaced that file's unsaved work.
+
+Undecided: whether the header names the file, and if so, whether the first Save
+writes the chosen name into it.
+
+**Tests.**
+- New asks nothing.
+- The new root is `anonymous-words`, selected, in rename, dirty, English by
+  default and without gripes. Its preamble links the Core readme and shows as the
+  pinned organizer.
+- A second New is `anonymous-words-2`.
+- Renaming the pathless root changes no key and only what Save proposes.
+- Renaming a saved root opens Save As: the file is at the new path and gone from
+  the old one, and the root follows it. A cancelled dialog changes nothing.
+- The first Save proposes the label, and writes the starter byte for byte at the
+  chosen path, leaving the window clean. Later Saves ask nothing.
+- A cancelled first Save leaves it dirty and pathless.
+- A path the session already has is refused.
 
 ## Saving
 
@@ -1207,7 +1243,7 @@ print `{0}` uses `{0}`. Numbered ones come first, by number, `{01}` being
 words are read as the runtime reads them today: rendering collapses Words'
 escapes before string.Format sees them, so `{{0}` renders to `{0}` and is a
 use, and only `{{{{0}}` is a brace. That is a runtime bug (the runtime spec's
-*One escape for a brace*), and the finder follows its fix. A parameter found and not
+*One pass for every brace*), and the finder follows its fix. A parameter found and not
 defined shows faintly under the definitions, `+ {0}`, and a click makes it
 one, its type guessed: `int` for a selector's count, `str` otherwise. The
 + adds the first of those, or else the lowest number no definition has, so
@@ -1462,8 +1498,8 @@ translator needs nothing else:
 `words` names the document and its version, and a reader refuses another.
 `instructions` is the brief every translator gets, in English as the field
 names are: fill each null under `translation` with the item's default in the
-target language; keep every `{…}` token, code span and link target as it is,
-and the line breaks; read `context`, `comment` and `parameters` for where the
+target language; keep every `{…}` token and code span as it is, and each link
+target unless the page has its own in the target language, and the line breaks; read `context`, `comment` and `parameters` for where the
 text shows and what each token becomes; improve a `current` translation
 rather than start over; return the whole document as JSON and change nothing
 else; leave a null that cannot be filled. `brief` is the user's own, for the
@@ -1520,7 +1556,11 @@ default across all its slots, as the translation check compares parameters
 that no definition names; keep every reference, constant and selector the
 default holds and hold no `{…}` token the default does not, since services
 translate inside braces (`{>menu.file}` comes back `{>menu.archivio}`); and
-keep the default's code spans and link targets as they are. A slot the key
+keep the default's code spans as they are. A link target is different: some pages
+have one per language, so an answer may change one, but no service decides that
+alone. A changed link target is written, named, and raises the key's hand
+(needs-review, the `stale=` flag), so a person checks the URL whatever else they
+review; a link dropped or added is a lost or extra token, and flagged. A slot the key
 has no use for in the target, a key whose default or current words changed
 since the request, a key that is gone and a constant are flagged too, but
 only where the answer filled something: a key it left alone is no error. A flagged key is not
@@ -1544,7 +1584,8 @@ the batch size and the mark are remembered in the editor's settings.
 the form, the default, the proposed text and the flags. A row is edited in
 place, unticked or asked for again (a retry sends the selected rows alone); a
 flagged key's rows start unticked and say why, and ticking one is the
-person's call. Apply writes the ticked rows into the open file as edits, each
+person's call. A row whose link target changed starts ticked, saying so, and
+applying it raises the key's hand. Apply writes the ticked rows into the open file as edits, each
 entry marked stale with the mark, as one undo entry (*Undo*). Save writes the
 file as ever, and the stale filter surfaces the rows for a translator to
 review, as it does any stale translation. The command line writes the file;
@@ -1579,8 +1620,9 @@ and not `two`, `many` or `other`, and it asks for those without words, or all
 of them when stale, with the counts each reads; text is unescaped. The answer:
 filled slots written with the mark in the writer's order, nulls and empty
 strings left; a dropped or added parameter, a translated reference, a lost
-code span or link target, a slot of no use in the target, a default changed
-since and a key gone each skip their key and are named; a refused edit writes
+code span or link, a slot of no use in the target, a default changed
+since and a key gone each skip their key and are named; a changed link target is
+written, named and raises the hand; a refused edit writes
 nothing; the request sent back untouched writes nothing and exits 0; an answer
 in a code fence reads, and what is no document says why. To build, the
 editor's, with a fake translator: a batch's answer fills the grid, a flagged
