@@ -306,6 +306,75 @@ context-fr=untranslated, with a note
 	}
 
 	[Fact]
+	public void Read_ANoteOnTheTarget_InAFileWithNoTargetLanguage_IsIgnored_NotMadeTheDefaults() {
+		string folder = Folder();
+		try {
+			string path = Path.Combine(folder, "Strings.xlf");
+			File.WriteAllText(path, """
+				<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+				  <file original="a.resx" source-language="en">
+				    <body>
+				      <trans-unit id="open">
+				        <source>Open</source>
+				        <target>Ouvrir</target>
+				        <note from="developer" annotates="source">a menu entry</note>
+				        <note from="translator" annotates="target">vu</note>
+				        <note from="developer" annotates="target">formal</note>
+				      </trans-unit>
+				    </body>
+				  </file>
+				</xliff>
+				""");
+
+			ILoadedWords loaded = new XliffCodec().Read([path]);
+
+			WordsKey open = loaded.WordKeys["open"];
+			Assert.Equal(("Open", "a menu entry", ""), (open.DefaultValue, open.Context, open.Comment));
+			Assert.Equal(["Strings.xlf: targets and notes on targets in a file with no target-language were ignored"], loaded.Errors);
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
+	public void Read_TheSourcesNotes_AreReadOnce_ThoughEachLanguagesFileCarriesThem() {
+		string folder = Folder();
+		try {
+			foreach (string code in (string[])["fr", "it"]) {
+				File.WriteAllText(Path.Combine(folder, $"Strings.{code}.xlf"), $"""
+					<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+					  <file original="a.resx" source-language="en" target-language="{code}">
+					    <body>
+					      <trans-unit id="open">
+					        <source>Open</source>
+					        <target>{code}</target>
+					        <note>A</note>
+					        <note>B</note>
+					        <note from="translator" annotates="source">C</note>
+					        <note from="translator" annotates="source">D</note>
+					        <note from="translator" annotates="target">{code} note</note>
+					      </trans-unit>
+					    </body>
+					  </file>
+					</xliff>
+					""");
+			}
+			var codec = new XliffCodec();
+
+			ILoadedWords loaded = codec.Read(codec.Discover(Path.Combine(folder, "Strings.fr.xlf")));
+
+			WordsKey open = loaded.WordKeys["open"];
+			Assert.Equal(("A\nB", "C\nD"), (open.Context, open.Comment));
+			Assert.Equal(("fr note", "it note"), (open.Entries["fr"].Comment, open.Entries["it"].Comment));
+			Assert.Empty(loaded.Errors);
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
 	public void Read_TwoUnits_StayTwoKeys_ThoughAGripeWouldNameThemAlike() {
 		string folder = Folder();
 		try {

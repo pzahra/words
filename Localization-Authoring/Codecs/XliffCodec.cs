@@ -95,6 +95,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 			}
 			var names = Names(documents, loaded.Errors);
 			HashSet<(Unit Unit, string Code)> read = [];
+			HashSet<Annotation> notes = [];
 			foreach (var (file, root) in documents) {
 				foreach (XElement fileElement in XmlText.Children(root, "file")) {
 					//the source text is the default, so its language is the default's: the
@@ -115,13 +116,13 @@ namespace PatTech.Localization.Authoring.Codecs {
 					if (code != "") {
 						FileNames.Declare(loaded, code);
 					}
-					bool targetsIgnored = false;
+					List<string> ignored = [];
 					string original = Original(fileElement);
 					foreach (XElement unit in TransUnits(fileElement)) {
-						ReadUnit(loaded, unit, code, file, original, names, read, sources, ref targetsIgnored);
+						ReadUnit(loaded, unit, code, file, original, names, read, notes, sources, ignored);
 					}
-					if (targetsIgnored) {
-						loaded.Errors.Add($"{file}: targets in a file with no target-language were ignored");
+					if (ignored.Count != 0) {
+						loaded.Errors.Add($"{file}: {string.Join(" and ", ignored)} in a file with no target-language were ignored");
 					}
 				}
 			}
@@ -131,6 +132,10 @@ namespace PatTech.Localization.Authoring.Codecs {
 		//a trans-unit is its <file>'s original and its id, since an id is only its
 		//file's own; one with no id is known by its resname, kept apart from any id
 		private readonly record struct Unit(string Original, string Id, string Resname);
+
+		//a note as a unit carries it: on the source (Code empty) or on one language's
+		//target, the translator's or the developer's
+		private readonly record struct Annotation(Unit Unit, string Code, bool Translator, string Text);
 
 		private static Unit? UnitOf(XElement unit, string original) {
 			string id = (string?)unit.Attribute("id") ?? "";
@@ -170,8 +175,9 @@ namespace PatTech.Localization.Authoring.Codecs {
 
 		//a unit's key is its name, the resource's own, else its id. A unit met again
 		//for the same language is a duplicate, and the first stands. Its source is the
-		//default unless the file's source language is not the default's
-		private static void ReadUnit(LoadedWords loaded, XElement unit, string code, string file, string original, Dictionary<Unit, string> names, HashSet<(Unit, string)> read, bool sources, ref bool targetsIgnored) {
+		//default unless the file's source language is not the default's. A target, or
+		//a note on one, in a file with no target language goes where ignored says
+		private static void ReadUnit(LoadedWords loaded, XElement unit, string code, string file, string original, Dictionary<Unit, string> names, HashSet<(Unit, string)> read, HashSet<Annotation> notes, bool sources, List<string> ignored) {
 			if (UnitOf(unit, original) is not { } which) {
 				loaded.Errors.Add($"{file}: a trans-unit without an id was skipped");
 				return;
@@ -195,7 +201,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 			WordsEntry? entry = code == "" ? null : key.Entries[code];
 			if (XmlText.Child(unit, "target") is { } target) {
 				if (entry is null) {
-					targetsIgnored = true;
+					Ignore(ignored, "targets");
 				}
 				else {
 					entry.Value = Text(target, file, shown, loaded.Errors);
@@ -211,7 +217,15 @@ namespace PatTech.Localization.Authoring.Codecs {
 			foreach (XElement note in XmlText.Children(unit, "note")) {
 				//a bare note is the developer's, on the source: the context channel
 				bool translator = (string?)note.Attribute("from") == "translator";
-				bool onTarget = entry is not null && (string?)note.Attribute("annotates") == "target";
+				bool onTarget = (string?)note.Attribute("annotates") == "target";
+				if (onTarget && entry is null) {
+					Ignore(ignored, "notes on targets");
+					continue;
+				}
+				//each language's file of a set repeats the source's notes: one is read once
+				if (!notes.Add(new(which, onTarget ? code : "", translator, note.Value))) {
+					continue;
+				}
 				if (onTarget) {
 					if (translator) {
 						entry!.Comment = WordsOperations.Fold(entry.Comment, note.Value);
@@ -232,6 +246,12 @@ namespace PatTech.Localization.Authoring.Codecs {
 				if (named != "" && !key.Parameters.Any(existing => existing.Key == named)) {
 					key.Parameters.Add(new WordsParameter(named, WordsParameterType.TryParse((string?)parameter.Attribute("type") ?? "", out var type) ? type : WordsParameterType.Str, parameter.Value));
 				}
+			}
+		}
+
+		private static void Ignore(List<string> ignored, string what) {
+			if (!ignored.Contains(what)) {
+				ignored.Add(what);
 			}
 		}
 

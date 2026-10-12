@@ -686,6 +686,10 @@ does; a unit named two ways keeps the first name, with a gripe. A unit met
 twice for one language keeps the first, with a gripe, whatever its name the
 second time. A gripe names a unit by its name, id and original, which is for a
 reader only: two units are never told apart by how a gripe would name them.
+A note's channel is its own `annotates`: one on the target in a file with no
+`target-language` is ignored with the targets, with a gripe, never made the
+default's. Each language's file of a set carries the source's notes again, so
+a note is read once per unit and channel, however many files repeat it.
 Inline codes read as the text they stand for: the native code a
 `ph`, `bpt`, `ept` or `it` holds, else the `equiv-text` it or an `x`, `bx` or
 `ex` carries; a `mrk` keeps the text it marks, and a `g` its text without its
@@ -713,8 +717,9 @@ is tested through the parser: a fixture in, the document surface out, gripes
 pinned — a numbered name finding its key in each file of a set, and XLIFF's
 resname over its id, two originals' ids apart, a repeated unit, a unit one
 file names and another doesn't, two units a gripe would name alike, a file in
-another source language kept out of the default, and the inline codes among
-them. Every exporter round-trips against itself — import, export, import, and
+another source language kept out of the default, a target's notes in a file
+with no target language ignored, the source's notes read once across a set,
+and the inline codes among them. Every exporter round-trips against itself — import, export, import, and
 the fields the format holds are unchanged — and the native fixed point is
 re-checked to prove Save still never touches a foreign writer. The editor's
 tests drive Import and Export through `FakeDialogs`: the native path, the ask,
