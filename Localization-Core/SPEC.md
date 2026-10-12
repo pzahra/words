@@ -548,7 +548,9 @@ an optional category reading its stand-in is no miss (below), though a
 stand-in category that is missing reads marked, as it does counted itself
 (Maltese `two` reads `few`'s mark); a language with one category speaks its plain value
 alone; and a key borrowed whole from a default that does not speak the
-language is marked 📚 alone, since every form of it is missing. `Flatten` adds
+language is marked 📚 alone, since every form of it is missing. `other` is
+every language's, though in some only a fraction reaches it, so a Russian
+1.5 reading the plain value for a missing `other` is marked too. `Flatten` adds
 each marked text as the category's own entry, so the count indexer, the
 selector and `FormKey` find it without knowing `Debug` is on.
 
@@ -613,7 +615,9 @@ two escapes is a bug, planned (*One pass for every brace*). The `Format` family 
 key from `Provider`, as `RenderKey` does; an `IWords` of one's own whose indexer
 dresses words up is read through only for a key its provider lacks. What it
 answers is rendered already, so only its selectors are left, each resolved
-against that key, and a `{{` in it is `string.Format`'s, and stays.
+against that key, and a `{{` in it is `string.Format`'s, and stays. That key is
+being rendered, as it would be from the provider, so a selector of its own
+forms renders the circular mark there too.
 
 On the named path `{0}` is the object itself, as `PreFormatByName` slots it, so a
 converter's bound count selects with `{0#word}`. A dictionary given as the value
@@ -661,7 +665,8 @@ and Russian, and reads the expected forms. A category without a form falls to
 forms out, as a shorter code's keep them out of a longer one, and a key with no words
 in the language takes the default's, branded; under `Debug` a count reading
 another category's text is marked 🎲, Maltese `two` through its missing `few`
-too, but not at 1, nor an optional category whose stand-in is there, nor a
+too, and a Russian fraction's missing `other`, through a regional fallback as
+well, but not at 1, nor an optional category whose stand-in is there, nor a
 one-category language, nor a key borrowed whole from a default that does not
 speak the language, while a default that speaks it is marked like a
 translation; a missing optional form reads
@@ -684,7 +689,8 @@ escaped selector is none; `RenderText` given arguments may refer to its base key
 and select its forms. `FormatByName` fills a `null` with nothing on every path
 and reads a dictionary, of any value type and one's own too, by its values; `RenderKey` with
 arguments reads the provider as it does without; a template an `IWords` of
-one's own answers still selects, its `{{` left to `string.Format`; every number
+one's own answers still selects, its `{{` left to `string.Format`, and selecting
+its own forms renders the circular mark, by number and by name; every number
 type counts, a float's fraction is `other`, and a double's sixteenth digit
 picks; the runtime's
 default language is trimmed and cased; `blo`, `cv`, `kok` and `sgs` count by

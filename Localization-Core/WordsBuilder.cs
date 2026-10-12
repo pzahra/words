@@ -261,7 +261,9 @@ namespace PatTech.Localization {
 			//under Debug that text stands as the category's own entry, marked 🎲, for each
 			//key with forms in any language. The plain value is the one form, an optional
 			//category reads its stand-in by design, and a language with one category
-			//speaks its plain value alone, so none of those is marked
+			//speaks its plain value alone, so none of those is marked. other is every
+			//language's, though only a fraction reaches it in some (Russian), so it is
+			//marked beside the categories whole numbers reach
 			static void markStandIns(Dictionary<string, string> words, string language, HashSet<string> pluralKeys, Func<string, bool> marked) {
 				IReadOnlyList<string> categories = PluralRules.Categories(language);
 				if (categories.Count <= 1) {
@@ -272,7 +274,7 @@ namespace PatTech.Localization {
 					if (!marked(key) || (words.GetValueOrDefault($"{key}#other") ?? words.GetValueOrDefault(key)) is not { } standIn) {
 						continue;
 					}
-					foreach (string category in categories) {
+					foreach (string category in categories.Append("other").Distinct()) {
 						if (category != "one" && !optional.ContainsKey(category)) {
 							words.TryAdd($"{key}#{category}", "🎲" + standIn);
 						}

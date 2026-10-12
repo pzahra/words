@@ -226,6 +226,8 @@ public class RenderScopeTests {
 		public string this[string key] => key switch {
 			"virtual" => "{0} {0#file}, {0#.n} {{braces}}",
 			"named" => "{Count} {Count#file}",
+			"loop" => "{0} {0#loop}",
+			"looped" => "{Count} {Count#looped}",
 			_ => inner[key],
 		};
 		public bool ContainsKey(string key) => inner.ContainsKey(key);
@@ -243,6 +245,22 @@ public class RenderScopeTests {
 		Assert.Equal("2 files, items {braces}", words.FormatParams("virtual", new object[] { 2 }));
 		Assert.Equal("3 files", words.FormatByName("named", new { Count = 3 }));
 		Assert.Equal("{0} {0#file}, {0#.n} {{braces}}", words["virtual"]); //no arguments: as it is
+	}
+
+	//the key an indexer of one's own answers is being rendered, as the provider's
+	//words would be, so selecting its own forms is circular there too
+	[Fact]
+	public void WordsAnIndexerOfOnesOwnAnswers_SelectingTheirOwnForms_AreCircular() {
+		using var globals = new WordsGlobals();
+		var logger = new CaptureLogger();
+		Words.Logger = logger;
+		var words = new Virtual(WordsBuilder.Create().LoadString("[loop]\nvalue#other=loops\n\n[looped]\nvalue#other=looped\n").ToWords("en"));
+
+		//1.5.0 read the forms: 2 loops, 2 looped
+		Assert.Equal("2 # ∞ #", words.Format("loop", 2));
+		Assert.Equal("2 # ∞ #", words.FormatByName("looped", new { Count = 2 }));
+		Assert.Contains(logger.Messages, message => message.StartsWith("WORDS:CIRC:`loop`"));
+		Assert.Contains(logger.Messages, message => message.StartsWith("WORDS:CIRC:`looped`"));
 	}
 
 	public static TheoryData<object, string> Counts => new() {

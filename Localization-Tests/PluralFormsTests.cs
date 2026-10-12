@@ -79,6 +79,7 @@ public class PluralFormsTests {
 
 	private static readonly string DefaultBrand = char.ConvertFromUtf32(0x1F4DA); // 📚
 	private static readonly string StandInMark = char.ConvertFromUtf32(0x1F3B2);  // 🎲
+	private static readonly string RegionalBrand = char.ConvertFromUtf32(0x1F56E); // 🕮
 
 	private static IWords In(string language, bool debug = false)
 		=> WordsBuilder.Create().Load(new StringReader(Ini)).Debug(debug).ToWords(language);
@@ -280,6 +281,18 @@ public class PluralFormsTests {
 		Assert.Equal(StandInMark + "qtates", maltese["cat", 3]); //few, missing: other stands in
 		Assert.Equal(StandInMark + "qtates", maltese["cat", 2]); //two reads few, which is missing
 		Assert.Equal("qtates", maltese["cat", 11]); //many reads other by design
+	}
+
+	//no whole number reaches Russian's other, a fraction does: a missing other is
+	//marked as any missing form is, through a regional fallback too
+	[Fact]
+	public void Debug_MarksAMissingOther_ThatOnlyAFractionReaches() {
+		var builder = WordsBuilder.Create().LoadString("value=!en\nvalue-ru=Русский\n\n[cat]\nvalue=cat\nvalue#other=cats\nvalue-ru=кот\nvalue-ru#few=кота\n").Debug();
+
+		Assert.Equal(StandInMark + "кот", builder.ToWords("ru")["cat", 1.5m]);
+		Assert.Equal(StandInMark + RegionalBrand + "кот", builder.ToWords("ru-UA")["cat", 1.5m]);
+		Assert.Equal("кот", builder.ToWords("ru")["cat", 1]);
+		Assert.Equal("кота", builder.ToWords("ru")["cat", 2]);
 	}
 
 	[Fact]

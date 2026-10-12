@@ -365,15 +365,23 @@ namespace PatTech.Localization {
 		//the indexer, as an IWords of one's own may answer it, and still selects
 		[return: Localized]
 		private static string Template(IWords words, string entry, Selecting? selecting)
-			=> words.Provider.ContainsKey(entry) ? RenderKeyCore(words.Provider, entry, null, selecting) : Selected(words.Provider, words[entry], KeyOf(entry), selecting);
+			=> words.Provider.ContainsKey(entry) ? RenderKeyCore(words.Provider, entry, null, selecting) : Selected(words.Provider, words[entry], entry, selecting);
 
 		//words an indexer handed over are rendered already, so only their selectors are
-		//left, each against key; a {{ pair is string.Format's now, and stays
+		//left, each against entry's key; entry is on the path, as the provider's words
+		//would be, so a selector reaching back to its own key is cut. A {{ pair is
+		//string.Format's now, and stays
 		[return: Localized]
-		private static string Selected(IWordsProvider provider, string words, string key, Selecting? selecting)
-			=> selecting is null ? words : rxSelector.Replace(words, match => match.Groups[1].Success
-				? Select(provider, match.Groups[1].Value, Relative(match.Groups[2].Value, key), null, selecting)
+		private static string Selected(IWordsProvider provider, string words, string entry, Selecting? selecting) {
+			if (selecting is null) {
+				return words;
+			}
+			string key = KeyOf(entry);
+			Stack<string> path = new([entry]);
+			return rxSelector.Replace(words, match => match.Groups[1].Success
+				? Select(provider, match.Groups[1].Value, Relative(match.Groups[2].Value, key), path, selecting)
 				: match.Value);
+		}
 
 		[return: Localized]
 		internal static string RenderCount(IWords words, string key, decimal count) {
