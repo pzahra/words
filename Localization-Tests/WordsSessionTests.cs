@@ -420,6 +420,25 @@ value-fr=Ouvrir
 		Assert.Equal("en", Assert.Single(session.Languages.Known).Code);
 	}
 
+	//the host named Italian for the dropdown; once it leaves, the languages left read
+	//as a load of the library alone would: its order, its hidden names
+	[Fact]
+	public void Unload_RelabelsTheLanguagesLeft_AsTheRemainingFilesNameThem() {
+		var session = new WordsSession();
+		WordsFile host = session.Load(new StringReader("value-en=English\nvalue-it=Italiano\ncomment-it=Italian\nvalue-de=Deutsch\n\n[k]\nvalue=x\n"), "Host");
+		session.Load(new StringReader("value-it=!Italiano\nvalue-en=!English\n\n[j]\nvalue=y\n"), "Lib");
+		Assert.Equal(["en", "it", "de"], session.Languages.Known.Select(language => language.Code));
+		Assert.Equal("Italian", session.Languages.Find("it")!.DisplayName);
+
+		Assert.True(session.Unload(host));
+
+		Assert.Equal(["it", "en"], session.Languages.Known.Select(language => language.Code));
+		LanguageEntry italian = session.Languages.Find("it")!;
+		Assert.Equal("!Italiano", italian.NativeName);
+		Assert.Equal("", italian.EnglishName);
+		Assert.Equal("!English", session.Languages.Find("en")!.NativeName);
+	}
+
 	[Fact]
 	public void Keys_AddRemoveAndRemoveUnderKeepTheInvariantAndSpareSimilarNames() {
 		var session = Load(Main);
@@ -484,9 +503,11 @@ value-fr=Ouvrir
 		WordsFile host = session.Load(new StringReader("value-en=English\nvalue-en-AU=Australian\nvalue-fr=Français\nvalue-de=Deutsch\nvalue-it=!Italiano\n\n[k]\nvalue=x\n"), "Host");
 		WordsFile library = session.Load(new StringReader("value-en=!English\nvalue-fr=!Français\n\n[j]\nvalue=y\n"), "Lib");
 		session.Load(new StringReader("value-es=Español\nvalue-de=Deutsch\n\n[i]\nvalue=z\n"), "Other");
+		session.Load(new StringReader("value-en=English\nvalue-de=!Deutsch\nvalue-es=!Español\n\n[h]\nvalue=w\n"), "Mute");
 		string[] Lacks(WordsFile file) => [.. session.Languages.Lacks(file).Select(lack => $"{lack.Code}: {string.Join(", ", lack.Hosts)}")];
 
-		//en and fr it declares, en-AU falls back to its en, it is hidden: no host offers it
+		//en and fr it declares, en-AU falls back to its en, it is hidden: no host offers it;
+		//Mute hides de and es too, so it isn't named as offering them
 		Assert.Equal(["de: Host, Other", "es: Other"], Lacks(library));
 		Assert.Empty(Lacks(host)); //no library
 		session.Languages.Add(library, new LanguageEntry("de", "!Deutsch"));

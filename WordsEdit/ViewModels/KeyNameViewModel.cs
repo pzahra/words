@@ -75,11 +75,13 @@ public class KeyNameViewModel : DataViewModelBase, IDialogViewModel {
 				SetError(Words.Known["key-name.required"], nameof(KeyName));
 			}
 			//a rename competes with its siblings; a new node with the children of the
-			//node it goes under
+			//node it goes under. Ordinal, as the runtime compares keys, so a joiner
+			//(U+200C) that a culture's compare skips tells two names apart; a name
+			//differing from a sibling's in case alone is still taken for it
 			IEnumerable<KeyNode> siblings = renaming is not null
 				? renaming.Parent?.Children ?? Parent.Tree.KeyNodes
 				: Parent.Tree.SelectedKeyNode?.Children ?? Parent.Tree.KeyNodes;
-			if (siblings.Any(k => k != renaming && k.Label.Equals(KeyName, StringComparison.CurrentCultureIgnoreCase))) {
+			if (siblings.Any(k => k != renaming && k.Label.Equals(KeyName, StringComparison.OrdinalIgnoreCase))) {
 				SetError(Words.Known["key-name.exists"], nameof(KeyName));
 			}
 			//one segment of a key's name, the grammar the runtime reads (runtime SPEC: Key names)

@@ -181,7 +181,9 @@ One tree presents every loaded file:
 - **Structure edits**: add/rename/remove nodes and keys; renames rewrite every
   descendant key; drag-and-drop moves subtrees. A new or renamed node's name
   is one segment of a key's name (`WordsParser.IsKeySegment`), the check the
-  runtime skips a block by, so nothing Wordsmith writes is skipped. A group node can gain key data
+  runtime skips a block by, so nothing Wordsmith writes is skipped; nor is it a
+  sibling's, compared ordinally as the runtime tells keys apart, so a joiner
+  (U+200C) makes another name, though one differing in case alone is refused. A group node can gain key data
   ("add key information") and a key can exist on any node except a file.
   They are reachable from the button strip, the tree's context menu and the
   keyboard (F2 rename, Delete remove, Ctrl+Shift+S stale-all; Ctrl+N, Ctrl+O
@@ -352,7 +354,8 @@ its `!` is its own, so a host's relabel never strips it, a library's never
 hides the host's language, and an addition to one file never lists a
 language in another. The session's list is the union of the files' tables,
 in the files' order, a language named as a file lists it where one does,
-and it follows each change. The manager works on a working copy: the list
+and it follows each change, an unload's too: the languages left read as the
+files left name them. The manager works on a working copy: the list
 shows each of the file's languages by code, labelled as the file labels it,
 `!` and all, with a trash beside it and a + under it; the pane edits the
 highlighted row's code and names live — checked against the rules and the
@@ -406,8 +409,9 @@ edits the selection's file; a host's relabel leaves the library's `!`, a
 library's relabel leaves the host's language listed, in the host's file and
 in the session's list, and the host's addition lists nothing in the library;
 the default's language is declared only when the tick moved, and another
-file's stays. A host's addition flags the library, the tooltip naming the
-language and the host, until the library declares it hidden, and an undo
+file's stays; unloading the host leaves the library's names and order in the
+session's list. A host's addition flags the library, the tooltip naming the
+language and the host (not one hiding it), until the library declares it hidden, and an undo
 raises the flag again. The table's own operations — add, remove, relabel,
 recode, reorder — round-trip file by file and leave every other file's
 table as it was; a library's fallback or its default's language covers what

@@ -734,6 +734,23 @@ value-de=y
 		Assert.Equal(valid, dialog.AddKeyCommand.CanExecute(null));
 	}
 
+	//the runtime tells keys apart ordinally: a joiner (U+200C) a culture's compare
+	//skips makes another key; a name differing in case alone is still taken
+	[Fact]
+	public void KeyNameDialog_AJoinerMakesAnotherName_ButCaseAloneDoesNot() {
+		var vm = new MainWindowViewModel(new FakeDialogs());
+		vm.LoadFile(new StringReader("value-en=English\n\n[میخواهم]\nvalue=A\n\n[Ab]\nvalue=B\n"), "T");
+		vm.Tree.SelectedKeyNode = vm.Tree.KeyNodes[0];
+		var dialog = new KeyNameViewModel(vm, null);
+
+		dialog.KeyName = "می‌خواهم";
+		Assert.False(dialog.HasErrors);
+		dialog.KeyName = "میخواهم";
+		Assert.True(dialog.HasErrors);
+		dialog.KeyName = "ab";
+		Assert.True(dialog.HasErrors);
+	}
+
 	[Fact]
 	public void RemoveKeyData_AsksFirst() {
 		var dialogs = new FakeDialogs { ConfirmAnswer = false };

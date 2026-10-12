@@ -212,12 +212,14 @@ namespace PatTech.Localization.Authoring {
 				|| (LanguageCode.TryParse(code, out var parsed)
 					? parsed.Chain.Any(level => library.Languages.Contains(level.ToString()))
 					: library.Languages.Contains(code));
+			//a host offers a language it lists, not one it hides behind a !
+			static bool Lists(WordsFile host, string code) => host.Labels.GetValueOrDefault(code) is { } label && !Unlisted(label);
 			List<WordsFile> hosts = [.. session.Files.Where(file => !file.IsLibrary)];
 			return [.. hosts
-				.SelectMany(host => host.Languages.Where(code => host.Labels.GetValueOrDefault(code) is { } label && !Unlisted(label)))
+				.SelectMany(host => host.Languages.Where(code => Lists(host, code)))
 				.Distinct()
 				.Where(code => !Covers(code))
-				.Select(code => (code, (IReadOnlyList<string>)[.. hosts.Where(host => host.Languages.Contains(code)).Select(host => host.Label)]))];
+				.Select(code => (code, (IReadOnlyList<string>)[.. hosts.Where(host => Lists(host, code)).Select(host => host.Label)]))];
 		}
 
 		private static bool Unlisted(LanguageEntry label) => label.NativeName.StartsWith('!');
@@ -281,7 +283,9 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		//after a file leaves: a language no remaining file declares, and no
-		//remaining key has words in, leaves too (with its empty entries)
+		//remaining key has words in, leaves too (with its empty entries); the rest
+		//read the names the remaining files give them, in their order, as a load of
+		//those files alone would
 		internal void Prune() {
 			HashSet<string> keep = [.. session.Files.SelectMany(file => file.Languages)];
 			foreach (WordsKey key in session.Keys.Values) {
@@ -300,9 +304,13 @@ namespace PatTech.Localization.Authoring {
 					key.Entries.Remove(known.Code);
 				}
 			}
+			foreach (LanguageEntry known in Known) {
+				Relist(known);
+			}
 			if (Known.Count == 0) {
 				Known.Add(Default());
 			}
+			Resort();
 		}
 	}
 }
