@@ -199,11 +199,21 @@ letter no slot answers reads as `G` with `#!U#` stuck on, and gripes, so a
 typo in a format is hard to miss.
 
 Migrating an existing enum? `Describe` already understands
-`[Description("...")]` and uses it as fallback display text. If your tooltips
+`[Description("...")]`, your own subclass of it included, and uses it as
+fallback display text. If your tooltips
 or subtitles live in some custom attribute instead, register it at startup,
 `Describable.Fill<HintAttribute>('T', hint => hint.Text)`, and `Describe`
 reads it for that format until the words move into a `words.ini` under a
-`[Words]` key. An enum with no attributes at all can take its keys from a
+`[Words]` key. Coming from another system whose attribute already carries a
+key? Leave the source alone and say so:
+`Describable.FillKey<ResourceAttribute>(resource => "legacy." + resource.Name)`
+reads the member's words at that key. Once registered, your attribute is read
+the way you registered it and no other way, even if it happens to be a
+`[Description]` underneath, so an old key never turns up as somebody's
+description. Been keeping keys in plain `[Description]`s all along? Words
+only assumed they held text:
+`Describable.FillKey<DescriptionAttribute>(description => description.Description)`
+replaces that reading with yours. An enum with no attributes at all can take its keys from a
 prefix: `Describable.Keys<Brew>("enums.brew")` reads `Brew.Latte` at
 "enums.brew.Latte". Not your enum to decorate, or its keys don't follow its
 names? Hand `Keys` a function instead:

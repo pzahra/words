@@ -68,6 +68,50 @@ public sealed class LateAttribute(string text) : Attribute {
 	public string Text { get; } = text;
 }
 
+/// <summary>A subclass of [Words], naming one key.</summary>
+public sealed class EspressoAttribute() : WordsAttribute("coffee.espresso");
+
+/// <summary>A subclassed [Description], as an app's translated one commonly is.</summary>
+public sealed class ShoutedDescriptionAttribute(string text) : DescriptionAttribute {
+	public override string Description => text.ToUpperInvariant();
+}
+
+#pragma warning disable CS0618 // the built-in migration aid, subclassed
+/// <summary>A subclass of [Tooltip].</summary>
+public sealed class HelpAttribute(string text) : TooltipAttribute(text);
+#pragma warning restore CS0618
+
+public enum Derived {
+	[Espresso] Keyed,
+	[ShoutedDescription("a long black")] Described,
+	[Help("Some help")] Helped,
+}
+
+/// <summary>A subclassed [Description] with a property of its own, registered to read it.</summary>
+public sealed class DetailedDescriptionAttribute(string text, string detail) : DescriptionAttribute(text) {
+	public string Detail { get; } = detail;
+}
+
+public enum Detailed {
+	[DetailedDescription("The plain text", "The detail")] One,
+}
+
+/// <summary>Another system's attribute, holding its key where [Description] holds text.</summary>
+public sealed class ResourceDescriptionAttribute(string resource) : DescriptionAttribute(resource) {
+	public string Resource { get; } = resource;
+}
+
+public enum Migrated {
+	[ResourceDescription("Coffee_Espresso")] Espresso,
+	[ResourceDescription("Tea_Green")] Green,
+}
+
+/// <summary>Plain [Description]s that held keys all along.</summary>
+public enum Legacy {
+	[Description("coffee.espresso")] Espresso,
+	[Description("tea.green")] Green,
+}
+
 public enum Hinted {
 	[Hint("Use the hint")] Hint,
 	[Ignored("nobody reads this")] Ignored,
@@ -193,6 +237,68 @@ public class DescribableTests {
 		Assert.Equal("Espresso shot - A small cup", Coffee.Espresso.Describe("G' - 'S", words));
 		Assert.Equal("Espresso shot (A small cup)", Coffee.Espresso.Describe("G (S)", words));
 		Assert.Equal("it's Espresso", Coffee.Espresso.Describe("'it''s 's", words));
+	}
+
+	//a subclass reads as the attribute it derives from, its overrides included
+	[Fact]
+	public void ASubclassedBuiltIn_ReadsAsItsBase() {
+		IWords words = Words();
+
+		Assert.Equal("Espresso shot", Derived.Keyed.Describe("G", words));
+		Assert.Equal("Short and strong", Derived.Keyed.Describe("T", words));
+		Assert.Equal("A LONG BLACK", Derived.Described.Describe("G", words));
+		Assert.Equal("A LONG BLACK", Derived.Described.Describe("d", words));
+		Assert.Equal("Some help", Derived.Helped.Describe("S", words));
+		Assert.Equal("Some help", Derived.Helped.Describe("T", words));
+	}
+
+	//registered itself, a subclass is read as itself alone, though [Description] came
+	//first: its base's reading may not fit it
+	[Fact]
+	public void ARegisteredSubclass_IsReadAsItselfAlone() {
+		Describable.Fill<DetailedDescriptionAttribute>('T', detailed => detailed.Detail);
+		Assert.Equal("The detail", Detailed.One.Describe("T"));
+		Assert.Equal("", Detailed.One.Describe("d")); //not [Description]'s reading
+
+		Describable.Fill<DetailedDescriptionAttribute>('d', detailed => detailed.Detail);
+		Assert.Equal("The detail", Detailed.One.Describe("d"));
+		Assert.Equal("The detail", Detailed.One.Describe("G")); //the general text falls back to it
+	}
+
+	//migrating from another system, its attribute holding a key in [Description]'s text:
+	//registered as naming the key, mapped onto this one's, the source stays as it is,
+	//and the old key never shows as a description
+	[Fact]
+	public void AnotherSystemsKey_HeldInADescription_IsReadAsTheKey_AndNeverShown() {
+		IWords words = Words();
+		Assert.Equal("Tea_Green", Migrated.Green.Describe("d", words)); //unregistered, it is a [Description], as in 1.5.0
+
+		Describable.FillKey<ResourceDescriptionAttribute>(resource => resource.Resource.Replace('_', '.').ToLowerInvariant());
+		Assert.Equal("Espresso shot", Migrated.Espresso.Describe("G", words));
+		Assert.Equal("Hot water through fine grounds", Migrated.Espresso.Describe("d", words)); //the key's .desc
+		Assert.Equal("Green tea", Migrated.Green.Describe("G", words));
+		Assert.Equal("", Migrated.Green.Describe("d", words)); //no .desc, and the old key is no description
+	}
+
+	//a [Description] that held a key all along: the app's registration replaces Words'
+	//reading of it as text, and the app's next one adds to its own
+	[Fact]
+	public void ABuiltInRegisteredByTheApp_IsReadAsTheAppSays() {
+		IWords words = Words();
+		Assert.Equal("tea.green", Legacy.Green.Describe("d", words)); //text, by default
+
+		using (Describable.Keep()) {
+			Describable.FillKey<DescriptionAttribute>(description => description.Description);
+			Assert.Equal("Espresso shot", Legacy.Espresso.Describe("G", words));
+			Assert.Equal("Hot water through fine grounds", Legacy.Espresso.Describe("d", words)); //the key's .desc
+			Assert.Equal("Green tea", Legacy.Green.Describe("G", words));
+			Assert.Equal("", Legacy.Green.Describe("d", words)); //the key is no description
+
+			Describable.Fill<DescriptionAttribute>('T', description => $"see {description.Description}");
+			Assert.Equal("see tea.green", Legacy.Green.Describe("T", words));
+			Assert.Equal("Green tea", Legacy.Green.Describe("G", words)); //still the key
+		}
+		Assert.Equal("A long black", Coffee.Americano.Describe("d", words)); //Words' reading, back for the tests after
 	}
 
 	[Fact]

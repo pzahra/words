@@ -203,7 +203,11 @@ live (`.Live()` before `Digest`) is the proxy that follows `Words.SwitchLanguage
 `[Words("key")]` on enum members plus `Enum.Describe` provides `key`,
 `key.tooltip`, `key.sub`, `key.desc` variants (format letters `G`, `T`, `S`,
 `d`; `D` is the number, as Enum's `D`); `Describable.Slot('U', ".unit")` adds a slot of the app's own,
-`Describable.Fill<TAttribute>` points an existing attribute at a slot,
+`Describable.Fill<TAttribute>` points an existing attribute at a slot and
+`FillKey<TAttribute>` at the key (another system's key attributes stay in the
+source; a registered attribute is read only as registered, even one that
+subclasses `[Description]`, and the app's registration of `[Words]`,
+`[Description]` or `[Tooltip]` replaces Words' default reading of it),
 `Describable.Keys<TEnum>("prefix")` or `Keys<TEnum>(member => key)` keys an
 enum without attributes (one the app doesn't own included), and a letter no
 slot answers reads as `G` marked `#!U#`. The `Format` family describes an

@@ -773,14 +773,31 @@ are retired, and a stray letter, `i` and `n` among them, shows.
 registry maps an attribute type to what it gives, the key or a slot's text,
 and how its text is read. It starts with `[Words]` for the key,
 `[Description]` for `d` and `[Tooltip]` for `S` and `T`. Building a member's
-describable asks its field for its attributes once and looks each one's type
-up; an attribute the registry does not know is passed over, and one it knows
+describable asks its field for its attributes once and reads each as the
+nearest registered type of its lineage, and that alone: its own type where it
+is registered, its nearest registered base where it is not. An unregistered
+subclass reads as its base (a translated `[Description]` is common), as
+1.5.0's reflection read it. A registered one is read as itself, its own
+properties and all, and never as its base, whose reading may not fit it: a
+subclass may hold something else in its base's property, as another system's
+key in `[Description]`'s text, which would otherwise show as the description;
+so registered for one slot, it gives that slot alone. An
+attribute the registry does not know is passed over, and one it knows
 is never probed for on a member that lacks it. An app registers an attribute
 it already has, `Describable.Fill<HintAttribute>('T', hint => hint.Text)`, so
 `Describe` reads it while moving to `[Words]` is not an option yet, and its
 enums are not touched at all. `Fill` takes `G`, `d`, `S`, `T` or a slot the
 app added; the name and the number read no attribute. An attribute that
-names the key is registered with `FillKey`. Where two attributes give the
+names the key is registered with `FillKey`, so an app moving from another
+system keeps its attributes as they are and redeclares their keys, mapped onto
+its words where they differ
+(`FillKey<ResourceAttribute>(resource => "legacy." + resource.Name)`). Words
+reads its three only by default, since only the app knows what its attributes
+hold: the app's first registration of `[Words]`, `[Description]` or
+`[Tooltip]` replaces Words' reading of it, and its later ones add to its own,
+so a `[Description]` that held a key all along is
+`FillKey<DescriptionAttribute>(description => description.Description)`, read
+as the key and never as text. Where two attributes give the
 same thing, the one registered first wins, so a member's `[Words]` beats an
 app's own key, and `[Tooltip]` an app's own tooltip.
 
@@ -806,7 +823,13 @@ its `.tooltip` alone, each once, and `s` and `D` none; `D` reads the number
 as Enum's `D` does, and `i` and `n` as stray letters; a member is read once
 however often it is described; a registered attribute fills its slot, one
 attribute can fill two, an unregistered one is passed over, and the first
-registered wins; `[Words]` beats an app's own key, which beats a key prefix;
+registered wins; a subclass of `[Words]`, `[Description]` or `[Tooltip]` reads
+as its base, an override included, and a registered subclass as itself alone,
+though its base came first; another system's key held in `[Description]`'s
+text, registered with `FillKey` and mapped, reads that key's words and never
+shows as a description; a plain `[Description]` holding a key, registered with
+`FillKey`, reads as the key alone, the app's next registration adding to it,
+and Words' reading is back once the test puts the registry back; `[Words]` beats an app's own key, which beats a key prefix;
 a function keys an enum one does not own member by member, once each, a
 `null` leaving a member its name, and the latest for a type stands;
 a slot of one's own reads its suffix, then its attribute; a letter taken, no
@@ -963,4 +986,6 @@ registered meanwhile, and each dictionary describes by its own registrations alo
 cache becomes the dictionary's, still built once per type when two threads first describe
 it together. A live swap digests from the builder `Live()` keeps, so the registrations come
 along. Undecided: whether registering after `Digest` throws or waits for the next one.
+The tests' internal `Describable.Keep()`, which puts the registry back after a test that
+replaces a built-in reading, goes with it: each test registers on a builder of its own.
 Nothing here has shipped, so `Describable`'s statics can move without a compatibility cost.

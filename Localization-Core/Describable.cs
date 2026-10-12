@@ -133,8 +133,14 @@ namespace PatTech.Localization {
 		///     <paramref name="slot"/> its text, read by <paramref name="text"/>, so
 		///     <c>Describe</c> reads an attribute an app already has: the general text
 		///     (<c>G</c>), the description (<c>d</c>), the subtitle (<c>S</c>), the tooltip
-		///     (<c>T</c>), or a slot the app added. Where two attributes give a member the
-		///     same slot, the one registered first wins.
+		///     (<c>T</c>), or a slot the app added. An attribute deriving from
+		///     <typeparamref name="TAttribute"/> is read the same way, unless a type nearer
+		///     its own is registered: an attribute is read as its nearest registered type
+		///     alone, so a subclass registered for one slot gives only what it is
+		///     registered for. The first registration of <see cref="WordsAttribute"/>,
+		///     <see cref="DescriptionAttribute"/> or <see cref="TooltipAttribute"/> replaces
+		///     Words' own reading of it, and later ones add to the app's. Where two
+		///     attributes give a member the same slot, the one registered first wins.
 		/// </summary>
 		/// <exception cref="ArgumentException">The slot takes no text from an attribute.</exception>
 		public static void Fill<TAttribute>(char slot, Func<TAttribute, string?> text) where TAttribute : Attribute {
@@ -149,7 +155,13 @@ namespace PatTech.Localization {
 
 		/// <summary>
 		///     Registers <typeparamref name="TAttribute"/> as naming a member's key, read by
-		///     <paramref name="key"/>. <see cref="WordsAttribute"/> is registered first, so it wins.
+		///     <paramref name="key"/>, as is an attribute deriving from it, unless a type
+		///     nearer its own is registered. An attribute of another system that holds its
+		///     key keeps its source: <c>FillKey&lt;ResourceAttribute&gt;(resource =&gt; "legacy." + resource.Name)</c>.
+		///     A built-in one registered here is read as the key instead of as Words reads it:
+		///     <c>FillKey&lt;DescriptionAttribute&gt;(description =&gt; description.Description)</c>
+		///     takes each <c>[Description]</c> for a key and gives no description.
+		///     <see cref="WordsAttribute"/> is registered first, so it wins over another attribute.
 		/// </summary>
 		public static void FillKey<TAttribute>(Func<TAttribute, string?> key) where TAttribute : Attribute {
 			ArgumentNullException.ThrowIfNull(key);
@@ -198,34 +210,56 @@ namespace PatTech.Localization {
 		//the key a type gives a member with none of its own, from the value and its name
 		private delegate string? KeyOf(Enum value, string name);
 
+		//for a test that registers what other tests read: the registry as it stands,
+		//back in place on dispose
+		internal static IDisposable Keep() => new Kept(state);
+
+		private sealed class Kept(State kept) : IDisposable {
+			public void Dispose() {
+				lock (gate) {
+					state = kept;
+				}
+			}
+		}
+
+		//Defaults: the types still read as Words reads them by default
 		private sealed record State(
 				Dictionary<Type, List<(int Order, Giver Giver)>> Givers,
 				int Registered,
 				Dictionary<Type, KeyOf> TypeKeys,
 				Dictionary<char, string> Slots,
+				HashSet<Type> Defaults,
 				ConcurrentDictionary<Type, Dictionary<Enum, Member>> Cache) {
 
 			//a type has one way to key its members, the latest given
 			public State Keying(Type type, KeyOf key) => this with { TypeKeys = new(TypeKeys) { [type] = key } };
 
 			public static State BuiltIn() {
-				var state = new State([], 0, [], [], new());
+				var state = new State([], 0, [], [], [], new());
 				state = state.Adding(typeof(WordsAttribute), new Giver(null, attribute => ((WordsAttribute)attribute).Key));
 				state = state.Adding(typeof(DescriptionAttribute), new Giver('d', attribute => ((DescriptionAttribute)attribute).Description));
 #pragma warning disable CS0618 // the migration aid stays readable for the code that has it
 				state = state.Adding(typeof(TooltipAttribute), new Giver('S', attribute => ((TooltipAttribute)attribute).Text));
 				state = state.Adding(typeof(TooltipAttribute), new Giver('T', attribute => ((TooltipAttribute)attribute).Text));
 #pragma warning restore CS0618
-				return state;
+				return state with { Defaults = [.. state.Givers.Keys] };
 			}
 
+			//an app's registrations of a type add up, but its first of one Words reads by
+			//default replaces that reading, since only the app knows what its attribute
+			//holds: [Description] registered with FillKey names the key and gives no d
 			public State Adding(Type attribute, Giver giver) {
 				var givers = Givers.ToDictionary(pair => pair.Key, pair => pair.Value.ToList());
+				HashSet<Type> defaults = Defaults;
+				if (Defaults.Contains(attribute)) {
+					givers.Remove(attribute);
+					defaults = [.. Defaults.Where(type => type != attribute)];
+				}
 				if (!givers.TryGetValue(attribute, out var list)) {
 					givers[attribute] = list = [];
 				}
 				list.Add((Registered, giver));
-				return this with { Givers = givers, Registered = Registered + 1 };
+				return this with { Givers = givers, Registered = Registered + 1, Defaults = defaults };
 			}
 
 			public Dictionary<Enum, Member> MembersOf(Type type) => Cache.GetOrAdd(type, Build);
@@ -252,7 +286,7 @@ namespace PatTech.Localization {
 				int keyOrder = int.MaxValue;
 				Dictionary<char, (int Order, string Text)>? texts = null;
 				foreach (object attribute in field.GetCustomAttributes(false)) {
-					if (!Givers.TryGetValue(attribute.GetType(), out var givers)) {
+					if (GiversOf(attribute.GetType()) is not { } givers) {
 						continue;
 					}
 					foreach (var (order, giver) in givers) {
@@ -273,6 +307,19 @@ namespace PatTech.Localization {
 					key = keyOf(value, name);
 				}
 				return new Member(name, value.ToString("D"), key, texts?.ToDictionary(pair => pair.Key, pair => pair.Value.Text));
+			}
+
+			//an attribute is read as the nearest registered type of its lineage, and that
+			//alone: its own where it is registered, since a subclass may hold something
+			//else in its base's property (another system's key where [Description] holds
+			//text); an unregistered subclassed [Description] reads as [Description]
+			private List<(int Order, Giver Giver)>? GiversOf(Type kind) {
+				for (Type? at = kind; at is not null; at = at.BaseType) {
+					if (Givers.TryGetValue(at, out var givers)) {
+						return givers;
+					}
+				}
+				return null;
 			}
 		}
 
