@@ -266,6 +266,46 @@ context-fr=untranslated, with a note
 	}
 
 	[Fact]
+	public void Read_AFileInAnotherSourceLanguage_KeepsItsSourcesOutOfTheDefault_AndSaysSo() {
+		string folder = Folder();
+		try {
+			//the same unit, French from English, then Italian from German
+			File.WriteAllText(Path.Combine(folder, "Strings.fr.xlf"), """
+				<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+				  <file original="a.resx" source-language="en" target-language="fr">
+				    <body>
+				      <trans-unit id="open"><source>Open</source><target>Ouvrir</target></trans-unit>
+				    </body>
+				  </file>
+				</xliff>
+				""");
+			File.WriteAllText(Path.Combine(folder, "Strings.it.xlf"), """
+				<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+				  <file original="a.resx" source-language="de" target-language="it">
+				    <body>
+				      <trans-unit id="open"><source>Öffnen</source><target>Apri</target></trans-unit>
+				      <trans-unit id="close"><source>Schließen</source><target>Chiudi</target></trans-unit>
+				    </body>
+				  </file>
+				</xliff>
+				""");
+			var codec = new XliffCodec();
+
+			ILoadedWords loaded = codec.Read(codec.Discover(Path.Combine(folder, "Strings.fr.xlf")));
+
+			Assert.Equal("en", loaded.DefaultLanguage);
+			WordsKey open = loaded.WordKeys["open"];
+			Assert.Equal(("Open", "Ouvrir", "Apri"), (open.DefaultValue, open.Entries["fr"].Value, open.Entries["it"].Value));
+			//only German says it, so it has no default, which shows as missing
+			Assert.Equal(("", "Chiudi"), (loaded.WordKeys["close"].DefaultValue, loaded.WordKeys["close"].Entries["it"].Value));
+			Assert.Equal(["Strings.it.xlf: source-language de is not the default's en, so its sources were not read; the defaults stay as the en files give them"], loaded.Errors);
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
 	public void Read_TwoUnits_StayTwoKeys_ThoughAGripeWouldNameThemAlike() {
 		string folder = Folder();
 		try {

@@ -97,10 +97,19 @@ namespace PatTech.Localization.Authoring.Codecs {
 			HashSet<(Unit Unit, string Code)> read = [];
 			foreach (var (file, root) in documents) {
 				foreach (XElement fileElement in XmlText.Children(root, "file")) {
-					//the source text is the default, so its language is the default's
-					if (loaded.DefaultLanguage is null && (string?)fileElement.Attribute("source-language") is { Length: > 0 } sourceLanguage) {
-						string declared = Code(sourceLanguage, file, loaded.Errors, "source-language");
-						loaded.DefaultLanguage = declared == "" ? null : declared;
+					//the source text is the default, so its language is the default's: the
+					//first file to declare one names it, and a file in another keeps its
+					//sources out, so no key's default is in a language it does not say
+					bool sources = true;
+					if ((string?)fileElement.Attribute("source-language") is { Length: > 0 } sourceLanguage
+						&& Code(sourceLanguage, file, loaded.Errors, "source-language") is { Length: > 0 } declared) {
+						if (loaded.DefaultLanguage is null) {
+							loaded.DefaultLanguage = declared;
+						}
+						else if (declared != loaded.DefaultLanguage) {
+							sources = false;
+							loaded.Errors.Add($"{file}: source-language {declared} is not the default's {loaded.DefaultLanguage}, so its sources were not read; the defaults stay as the {loaded.DefaultLanguage} files give them");
+						}
 					}
 					string code = Code((string?)fileElement.Attribute("target-language"), file, loaded.Errors);
 					if (code != "") {
@@ -109,7 +118,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 					bool targetsIgnored = false;
 					string original = Original(fileElement);
 					foreach (XElement unit in TransUnits(fileElement)) {
-						ReadUnit(loaded, unit, code, file, original, names, read, ref targetsIgnored);
+						ReadUnit(loaded, unit, code, file, original, names, read, sources, ref targetsIgnored);
 					}
 					if (targetsIgnored) {
 						loaded.Errors.Add($"{file}: targets in a file with no target-language were ignored");
@@ -160,8 +169,9 @@ namespace PatTech.Localization.Authoring.Codecs {
 			=> $"'{name}'" + (unit.Id != "" && unit.Id != name ? $" (id {unit.Id})" : "") + (unit.Original == "" ? "" : $" of {unit.Original}");
 
 		//a unit's key is its name, the resource's own, else its id. A unit met again
-		//for the same language is a duplicate, and the first stands
-		private static void ReadUnit(LoadedWords loaded, XElement unit, string code, string file, string original, Dictionary<Unit, string> names, HashSet<(Unit, string)> read, ref bool targetsIgnored) {
+		//for the same language is a duplicate, and the first stands. Its source is the
+		//default unless the file's source language is not the default's
+		private static void ReadUnit(LoadedWords loaded, XElement unit, string code, string file, string original, Dictionary<Unit, string> names, HashSet<(Unit, string)> read, bool sources, ref bool targetsIgnored) {
 			if (UnitOf(unit, original) is not { } which) {
 				loaded.Errors.Add($"{file}: a trans-unit without an id was skipped");
 				return;
@@ -179,7 +189,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 			if ((string?)unit.Attribute("approved") == "no") {
 				key.NeedsReview = true;
 			}
-			if (XmlText.Child(unit, "source") is { } source) {
+			if (sources && XmlText.Child(unit, "source") is { } source) {
 				key.DefaultValue = Text(source, file, shown, loaded.Errors);
 			}
 			WordsEntry? entry = code == "" ? null : key.Entries[code];

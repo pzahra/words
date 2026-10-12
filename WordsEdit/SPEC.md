@@ -662,7 +662,11 @@ the review flag `approved="no"`; a constant keeps its `$` and is
 `translate="no"`; parameters ride as Words extension elements. XLIFF insists
 on a `source-language`. The file's default language is it, `en` for a file
 that declares none, and the `source-language` option overrides both. On the
-way in, the attribute declares the default's language. The default's
+way in, the attribute declares the default's language: the first file of the
+set to declare one names it, and a file declaring another keeps its sources
+out of the default, with a gripe naming it, while its targets still load, so
+no default is ever text in a language it does not say. A unit only that file
+gives has no default, and shows as missing it. The default's
 language is a feature like any other: resx has no slot for it and says so.
 So are plural forms, which neither has a slot for: to a translation tool a
 form is no unit of its own, so both drop them, counted, with a gripe. A
@@ -708,8 +712,9 @@ the registry.
 is tested through the parser: a fixture in, the document surface out, gripes
 pinned — a numbered name finding its key in each file of a set, and XLIFF's
 resname over its id, two originals' ids apart, a repeated unit, a unit one
-file names and another doesn't, two units a gripe would name alike, and the
-inline codes among them. Every exporter round-trips against itself — import, export, import, and
+file names and another doesn't, two units a gripe would name alike, a file in
+another source language kept out of the default, and the inline codes among
+them. Every exporter round-trips against itself — import, export, import, and
 the fields the format holds are unchanged — and the native fixed point is
 re-checked to prove Save still never touches a foreign writer. The editor's
 tests drive Import and Export through `FakeDialogs`: the native path, the ask,
