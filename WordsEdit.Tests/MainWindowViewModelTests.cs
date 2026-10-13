@@ -1210,6 +1210,35 @@ value=x
 	}
 
 	[Fact]
+	public void ParametersPane_UndoingARename_TakesItsInputBackWithTheName() {
+		// the input went with the name, so it comes back with it, and goes again on a
+		// redo; the history holds the definitions alone, the input staying the session's
+		var vm = LoadExample();
+		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
+		WordsKey key = vm.Tree.SelectedKey!;
+		ParametersPane pane = vm.ParametersPane;
+		Assert.Equal("0", pane.Definitions[0].Name);
+		pane.Definitions[0].Input = "42";
+
+		pane.Definitions[0].NameText = "Count";
+		Assert.Equal(new Dictionary<string, string> { ["Count"] = "42" }, vm.Inputs.Of(key));
+
+		vm.UndoCommand.Execute(null);
+		Assert.Equal("0", key.Parameters[0].Key);
+		Assert.Equal(new Dictionary<string, string> { ["0"] = "42" }, vm.Inputs.Of(key));
+		Assert.Equal("42", pane.Definitions[0].Input);
+
+		vm.RedoCommand.Execute(null);
+		Assert.Equal("Count", key.Parameters[0].Key);
+		Assert.Equal(new Dictionary<string, string> { ["Count"] = "42" }, vm.Inputs.Of(key));
+
+		//an input typed meanwhile follows the name too, as the session holds it now
+		pane.Definitions[0].Input = "7";
+		vm.UndoCommand.Execute(null);
+		Assert.Equal(new Dictionary<string, string> { ["0"] = "7" }, vm.Inputs.Of(key));
+	}
+
+	[Fact]
 	public void ParametersPane_ANameMustBeAParametersAndNoOtherDefinitions() {
 		var vm = LoadExample();
 		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");

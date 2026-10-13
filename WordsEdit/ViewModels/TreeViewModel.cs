@@ -648,7 +648,9 @@ public class TreeViewModel : ViewModelBase {
 	/// <summary>
 	///     One node's badges, after an edit to its key; and the parameter check of
 	///     every key whose words follow another's, a reference, a constant or a
-	///     selector, since the edit may have changed what they bring in.
+	///     selector, since the edit may have changed what they bring in. The filters
+	///     follow the badges at once, the selection shown through them as where Back
+	///     arrives is, so the row being edited stays until the selection moves on.
 	/// </summary>
 	public void RefreshBadges(KeyNode node) {
 		var check = new ParameterCheck(session, FileLabels, SelectedLanguage.Code);
@@ -657,6 +659,11 @@ public class TreeViewModel : ViewModelBase {
 			if (other != node && other is not OrganizerNode && session.Keys.TryGetValue(other.FullLabel, out var key) && check.Follows(key)) {
 				other.Mismatch = check.Note(key, session.FileOf(other.Root.FullLabel));
 			}
+		}
+		//a follower whose mismatch went leaves Mismatch View, one that gained one joins it
+		if (IsFiltering) {
+			exempt = SelectedKeyNode;
+			ApplyFilters();
 		}
 	}
 

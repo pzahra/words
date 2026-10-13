@@ -758,6 +758,10 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (crosses) {
 			UndoStack.Take(undoing);
 		}
+		if (entry is ParametersEdit parameters) {
+			//a renamed definition's input follows its name back, or on again
+			parameters.Carry(Session, Inputs, undoing);
+		}
 		//the entry may have changed anything the tree reads off the document
 		Tree.FollowLanguage();
 		Tree.FollowSelectedKey();

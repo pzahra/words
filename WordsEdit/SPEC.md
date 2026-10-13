@@ -1310,7 +1310,10 @@ edit checks its own key again, and every key whose words bring in another's,
 a reference, a constant or a selector, since what they bring in may have
 changed; a definition added, renamed, retyped or taken away checks its key
 again too. A full pass, as a language picked or an undo makes one, checks
-every key. The rule is Authoring's, as `MissingWords` is: the badges read
+every key. The filters follow the badges an edit changes at once: a follower
+whose mismatch went leaves Mismatch View, one that gained one joins it, while
+the row being edited is shown through them, as where Back arrives is
+(Navigation), until the selection moves on. The rule is Authoring's, as `MissingWords` is: the badges read
 it, `words set` notes on stderr a translation it writes that drops or adds
 one (and writes it, as its other notes do; it sees its one file, so a
 reference into another is one it cannot follow), and machine translation's
@@ -1321,7 +1324,10 @@ widening it there to references, code spans and links.
 `FieldEdit` naming the parameter as it names a form; a definition added,
 adopted, renamed, retyped or taken away is one entry, a `ParametersEdit` of
 the key's definitions before and after. The inputs are no part of the
-history.
+history, but they follow the names: a rename carries its input to the new
+name, its undo carries it back and its redo on again, whatever it holds by
+then, since the renamed definition keeps its place and the names that differ
+place by place are the ones renamed.
 
 **Elsewhere.** `WordsParameter` holds a `Description` and a
 `WordsParameterType`, one of the six; the inputs are the editor's session's,
@@ -1342,7 +1348,9 @@ words name no type, since the reader keeps such a text whole.
   the default does not use stays, hinted, with no gripe and no badge; a key
   with no definitions gets none of either.
 - Typing a description writes `param-0=` with the type it has and undoes; a
-  definition added, adopted, renamed, retyped or taken away is one entry.
+  definition added, adopted, renamed, retyped or taken away is one entry; a
+  rename's undo takes its input back to the old name (`42` on `0`, renamed
+  `Count`), its redo on again, and an input typed meanwhile goes with it.
 - `param-0=the file: its full path` reads as one `str` description and
   writes back as it was; `param-0=INT:` reads as an `int` without one; a
   description that starts `real:` round-trips; 1.3.0's `Integer:` reads as
@@ -1365,6 +1373,9 @@ words name no type, since the reader keeps such a text whole.
   set` notes a mismatch and writes it.
 - An edit to a key checks the keys whose words follow it again; a definition
   added or renamed clears an extra, and its undo brings it back.
+- In Mismatch View, a `{0}` restored takes a follower out at once and dropped
+  again brings it back, while the edited row stays until the selection moves
+  on, and then goes.
 - The menu's inventory has no Test Parameters, and Mismatch View sits beside
   Missing View in the menu and the filter popup.
 

@@ -336,6 +336,26 @@ public sealed class ParametersEdit(string label, IReadOnlyList<WordsParameter> b
 			key.Parameters.Add(new WordsParameter(parameter));
 		}
 	}
+
+	/// <summary>
+	///     Carries a renamed definition's input (<see cref="ParameterInputs"/>) back to
+	///     its old name on undo, and on to the new one on redo, as the rename carried
+	///     it: the inputs are the session's, so the history holds none, and only follows
+	///     the names. A rename keeps its definition's place, so the names that differ
+	///     place by place are the ones renamed.
+	/// </summary>
+	public void Carry(WordsSession session, ParameterInputs inputs, bool undoing) {
+		if (before.Count != after.Count || !session.Keys.TryGetValue(Label, out WordsKey? key)) {
+			return;
+		}
+		Dictionary<string, string> typed = inputs.Of(key);
+		foreach (var (was, now) in before.Zip(after)) {
+			var (from, to) = undoing ? (now.Key, was.Key) : (was.Key, now.Key);
+			if (from != to && typed.Remove(from, out string? input)) {
+				typed.TryAdd(to, input);
+			}
+		}
+	}
 }
 
 /// <summary>Key information added to a node.</summary>

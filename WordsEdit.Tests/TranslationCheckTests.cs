@@ -133,6 +133,30 @@ public class TranslationCheckTests {
 		Assert.Equal(Extra("{0}"), Node(vm, "T.follower").Mismatch);
 	}
 
+	//the filters follow the badges an edit changes, a follower's too; the row being
+	//edited stays shown until the selection moves on, as where Back arrives does
+	[Fact]
+	public void TheMismatchView_FollowsAnEdit_TheEditedRowStayingTillTheSelectionMovesOn() {
+		var vm = Load();
+		Speak(vm, "it");
+		vm.Tree.Select(Node(vm, "T.target"));
+		vm.Tree.SelectedEntry!.Value = "ne restano";
+		vm.Tree.MismatchFilter = true;
+		Assert.True(Node(vm, "T.follower").IsVisible);
+
+		vm.Tree.SelectedEntry!.Value = "ne restano {0}"; //the {0} restored
+		Assert.False(Node(vm, "T.follower").IsVisible);
+		Assert.True(Node(vm, "T.target").IsVisible);
+		Assert.Same(Node(vm, "T.target"), vm.Tree.SelectedKeyNode);
+		vm.Tree.SelectedEntry!.Value = "ne restano"; //and dropped again: the follower is back
+		Assert.True(Node(vm, "T.follower").IsVisible);
+		vm.Tree.SelectedEntry!.Value = "ne restano {0}";
+
+		vm.Tree.Select(Node(vm, "T.drop"));
+		Assert.False(Node(vm, "T.target").IsVisible);
+		Assert.False(Node(vm, "T.follower").IsVisible);
+	}
+
 	[Fact]
 	public void ADefinition_WidensWhatATranslationMayUse_AndAnUndoTakesItBack() {
 		var vm = Load();
