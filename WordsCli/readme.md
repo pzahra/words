@@ -79,9 +79,11 @@ person. `--stale it` asks for the stale ones instead, or as well, and
 `apply` reads the same document back, code fence and chatter around it
 included, and is fussy about what it writes. A key is skipped, with its
 reason on stderr, when its answer drops or invents a `{0}` or a `{>reference}`,
-loses a `` `code span` `` or a link's target, fills a form the language
-doesn't use, or when the key's default or its Italian changed since the
-request. Everything it writes is marked stale (`machine translated`, or your
+dresses a `{0:N1}` in another format (`string.Format` would throw at the
+first `{0:Q}`), loses a `` `code span` `` or a link's target, fills a form
+the language doesn't use or a slot nobody asked for (that one has a
+translation already, which it would trample), or when the key's default or
+its Italian changed since the request. Everything it writes is marked stale (`machine translated`, or your
 own words with `--stale`), so it turns up in Wordsmith's review filter. A
 `null` left is fine: that slot just stays missing. It exits 1 when it skipped
 anything, and writes nothing at all if the file would refuse one of the edits.

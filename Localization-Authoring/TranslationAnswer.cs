@@ -17,7 +17,7 @@ namespace PatTech.Localization.Authoring {
 		///     sentence before it, is dropped: the document runs from the first
 		///     <c>{</c> to the last <c>}</c>. Comments and trailing commas are let by.
 		/// </summary>
-		/// <exception cref="InvalidDataException">The text is no JSON, or no translation document.</exception>
+		/// <exception cref="InvalidDataException">The text is no JSON, or no translation document, or holds broken Unicode.</exception>
 		public static TranslationAnswer Read(string text) {
 			int first = text.IndexOf('{'), last = text.LastIndexOf('}');
 			if (first < 0 || last < first) {
@@ -31,24 +31,43 @@ namespace PatTech.Localization.Authoring {
 				throw new InvalidDataException($"the answer is no JSON: {ex.Message}", ex);
 			}
 			using (document) {
-				var root = document.RootElement;
-				if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("words", out var kind) || kind.ValueKind != JsonValueKind.String || kind.GetString() != TranslationRequest.Kind) {
-					throw new InvalidDataException($"the answer is no translation document: its \"words\" is not \"{TranslationRequest.Kind}\"");
+				try {
+					return Read(document.RootElement);
 				}
-				if (!root.TryGetProperty("target", out var target) || target.ValueKind != JsonValueKind.Object
-					|| !target.TryGetProperty("code", out var code) || code.ValueKind != JsonValueKind.String) {
-					throw new InvalidDataException("the answer names no target.code");
+				catch (InvalidOperationException ex) {
+					throw Broken("the answer", ex);
 				}
-				if (!root.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array) {
-					throw new InvalidDataException("the answer has no items");
-				}
-				List<TranslationItem> read = [];
-				int index = 0;
-				foreach (var item in items.EnumerateArray()) {
-					read.Add(Item(item, index++));
-				}
-				return new(code.GetString()!, read);
 			}
+		}
+
+		//JSON escapes a lone surrogate (\ud800) as readily as a character, but it is no
+		//text: reading it throws, and the answer is refused for it, as for any other fault
+		private static InvalidDataException Broken(string where, InvalidOperationException ex)
+			=> new($"{where} holds broken Unicode: {ex.Message}", ex);
+
+		private static TranslationAnswer Read(JsonElement root) {
+			if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("words", out var kind) || kind.ValueKind != JsonValueKind.String || kind.GetString() != TranslationRequest.Kind) {
+				throw new InvalidDataException($"the answer is no translation document: its \"words\" is not \"{TranslationRequest.Kind}\"");
+			}
+			if (!root.TryGetProperty("target", out var target) || target.ValueKind != JsonValueKind.Object
+				|| !target.TryGetProperty("code", out var code) || code.ValueKind != JsonValueKind.String) {
+				throw new InvalidDataException("the answer names no target.code");
+			}
+			if (!root.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array) {
+				throw new InvalidDataException("the answer has no items");
+			}
+			List<TranslationItem> read = [];
+			int index = 0;
+			foreach (var item in items.EnumerateArray()) {
+				try {
+					read.Add(Item(item, index));
+				}
+				catch (InvalidOperationException ex) {
+					throw Broken($"the answer's item {index}", ex);
+				}
+				index++;
+			}
+			return new(code.GetString()!, read);
 		}
 
 		private static TranslationItem Item(JsonElement item, int index) {
@@ -111,10 +130,13 @@ namespace PatTech.Localization.Authoring {
 		///     it keeps the parameters the default uses and adds none no definition
 		///     names (<see cref="ParameterUse"/>), keeps every reference and constant
 		///     the default holds and holds no reference, constant or selector the
-		///     default does not, and keeps the default's code spans and link targets. A
-		///     slot the key has no use for in the language (<see cref="TranslationRequest.Slots"/>),
-		///     and a default or a translation that changed since the request, or a key
-		///     that is gone, flag it too. A flagged key writes none of its slots; an
+		///     default does not, keeps each format item's alignment and format as the
+		///     default writes them (<see cref="ParameterUse.Items"/>), and keeps the
+		///     default's code spans and link targets. A slot the key has no use for in
+		///     the language (<see cref="TranslationRequest.Slots"/>) or that the request
+		///     did not ask for (<see cref="TranslationRequest.Asked"/>), and a default or
+		///     a translation that changed since the request, or a key that is gone, flag
+		///     it too. A flagged key writes none of its slots; an
 		///     answer with nothing filled writes nothing and is flagged for nothing.
 		/// </summary>
 		/// <param name="key">The key now; null when the file has it no more.</param>
@@ -147,9 +169,17 @@ namespace PatTech.Localization.Authoring {
 			if (!Same(Current, TranslationRequest.Held(entry))) {
 				flags.Add($"its {code} words changed since the request");
 			}
+			//what the request asked for, as it would ask now: the words being as they were,
+			//a slot it did not ask for has some, which the answer may not overwrite
 			var slots = TranslationRequest.Slots(key, code);
-			foreach (var (slot, _) in filled.Where(slot => !slots.Contains(slot.Slot))) {
-				flags.Add($"{slot} is no slot it has in {code}");
+			var asked = TranslationRequest.Asked(key, code);
+			foreach (var (slot, _) in filled) {
+				if (!slots.Contains(slot)) {
+					flags.Add($"{slot} is no slot it has in {code}");
+				}
+				else if (!asked.Contains(slot)) {
+					flags.Add($"{slot} was not asked for: it has {code} words already");
+				}
 			}
 			if (flags.Count != 0) {
 				return new([], flags, left);
@@ -179,6 +209,17 @@ namespace PatTech.Localization.Authoring {
 			var held = said.SelectMany(ParameterUse.Tokens).ToHashSet();
 			var holds = answered.SelectMany(ParameterUse.Tokens).Select(token => token.Token).ToHashSet();
 			Compare(held.Where(token => !token.Selects).Select(token => token.Token), holds, held.Select(token => token.Token), "");
+			//a parameter's format items are kept as the default writes them, since
+			//string.Format throws on a format its argument does not take ({0:Q} for a
+			//count); one the default does not use may come bare, as its definition lets
+			//the parameter check pass it, and a parameter dropped whole is that check's
+			var formats = said.SelectMany(ParameterUse.Items).ToHashSet();
+			var formatting = answered.SelectMany(ParameterUse.Items).ToHashSet();
+			var formatted = formats.Select(item => item.Name).ToHashSet();
+			var formattedNow = formatting.Select(item => item.Name).ToHashSet();
+			Compare(formats.Where(item => formattedNow.Contains(item.Name)).Select(item => item.Item),
+				formatting.Where(item => formatted.Contains(item.Name) || item.Item != FoundParameters.Placeholder(item.Name)).Select(item => item.Item).ToHashSet(),
+				formats.Select(item => item.Item), "");
 			Compare(said.SelectMany(text => rxCode.Matches(text).Select(match => match.Value)), answered.SelectMany(text => rxCode.Matches(text).Select(match => match.Value)).ToHashSet(), null, "the code span ");
 			Compare(said.SelectMany(text => rxLink.Matches(text).Select(match => match.Groups[1].Value)), answered.SelectMany(text => rxLink.Matches(text).Select(match => match.Groups[1].Value)).ToHashSet(), null, "the link to ");
 			return flags.Count != 0 ? new([], flags, left) : new(writes, [], left);

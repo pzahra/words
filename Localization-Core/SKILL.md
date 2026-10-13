@@ -158,7 +158,8 @@ the counts `target.forms` gives), keeping every `{…}` token, code span and
 link target as the default has them and reading `context`, `comment` and
 `parameters`; change nothing else, and leave a null you can't fill. `apply`
 writes the filled slots, each key's entry marked stale `machine translated`,
-and skips a key whose answer drops or invents a token, or whose default or
+and skips a key whose answer drops or invents a token, formats a `{0:N1}`
+another way, or fills a slot it wasn't asked for, or whose default or
 translation changed since, naming why on stderr (exit 1): fix those with
 `set`. Repeat until `request` finds nothing (exit 1).
 

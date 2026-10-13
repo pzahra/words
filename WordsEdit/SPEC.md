@@ -1536,7 +1536,8 @@ and each item's `key`, `default`, `current` and `translation` are read back,
 so a script may drop the rest. It is read from its first `{` to its last
 `}`, so a model's code fence or a sentence around it does no harm, and
 comments and trailing commas are let by. A null left, or blank text, is a
-slot not translated, and no error. A document is one batch: the command line takes a
+slot not translated, and no error. Broken Unicode, a lone surrogate JSON
+escapes as `\ud800`, is no text: the answer is refused, naming the item. A document is one batch: the command line takes a
 limit, the editor a batch size (50 keys by default), so an answer fits a
 model's output and a failure costs one batch.
 
@@ -1569,13 +1570,18 @@ default across all its slots, as the translation check compares parameters
 (*Parameters*). It must keep the parameters the default uses and add none
 that no definition names; keep every reference, constant and selector the
 default holds and hold no `{…}` token the default does not, since services
-translate inside braces (`{>menu.file}` comes back `{>menu.archivio}`); and
-keep the default's code spans as they are. A link target is different: some pages
+translate inside braces (`{>menu.file}` comes back `{>menu.archivio}`); keep
+each format item's alignment and format as the default writes them, since
+`string.Format` throws on a format its argument does not take (`{0:Q}` for a
+count), though a parameter the default does not use, which a definition
+allows, may come bare; and keep the default's code spans as they are. A link target is different: some pages
 have one per language, so an answer may change one, but no service decides that
 alone. A changed link target is written, named, and raises the key's hand
 (needs-review, the `stale=` flag), so a person checks the URL whatever else they
 review; a link dropped or added is a lost or extra token, and flagged. A slot the key
-has no use for in the target, a key whose default or current words changed
+has no use for in the target, one the request did not ask for (it has words
+and is not stale, which the answer would overwrite; the check asks as the
+request would now, its words being as they were), a key whose default or current words changed
 since the request, a key that is gone and a constant are flagged too, but
 only where the answer filled something: a key it left alone is no error. A flagged key is not
 written, none of its slots: stricter than `set`, which writes a person's
@@ -1633,9 +1639,12 @@ slots are the plain value and each form the target requires, Maltese's `few`
 and not `two`, `many` or `other`, and it asks for those without words, or all
 of them when stale, with the counts each reads; text is unescaped. The answer:
 filled slots written with the mark in the writer's order, nulls and empty
-strings left; a dropped or added parameter, a translated reference, a lost
-code span or link, a slot of no use in the target, a default changed
-since and a key gone each skip their key and are named; a changed link target is
+strings left; a dropped or added parameter, a translated reference, a format
+item given another format or alignment (one kept, its number written `00`,
+passes), a lost code span or link, a slot of no use in the target, a slot not
+asked for (Maltese's translated plain value beside its asked `few`), a default changed
+since and a key gone each skip their key and are named; broken Unicode is
+refused, naming the item; a changed link target is
 written, named and raises the hand; a refused edit writes
 nothing; the request sent back untouched writes nothing and exits 0; an answer
 in a code fence reads, and what is no document says why. To build, the

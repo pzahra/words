@@ -68,7 +68,7 @@ namespace PatTech.Localization.Authoring {
 		//the inside of a format item: a number, with an alignment, as string.Format reads
 		//one, or a name, as FormatByName does; either with a format after a ':'
 		private static readonly Regex rxItem = new(
-				@"^(?:(?<1>\d+) *(?:, *-?\d+ *)?|[\s-[\r\n]]*(?<1>(?=[_a-zA-Z])\w+)[\s-[\r\n]]*)(?::.*)?\z",
+				@"^(?:(?<1>\d+) *(?:, *(?<2>-?\d+) *)?|[\s-[\r\n]]*(?<1>(?=[_a-zA-Z])\w+)[\s-[\r\n]]*)(?::(?<3>.*))?\z",
 				RegexOptions.Compiled | RegexOptions.ExplicitCapture | RegexOptions.Singleline);
 
 		/// <summary>
@@ -172,6 +172,59 @@ namespace PatTech.Localization.Authoring {
 			}
 		}
 
+		/// <summary>
+		///     The format items <paramref name="text"/> holds, each by its parameter and
+		///     written one way: <c>{0,5:N2}</c>, the number as string.Format reads it
+		///     (<c>{00}</c> is <c>{0}</c>), no spaces around the alignment, and an empty
+		///     format none. Read as rendering leaves them, so an escaped brace holds none,
+		///     and what a reference or a selector brings in is not the text's own.
+		/// </summary>
+		public static IEnumerable<(string Name, string Item)> Items(string text) {
+			List<(string Name, string Item)> items = [];
+			var stretch = new StringBuilder();
+			int start = 0;
+			for (Match match = rxRender.Match(text); match.Success; match = match.NextMatch()) {
+				stretch.Append(text, start, match.Index - start);
+				start = match.Index + match.Length;
+				if (match.Groups[1].Success) {
+					stretch.Append(match.Groups[1].Value);
+					continue;
+				}
+				Read(stretch.ToString());
+				stretch.Clear();
+			}
+			stretch.Append(text, start, text.Length - start);
+			Read(stretch.ToString());
+			return items;
+
+			void Read(string words) {
+				foreach (Match item in FormatItems(words)) {
+					string name = Normal(item.Groups[1].Value);
+					string alignment = item.Groups[2].Success ? $",{item.Groups[2].Value}" : "";
+					string format = item.Groups[3].Value is { Length: > 0 } spec ? $":{spec}" : "";
+					items.Add((name, $"{{{name}{alignment}{format}}}"));
+				}
+			}
+		}
+
+		//string.Format's items in text: {{ is a brace, and an item runs to the first }
+		private static IEnumerable<Match> FormatItems(string text) {
+			for (int i = text.IndexOf('{'); i >= 0 && i < text.Length; i = text.IndexOf('{', i)) {
+				if (i + 1 < text.Length && text[i + 1] == '{') {
+					i += 2;
+					continue;
+				}
+				int close = text.IndexOf('}', i + 1);
+				if (close < 0) {
+					yield break;
+				}
+				if (rxItem.TryMatch(text[(i + 1)..close], out var item)) {
+					yield return item;
+				}
+				i = close + 1;
+			}
+		}
+
 		//a number as string.Format reads it, 01 being 1; a name as written
 		/// <summary>Whether <paramref name="name"/> names a parameter a text can use: a number, <c>{0}</c>, or a name, <c>{Count}</c>, as FormatByName reads one.</summary>
 		public static bool IsName(string name) => rxName.IsMatch(name);
@@ -258,21 +311,9 @@ namespace PatTech.Localization.Authoring {
 				}
 			}
 
-			//string.Format's items: {{ is a brace, and an item runs to the first }
 			private void Items(string text) {
-				for (int i = text.IndexOf('{'); i >= 0 && i < text.Length; i = text.IndexOf('{', i)) {
-					if (i + 1 < text.Length && text[i + 1] == '{') {
-						i += 2;
-						continue;
-					}
-					int close = text.IndexOf('}', i + 1);
-					if (close < 0) {
-						return;
-					}
-					if (rxItem.TryMatch(text[(i + 1)..close], out var item)) {
-						Use(Normal(item.Groups[1].Value));
-					}
-					i = close + 1;
+				foreach (Match item in FormatItems(text)) {
+					Use(Normal(item.Groups[1].Value));
 				}
 			}
 

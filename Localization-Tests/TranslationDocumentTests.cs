@@ -44,6 +44,9 @@ public class TranslationDocumentTests {
 		"[note]",
 		"value=See `words.ini` and [the docs](https://example.com/docs) for {>menu.file}",
 		"",
+		"[size]",
+		"value={0:N1} MB",
+		"",
 		"[$brand]",
 		"value=Words");
 
@@ -156,6 +159,9 @@ public class TranslationDocumentTests {
 	[InlineData("""{ "words": "translation/1", "target": { "code": "it" } }""", "no items")]
 	[InlineData("""{ "words": "translation/1", "target": { "code": "it" }, "items": [ { "translation": {} } ] }""", "item 0 names no key")]
 	[InlineData("""{ "words": "translation/1", "target": { "code": "it" }, "items": [ { "key": "a", "translation": { "value": 1 } } ] }""", "a: the translation's value is no text")]
+	//a lone surrogate, which JSON escapes as readily as a character, is no text
+	[InlineData("""{ "words": "translation/1", "target": { "code": "it" }, "items": [ { "key": "a", "translation": { "value": "\ud800" } } ] }""", "the answer's item 0 holds broken Unicode")]
+	[InlineData("""{ "words": "translation/1", "target": { "code": "\udfff" }, "items": [] }""", "the answer holds broken Unicode")]
 	public void WhatIsNoTranslationDocument_IsRefused_SayingWhy(string text, string why) {
 		var refused = Assert.Throws<InvalidDataException>(() => TranslationAnswer.Read(text));
 
@@ -196,11 +202,38 @@ public class TranslationDocumentTests {
 	[InlineData("note", "value", "Vedi `words.ini` e [i documenti](https://example.com/it/docs) per {>menu.file}", "drop the link to https://example.com/docs")]
 	[InlineData("files", "value#few", "{0} file", "value#few is no slot it has in it")]
 	[InlineData("menu.file", "value#other", "_File", "value#other is no slot it has in it")]
+	//a format string.Format would throw on, or one the default does not give
+	[InlineData("files", "value", "{0:Q} file salvato", "hold {0:Q}, which the default does not")]
+	[InlineData("size", "value", "{0} MB", "drop {0:N1}, which the default holds")]
+	[InlineData("size", "value", "{0:N2} MB", "hold {0:N2}, which the default does not")]
+	[InlineData("size", "value", "{0,8:N1} MB", "hold {0,8:N1}, which the default does not")]
 	public void AnAnswerThatBreaksATokenOrASlot_IsFlagged_AndWritesNothing(string key, string slot, string text, string flag) {
 		var verdict = Check(key, "it", new() { [slot] = text });
 
 		Assert.Empty(verdict.Writes);
 		Assert.Contains(verdict.Flags, said => said.Contains(flag));
+	}
+
+	//a format item as the default writes it, its number as string.Format reads it
+	[Fact]
+	public void AFormatItem_KeptAsTheDefaultWritesIt_IsWritten() {
+		Assert.Empty(Check("size", "it", new() { ["value"] = "{00:N1} MB" }).Flags);
+		Assert.Empty(Check("size", "it", new() { ["value"] = "{0:N1} MB, {0:N1} in tutto" }).Flags);
+
+		Assert.Equal([("0", "{0,-5:N1}"), ("Count", "{Count:C}"), ("1", "{1}")], ParameterUse.Items("{0 , -5:N1} and {Count:C} and {1:}"));
+		Assert.Equal([("2", "{2}")], ParameterUse.Items("{{{{0}} {>a} {3#b} {2}")); //a brace, a reference and a selector hold none
+	}
+
+	//Maltese's plain value is translated, so the request asked for its few alone: an
+	//answer filling the plain value too would overwrite a translation
+	[Fact]
+	public void ASlotTheRequestDidNotAskFor_IsFlagged_AndWritesNothing() {
+		var verdict = Check("files", "mt", new() { ["value"] = "{0} fajls", ["value#few"] = "{0} fajli" });
+
+		Assert.Empty(verdict.Writes);
+		Assert.Equal(["value was not asked for: it has mt words already"], verdict.Flags);
+		Assert.Single(Check("files", "mt", new() { ["value#few"] = "{0} fajli" }).Writes);
+		Assert.Empty(Check("done", "it", new() { ["value"] = "Fatto" }).Flags); //stale, so asked again
 	}
 
 	[Fact]
