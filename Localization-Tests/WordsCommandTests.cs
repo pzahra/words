@@ -248,6 +248,20 @@ public sealed class WordsCommandTests : IDisposable {
 		Assert.Equal(1, Run("get", "FILE", "same", "stale-it").Code);
 	}
 
+	//the file keeps a value's line breaks as \n, so a shell's \r\n is no change
+	[Fact]
+	public void Set_AMultiLineDefault_SetToItsOwnText_StalesNothing() {
+		File.WriteAllText(path, Ini("value=!en", "value-it=Italiano", "", "[lines]", "value=one\\", "two", "value-it=uno\\", "due"));
+
+		Assert.Equal(0, Run("set", "FILE", "lines", "value", "one\r\ntwo").Code);
+		Assert.Equal(0, Run("set", "FILE", "lines", "value", "one\rtwo").Code);
+		Assert.Equal(0, RunWith("one\r\ntwo\r\n", "set", "FILE", "lines", "value", "-").Code);
+		Assert.Equal(1, Run("get", "FILE", "lines", "stale-it").Code);
+
+		Assert.Equal(0, Run("set", "FILE", "lines", "value", "one\r\nthree").Code);
+		Assert.Equal(0, Run("get", "FILE", "lines", "stale-it").Code);
+	}
+
 	[Fact]
 	public void Set_Stale_BeforeTheValue_TakesNoWords() {
 		File.WriteAllText(path, Sample);

@@ -153,7 +153,7 @@ namespace PatTech.Localization.Authoring {
 			if (text.Contains('\0')) {
 				throw new ArgumentException($"{key}: {field} can't hold a NUL, which would leave the file no text");
 			}
-			text = text.Replace("\r\n", "\n").Replace('\r', '\n');
+			text = Kept(text);
 			if (field is { Type: "stale", Language: "" }) {
 				text = ""; //the default's stale mark keeps no words
 			}
@@ -187,6 +187,13 @@ namespace PatTech.Localization.Authoring {
 				field.Write(changed, text);
 			})];
 		}
+
+		/// <summary>
+		///     <paramref name="text"/> as <see cref="Set"/> keeps it, and as a field reads
+		///     back: each line break, <c>\r\n</c> or a lone <c>\r</c>, a <c>\n</c>. Compare
+		///     a value with a field's by this, or a <c>\r\n</c> of the shell's is a change.
+		/// </summary>
+		public static string Kept(string text) => text.Replace("\r\n", "\n").Replace('\r', '\n');
 
 		/// <summary>Drops <paramref name="field"/> of <paramref name="key"/>, every declaration of it, with words or empty.</summary>
 		/// <returns>The gripes the change adds to the file's.</returns>

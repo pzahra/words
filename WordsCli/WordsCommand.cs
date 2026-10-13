@@ -144,8 +144,9 @@ namespace PatTech.Localization.Cli {
 					gripes.Add("the value from stdin starts with U+FEFF, kept as its own; a tool that writes a BOM may have put it there");
 				}
 			}
-			//a default that changes leaves its translations stale, as Wordsmith's typing does
-			List<string> staling = field is { Type: "value", Language: "" } && patcher.Find(key) is { } before && (field.Read(before) ?? "") != text
+			//a default that changes leaves its translations stale, as Wordsmith's typing does;
+			//its line breaks as the file keeps them, so \r\n for \n changes nothing
+			List<string> staling = field is { Type: "value", Language: "" } && patcher.Find(key) is { } before && (field.Read(before) ?? "") != IniPatcher.Kept(text)
 				? [.. before.TranslationsToStale()]
 				: [];
 			gripes.AddRange(patcher.Set(key, field, text));

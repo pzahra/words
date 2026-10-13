@@ -34,7 +34,8 @@ before the first `:` are a type only where they name one (the editor spec's
   field, where it is missing. A default that changes, the plain value or a
   form, marks every translation with words and no stale mark yet stale with
   the time, as typing it in Wordsmith does (the editor spec's *The baseline pane*); one set to
-  the text it holds marks nothing. `--stale [text]` marks the language's entry
+  the text it holds marks nothing, its line breaks read as the file keeps them,
+  so a shell's `\r\n` for a `\n` is no change. `--stale [text]` marks the language's entry
   stale with it (the default's mark keeps no words), so the review filter
   surfaces a machine-written value. Options go anywhere after the call:
   `--stale` takes the next argument as its words only once the value is in,
@@ -215,7 +216,8 @@ output and exit code, a dash read from stdin, a lone `\r` its last break, a
 leading U+FEFF kept and said, bytes that are no UTF-8 refused, all through the
 reader the program puts on a pipe; `--stale` with words, without and before
 the value, a changed default staling its translations with words and keeping
-a mark there, a translation that drops or adds a parameter written with a
+a mark there, a multi-line default set to its own text with `\r\n`, a lone
+`\r` or through stdin staling none, a translation that drops or adds a parameter written with a
 note and none for one that keeps them or refers out of the file, gripes
 passed on, a refused edit leaving the file, BOM-less UTF-16
 left alone, a missing or read-only file named without the calls, an empty
