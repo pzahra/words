@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using PatTech.Utils;
 
@@ -416,13 +414,6 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 		}
 	}
 
-	private class MarkdownConstants {
-		[JsonPropertyName("entities")]
-		public Dictionary<string, string>? EntityDictionary { get; set; }
-		[JsonPropertyName("emojis")]
-		public Dictionary<string, string>? EmojiDictionary { get; set; }
-	}
-
 	private static readonly string? resourceError;
 	/// <summary>
 	/// The logger handed to the constructor, never <see langword="null"/> (a discarding
@@ -441,24 +432,30 @@ public abstract class MarkdownParser<TInline> : IMarkdownParser<TInline> {
 		if (resourceError is not null) this.logger.Warn($"MD:INIT:{resourceError}");
 	}
 	static MarkdownParser() {
-		Stream? stream = null;
 		try {
-			stream = typeof(Words).Assembly
+			using var stream = typeof(Words).Assembly
 				.GetManifestResourceStream(@"PatTech.Localization.Assets.markdown_constants.json");
-			var json = new StreamReader(stream!)
-				.ReadToEnd();
-			var constants = JsonSerializer.Deserialize<MarkdownConstants>(json);
-			EntityDictionary = constants?.EntityDictionary ?? [];
-			EmojiDictionary = constants?.EmojiDictionary ?? [];
+			using var json = JsonDocument.Parse(stream!);
+			EntityDictionary = Table(json.RootElement, "entities");
+			EmojiDictionary = Table(json.RootElement, "emojis");
 		}
 		catch (Exception e) {
 			resourceError = e.Message;
 			EntityDictionary = [];
 			EmojiDictionary = [];
 		}
-		finally {
-			stream?.Dispose();
+	}
+
+	// one of the constants file's tables, read without reflection, so a trimmed app
+	// (the words command line) keeps it whole and its trimmer has nothing to warn about
+	private static Dictionary<string, string> Table(JsonElement root, string name) {
+		Dictionary<string, string> table = [];
+		if (root.TryGetProperty(name, out var entries)) {
+			foreach (var entry in entries.EnumerateObject()) {
+				table[entry.Name] = entry.Value.GetString() ?? "";
+			}
 		}
+		return table;
 	}
 }
 

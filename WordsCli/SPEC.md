@@ -228,7 +228,8 @@ listed, read and removed but never written, and `list` with a prefix and
 limit, with a brief, and exit 1 with nothing to ask; `apply` writing filled
 slots, fenced as a model answers, each key marked stale in the writer's
 order, with `--stale`'s words from a file, the request sent back untouched
-writing nothing, a key with a broken token or a default changed since
+writing nothing, a changed link target written with the key's hand raised and
+the change named (exit 0), a key with a broken token or a default changed since
 skipped and named (exit 1), and no document, an undeclared language or a
 refused edit leaving the file (exit 2). The document's own, headless, are
 the editor spec's *Machine translation*. The editor's: new keys and fields

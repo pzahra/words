@@ -1,6 +1,5 @@
 using PatTech.Localization;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace PatTech.Localization.Authoring {
 	/// <summary>
@@ -112,7 +111,12 @@ namespace PatTech.Localization.Authoring {
 	/// <param name="Writes">The fields to write, each a slot in the target's language, in the answer's order.</param>
 	/// <param name="Flags">Why the key is skipped: none when it is written.</param>
 	/// <param name="Left">The slots the answer left null or empty.</param>
-	public sealed record TranslationVerdict(IReadOnlyList<(WordsField Field, string Text)> Writes, IReadOnlyList<string> Flags, int Left);
+	/// <param name="Raised">
+	///     Why the key's hand goes up as it is written, for a person to check: a link
+	///     whose target the answer changed. None when it does not, and none for a key
+	///     skipped.
+	/// </param>
+	public sealed record TranslationVerdict(IReadOnlyList<(WordsField Field, string Text)> Writes, IReadOnlyList<string> Flags, int Left, IReadOnlyList<string> Raised);
 
 	/// <summary>One key of an answer.</summary>
 	/// <param name="Key">The key, by the file's own name.</param>
@@ -120,10 +124,6 @@ namespace PatTech.Localization.Authoring {
 	/// <param name="Current">The target's slots as the request carried them; none when it had no words.</param>
 	/// <param name="Translation">The slots asked for, filled with text or left null.</param>
 	public sealed record TranslationItem(string Key, IReadOnlyDictionary<string, string>? Default, IReadOnlyDictionary<string, string> Current, IReadOnlyDictionary<string, string?> Translation) {
-		//a code span, `x`, and a markdown link's target, ](x)
-		private static readonly Regex rxCode = new(@"(?<!`)`[^`\r\n]+`(?!`)", RegexOptions.Compiled);
-		private static readonly Regex rxLink = new(@"\]\((?<1>[^()\s]+)\)", RegexOptions.Compiled | RegexOptions.ExplicitCapture);
-
 		/// <summary>
 		///     Checks the answer for <paramref name="key"/> as it is now (editor SPEC:
 		///     Machine translation → Nothing is written unchecked), across all its slots:
@@ -131,8 +131,10 @@ namespace PatTech.Localization.Authoring {
 		///     names (<see cref="ParameterUse"/>), keeps every reference and constant
 		///     the default holds and holds no reference, constant or selector the
 		///     default does not, keeps each format item's alignment and format as the
-		///     default writes them (<see cref="ParameterUse.Items"/>), and keeps the
-		///     default's code spans and link targets. A slot the key has no use for in
+		///     default writes them (<see cref="ParameterUse.Items"/>), keeps the
+		///     default's code spans, and gives each slot as many links as its default's,
+		///     read as the app's markdown reads them. A changed link target is written,
+		///     and raises the key's hand (<see cref="TranslationVerdict.Raised"/>). A slot the key has no use for in
 		///     the language (<see cref="TranslationRequest.Slots"/>) or that the request
 		///     did not ask for (<see cref="TranslationRequest.Asked"/>), and a default or
 		///     a translation that changed since the request, or a key that is gone, flag
@@ -148,16 +150,16 @@ namespace PatTech.Localization.Authoring {
 			var filled = Translation.Where(slot => !string.IsNullOrWhiteSpace(slot.Value)).Select(slot => (Slot: slot.Key, Text: slot.Value!)).ToList();
 			int left = Translation.Count - filled.Count;
 			if (filled.Count == 0) {
-				return new([], [], left);
+				return new([], [], left, []);
 			}
 			List<string> flags = [];
 			if (key is null) {
 				flags.Add("no such key now");
-				return new([], flags, left);
+				return new([], flags, left, []);
 			}
 			if (key.IsConstant) {
 				flags.Add("a constant, which is not translated");
-				return new([], flags, left);
+				return new([], flags, left, []);
 			}
 			if (Default is null) {
 				flags.Add("the answer dropped its default, so whether it changed is unknown");
@@ -182,7 +184,7 @@ namespace PatTech.Localization.Authoring {
 				}
 			}
 			if (flags.Count != 0) {
-				return new([], flags, left);
+				return new([], flags, left, []);
 			}
 
 			//the key as the answer would leave it, checked as the editor checks a translation
@@ -220,9 +222,48 @@ namespace PatTech.Localization.Authoring {
 			Compare(formats.Where(item => formattedNow.Contains(item.Name)).Select(item => item.Item),
 				formatting.Where(item => formatted.Contains(item.Name) || item.Item != FoundParameters.Placeholder(item.Name)).Select(item => item.Item).ToHashSet(),
 				formats.Select(item => item.Item), "");
-			Compare(said.SelectMany(text => rxCode.Matches(text).Select(match => match.Value)), answered.SelectMany(text => rxCode.Matches(text).Select(match => match.Value)).ToHashSet(), null, "the code span ");
-			Compare(said.SelectMany(text => rxLink.Matches(text).Select(match => match.Groups[1].Value)), answered.SelectMany(text => rxLink.Matches(text).Select(match => match.Groups[1].Value)).ToHashSet(), null, "the link to ");
-			return flags.Count != 0 ? new([], flags, left) : new(writes, [], left);
+			var raised = Markdown();
+			return flags.Count != 0 ? new([], flags, left, []) : new(writes, [], left, raised);
+
+			//code spans and links as the app's markdown reads them (MarkdownMarks): every
+			//code span is kept as written; a link's target may change, since some pages
+			//have one per language, but no service decides that alone, so the key goes in
+			//with its hand raised, the change named; a slot with more or fewer links than
+			//its default's, and markdown the app cannot read, are flagged. Why the hand goes up
+			List<string> Markdown() {
+				var before = TranslationRequest.Held(key).ToDictionary(slot => slot.Key, slot => MarkdownMarks.Read(slot.Value));
+				var after = TranslationRequest.Held(translated).ToDictionary(slot => slot.Key, slot => MarkdownMarks.Read(slot.Value));
+				var unread = after.Where(slot => slot.Value is null).Select(slot => slot.Key).ToList();
+				foreach (string slot in unread) {
+					flags.Add($"the {code} {slot} holds markdown the app cannot read");
+				}
+				//a default the app cannot read leaves nothing to hold the answer to
+				if (unread.Count != 0 || before.Values.Any(marks => marks is null)) {
+					return [];
+				}
+				Compare(before.Values.SelectMany(marks => marks!.Codes).Select(MarkdownMarks.Fenced),
+					after.Values.SelectMany(marks => marks!.Codes).Select(MarkdownMarks.Fenced).ToHashSet(), null, "the code span ");
+				//a filled slot's links beside its default's: a form's, else other's, else the plain value's
+				List<string> changed = [], replaced = [];
+				foreach (var (slot, _) in filled) {
+					var was = before.GetValueOrDefault(slot) ?? before.GetValueOrDefault(TranslationRequest.Slot("other")) ?? before.GetValueOrDefault(TranslationRequest.Plain) ?? new([], []);
+					var now = after[slot]!;
+					if (now.Links.Count != was.Links.Count) {
+						flags.Add($"the {code} {slot} holds {Links(now.Links.Count)} where the default holds {Links(was.Links.Count)}");
+						continue;
+					}
+					changed.AddRange(now.Links.Except(was.Links).Except(changed));
+					replaced.AddRange(was.Links.Except(now.Links).Except(replaced));
+				}
+				if (changed.Count == 0) {
+					return [];
+				}
+				return [replaced.Count != 0
+					? $"the {code} words link to {Joined(changed)} in place of {Joined(replaced)}"
+					: $"the {code} words link to {Joined(changed)}, which the default does not"];
+
+				static string Links(int count) => count switch { 0 => "no link", 1 => "1 link", _ => $"{count} links" };
+			}
 
 			//what the default holds and the answer must keep, and what the answer holds beyond what it may
 			void Compare(IEnumerable<string> kept, HashSet<string> answer, IEnumerable<string>? allowed, string what) {

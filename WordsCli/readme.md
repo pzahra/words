@@ -80,10 +80,15 @@ person. `--stale it` asks for the stale ones instead, or as well, and
 included, and is fussy about what it writes. A key is skipped, with its
 reason on stderr, when its answer drops or invents a `{0}` or a `{>reference}`,
 dresses a `{0:N1}` in another format (`string.Format` would throw at the
-first `{0:Q}`), loses a `` `code span` `` or a link's target, fills a form
-the language doesn't use or a slot nobody asked for (that one has a
-translation already, which it would trample), or when the key's default or
-its Italian changed since the request. Everything it writes is marked stale (`machine translated`, or your
+first `{0:Q}`), loses a `` `code span` `` or a link, or grows an extra one,
+fills a form the language doesn't use or a slot nobody asked for (that one
+has a translation already, which it would trample), or when the key's
+default or its Italian changed since the request. It reads the markdown the
+way the app does, so a code span fenced with double backticks, or a link
+with a title, is held to the same rules. A link pointing somewhere new is let
+through, since the Italian docs may well live at their own URL, but the key
+gets its hand raised and stderr says what moved, so somebody checks before
+it ships. Everything it writes is marked stale (`machine translated`, or your
 own words with `--stale`), so it turns up in Wordsmith's review filter. A
 `null` left is fine: that slot just stays missing. It exits 1 when it skipped
 anything, and writes nothing at all if the file would refuse one of the edits.

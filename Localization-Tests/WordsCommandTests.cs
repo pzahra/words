@@ -444,6 +444,22 @@ public sealed class WordsCommandTests : IDisposable {
 		Assert.Contains("[files]\nvalue=file\nvalue#other=files\nvalue-it=file\nvalue-it#other=file\nstale-it=machine translated\n", text);
 	}
 
+	//a link's target may change, some pages having one per language, but a person
+	//checks the URL: the key goes in with its hand raised, and the change is named
+	[Fact]
+	public void Apply_AChangedLinkTarget_IsWritten_RaisingTheKeysHand() {
+		File.WriteAllText(path, Ini("value=!en", "value-it=Italiano", "", "[help]", "value=See [the docs](https://example.com/docs)"));
+		var answer = Requested("--missing", "it");
+		answer["items"]![0]!["translation"]!["value"] = "Vedi [la guida](https://example.com/it/docs)";
+
+		var (code, _, error) = RunWith(answer.ToJsonString(), "apply", "FILE", "-");
+
+		Assert.Equal(0, code);
+		Assert.Equal("words: help: written, its hand raised: the it words link to https://example.com/it/docs in place of https://example.com/docs\n"
+			+ "words: 1 written, 0 left, 0 skipped, 1 hand raised\n", error);
+		Assert.EndsWith("[help]\nvalue=See [the docs](https://example.com/docs)\nstale=\nvalue-it=Vedi [la guida](https://example.com/it/docs)\nstale-it=machine translated\n", File.ReadAllText(path));
+	}
+
 	[Fact]
 	public void Apply_MarksWithTheWordsStaleGives_FromAFile() {
 		File.WriteAllText(path, Sample);

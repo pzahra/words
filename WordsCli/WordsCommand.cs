@@ -290,9 +290,10 @@ namespace PatTech.Localization.Cli {
 			var defaults = new DefaultWordsProvider(keys, []);
 			var translations = new LanguageWordsProvider(keys, code, []);
 			var mark = new WordsField("stale", code, "");
+			var hand = new WordsField("stale", "", "");
 			List<string> gripes = [];
 			HashSet<string> answered = [];
-			int written = 0, left = 0, skipped = 0;
+			int written = 0, left = 0, skipped = 0, raised = 0;
 			foreach (var item in answer.Items) {
 				var verdict = item.Check(keys.GetValueOrDefault(item.Key), code, defaults, patcher.DefaultLanguage, translations);
 				left += verdict.Left;
@@ -312,11 +313,18 @@ namespace PatTech.Localization.Cli {
 				if (verdict.Writes.Count != 0) {
 					gripes.AddRange(patcher.Set(item.Key, mark, call.Stale ?? "machine translated"));
 				}
+				//a changed link target goes in, and the key's hand up, so a person checks the URL
+				if (verdict.Raised.Count != 0) {
+					gripes.AddRange(patcher.Set(item.Key, hand, ""));
+					gripes.Add($"{item.Key}: written, its hand raised: {string.Join("; ", verdict.Raised)}");
+					raised++;
+				}
 			}
 			if (written != 0) {
 				Save(patcher, call.File);
 			}
-			Gripe(error, [.. gripes, $"{written} written, {left} left, {skipped} skipped"]);
+			string hands = raised switch { 0 => "", 1 => ", 1 hand raised", _ => $", {raised} hands raised" };
+			Gripe(error, [.. gripes, $"{written} written, {left} left, {skipped} skipped{hands}"]);
 			return skipped != 0 ? NotThere : Done;
 		}
 

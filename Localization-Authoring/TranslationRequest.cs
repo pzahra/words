@@ -168,8 +168,9 @@ namespace PatTech.Localization.Authoring {
 		private static string Instructions(TranslationLanguage source, TranslationLanguage target)
 			=> $"Translate each item's default from {source} into {target}. Write each translation in place of the null under "
 			+ "the item's \"translation\", and change nothing else: \"value\" is the plain text, and a slot such as \"value#few\" "
-			+ "is the form a plural takes for the counts \"target.forms\" gives it. Keep every {…} token, `code` span and link "
-			+ "target exactly as the default has them, and keep its line breaks. \"context\" and \"comment\" say where the text "
+			+ "is the form a plural takes for the counts \"target.forms\" gives it. Keep every {…} token and `code` span exactly "
+			+ "as the default has them, each link too, its target unchanged unless the page has one of its own in the target "
+			+ "language, and keep its line breaks. \"context\" and \"comment\" say where the text "
 			+ "shows, and \"parameters\" what each {…} token becomes. Where an item has a \"current\" translation, improve it "
 			+ "rather than start over. Follow the \"brief\", if there is one. Return the whole document as JSON and nothing "
 			+ "else, and leave a null you cannot fill.";

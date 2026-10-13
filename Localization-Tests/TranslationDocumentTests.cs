@@ -47,6 +47,9 @@ public class TranslationDocumentTests {
 		"[size]",
 		"value={0:N1} MB",
 		"",
+		"[tick]",
+		"value=Type ``a`b`` or see [the docs](https://example.com/docs \"The guide\")",
+		"",
 		"[$brand]",
 		"value=Words");
 
@@ -199,7 +202,11 @@ public class TranslationDocumentTests {
 	[InlineData("note", "value", "Vedi `words.ini` e [i documenti](https://example.com/docs) per {>menu.archivio}", "drop {>menu.file}, which the default holds")]
 	[InlineData("note", "value", "Vedi `words.ini` e [i documenti](https://example.com/docs) per {>menu.file} {>menu.archivio}", "hold {>menu.archivio}, which the default does not")]
 	[InlineData("note", "value", "Vedi words.ini e [i documenti](https://example.com/docs) per {>menu.file}", "drop the code span `words.ini`")]
-	[InlineData("note", "value", "Vedi `words.ini` e [i documenti](https://example.com/it/docs) per {>menu.file}", "drop the link to https://example.com/docs")]
+	//markdown as the app reads it: a span fenced by two backticks, a link with a title
+	[InlineData("tick", "value", "Scrivi `a` o vedi [la guida](https://example.com/docs \"La guida\")", "drop the code span ``a`b``")]
+	[InlineData("tick", "value", "Scrivi ``a`b`` o vedi la guida", "the it value holds no link where the default holds 1 link")]
+	[InlineData("note", "value", "Vedi `words.ini` e [i documenti](https://example.com/docs) o [qui](https://example.com/docs) per {>menu.file}", "the it value holds 2 links where the default holds 1 link")]
+	[InlineData("note", "value", "Vedi `words.ini` e [i <https://example.com> documenti](https://example.com/docs) per {>menu.file}", "the it value holds markdown the app cannot read")]
 	[InlineData("files", "value#few", "{0} file", "value#few is no slot it has in it")]
 	[InlineData("menu.file", "value#other", "_File", "value#other is no slot it has in it")]
 	//a format string.Format would throw on, or one the default does not give
@@ -212,6 +219,21 @@ public class TranslationDocumentTests {
 
 		Assert.Empty(verdict.Writes);
 		Assert.Contains(verdict.Flags, said => said.Contains(flag));
+	}
+
+	//some pages have one per language, so a link's target may change, but no service
+	//decides that alone: the key is written with its hand raised, the change named
+	[Fact]
+	public void AChangedLinkTarget_IsWritten_RaisingTheKeysHand() {
+		var moved = Check("tick", "it", new() { ["value"] = "Scrivi ``a`b`` o vedi [la guida](https://example.com/it/docs \"La guida\")" });
+		var kept = Check("tick", "it", new() { ["value"] = "Scrivi `` a`b `` o vedi [la guida](https://example.com/docs \"La guida\")" });
+
+		Assert.Single(moved.Writes);
+		Assert.Empty(moved.Flags);
+		Assert.Equal(["the it words link to https://example.com/it/docs in place of https://example.com/docs"], moved.Raised);
+		Assert.Single(kept.Writes);
+		Assert.Empty(kept.Flags); //a span's padding is markdown's, and comes off
+		Assert.Empty(kept.Raised); //a title is the label's, translated
 	}
 
 	//a format item as the default writes it, its number as string.Format reads it

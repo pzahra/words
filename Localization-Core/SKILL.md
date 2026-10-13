@@ -154,13 +154,15 @@ To translate many keys, request them rather than `set` each: `request` (with
 `--missing xx`, `--stale xx` or both) prints a JSON document whose
 `instructions` say what to do. Be the translator: fill each `null` under an
 item's `translation` (`value`, and a plural's forms such as `value#few` for
-the counts `target.forms` gives), keeping every `{…}` token, code span and
-link target as the default has them and reading `context`, `comment` and
-`parameters`; change nothing else, and leave a null you can't fill. `apply`
-writes the filled slots, each key's entry marked stale `machine translated`,
-and skips a key whose answer drops or invents a token, formats a `{0:N1}`
-another way, or fills a slot it wasn't asked for, or whose default or
-translation changed since, naming why on stderr (exit 1): fix those with
+the counts `target.forms` gives), keeping every `{…}` token and code span as
+the default has them, and each link, its target too unless the page has its
+own in your language, and reading `context`, `comment` and `parameters`;
+change nothing else, and leave a null you can't fill. `apply` writes the
+filled slots, each key's entry marked stale `machine translated`, raises the
+hand of a key whose link target changed (a person checks the URL), and skips
+a key whose answer drops or invents a token, a code span or a link, formats a
+`{0:N1}` another way, or fills a slot it wasn't asked for, or whose default
+or translation changed since, naming why on stderr (exit 1): fix those with
 `set`. Repeat until `request` finds nothing (exit 1).
 
 Without the tool, edit by hand and keep the format's rules: a literal `\`, `_`
