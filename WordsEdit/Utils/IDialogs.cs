@@ -22,5 +22,8 @@ public interface IDialogs {
 	/// <summary>A notice the user dismisses.</summary>
 	void Tell([Localized] string message);
 	bool TryOpenFiles([Localized] string title, [Localized] string filter, [NotNullWhen(true)] out string[]? fileNames);
-	bool TrySaveFile([Localized] string title, [Localized] string filter, [NotNullWhen(true)] out string? fileName);
+	bool TrySaveFile([Localized] string title, [Localized] string filter, [NotNullWhen(true)] out string? fileName)
+		=> TrySaveFile(title, filter, null, out fileName);
+	/// <summary>The save dialog, proposing <paramref name="proposed"/>: a name, or a path whose folder it opens in.</summary>
+	bool TrySaveFile([Localized] string title, [Localized] string filter, string? proposed, [NotNullWhen(true)] out string? fileName);
 }

@@ -446,48 +446,176 @@ value=w
 		}
 	}
 
+	//a folder of the test's own, gone after it
+	private sealed class TempFolder : IDisposable {
+		public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"WordsEditNew-{Guid.NewGuid():N}");
+		public TempFolder() => Directory.CreateDirectory(Path);
+		public string this[string name] => System.IO.Path.Combine(Path, name);
+		public void Dispose() => Directory.Delete(Path, recursive: true);
+	}
+
+	//the rename dialog, typed into and accepted, as the user naming a node
+	private static Action<IDialogViewModel> Typing(string name) => dialog => {
+		if (dialog is KeyNameViewModel rename) {
+			rename.KeyName = name;
+			rename.RenameKeyCommand.Execute(null);
+		}
+	};
+
 	[Fact]
-	public void NewStartsAFileAsUnsavedWorkThatSaveWrites() {
-		// the save dialog names it, a quick start and English start it, and
-		// nothing reaches the disk until Save
-		var path = Path.Combine(Path.GetTempPath(), $"WordsEditNew-{Guid.NewGuid():N}");
-		Directory.CreateDirectory(path);
-		var filePath = Path.Combine(path, "Strings.ini");
-		try {
-			var dialogs = new FakeDialogs();
-			var vm = new MainWindowViewModel(dialogs);
+	public void New_AsksNothing_AndStartsAnonymousWords_ItsNameOpenForRenaming() {
+		// SPEC (New): a pathless root, selected, in rename, dirty, English by
+		// default; Escape (the dialog closing untouched) keeps the name
+		var dialogs = new FakeDialogs();
+		var vm = new MainWindowViewModel(dialogs);
 
-			vm.NewFileCommand.Execute(null); //cancelled: nothing happens
-			Assert.Empty(vm.Tree.KeyNodes);
-			Assert.False(vm.IsDirty);
+		vm.NewFileCommand.Execute(null);
 
-			dialogs.FileToSave = filePath;
-			vm.NewFileCommand.Execute(null);
+		Assert.Empty(dialogs.SaveProposals); //no file dialog
+		Assert.Empty(dialogs.Confirmations);
+		KeyNode node = Assert.Single(vm.Tree.KeyNodes);
+		Assert.Same(node, vm.Tree.SelectedKeyNode); //Add works at once
+		Assert.Equal("anonymous-words", node.Label);
+		var rename = Assert.IsType<KeyNameViewModel>(Assert.Single(dialogs.Shown));
+		Assert.True(rename.IsRenameKey);
+		Assert.Equal("anonymous-words", rename.KeyName);
+		WordsFile file = vm.Session.FileOf("anonymous-words")!;
+		Assert.Null(file.Path);
+		Assert.Equal("en", file.DefaultLanguage);
+		Assert.Equal("English", Assert.Single(vm.Session.Languages.For(file)).NativeName);
+		Assert.Empty(file.Errors);
+		Assert.StartsWith(" An app's words", file.Preamble); //no file named, its apostrophe through the words
+		Assert.Contains("https://github.com/pzahra/words/blob/main/Localization-Core/readme.md", file.Preamble);
+		Assert.IsType<OrganizerNode>(node.Children[0]); //the preamble shows, pinned to the file's start
+		Assert.True(vm.IsDirty);
 
-			KeyNode node = Assert.Single(vm.Tree.KeyNodes);
-			Assert.Same(node, vm.Tree.SelectedKeyNode); //Add works at once
-			WordsFile file = vm.Session.FileOf("Strings")!;
-			Assert.Equal(filePath, file.Path);
-			Assert.Equal("en", file.DefaultLanguage);
-			Assert.Equal("English", Assert.Single(vm.Session.Languages.For(file)).NativeName);
-			Assert.Empty(file.Errors);
-			Assert.StartsWith(" Strings.ini: an app's words", file.Preamble); //named, its apostrophe through the format
-			Assert.Contains("https://github.com/pzahra/words/blob/main/Localization-Core/readme.md", file.Preamble);
-			Assert.IsType<OrganizerNode>(node.Children[0]); //the preamble shows, pinned to the file's start
-			Assert.True(vm.IsDirty);
-			Assert.False(File.Exists(filePath));
+		vm.NewFileCommand.Execute(null);
+		Assert.Equal(["anonymous-words", "anonymous-words-2"], vm.Tree.KeyNodes.Select(root => root.Label));
+	}
 
-			vm.Save();
+	[Fact]
+	public void New_TheNameTypedNamesIt_AndARenameChangesOnlyItsPrefix_AndWhatSaveProposes() {
+		var dialogs = new FakeDialogs { OnShow = Typing("strings") };
+		var vm = new MainWindowViewModel(dialogs);
+		vm.NewFileCommand.Execute(null);
+		KeyNode root = Assert.Single(vm.Tree.KeyNodes);
+		Assert.Equal("strings", root.Label);
+		vm.AddNode("greeting");
+		vm.AddKeyCommand.Execute(null);
 
-			string[] lines = File.ReadAllLines(filePath);
-			Assert.StartsWith("; Strings.ini: ", lines[0]);
-			Assert.Equal(["value=!en", "value-en=English", ""], lines[^3..]);
-			Assert.Equal(MainWindowViewModel.Starter("Strings.ini"), File.ReadAllText(filePath)); //written as it started
-			Assert.False(vm.IsDirty);
-		}
-		finally {
-			Directory.Delete(path, recursive: true);
-		}
+		dialogs.OnShow = Typing("words");
+		vm.Tree.SelectedKeyNode = root;
+		vm.RenameNodeCommand.Execute(null);
+
+		Assert.Equal("words", root.Label);
+		Assert.Equal("words.greeting", root.Children.Single(child => child is not OrganizerNode).FullLabel);
+		Assert.Equal(["words.greeting"], vm.Session.Keys.Keys);
+		Assert.Equal("words", vm.Session.Files.Single().Label);
+		Assert.Equal(0, vm.UndoStack.DoneCount); //a file renamed is out and in again to the history
+
+		vm.Save(); //cancelled
+		Assert.Equal(["words.ini"], dialogs.SaveProposals);
+		Assert.True(vm.IsDirty);
+		Assert.Null(vm.Session.Files.Single().Path);
+	}
+
+	[Fact]
+	public void TheFirstSave_AsksWhere_ProposingItsName_AndWritesTheStarterByteForByte() {
+		using var folder = new TempFolder();
+		var dialogs = new FakeDialogs();
+		var vm = new MainWindowViewModel(dialogs);
+		WordsFile file = vm.NewFile();
+
+		vm.Save(); //cancelled: dirty and pathless, nothing written
+		Assert.Equal(["anonymous-words.ini"], dialogs.SaveProposals);
+		Assert.True(vm.IsDirty);
+		Assert.Null(file.Path);
+		Assert.Empty(Directory.GetFiles(folder.Path));
+
+		dialogs.FileToSave = folder["Strings.ini"];
+		vm.Save();
+
+		Assert.Equal(folder["Strings.ini"], file.Path);
+		Assert.Equal("Strings", file.Label); //the root follows the name picked
+		Assert.Equal("Strings", vm.Tree.KeyNodes.Single().Label);
+		Assert.Equal(MainWindowViewModel.Starter(), File.ReadAllText(folder["Strings.ini"])); //written as it started
+		string[] lines = File.ReadAllLines(folder["Strings.ini"]);
+		Assert.StartsWith("; An app's words", lines[0]);
+		Assert.Equal(["value=!en", "value-en=English", ""], lines[^3..]);
+		Assert.False(vm.IsDirty);
+
+		vm.Save();
+		Assert.Equal(2, dialogs.SaveProposals.Count); //later Saves ask nothing
+	}
+
+	[Fact]
+	public void TheFirstSave_RefusesAPathTheSessionHas_AndAsksAgain() {
+		using var folder = new TempFolder();
+		File.WriteAllText(folder["Taken.ini"], "value-en=English\n\n[k]\nvalue=x\n");
+		var dialogs = new FakeDialogs();
+		var vm = new MainWindowViewModel(dialogs);
+		vm.LoadFile(folder["Taken.ini"]);
+		WordsFile file = vm.NewFile();
+
+		dialogs.FilesToSave.Enqueue(folder["Taken.ini"]);
+		dialogs.FileToSave = folder["Free.ini"];
+		vm.Save();
+
+		Assert.Contains(folder["Taken.ini"], Assert.Single(dialogs.Notices));
+		Assert.Equal(["anonymous-words.ini", folder["Taken.ini"]], dialogs.SaveProposals); //asked again, from the path refused
+		Assert.Equal(folder["Free.ini"], file.Path);
+		Assert.Equal(MainWindowViewModel.Starter(), File.ReadAllText(folder["Free.ini"]));
+		Assert.False(vm.IsDirty);
+	}
+
+	[Fact]
+	public void ACancelledFirstSave_StopsTheSaveThere_TheFilesBeforeItSaved() {
+		using var folder = new TempFolder();
+		File.WriteAllText(folder["Before.ini"], "value-en=English\n\n[k]\nvalue=x\n");
+		File.WriteAllText(folder["After.ini"], "value-en=English\n\n[k]\nvalue=y\n");
+		var vm = new MainWindowViewModel(new FakeDialogs());
+		vm.LoadFile(folder["Before.ini"]);
+		WordsFile file = vm.NewFile();
+		vm.LoadFile(folder["After.ini"]);
+		vm.Session.Keys["Before.k"].DefaultValue = "changed";
+		vm.Session.Keys["After.k"].DefaultValue = "changed";
+
+		vm.Save();
+
+		Assert.Contains("value=changed", File.ReadAllText(folder["Before.ini"]));
+		Assert.Equal("value-en=English\n\n[k]\nvalue=y\n", File.ReadAllText(folder["After.ini"]));
+		Assert.Null(file.Path);
+		Assert.True(vm.IsDirty);
+	}
+
+	[Fact]
+	public void RenamingASavedRoot_MovesItsFile_ThroughTheSaveDialog() {
+		using var folder = new TempFolder();
+		const string text = "value-en=English\n\n[k]\nvalue=x\n";
+		File.WriteAllText(folder["Strings.ini"], text);
+		var dialogs = new FakeDialogs();
+		var vm = new MainWindowViewModel(dialogs);
+		vm.LoadFile(folder["Strings.ini"]);
+		KeyNode root = vm.Tree.KeyNodes.Single();
+		vm.Tree.SelectedKeyNode = root;
+
+		vm.RenameNodeCommand.Execute(null); //cancelled: nothing changes
+		Assert.Equal([folder["Strings.ini"]], dialogs.SaveProposals); //the dialog opens on the file
+		Assert.Empty(dialogs.Shown); //no rename box: a file is being written
+		Assert.True(File.Exists(folder["Strings.ini"]));
+		Assert.Equal("Strings", root.Label);
+
+		dialogs.FileToSave = folder["Words.ini"];
+		vm.RenameNodeCommand.Execute(null);
+
+		Assert.False(File.Exists(folder["Strings.ini"]));
+		Assert.Contains("[k]\nvalue=x\n", File.ReadAllText(folder["Words.ini"])); //its words, as Save writes them
+		WordsFile file = vm.Session.Files.Single();
+		Assert.Equal(folder["Words.ini"], file.Path);
+		Assert.Equal("Words", file.Label);
+		Assert.Equal("Words", root.Label);
+		Assert.Equal(["Words.k"], vm.Session.Keys.Keys);
+		Assert.Equal("Words.k", root.Children.Single().FullLabel);
 	}
 
 	[Fact]

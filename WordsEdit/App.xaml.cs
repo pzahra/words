@@ -55,8 +55,11 @@ public partial class App : Application {
 		EditorConfig.Language = languageCode;
 		var start = new ProcessStartInfo(exe) { UseShellExecute = false };
 		start.ArgumentList.Add(EditorWords.LanguageSwitch + languageCode);
+		//a file never saved was saved by now, or let go
 		foreach (WordsFile file in viewModel.Session.Files) {
-			start.ArgumentList.Add(file.Path);
+			if (file.Path is { } path) {
+				start.ArgumentList.Add(path);
+			}
 		}
 		(MainWindow as MainWindow)?.Retire();
 		Process.Start(start);

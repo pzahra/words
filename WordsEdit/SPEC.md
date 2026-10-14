@@ -437,8 +437,8 @@ loaded, ready to be worked on separately and merged back.
 
 File > New (Ctrl+N) starts a file, so someone trying Wordsmith out need not
 write one by hand first. It asks nothing: a new root, `anonymous-words`, joins
-the tree with no path, selected, its label open for renaming at once, so the
-first thing typed names it and Escape keeps the name. The root is just the
+the tree with no path, selected, the rename box (F2's, *The tree*) open on its
+name at once, so the first thing typed names it and Escape keeps the name. The root is just the
 file: its name is the file's, and no key carries it. A second New before the
 first is saved makes `anonymous-words-2`, and so on, so the two are told apart.
 It is unsaved work, as an import is: nothing reaches the disk until Save, and
@@ -452,7 +452,9 @@ The header (`file.new-preamble`, in Wordsmith's language) is boilerplate a
 familiar hand leaves in as readily as a newcomer reads it, not a tutorial: what
 the file holds, that it ships in the app's assets for `WordsBuilder` to load,
 that Wordsmith or `words` edits it, and a link to the Core readme for the
-format.
+format. It names no file: the name is the file's to change, and a header
+naming it would be wrong after the first rename, so nothing need rewrite a
+comment that is the user's once it is written.
 
 **Saving it.** The first Save of a file with no path asks where, as Save As
 does, proposing its label with `.ini` (`anonymous-words.ini`, or the name it
@@ -460,37 +462,47 @@ was given). The dialog's own overwrite ask covers a file on disk. A path another
 file in the session already has is refused with a message, and the dialog asks
 again: two files never share a path. Cancelling leaves the file unsaved, dirty
 and pathless, and a Save of several files stops there, the ones before it
-saved. Once saved it has a path like any loaded file, and later Saves go there.
+saved. The file is written before it takes the path, so a write that fails is
+told and leaves it pathless. Once saved it has a path like any loaded file,
+and later Saves go there. Its root follows the name picked, as a loaded
+file's is its file's, so a first Save under another name renames it.
 
 **Renaming a root.** A pathless file's root renames in place, and the name is what
 its first Save proposes. A file that exists on disk renames through the Save As
 dialog, so it is plain that a file is being written. Renaming moves the file:
 it is saved at the chosen path, the file at the old path is removed, and the root
-follows it. Words files are expected to live in the user's own git repository,
-which sees the move at its next status (git pairs the removal with the new file
-once both are staged), and from which the old file can always be recovered.
-Wordsmith moves it on disk and runs no git command.
+follows it. A path it has already is no move, and an old file that will not go
+is told, the words saved at both. Words files are expected to live in the
+user's own git repository, which sees the move at its next status (git pairs
+the removal with the new file once both are staged), and from which the old
+file can always be recovered.
+Wordsmith moves it on disk and runs no git command. A root that changes its
+name, whichever way, empties the undo history (*Undo*, Boundaries).
 
 Why: a location asked up front is a question before there is anything to save,
 and most people expect the one asked at Save. It also removes the hazard of a
 New over a path already loaded, which replaced that file's unsaved work.
 
-Undecided: whether the header names the file, and if so, whether the first Save
-writes the chosen name into it.
-
 **Tests.**
 - New asks nothing.
 - The new root is `anonymous-words`, selected, in rename, dirty, English by
-  default and without gripes. Its preamble links the Core readme and shows as the
-  pinned organizer.
+  default and without gripes. Its preamble names no file, links the Core readme
+  and shows as the pinned organizer.
 - A second New is `anonymous-words-2`.
-- Renaming the pathless root changes no key and only what Save proposes.
-- Renaming a saved root opens Save As: the file is at the new path and gone from
-  the old one, and the root follows it. A cancelled dialog changes nothing.
+- The name typed names it; renaming the pathless root changes only its keys'
+  prefix and what Save proposes, and empties the undo history.
+- Renaming a saved root opens Save As on its path: the file is at the new path
+  and gone from the old one, and the root and its keys follow it. A cancelled
+  dialog changes nothing.
 - The first Save proposes the label, and writes the starter byte for byte at the
-  chosen path, leaving the window clean. Later Saves ask nothing.
-- A cancelled first Save leaves it dirty and pathless.
-- A path the session already has is refused.
+  chosen path, the root following its name, leaving the window clean. Later
+  Saves ask nothing.
+- A cancelled first Save leaves it dirty and pathless, and stops a Save of
+  several files there, the ones before it saved.
+- A path the session already has is refused, and the dialog asks again.
+- In the session: a new file has no path and is at none, cannot save until it
+  has one, renames in place to a key segment no other file has, and moves to
+  a path no other file has, labelled as a file loaded from there.
 
 ## Saving
 
@@ -969,7 +981,10 @@ undone; the title stars again). Reset, Load, Import, Unload, Merge and Split
 do: they change which files the document is, and an entry for other files is
 no help. Each of them puts a file node into the tree or takes one out, and
 that is what clears it; a file dragged among files does not. A Language
-Manager commit that merges codes clears it too.
+Manager commit that merges codes clears it too, and so does a root that
+changes its name (*New*): renamed in place, moved on disk, or saved first
+under another name, its file is out and in again, and the entries name its
+keys by the old one.
 
 **Text boxes.** The main window's editing boxes undo as any text box does,
 from the document's history. Each is a `WordsBox`: a `TextBox` with WPF's

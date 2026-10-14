@@ -237,6 +237,17 @@ set in Wordsmith's own words read back through the editor byte for byte.
 
 # Planned upgrades
 
-Nothing of the command line's own. Its part in the editor's *Machine
-translation*, `list --stale`, `request` and `apply`, is built (*Calls*); the
-editor's part is planned there.
+Its part in the editor's *Machine translation*, `list --stale`, `request` and
+`apply`, is built (*Calls*); the editor's part is planned there.
+
+## A block's first value spaces it
+
+`set` giving the default's value to a key that has none, a key added by its
+context first, writes the value into the block and no blank line after it,
+where the editor writes one after each block with a value (*Surgical edits*):
+the file then reads back through the editor with a line more. A new key set
+by its value first is spaced right. The fix: a block that gains a value
+gains the blank line after it, in a file spaced so, and one that loses it,
+by `remove` or an empty `set`, loses the line. Until then, a new key's value
+goes first; the keys the editor's *New* added to Wordsmith's own words went
+so.

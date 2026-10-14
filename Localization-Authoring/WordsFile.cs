@@ -7,15 +7,22 @@ namespace PatTech.Localization.Authoring {
 	///     files (the second gets a disambiguated label).
 	/// </summary>
 	public sealed class WordsFile {
-		/// <summary>The path the file was loaded from — its identity, and where it saves.</summary>
-		public string Path { get; }
+		/// <summary>
+		///     The path the file was loaded from, or first saved to — its identity, and
+		///     where it saves; <see langword="null"/> for a file started in the editor
+		///     and not saved yet (<see cref="WordsSession.New"/>), which asks where at
+		///     its first Save (<see cref="WordsSession.MoveTo"/>).
+		/// </summary>
+		public string? Path { get; internal set; }
 		/// <summary>
 		///     The tree prefix its keys carry (<c>label.group.key</c>): the file name
 		///     without extension, dots replaced and a <c>-2</c>, <c>-3</c>… suffix
-		///     when another loaded file already took it. Dot-free by construction,
-		///     since the writer drops exactly one leading segment.
+		///     when another loaded file already took it, or the name a file not saved
+		///     yet was given. Dot-free by construction, since the writer drops exactly
+		///     one leading segment. It follows the file (<see cref="WordsSession.Rename"/>,
+		///     <see cref="WordsSession.MoveTo"/>).
 		/// </summary>
-		public string Label { get; }
+		public string Label { get; internal set; }
 		/// <summary>The comment run above the language table; written back above it.</summary>
 		public string Preamble { get; set; }
 		/// <summary>
@@ -83,7 +90,7 @@ namespace PatTech.Localization.Authoring {
 		/// </summary>
 		public System.Text.Encoding Encoding { get; }
 
-		internal WordsFile(string path, string label, ILoadedWords loaded, string newLine, System.Text.Encoding encoding) {
+		internal WordsFile(string? path, string label, ILoadedWords loaded, string newLine, System.Text.Encoding encoding) {
 			Path = path;
 			Label = label;
 			NewLine = newLine;
@@ -110,9 +117,9 @@ namespace PatTech.Localization.Authoring {
 			BlockComments = loaded.BlockComments.ToDictionary(pair => $"{label}.{pair.Key}", pair => pair.Value);
 		}
 
-		/// <summary>The folder the file sits in — the working directory for a bare name.</summary>
+		/// <summary>The folder the file sits in — the working directory for a bare name, or a file not saved yet.</summary>
 		public string Directory
-			=> System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(Path)) ?? "";
+			=> Path is null ? System.IO.Directory.GetCurrentDirectory() : System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(Path)) ?? "";
 
 		/// <summary>The settings file <see cref="Settings"/> names, as an absolute path; <see langword="null"/> when it names none.</summary>
 		public string? SettingsPath() => Resolve(Settings);

@@ -33,10 +33,10 @@ namespace PatTech.Localization.Authoring {
 			Languages = new LanguageTable(this);
 		}
 
-		/// <summary>The file loaded from <paramref name="path"/>, if any (paths compare in full, case-insensitively).</summary>
+		/// <summary>The file loaded from <paramref name="path"/>, if any (paths compare in full, case-insensitively); a file not saved yet is at none.</summary>
 		public WordsFile? FileAt(string path) {
 			string full = System.IO.Path.GetFullPath(path);
-			return files.FirstOrDefault(file => string.Equals(System.IO.Path.GetFullPath(file.Path), full, StringComparison.OrdinalIgnoreCase));
+			return files.FirstOrDefault(file => file.Path is { } at && string.Equals(System.IO.Path.GetFullPath(at), full, StringComparison.OrdinalIgnoreCase));
 		}
 
 		/// <summary>The file whose keys carry <paramref name="label"/> as their prefix, if any.</summary>
@@ -84,11 +84,72 @@ namespace PatTech.Localization.Authoring {
 		/// <param name="path">Where it came from — the file's identity and its save target.</param>
 		/// <param name="encoding">The encoding Save writes it in; <see langword="null"/> for UTF-8 without a BOM.</param>
 		public WordsFile Load(TextReader reader, string path, Encoding? encoding = null) {
-			//read whole first: the parser's lines lose their breaks, and saving keeps the file's
+			var (loaded, newLine) = Read(reader);
+			return Load(loaded, path, newLine, encoding);
+		}
+
+		/// <summary>
+		///     Starts a file with no path (the editor's SPEC: New): <paramref name="reader"/>
+		///     read as <see cref="Load(TextReader, string, Encoding?)"/> reads a file, the
+		///     file labelled <paramref name="name"/>, or <c>name-2</c> and so on where
+		///     another file has it, and saved in UTF-8 without a BOM. Nothing is on disk
+		///     until its first Save asks where (<see cref="MoveTo"/>).
+		/// </summary>
+		/// <param name="reader">The file's text.</param>
+		/// <param name="name">Its label, and the name its first Save proposes.</param>
+		public WordsFile New(TextReader reader, string name) {
+			var (loaded, newLine) = Read(reader);
+			return Add(loaded, null, UniqueLabel(name), newLine, null, files.Count);
+		}
+
+		//read whole first: the parser's lines lose their breaks, and saving keeps the file's
+		private static (WordsParserToLocalizationProvider Loaded, string? NewLine) Read(TextReader reader) {
 			string text = reader.ReadToEnd();
 			var loaded = new WordsParserToLocalizationProvider();
 			new WordsParser(loaded).Load(new StringReader(text));
-			return Load(loaded, path, NewLineOf(text), encoding);
+			return (loaded, NewLineOf(text));
+		}
+
+		/// <summary>
+		///     Renames a file's root: <paramref name="label"/> becomes its label, and every
+		///     key it holds is prefixed with it (the editor's SPEC: New → Renaming a root).
+		///     For a file not saved yet it is the name its first Save proposes; a file on
+		///     disk is renamed by moving it (<see cref="MoveTo"/>).
+		/// </summary>
+		/// <exception cref="ArgumentException">The label is no segment of a key's name, or another file has it.</exception>
+		public void Rename(WordsFile file, string label) {
+			if (!WordsParser.IsKeySegment(label)) {
+				throw new ArgumentException($"'{label}' is no segment of a key's name", nameof(label));
+			}
+			if (FileOf(label) is { } other && other != file) {
+				throw new ArgumentException($"'{label}' is another file's label", nameof(label));
+			}
+			Relabel(file, label);
+		}
+
+		/// <summary>
+		///     Gives <paramref name="file"/> the path it saves to from now on, as its
+		///     first Save or a rename through Save As does (the editor's SPEC: New): its
+		///     root follows, labelled as a file loaded from there would be. Writes
+		///     nothing; the caller writes the file there, and removes it from the old
+		///     path when it moved.
+		/// </summary>
+		/// <exception cref="ArgumentException">Another file has the path.</exception>
+		public void MoveTo(WordsFile file, string path) {
+			if (FileAt(path) is { } other && other != file) {
+				throw new ArgumentException($"'{path}' is the path of {other.Label}", nameof(path));
+			}
+			file.Path = path;
+			Relabel(file, UniqueLabel(System.IO.Path.GetFileNameWithoutExtension(path), file));
+		}
+
+		//the file's keys move under the new label in one go: no other file has it, so none collides
+		private void Relabel(WordsFile file, string label) {
+			if (label == file.Label) {
+				return;
+			}
+			WordsOperations.TryRename(keys, file.Label, label, out _);
+			file.Label = label;
 		}
 
 		//the first line break decides; a file with none takes the system's
@@ -137,6 +198,16 @@ namespace PatTech.Localization.Authoring {
 			if (previous is not null) {
 				Unload(previous, prune: false);
 			}
+			WordsFile file = Add(loaded, path, label, newLine, encoding, position);
+			if (previous is not null) {
+				//languages the file stopped declaring, and nobody else has, go now
+				Languages.Prune();
+			}
+			return file;
+		}
+
+		//the file joins the session at position, its keys prefixed with label
+		private WordsFile Add(ILoadedWords loaded, string? path, string label, string? newLine, Encoding? encoding, int position) {
 			var file = new WordsFile(path, label, loaded, newLine ?? Environment.NewLine, encoding ?? IniWriter.Utf8);
 			files.Insert(position, file);
 			foreach (WordsKey read in loaded.WordKeys.Values) {
@@ -148,22 +219,19 @@ namespace PatTech.Localization.Authoring {
 				}
 			}
 			Languages.Absorb(loaded, firstFile: files.Count == 1);
-			if (previous is not null) {
-				//languages the file stopped declaring, and nobody else has, go now
-				Languages.Prune();
-			}
 			return file;
 		}
 
 		//the file name, dots replaced (the writer strips one leading segment), and
-		//suffixed past any label another loaded file already carries
-		private string UniqueLabel(string fileName) {
+		//suffixed past any label another loaded file already carries; a file moving
+		//may keep its own
+		private string UniqueLabel(string fileName, WordsFile? moving = null) {
 			string name = fileName.Replace('.', '-');
 			if (name == "") {
 				name = "file";
 			}
 			string label = name;
-			for (int i = 2; FileOf(label) is not null; i++) {
+			for (int i = 2; FileOf(label) is { } other && other != moving; i++) {
 				label = $"{name}-{i}";
 			}
 			return label;
@@ -205,8 +273,20 @@ namespace PatTech.Localization.Authoring {
 		/// </summary>
 		/// <param name="file">The file to write.</param>
 		/// <param name="tree">The file's node: the walk decides block order, comments write themselves in place.</param>
+		/// <exception cref="InvalidOperationException">The file has no path yet: its first Save asks where.</exception>
 		public void Save(WordsFile file, IKeyTreeNode tree)
-			=> IniWriter.WriteAtomic(file.Path, writer => Save(file, tree, writer), file.Encoding);
+			=> Save(file, tree, file.Path ?? throw new InvalidOperationException($"{file.Label} has no path yet: its first Save asks where"));
+
+		/// <summary>
+		///     <see cref="Save(WordsFile, IKeyTreeNode)"/> to <paramref name="path"/>,
+		///     the file's own path left as it is: a file's first Save, or its move,
+		///     writes there before <see cref="MoveTo"/>, so a failure moves nothing.
+		/// </summary>
+		/// <param name="file">The file to write.</param>
+		/// <param name="tree">The file's node: the walk decides block order, comments write themselves in place.</param>
+		/// <param name="path">Where it is written.</param>
+		public void Save(WordsFile file, IKeyTreeNode tree, string path)
+			=> IniWriter.WriteAtomic(path, writer => Save(file, tree, writer), file.Encoding);
 
 		/// <summary>
 		///     <see cref="Save(WordsFile, IKeyTreeNode)"/> to a writer instead of the

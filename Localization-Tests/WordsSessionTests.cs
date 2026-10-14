@@ -749,7 +749,7 @@ value-fr=Bonjour
 			session.Languages.Rename(basis, "fr", new LanguageEntry("fr", "Français") { EnglishName = "French" });
 			library.LanguageSettings["de"] = "german.ini"; //a stray reference the split leaves behind
 			WordsFile split = session.Split(library, "fr", KeyTree.Build(session, library), Path.Combine(folder, "Lib.fr.ini"));
-			string text = File.ReadAllText(split.Path);
+			string text = File.ReadAllText(split.Path!);
 			Assert.Contains("value-fr=!Français", text);
 			Assert.Contains("param-fr=french.ini", text);
 			Assert.DoesNotContain("param-de", text);
@@ -795,5 +795,40 @@ value-fr=Bonjour
 		Assert.Equal("first", session.Provider(["Over", "Main"]).GetValue("k"));
 		Assert.Equal("premier", session.Provider(["Main"], "fr").GetValue("k"));
 		Assert.Equal("first", session.Provider(["Main"], "de").GetValue("k")); //falls back to the default
+	}
+
+	//the editor's SPEC (New): a file started with no path, labelled by the name it
+	//was given, renamed in place, and given a path at its first Save
+	[Fact]
+	public void ANewFile_HasNoPath_UntilMovedTo_ItsKeysFollowingItsLabel() {
+		var session = new WordsSession();
+		WordsFile first = session.New(new StringReader("value-en=English\n\n[k]\nvalue=x\n"), "anonymous-words");
+		WordsFile second = session.New(new StringReader(""), "anonymous-words");
+
+		Assert.Null(first.Path);
+		Assert.Equal("anonymous-words", first.Label);
+		Assert.Equal("anonymous-words-2", second.Label);
+		Assert.Equal(["anonymous-words.k"], session.KeysOf(first).Select(key => key.BlockKey));
+		Assert.Null(session.FileAt("anonymous-words.ini")); //a file not saved is at no path
+		Assert.Throws<InvalidOperationException>(() => session.Save(first, KeyTree.Build(session, first)));
+
+		session.Rename(first, "strings");
+		Assert.Equal("strings", first.Label);
+		Assert.Equal(["strings.k"], session.Keys.Keys);
+		Assert.Throws<ArgumentException>(() => session.Rename(first, "anonymous-words-2")); //another's
+		Assert.Throws<ArgumentException>(() => session.Rename(first, "a.b"));               //no segment
+
+		string folder = Path.Combine(Path.GetTempPath(), "WordsSessionMove");
+		session.MoveTo(first, Path.Combine(folder, "Words.ini"));
+		Assert.Equal(Path.Combine(folder, "Words.ini"), first.Path);
+		Assert.Equal("Words", first.Label); //labelled as a file loaded from there
+		Assert.Equal(["Words.k"], session.Keys.Keys);
+		Assert.Same(first, session.FileAt(Path.Combine(folder, "Words.ini")));
+		Assert.Throws<ArgumentException>(() => session.MoveTo(second, Path.Combine(folder, "Words.ini"))); //another's path
+
+		session.MoveTo(second, Path.Combine(folder, "sub", "Words.ini"));
+		Assert.Equal("Words-2", second.Label);
+		session.MoveTo(first, Path.Combine(folder, "other", "Words.ini"));
+		Assert.Equal("Words", first.Label); //its own label is no other's
 	}
 }

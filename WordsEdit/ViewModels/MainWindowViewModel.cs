@@ -169,7 +169,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		ClearFiltersCommand = new DelegateCommand(Tree.ClearFilters, () => Tree.IsFiltering);
 		//the structure edits say whether they apply, so a menu or a key can offer them all
 		RemoveNodeCommand = new DelegateCommand(DoRemoveNode, () => Tree.SelectedKeyNode is not null);
-		RenameNodeCommand = new DelegateCommand(DoRenameNode, () => Tree.SelectedKeyNode is { IsFile: false } and not OrganizerNode);
+		RenameNodeCommand = new DelegateCommand(DoRenameNode, () => Tree.SelectedKeyNode is not (null or OrganizerNode));
 		AddNodeCommand = new DelegateCommand(DoAddNode, () => Tree.SelectedKeyNode is { IsConstant: false } and not OrganizerNode);
 		AddKeyCommand = new DelegateCommand(DoAddKey, () => Tree.SelectedKeyNode is { IsFile: false } and not OrganizerNode && Tree.SelectedKey is null);
 		AddOrganizerCommand = new DelegateCommand(DoAddOrganizer, () => Tree.SelectedKeyNode is { IsFile: false } and not OrganizerNode);
@@ -207,34 +207,36 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	private void UpdateTitle()
 		=> Title = Tree.KeyNodes.Count == 0 ? Words.Known["app.title"] : Words.Known.Format("app.title-files", string.Join(", ", Tree.FileLabels));
 
-	//New (SPEC: New): the save dialog names the file first, and Save writes it
+	//New (SPEC: New): asks nothing, the name open for renaming at once
 	private void DoNewFile() {
-		if (Dialogs.TrySaveFile(Words.Known["file.new-title"], Words.Known["file.filter"], out string? fileName)) {
-			NewFile(fileName);
-		}
+		NewFile();
+		DoRenameNode();
 	}
 
+	/// <summary>The name a new file starts with, numbered past one the session has (SPEC: New).</summary>
+	public const string NewFileName = "anonymous-words";
+
 	/// <summary>
-	///     Presents a new file at <paramref name="fileName"/>, selected, as unsaved
-	///     work: <see cref="Starter"/>'s header and English as the default's
-	///     language. Nothing is written until Save. A file already loaded from
-	///     there is replaced, as the dialog's overwrite ask agreed to.
+	///     Presents a new file with no path, <see cref="NewFileName"/>, selected, as
+	///     unsaved work: <see cref="Starter"/>'s header and English as the default's
+	///     language. Nothing is written until Save, which asks where.
 	/// </summary>
-	public void NewFile(string fileName) {
-		WordsFile file = Session.Load(new StringReader(Starter(Path.GetFileName(fileName))), fileName);
+	public WordsFile NewFile() {
+		WordsFile file = Session.New(new StringReader(Starter()), NewFileName);
 		Tree.Present(file);
 		Tree.Select(Tree.NodeOf(file));
 		MarkDirty();
+		return file;
 	}
 
 	/// <summary>
-	///     What a new file named <paramref name="name"/> starts as: a header
-	///     saying what it is and where it goes, as comment lines its preamble
-	///     keeps, then the two lines that make English the default's language.
+	///     What a new file starts as: a header saying what it is and where it goes,
+	///     as comment lines its preamble keeps, then the two lines that make English
+	///     the default's language. It names no file, so a rename leaves it true.
 	/// </summary>
-	public static string Starter(string name) {
+	public static string Starter() {
 		var text = new StringBuilder();
-		foreach (string line in Words.Known.Format("file.new-preamble", name).ReplaceLineEndings("\n").Split('\n')) {
+		foreach (string line in Words.Known["file.new-preamble"].ReplaceLineEndings("\n").Split('\n')) {
 			text.AppendLine(line == "" ? ";" : "; " + line);
 		}
 		text.AppendLine("value=!en");
@@ -351,15 +353,25 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	//Save
 	private void DoSave() => Save();
 
+	/// <summary>
+	///     Writes every file (SPEC: Saving), each where it was loaded from. A file
+	///     never saved asks where first (SPEC: New), proposing its name; cancelled,
+	///     the Save stops there, the files before it saved and it left pathless.
+	/// </summary>
 	public override void Save() {
 		int saved = 0;
-		foreach (WordsFile file in Session.Files) {
-			try {
-				Session.Save(file, Tree.NodeOf(file));
-				saved++;
+		foreach (WordsFile file in Session.Files.ToList()) {
+			KeyNode node = Tree.NodeOf(file);
+			if (file.Path is { } path) {
+				saved += TryWrite(file, node, path) ? 1 : 0;
+				continue;
 			}
-			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.EncoderFallbackException) {
-				Dialogs.Tell(Words.Known.Format("file.save-failed", file.Path, ex.Message));
+			if (AskWhere(file, Words.Known.Format("file.save-title", file.Label), file.Label + ".ini") is not { } chosen) {
+				break;
+			}
+			if (TryWrite(file, node, chosen)) {
+				Locate(file, node, chosen);
+				saved++;
 			}
 		}
 		if (saved == Session.Files.Count) {
@@ -369,6 +381,68 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		else if (saved > 0) {
 			//some files on disk moved on and some didn't: no undo or redo comes back to that
 			UndoStack.Saved(partly: true);
+		}
+	}
+
+	//writes the file at path, its own path left as it is: a failure is told and moves nothing
+	private bool TryWrite(WordsFile file, KeyNode node, string path) {
+		try {
+			Session.Save(file, node, path);
+			return true;
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.EncoderFallbackException) {
+			Dialogs.Tell(Words.Known.Format("file.save-failed", path, ex.Message));
+			return false;
+		}
+	}
+
+	//where the file goes: the save dialog, proposing proposed, and asking again
+	//while it picks a path another file has, as two files never share one
+	private string? AskWhere(WordsFile file, [Localized] string title, string proposed) {
+		while (Dialogs.TrySaveFile(title, Words.Known["file.filter"], proposed, out string? path)) {
+			if (Session.FileAt(path) is { } other && other != file) {
+				Dialogs.Tell(Words.Known.Format("tell.path-taken", path, other.Label));
+				proposed = path;
+				continue;
+			}
+			return path;
+		}
+		return null;
+	}
+
+	//the file saves to path from now on, and its root follows the name
+	private void Locate(WordsFile file, KeyNode node, string path) {
+		Session.MoveTo(file, path);
+		FollowRoot(node, file);
+	}
+
+	//the root takes its file's label, its keys renamed with it: a file out and in
+	//again to the history (SPEC: Undo), whose steps name the keys by the old label
+	private void FollowRoot(KeyNode node, WordsFile file) {
+		if (node.FullLabel == file.Label) {
+			return;
+		}
+		node.Label = file.Label;
+		node.Relabel(file.Label);
+		UndoStack.Clear();
+		UpdateTitle();
+	}
+
+	/// <summary>
+	///     Renames a file on disk through the save dialog (SPEC: New → Renaming a
+	///     root): written at the path picked, removed from the old one, its root
+	///     following. A cancelled dialog, or the path it has, changes nothing.
+	/// </summary>
+	private void MoveFile(WordsFile file, KeyNode node, string from) {
+		if (AskWhere(file, Words.Known.Format("file.move-title", file.Label), from) is not { } to || SamePath(to, from) || !TryWrite(file, node, to)) {
+			return;
+		}
+		Locate(file, node, to);
+		try {
+			File.Delete(from);
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+			Dialogs.Tell(Words.Known.Format("file.remove-failed", from, ex.Message));
 		}
 	}
 
@@ -498,19 +572,32 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Tree.RemoveFile(fileNode);
 	}
 
+	//a root on disk renames by moving its file, so it is plain one is written (SPEC: New)
 	private void DoRenameNode() {
-		if (Tree.SelectedKeyNode is null or OrganizerNode || Tree.SelectedKeyNode.IsFile) {
+		if (Tree.SelectedKeyNode is not { } node || node is OrganizerNode) {
 			return;
 		}
-		Dialogs.Show(new KeyNameViewModel(this, Tree.SelectedKeyNode));
+		if (node.IsFile && Tree.FileOf(node) is { Path: { } path } file) {
+			MoveFile(file, node, path);
+			return;
+		}
+		Dialogs.Show(new KeyNameViewModel(this, node));
 	}
 
-	//a rename is a move that changes the last segment alone (SPEC: Undo → Structure)
+	//a rename is a move that changes the last segment alone (SPEC: Undo → Structure);
+	//a root not saved yet takes the name its first Save proposes
 	public void RenameNode(string newName) {
-		if (Tree.SelectedKeyNode is null or OrganizerNode || Tree.SelectedKeyNode.Parent is not { } parent) {
-			return; //files keep the name of the file
+		if (Tree.SelectedKeyNode is null or OrganizerNode) {
+			return;
 		}
 		KeyNode node = Tree.SelectedKeyNode;
+		if (node.Parent is not { } parent) {
+			if (Tree.FileOf(node) is { Path: null } file) {
+				Session.Rename(file, newName);
+				FollowRoot(node, file);
+			}
+			return;
+		}
 		if (parent.Children.Any(sibling => sibling != node && sibling.Label == newName)) {
 			Dialogs.Tell(Words.Known.Format("tell.node-exists", parent.FullLabel, newName));
 			return;

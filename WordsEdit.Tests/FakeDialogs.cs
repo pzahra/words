@@ -26,6 +26,10 @@ public sealed class FakeDialogs : IDialogs {
 	public string[]? FilesToOpen { get; set; }
 	/// <summary>The file the save dialog "picks"; null cancels it.</summary>
 	public string? FileToSave { get; set; }
+	/// <summary>The files the save dialog picks, one a showing, before <see cref="FileToSave"/> answers; a null cancels.</summary>
+	public Queue<string?> FilesToSave { get; } = [];
+	/// <summary>What each save dialog proposed, in order.</summary>
+	public List<string?> SaveProposals { get; } = [];
 	public Action<IDialogViewModel>? OnShow { get; set; }
 
 	/// <summary>The text as the user would read it: resolved, no key showing through.</summary>
@@ -64,14 +68,11 @@ public sealed class FakeDialogs : IDialogs {
 		return true;
 	}
 
-	public bool TrySaveFile(string title, string filter, [NotNullWhen(true)] out string? fileName) {
+	public bool TrySaveFile(string title, string filter, string? proposed, [NotNullWhen(true)] out string? fileName) {
 		Rendered(title);
 		Rendered(filter);
-		if (FileToSave is null) {
-			fileName = null;
-			return false;
-		}
-		fileName = FileToSave;
-		return true;
+		SaveProposals.Add(proposed);
+		fileName = FilesToSave.TryDequeue(out string? picked) ? picked : FileToSave;
+		return fileName is not null;
 	}
 }

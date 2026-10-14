@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Windows;
 using WordsEdit.Utils;
 using WordsEdit.ViewModels;
@@ -50,8 +51,15 @@ public sealed class WpfDialogs : IDialogs {
 		return true;
 	}
 
-	public bool TrySaveFile([Localized] string title, [Localized] string filter, [NotNullWhen(true)] out string? fileName) {
+	public bool TrySaveFile([Localized] string title, [Localized] string filter, string? proposed, [NotNullWhen(true)] out string? fileName) {
 		var dialog = new SaveFileDialog { Title = title, Filter = filter };
+		if (proposed is not null) {
+			//a path opens in its folder, a name in the dialog's last one
+			dialog.FileName = Path.GetFileName(proposed);
+			if (Path.GetDirectoryName(proposed) is { Length: > 0 } folder) {
+				dialog.InitialDirectory = folder;
+			}
+		}
 		if (Run(dialog) is not true) {
 			fileName = null;
 			return false;
