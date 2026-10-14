@@ -39,8 +39,9 @@ opt-in, chosen before `Digest`, and invisible when it is not: off, the runtime
 behaves exactly as *The dictionary is a snapshot* describes, byte for byte.
 
 **Turning it on.** `WordsBuilder.Live()`, chained before `Digest`, keeps the
-builder — its un-flattened per-language sources and its `Debug`/`UseSystemNumbers`
-settings — alive as `Words.Live` instead of letting it go, and arms the watch
+builder — its un-flattened per-language sources, its `Debug`/`UseSystemNumbers`
+settings and its `ConfigureDescribe` registrations — alive as `Words.Live`
+instead of letting it go, and arms the watch
 registry below. Off (the default: `Words.Live` is null), `Digest` behaves as
 today and every hook in this section is a no-op; `Live(false)` lets the builder
 go again.
@@ -715,8 +716,9 @@ text an attribute gave a slot, by the slot's letter (Slots, below).
 `Describe(this IDescribable, format, words)` is the engine, and it looks up
 only the keys its letters ask for, each once: `G` the key alone, `T` the key's
 `.tooltip`, and so on. `Describe(this Enum, …)` takes the member's describable
-from `Describable.Of`, built once per member and kept per type, and runs the
-same engine. A value's member is its first name that is not obsolete, as
+from `Describable.Of(value, words)`, built once per member by the dictionary's
+registry and kept per type (Frozen at Digest, below), and runs the same
+engine. A value's member is its first name that is not obsolete, as
 `Enum.GetNames` orders them, so an old name kept for compatibility never
 stands in for the new one. The cache holds what the type says and never the
 words, so a language switched live reads afresh.
@@ -728,7 +730,7 @@ Wordsmith's `enum(prefix)` input builds one per key under the prefix.
 
 **Flags.** A `[Flags]` combination is no member. `Describe` on one reads as it
 always has: the joined names, and for `D` the whole number.
-`Describable.Members(value)` gives the members `Enum.ToString` names for it,
+`Describable.Members(value, words)` gives the members `Enum.ToString` names for it,
 which settles overlapping values the way .NET does, each one's describable
 from the cache, and `Describe` on that list gives one text per member. Both
 frameworks' flags converters stand on the pair and keep their options:
@@ -750,15 +752,16 @@ the general text because IFormattable's general format is.
 `DescribeSlot.Tooltip = (byte)'T'`, cast to `char` where a slot is asked for,
 so `(char)DescribeSlot.Tooltip` and `'T'` are one slot. Any other letter or
 digit is an app's own, once it is on `[Words]` and keeps more
-beside each member: `Describable.Slot('H', ".hint")` makes `H` read
-`key.hint`, and the registry can point an attribute at it as at any slot. A
+beside each member: `describe.Slot('H', ".hint")` (The registry, below) makes
+`H` read `key.hint`, and the registry can point an attribute at it as at any slot. A
 letter that is a slot already, built in or added, is refused, and so is a
 suffix that is not a dot and one segment of a key's name.
 
 `.unit` left the canon on the same footing: a suffix to another value is one
 app's need, not every enum's, and one line puts it back,
-`Describable.Slot('U', ".unit")`. The samples' words add it, and their Enums
-page shows each brew's unit, a slot of one's own on show.
+`describe.Slot('U', ".unit")`. The samples' `LoadShared` adds it on the builder
+it loads their words into, and their Enums page shows each brew's unit, a slot
+of one's own on show.
 
 **A letter no slot answers** reads as `G`, marked `#!X#`, and warns
 `WORDS:SLOT` with the letter. It used to read nothing, so a typo in a format,
@@ -771,7 +774,10 @@ are retired, and a stray letter, `i` and `n` among them, shows.
 
 **The registry.** What fills a slot is registered, not searched for: the
 registry maps an attribute type to what it gives, the key or a slot's text,
-and how its text is read. It starts with `[Words]` for the key,
+and how its text is read. An app registers on the builder,
+`WordsBuilder.ConfigureDescribe(describe => …)`, whose callback is handed an
+`IDescribeBuilder`: `Fill`, `FillKey`, `Keys` and `Slot` each register and
+return it for the next. The registry starts with `[Words]` for the key,
 `[Description]` for `d` and `[Tooltip]` for `S` and `T`. Building a member's
 describable asks its field for its attributes once and reads each as the
 nearest registered type of its lineage, and that alone: its own type where it
@@ -784,7 +790,7 @@ key in `[Description]`'s text, which would otherwise show as the description;
 so registered for one slot, it gives that slot alone. An
 attribute the registry does not know is passed over, and one it knows
 is never probed for on a member that lacks it. An app registers an attribute
-it already has, `Describable.Fill<HintAttribute>('T', hint => hint.Text)`, so
+it already has, `describe.Fill<HintAttribute>('T', hint => hint.Text)`, so
 `Describe` reads it while moving to `[Words]` is not an option yet, and its
 enums are not touched at all. `Fill` takes `G`, `d`, `S`, `T` or a slot the
 app added; the name and the number read no attribute. An attribute that
@@ -802,28 +808,48 @@ same thing, the one registered first wins, so a member's `[Words]` beats an
 app's own key, and `[Tooltip]` an app's own tooltip.
 
 An enum type can instead key its members itself, so it needs no attribute at
-all: by a prefix, `Describable.Keys<Brew>("enums.brew")`, each member's key
+all: by a prefix, `describe.Keys<Brew>("enums.brew")`, each member's key
 the prefix and its name; or by a function, for an enum one does not own or
 whose keys do not follow its names,
-`Describable.Keys<HttpStatusCode>(code => $"http.{(int)code}")`, a `null`
+`describe.Keys<HttpStatusCode>(code => $"http.{(int)code}")`, a `null`
 leaving a member keyless. The function is asked once per member, when the
 type is first described, however many threads first describe it together; a
 first describe that threw keeps nothing, so the next tries again. A member's
 own key still wins, and a type has one way to key its members, the latest
-given. Registering belongs at startup. A
-registration is a new registry with an empty cache, so a type described
-before reads again, and a describe already under way finishes on the
-registry it began with. This is the
+given. This is the
 migration `[Tooltip]` stood in for: the Core readme's advice to move a custom
 attribute's text into `[Tooltip]` is now registering that attribute, and
 `[Tooltip]` stays, obsolete, for the code that already uses it.
+
+**Frozen at Digest.** The registry is the dictionary's, not the process's.
+`ConfigureDescribe` runs its callback at once, adding to what the builder's
+earlier calls registered; a registration the callback has refused leaves the
+builder as it was, and what the callback was handed refuses any more once it
+returns. `ToWords` and `Digest` freeze the registry as it stands into the
+`IWords` they make, as `IWords.DescribeRegistry`, and nothing registers into
+it after: a later `ConfigureDescribe` reads in the dictionaries made after it,
+a live switch's among them, since `SwitchLanguage` digests from the builder
+`Live()` keeps. `Describe` reads the registry of the words it describes with,
+`Words.Known`'s unless it is handed others, as `Format` takes a format
+provider, and reads the dictionary once, so a description under way never
+sees a slot registered meanwhile, and two dictionaries side by side each
+describe by their own registrations alone. A dictionary that does not say,
+`EchoWords` or an app's own, reads by Words' registrations alone, and one
+wrapping another passes the inner one's `DescribeRegistry` on. The members a
+registry builds are its own, kept for every dictionary that carries it, so a
+live switch keeps them, and a type is built once however many threads first
+describe it together. This replaced a process-wide registry, `Describable`'s
+`Fill`, `FillKey`, `Keys` and `Slot`, which a test or a second dictionary
+shared with whatever anyone registered, and which a description under way
+could see change; it never shipped.
 
 **Tests.** Every built-in letter reads as before, quoting and punctuation
 included, for a `[Words]` member, a `[Description]` one, a bare one and one
 sharing its value with an obsolete name; `G` looks up the key alone and `T`
 its `.tooltip` alone, each once, and `s` and `D` none; `D` reads the number
 as Enum's `D` does, and `i` and `n` as stray letters; a member is read once
-however often it is described; a registered attribute fills its slot, one
+however often it is described, by every dictionary of one registry; a
+registered attribute fills its slot, one
 attribute can fill two, an unregistered one is passed over, and the first
 registered wins; a subclass of `[Words]`, `[Description]` or `[Tooltip]` reads
 as its base, an override included, and a registered subclass as itself alone,
@@ -831,7 +857,8 @@ though its base came first; another system's key held in `[Description]`'s
 text, registered with `FillKey` and mapped, reads that key's words and never
 shows as a description; a plain `[Description]` holding a key, registered with
 `FillKey`, reads as the key alone, the app's next registration adding to it,
-and Words' reading is back once the test puts the registry back; `[Words]` beats an app's own key, which beats a key prefix;
+while another builder reads Words' own; `[Words]` beats an app's own key,
+which beats a key prefix;
 a function keys an enum one does not own member by member, once each, a
 `null` leaving a member its name, and the latest for a type stands; four
 first describes at once ask it once a member, and a first describe it threw
@@ -841,15 +868,21 @@ letter and a bad suffix are refused; a letter no slot answers reads as `G`
 marked, and warns; the samples' `U` reads a brew's unit; a combination's
 members are those .NET names, an overlap and an undefined value among them,
 while `Describe` on the combination reads as before; a registration after a
-describe reads the type again; the cache holds no words, so another language
-reads its own; and a describable built from a key alone reads its slots. The
+dictionary reads in the next one alone, two dictionaries side by side each
+describe by their own registrations, `Describe` without words reads
+`Known`'s and a live switch keeps its registry, a dictionary that does not
+say reads Words' own, a refused callback leaves the builder as it was, and
+what a callback was handed refuses once it returns; the cache holds no
+words, so another language reads its own; and a describable built from a
+key alone reads its slots. The
 `Describe` and converter tests stand unchanged.
 
 ## Describe in a template
 
-The `Format` family hands an enum argument over as its describable
-(`Describable.Of`), and an `IDescribable` one as it is: where string.Format
-prints the argument, its format is Describe's letters, read in the
+The `Format` family hands an enum argument over as its describable, as the
+dictionary's registry reads it (`Describable.Of`), and an `IDescribable` one
+as it is: where string.Format prints the argument, its format is Describe's
+letters, read in the
 dictionary the template came from. So `{0}` is the general text, the key's
 words in the template's language, `{0:T}` the tooltip and `{0:D}` the
 number, and a template reads an enum as the converters do. This holds for
@@ -975,21 +1008,3 @@ A file that wrote `{{{{` for a formatted brace then reads two, and the release n
 say so. No file in the repository writes a reference inside a format item. Until the
 fix, Wordsmith's parameter finder reads the runtime as it is, `{{0}` a use (the editor
 spec's *Parameters*).
-
-## Describe's registry, frozen at Digest
-
-The registry is process-wide today (*Describe without the type*): `Describable.Fill`,
-`FillKey` and `Keys` replace it while descriptions may be under way, and a test or a second
-dictionary built beside the first shares whatever anyone registered. The shape: the
-registrations move onto the builder,
-`WordsBuilder.Create().Fill<HintAttribute>('T', hint => hint.Text).Keys<Brew>("enums.brew")`,
-and `Digest` freezes them into the `IWords` it makes, beside the words; `Describe` reads
-the registry of the words it describes with, `Words.Known`'s unless it is handed others.
-Nothing registers into a frozen registry, so a description under way cannot see a slot
-registered meanwhile, and each dictionary describes by its own registrations alone. The
-cache becomes the dictionary's, still built once per type when two threads first describe
-it together. A live swap digests from the builder `Live()` keeps, so the registrations come
-along. Undecided: whether registering after `Digest` throws or waits for the next one.
-The tests' internal `Describable.Keep()`, which puts the registry back after a test that
-replaces a built-in reading, goes with it: each test registers on a builder of its own.
-Nothing here has shipped, so `Describable`'s statics can move without a compatibility cost.

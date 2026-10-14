@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Runtime.CompilerServices;
 using PatTech.Utils;
 using Sample_Shared;
 using Xunit;
@@ -162,8 +161,9 @@ public enum Toppings {
 
 /// <summary>
 ///     Describe through its engine and the member cache (runtime SPEC: Describe without
-///     the type). The registry is the process's, so every test that registers is here,
-///     one at a time, each with attributes and letters of its own.
+///     the type). Each test registers on a builder of its own, and the dictionary it makes
+///     carries the registry; the ones that read <see cref="Words.Known"/> or its logger
+///     are in the globals' collection.
 /// </summary>
 [Collection("Words globals")]
 public class DescribableTests {
@@ -194,17 +194,17 @@ public class DescribableTests {
 		value=sugar and cocoa
 		""";
 
-	//the samples add their slot once per process, from whichever test first touches
-	//their words, and CardSourcesTests runs beside these: added here, it cannot clear
-	//the cache halfway through one of them
-	public DescribableTests() => RuntimeHelpers.RunClassConstructor(typeof(SampleWords).TypeHandle);
-
 	private static IWords Words(string script = Script) => WordsBuilder.Create().LoadString(script).ToWords("en");
+
+	//words describing by what describe registers
+	private static IWords Words(Action<IDescribeBuilder> describe, string script = Script)
+		=> WordsBuilder.Create().ConfigureDescribe(describe).LoadString(script).ToWords("en");
 
 	//the keys looked up, in order
 	private sealed class Counting(IWords inner) : IWords {
 		public List<string> Asked { get; } = [];
 		public IWordsProvider Provider => inner.Provider;
+		public DescribeRegistry DescribeRegistry => inner.DescribeRegistry;
 		public string this[string key] => inner[key];
 		public bool ContainsKey(string key) => inner.ContainsKey(key);
 		public bool TryGetValue(string key, out string value) {
@@ -265,13 +265,14 @@ public class DescribableTests {
 	//first: its base's reading may not fit it
 	[Fact]
 	public void ARegisteredSubclass_IsReadAsItselfAlone() {
-		Describable.Fill<DetailedDescriptionAttribute>('T', detailed => detailed.Detail);
-		Assert.Equal("The detail", Detailed.One.Describe("T"));
-		Assert.Equal("", Detailed.One.Describe("d")); //not [Description]'s reading
+		var builder = WordsBuilder.Create().ConfigureDescribe(describe => describe.Fill<DetailedDescriptionAttribute>('T', detailed => detailed.Detail));
+		IWords words = builder.ToWords("en");
+		Assert.Equal("The detail", Detailed.One.Describe("T", words));
+		Assert.Equal("", Detailed.One.Describe("d", words)); //not [Description]'s reading
 
-		Describable.Fill<DetailedDescriptionAttribute>('d', detailed => detailed.Detail);
-		Assert.Equal("The detail", Detailed.One.Describe("d"));
-		Assert.Equal("The detail", Detailed.One.Describe("G")); //the general text falls back to it
+		words = builder.ConfigureDescribe(describe => describe.Fill<DetailedDescriptionAttribute>('d', detailed => detailed.Detail)).ToWords("en");
+		Assert.Equal("The detail", Detailed.One.Describe("d", words));
+		Assert.Equal("The detail", Detailed.One.Describe("G", words)); //the general text falls back to it
 	}
 
 	//migrating from another system, its attribute holding a key in [Description]'s text:
@@ -279,10 +280,9 @@ public class DescribableTests {
 	//and the old key never shows as a description
 	[Fact]
 	public void AnotherSystemsKey_HeldInADescription_IsReadAsTheKey_AndNeverShown() {
-		IWords words = Words();
-		Assert.Equal("Tea_Green", Migrated.Green.Describe("d", words)); //unregistered, it is a [Description], as in 1.5.0
+		Assert.Equal("Tea_Green", Migrated.Green.Describe("d", Words())); //unregistered, it is a [Description], as in 1.5.0
 
-		Describable.FillKey<ResourceDescriptionAttribute>(resource => resource.Resource.Replace('_', '.').ToLowerInvariant());
+		IWords words = Words(describe => describe.FillKey<ResourceDescriptionAttribute>(resource => resource.Resource.Replace('_', '.').ToLowerInvariant()));
 		Assert.Equal("Espresso shot", Migrated.Espresso.Describe("G", words));
 		Assert.Equal("Hot water through fine grounds", Migrated.Espresso.Describe("d", words)); //the key's .desc
 		Assert.Equal("Green tea", Migrated.Green.Describe("G", words));
@@ -293,21 +293,19 @@ public class DescribableTests {
 	//reading of it as text, and the app's next one adds to its own
 	[Fact]
 	public void ABuiltInRegisteredByTheApp_IsReadAsTheAppSays() {
-		IWords words = Words();
-		Assert.Equal("tea.green", Legacy.Green.Describe("d", words)); //text, by default
+		Assert.Equal("tea.green", Legacy.Green.Describe("d", Words())); //text, by default
 
-		using (Describable.Keep()) {
-			Describable.FillKey<DescriptionAttribute>(description => description.Description);
-			Assert.Equal("Espresso shot", Legacy.Espresso.Describe("G", words));
-			Assert.Equal("Hot water through fine grounds", Legacy.Espresso.Describe("d", words)); //the key's .desc
-			Assert.Equal("Green tea", Legacy.Green.Describe("G", words));
-			Assert.Equal("", Legacy.Green.Describe("d", words)); //the key is no description
+		var builder = WordsBuilder.Create().LoadString(Script).ConfigureDescribe(describe => describe.FillKey<DescriptionAttribute>(description => description.Description));
+		IWords words = builder.ToWords("en");
+		Assert.Equal("Espresso shot", Legacy.Espresso.Describe("G", words));
+		Assert.Equal("Hot water through fine grounds", Legacy.Espresso.Describe("d", words)); //the key's .desc
+		Assert.Equal("Green tea", Legacy.Green.Describe("G", words));
+		Assert.Equal("", Legacy.Green.Describe("d", words)); //the key is no description
 
-			Describable.Fill<DescriptionAttribute>('T', description => $"see {description.Description}");
-			Assert.Equal("see tea.green", Legacy.Green.Describe("T", words));
-			Assert.Equal("Green tea", Legacy.Green.Describe("G", words)); //still the key
-		}
-		Assert.Equal("A long black", Coffee.Americano.Describe("d", words)); //Words' reading, back for the tests after
+		words = builder.ConfigureDescribe(describe => describe.Fill<DescriptionAttribute>('T', description => $"see {description.Description}")).ToWords("en");
+		Assert.Equal("see tea.green", Legacy.Green.Describe("T", words));
+		Assert.Equal("Green tea", Legacy.Green.Describe("G", words)); //still the key
+		Assert.Equal("A long black", Coffee.Americano.Describe("d", Words())); //another builder reads Words' own
 	}
 
 	[Fact]
@@ -327,66 +325,67 @@ public class DescribableTests {
 	}
 
 	[Fact]
-	public void AMember_IsReadOnce_HoweverOftenItIsDescribed() {
-		Describable.Fill<CountedAttribute>('T', counted => counted.Text);
+	public void AMember_IsReadOnce_HoweverOftenItIsDescribed_ByEveryDictionaryOfOneRegistry() {
+		var builder = WordsBuilder.Create().LoadString(Script).ConfigureDescribe(describe => describe.Fill<CountedAttribute>('T', counted => counted.Text));
 		int before = CountedAttribute.Reads;
 
 		for (int i = 0; i < 5; i++) {
-			Assert.Equal("counted", Counted.One.Describe("T", Words()));
+			Assert.Equal("counted", Counted.One.Describe("T", builder.ToWords(i % 2 == 0 ? "en" : "it")));
 		}
 		Assert.Equal(1, CountedAttribute.Reads - before);
 	}
 
 	[Fact]
 	public void ARegisteredAttribute_FillsItsSlot_AndTheFirstRegisteredWins() {
-		Describable.Fill<HintAttribute>((char)DescribeSlot.Tooltip, hint => hint.Text);
-		Describable.Fill<LaterHintAttribute>('T', hint => hint.Text);
+		IWords words = Words(describe => describe
+			.Fill<HintAttribute>((char)DescribeSlot.Tooltip, hint => hint.Text)
+			.Fill<LaterHintAttribute>('T', hint => hint.Text));
 
-		Assert.Equal("Use the hint", Hinted.Hint.Describe("T"));
-		Assert.Equal("", Hinted.Ignored.Describe("T"));            //nobody registered it
-		Assert.Equal("The built-in one", Hinted.Both.Describe("T")); //[Tooltip] came first
-		Assert.Equal("The built-in one", Hinted.Both.Describe("S")); //one attribute, two slots
-		Assert.Equal("Registered first", Hinted.Two.Describe("T"));
+		Assert.Equal("Use the hint", Hinted.Hint.Describe("T", words));
+		Assert.Equal("", Hinted.Ignored.Describe("T", words));            //nobody registered it
+		Assert.Equal("The built-in one", Hinted.Both.Describe("T", words)); //[Tooltip] came first
+		Assert.Equal("The built-in one", Hinted.Both.Describe("S", words)); //one attribute, two slots
+		Assert.Equal("Registered first", Hinted.Two.Describe("T", words));
 	}
 
 	[Fact]
 	public void TheSlotsLetters_AreTheirFormatsLetters_OneApiece() {
-		Describable.Fill<NoteAttribute>((char)DescribeSlot.Description, note => note.Text);
-		Describable.Fill<GistAttribute>((char)DescribeSlot.General, gist => gist.Text);
+		IWords words = Words(describe => describe
+			.Fill<NoteAttribute>((char)DescribeSlot.Description, note => note.Text)
+			.Fill<GistAttribute>((char)DescribeSlot.General, gist => gist.Text));
 
 		Assert.Equal('G', (char)DescribeSlot.General);
 		Assert.Equal('d', (char)DescribeSlot.Description);
 		Assert.Equal('D', (char)DescribeSlot.Number);
-		Assert.Equal("A note", Hinted.Noted.Describe("d"));
-		Assert.Equal("4", Hinted.Noted.Describe("D")); //the number, never the description
-		Assert.Equal("The gist", Hinted.Noted.Describe("G"));
-		Assert.Throws<ArgumentException>(() => Describable.Fill<GistAttribute>('n', gist => gist.Text)); //no slot's
+		Assert.Equal("A note", Hinted.Noted.Describe("d", words));
+		Assert.Equal("4", Hinted.Noted.Describe("D", words)); //the number, never the description
+		Assert.Equal("The gist", Hinted.Noted.Describe("G", words));
+		Assert.Throws<ArgumentException>(() => Words(describe => describe.Fill<GistAttribute>('n', gist => gist.Text))); //no slot's
 	}
 
 	[Fact]
 	public void AKeyPrefix_KeysTheMembersWithNone_AndAKeyAttributeOfOnesOwn_ComesAfterWords() {
-		Describable.FillKey<KeyedAttribute>(keyed => keyed.Key);
-		Describable.Keys<Tea>("tea.leaf");
-		IWords words = Words();
+		IWords words = Words(describe => describe
+			.FillKey<KeyedAttribute>(keyed => keyed.Key)
+			.Keys<Tea>("tea.leaf"));
 
 		Assert.Equal("Green tea", Tea.Green.Describe("G", words)); //[Words] wins over the app's own
 		Assert.Equal("Keyed tea", Tea.Keyed.Describe("G", words)); //the app's own wins over the prefix
 		Assert.Equal("Black tea", Tea.Black.Describe("G", words)); //tea.leaf.Black
-		Assert.Throws<ArgumentException>(() => Describable.Keys<Tea>("no key"));
+		Assert.Throws<ArgumentException>(() => Words(describe => describe.Keys<Tea>("no key")));
 	}
 
 	[Fact]
 	public void AFunction_KeysAnEnumOneDoesNotOwn_MemberByMember_OnceEach() {
 		int asked = 0;
-		Describable.Keys<DayOfWeek>(day => {
+		IWords words = Words(describe => describe.Keys<DayOfWeek>(day => {
 			asked++;
 			return day switch {
 				DayOfWeek.Saturday or DayOfWeek.Sunday => "days.weekend",
 				DayOfWeek.Wednesday => null,
 				_ => $"days.{day}",
 			};
-		});
-		IWords words = Words("""
+		}), """
 			[days.Monday]
 			value=Monday, again
 			[days.weekend]
@@ -405,12 +404,11 @@ public class DescribableTests {
 	[Fact]
 	public async Task TheFirstDescribesOfAType_RunTogether_BuildItOnce() {
 		int asked = 0;
-		Describable.Keys<Milk>(milk => {
+		IWords words = Words(describe => describe.Keys<Milk>(milk => {
 			Interlocked.Increment(ref asked);
 			Thread.Sleep(100); //holds the build open while the others arrive
 			return $"milk.{milk}";
-		});
-		IWords words = Words("""
+		}), """
 			[milk.Oat]
 			value=Oat milk
 			""");
@@ -429,8 +427,7 @@ public class DescribableTests {
 	[Fact]
 	public void AFirstDescribeThatThrew_IsNotKept() {
 		bool fail = true;
-		Describable.Keys<Syrup>(syrup => fail ? throw new InvalidOperationException("not yet") : $"syrup.{syrup}");
-		IWords words = Words("""
+		IWords words = Words(describe => describe.Keys<Syrup>(syrup => fail ? throw new InvalidOperationException("not yet") : $"syrup.{syrup}"), """
 			[syrup.Maple]
 			value=Maple syrup
 			""");
@@ -442,9 +439,9 @@ public class DescribableTests {
 
 	[Fact]
 	public void AFunction_KeysOnlyTheMembersWithNone_AndTheLatestForAType_Stands() {
-		Describable.Keys<Juice>(juice => $"juice.first.{juice}");
-		Describable.Keys<Juice>(juice => juice == Juice.Pear ? null : $"juice.picked.{juice}");
-		IWords words = Words("""
+		IWords words = Words(describe => describe
+			.Keys<Juice>(juice => $"juice.first.{juice}")
+			.Keys<Juice>(juice => juice == Juice.Pear ? null : $"juice.picked.{juice}"), """
 			[juice.orange]
 			value=Orange juice
 			[juice.picked.Orange]
@@ -462,28 +459,57 @@ public class DescribableTests {
 
 	[Fact]
 	public void ASlotOfOnesOwn_ReadsItsSuffix_ThenItsAttribute() {
-		Describable.Slot('H', ".hint");
-		Describable.Fill<HintAttribute>('H', hint => hint.Text);
+		IWords words = Words(describe => describe
+			.Slot('H', ".hint")
+			.Fill<HintAttribute>('H', hint => hint.Text));
 
-		Assert.Equal("Drink it standing", Coffee.Espresso.Describe("H", Words()));
-		Assert.Equal("Use the hint", Hinted.Hint.Describe("H", Words())); //no key: the attribute
-		Assert.Equal("Espresso shot: Drink it standing", Coffee.Espresso.Describe("G': 'H", Words()));
+		Assert.Equal("Drink it standing", Coffee.Espresso.Describe("H", words));
+		Assert.Equal("Use the hint", Hinted.Hint.Describe("H", words)); //no key: the attribute
+		Assert.Equal("Espresso shot: Drink it standing", Coffee.Espresso.Describe("G': 'H", words));
 	}
 
 	[Fact]
 	public void ALetterTaken_OrNoLetter_OrNoSuffix_IsRefused() {
-		Describable.Slot('J', ".j");
+		var builder = WordsBuilder.Create().ConfigureDescribe(describe => describe.Slot('J', ".j"));
+		void refused(Action<IDescribeBuilder> describe) => Assert.Throws<ArgumentException>(() => builder.ConfigureDescribe(describe));
 
-		Assert.Throws<ArgumentException>(() => Describable.Slot('J', ".k"));    //added already
-		Assert.Throws<ArgumentException>(() => Describable.Slot('T', ".tip"));  //built in
-		Assert.Throws<ArgumentException>(() => Describable.Slot('N', ".n"));    //the strict name's
-		Assert.Throws<ArgumentException>(() => Describable.Slot('=', ".eq"));   //no letter
-		Assert.Throws<ArgumentException>(() => Describable.Slot('K', "k"));     //no dot
-		Assert.Throws<ArgumentException>(() => Describable.Slot('K', ".a.b"));  //more than a segment
-		Assert.Throws<ArgumentException>(() => Describable.Fill<HintAttribute>('N', hint => hint.Text)); //the strict name takes none
-		Assert.Throws<ArgumentException>(() => Describable.Fill<HintAttribute>('D', hint => hint.Text)); //the number takes none
-		Assert.Throws<ArgumentException>(() => Describable.Slot('D', ".d"));    //the number's
-		Assert.Throws<ArgumentException>(() => Describable.Fill<HintAttribute>('V', hint => hint.Text)); //no such slot
+		refused(describe => describe.Slot('J', ".k"));    //added already
+		refused(describe => describe.Slot('T', ".tip"));  //built in
+		refused(describe => describe.Slot('N', ".n"));    //the strict name's
+		refused(describe => describe.Slot('=', ".eq"));   //no letter
+		refused(describe => describe.Slot('K', "k"));     //no dot
+		refused(describe => describe.Slot('K', ".a.b"));  //more than a segment
+		refused(describe => describe.Fill<HintAttribute>('N', hint => hint.Text)); //the strict name takes none
+		refused(describe => describe.Fill<HintAttribute>('D', hint => hint.Text)); //the number takes none
+		refused(describe => describe.Slot('D', ".d"));    //the number's
+		refused(describe => describe.Fill<HintAttribute>('V', hint => hint.Text)); //no such slot
+	}
+
+	//what the callback registers is kept only once it returns: a refusal keeps none of it
+	[Fact]
+	public void ACallbackRefused_LeavesTheBuilderAsItWas() {
+		var builder = WordsBuilder.Create().LoadString(Script);
+
+		Assert.Throws<ArgumentException>(() => builder.ConfigureDescribe(describe => describe.Slot('H', ".hint").Slot('T', ".tip")));
+		using (var globals = new WordsGlobals()) {
+			PatTech.Localization.Words.Logger = new CaptureLogger();
+			Assert.Equal("Espresso shot#!H#", Coffee.Espresso.Describe("H", builder.ToWords("en"))); //no H
+		}
+
+		builder.ConfigureDescribe(describe => describe.Slot('H', ".hint")); //not added already
+		Assert.Equal("Drink it standing", Coffee.Espresso.Describe("H", builder.ToWords("en")));
+	}
+
+	//nothing registers into a registry once it is frozen: what the callback was handed
+	//refuses once it returns
+	[Fact]
+	public void WhatTheCallbackWasHanded_RefusesOnceItReturns() {
+		IDescribeBuilder? kept = null;
+		IWords words = Words(describe => kept = describe.Slot('H', ".hint"));
+
+		Assert.Throws<InvalidOperationException>(() => kept!.Fill<HintAttribute>('H', hint => hint.Text));
+		Assert.Equal("Drink it standing", Coffee.Espresso.Describe("H", words));
+		Assert.Equal("", Hinted.Hint.Describe("H", words)); //no attribute fills it
 	}
 
 	[Fact]
@@ -524,13 +550,61 @@ public class DescribableTests {
 		Assert.Equal("5", (Toppings.Sugar | Toppings.Cream).Describe("D", words));
 	}
 
+	//a dictionary keeps the registry it was made with: a later registration reads in
+	//the dictionaries made after it
 	[Fact]
-	public void ARegistration_AfterADescribe_ReadsTheTypeAgain() {
-		Assert.Equal("", Late.One.Describe("T", Words()));
+	public void ARegistration_AfterADictionary_ReadsInTheNextOneAlone() {
+		var builder = WordsBuilder.Create().LoadString(Script);
+		IWords before = builder.ToWords("en");
+		Assert.Equal("", Late.One.Describe("T", before));
 
-		Describable.Fill<LateAttribute>('T', late => late.Text);
+		IWords after = builder.ConfigureDescribe(describe => describe.Fill<LateAttribute>('T', late => late.Text)).ToWords("en");
 
-		Assert.Equal("late", Late.One.Describe("T", Words()));
+		Assert.Equal("late", Late.One.Describe("T", after));
+		Assert.Equal("", Late.One.Describe("T", before));
+	}
+
+	//two dictionaries side by side, each describing by its own registrations alone
+	[Fact]
+	public void TwoDictionaries_EachDescribeByTheirOwnRegistrations() {
+		IWords hinted = Words(describe => describe.Slot('H', ".hint").Fill<HintAttribute>('T', hint => hint.Text));
+		IWords plain = Words();
+
+		Assert.Equal("Use the hint", Hinted.Hint.Describe("T", hinted));
+		Assert.Equal("", Hinted.Hint.Describe("T", plain));
+		Assert.Equal("Drink it standing", Coffee.Espresso.Describe("H", hinted));
+		using var globals = new WordsGlobals();
+		PatTech.Localization.Words.Logger = new CaptureLogger();
+		Assert.Equal("Espresso shot#!H#", Coffee.Espresso.Describe("H", plain)); //no slot H here
+	}
+
+	//Describe without words reads Known's, the registry with them; a live switch
+	//digests from the builder, so the registrations come along
+	[Fact]
+	public void WithoutWords_DescribeReadsKnowns_AndALiveSwitchKeepsItsRegistry() {
+		using var globals = new WordsGlobals();
+		WordsBuilder.Create()
+			.ConfigureDescribe(describe => describe.Slot('H', ".hint").Fill<HintAttribute>('T', hint => hint.Text))
+			.LoadString(Script)
+			.LoadString("[coffee.espresso.hint]\nvalue-it=Bevilo in piedi\n")
+			.Live()
+			.Digest("en");
+
+		Assert.Equal("Use the hint", Hinted.Hint.Describe("T"));
+		Assert.Equal("Drink it standing", Coffee.Espresso.Describe("H"));
+
+		PatTech.Localization.Words.SwitchLanguage("it");
+		Assert.Equal("Use the hint", Hinted.Hint.Describe("T"));
+		Assert.Equal("Bevilo in piedi", Coffee.Espresso.Describe("H"));
+	}
+
+	//a dictionary of one's own that does not say describes by Words' readings alone
+	[Fact]
+	public void ADictionaryThatDoesNotSay_DescribesByWordsOwnReadings() {
+		IWords echo = new EchoWords();
+
+		Assert.Equal("A long black", Coffee.Americano.Describe("d", echo));
+		Assert.Equal("", Hinted.Hint.Describe("T", echo));
 	}
 
 	[Fact]

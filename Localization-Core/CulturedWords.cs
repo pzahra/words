@@ -39,6 +39,12 @@ namespace PatTech.Localization {
 		public string Language { get => language ?? UICulture.Name; init => language = value; }
 
 		/// <summary>
+		/// What <c>Describe</c> reads off an enum in this dictionary: the registry its
+		/// builder froze into it, or Words' own registrations alone.
+		/// </summary>
+		public DescribeRegistry DescribeRegistry { get; init; } = DescribeRegistry.BuiltIn;
+
+		/// <summary>
 		/// Sets the current thread's culture and UI culture, and the process-wide
 		/// defaults for future threads, to the cultures this dictionary was built with.
 		/// </summary>

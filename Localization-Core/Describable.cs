@@ -11,8 +11,8 @@ namespace PatTech.Localization {
 	/// <summary>
 	///     What <see cref="Extensions.Describe(IDescribable, string?, IWords?)"/> reads off
 	///     the thing it describes (runtime SPEC: Describe without the type): an enum member,
-	///     cached from its type by <see cref="Describable"/>, or anything built to stand for
-	///     one, such as a key with no type behind it.
+	///     cached from its type by the dictionary's <see cref="DescribeRegistry"/>, or
+	///     anything built to stand for one, such as a key with no type behind it.
 	/// </summary>
 	public interface IDescribable {
 		/// <summary>The symbol's name: format <c>s</c>, and the last resort of <c>G</c> and <c>N</c>.</summary>
@@ -51,60 +51,13 @@ namespace PatTech.Localization {
 	}
 
 	/// <summary>
-	///     Enum members as <see cref="IDescribable"/>s, built once per member and kept per
-	///     type, and the registry they are built from (runtime SPEC: Describe without the
-	///     type): which attributes give a member its key or a slot its text, the keys an
-	///     enum gives its members with none of their own, and the slots an app adds.
-	///     Register at startup; a registration clears the cache, so a type described
-	///     before reads again.
+	///     What <see cref="WordsBuilder.ConfigureDescribe"/> hands its callback to register
+	///     with (runtime SPEC: Describe without the type): which attributes give a member its
+	///     key or a slot its text, the keys an enum gives its members with none of their own,
+	///     and slots of the app's own. Each call adds to the builder's registry and returns
+	///     this, to chain the next; once the callback returns, it refuses any more.
 	/// </summary>
-	public static class Describable {
-		//a registration is a new state, never a change to the one a describe is reading,
-		//so a cache built against an old registry dies with it
-		private static volatile State state = State.BuiltIn();
-		private static readonly object gate = new();
-
-		/// <summary>The suffix of a slot an app added, by its letter; <see langword="null"/> for any other letter.</summary>
-		internal static string? SuffixOf(char slot) => state.Slots.GetValueOrDefault(slot);
-
-		/// <summary>
-		///     The member <paramref name="value"/> names, or, for a value no member has (a
-		///     <see cref="FlagsAttribute"/> combination, an undefined number), a describable
-		///     of its own name and number, with no key and no text.
-		/// </summary>
-		public static IDescribable Of(Enum value) {
-			ArgumentNullException.ThrowIfNull(value);
-			State current = state;
-			return current.MembersOf(value.GetType()).TryGetValue(value, out Member? member)
-				? member
-				: new Member(value.ToString(), value.ToString("D"), null, null);
-		}
-
-		/// <summary>
-		///     A describable of a key alone, with no type behind it: its name the key's last
-		///     segment, no number and no attribute's text, so each slot reads the words
-		///     beside the key. Wordsmith's <c>enum</c> input describes a member this way.
-		/// </summary>
-		public static IDescribable OfKey(string key) {
-			ArgumentNullException.ThrowIfNull(key);
-			return new Member(key[(key.LastIndexOf('.') + 1)..], "", key, null);
-		}
-
-		/// <summary>
-		///     The members <paramref name="value"/> is made of, as <see cref="Enum.ToString()"/>
-		///     names them, so a <see cref="FlagsAttribute"/> combination settles overlapping
-		///     members the way .NET does; any other value is its one describable.
-		/// </summary>
-		public static IReadOnlyList<IDescribable> Members(Enum value) {
-			ArgumentNullException.ThrowIfNull(value);
-			Type type = value.GetType();
-			string[] names = value.ToString().Split(", ");
-			if (names.Length == 1) {
-				return [Of(value)];
-			}
-			return [.. names.Select(name => Enum.TryParse(type, name, out object? part) ? Of((Enum)part) : new Member(name, "", null, null))];
-		}
-
+	public interface IDescribeBuilder {
 		/// <summary>
 		///     Adds a slot of the app's own: <paramref name="slot"/> reads the key's words with
 		///     <paramref name="suffix"/>, <c>Slot('H', ".hint")</c> reading <c>key.hint</c>, then
@@ -113,21 +66,7 @@ namespace PatTech.Localization {
 		/// <param name="slot">The slot's letter: a letter or digit no slot has.</param>
 		/// <param name="suffix">A dot and one segment of a key's name.</param>
 		/// <exception cref="ArgumentException">The letter is taken or no letter, or the suffix is no dot and segment.</exception>
-		public static void Slot(char slot, string suffix) {
-			ArgumentNullException.ThrowIfNull(suffix);
-			if (!char.IsLetterOrDigit(slot) || IsBuiltIn(slot)) {
-				throw new ArgumentException($"'{slot}' is no slot of the app's own to add: a built-in slot's, or no letter", nameof(slot));
-			}
-			if (!suffix.StartsWith('.') || !WordsParser.IsKeySegment(suffix[1..])) {
-				throw new ArgumentException($"'{suffix}' is no suffix: a dot and one segment of a key's name", nameof(suffix));
-			}
-			Register(current => {
-				if (current.Slots.ContainsKey(slot)) {
-					throw new ArgumentException($"'{slot}' is a slot already, reading {current.Slots[slot]}", nameof(slot));
-				}
-				return current with { Slots = new(current.Slots) { [slot] = suffix } };
-			});
-		}
+		IDescribeBuilder Slot(char slot, string suffix);
 
 		/// <summary>
 		///     Registers <typeparamref name="TAttribute"/> as giving the slot
@@ -144,15 +83,7 @@ namespace PatTech.Localization {
 		///     attributes give a member the same slot, the one registered first wins.
 		/// </summary>
 		/// <exception cref="ArgumentException">The slot takes no text from an attribute.</exception>
-		public static void Fill<TAttribute>(char slot, Func<TAttribute, string?> text) where TAttribute : Attribute {
-			ArgumentNullException.ThrowIfNull(text);
-			Register(current => {
-				if (slot is not ('G' or 'd' or 'S' or 'T') && !current.Slots.ContainsKey(slot)) {
-					throw new ArgumentException($"'{slot}' takes no text from an attribute: G, d, S, T or a slot the app added", nameof(slot));
-				}
-				return current.Adding(typeof(TAttribute), new Giver(slot, attribute => text((TAttribute)attribute)));
-			});
-		}
+		IDescribeBuilder Fill<TAttribute>(char slot, Func<TAttribute, string?> text) where TAttribute : Attribute;
 
 		/// <summary>
 		///     Registers <typeparamref name="TAttribute"/> as naming a member's key, read by
@@ -164,10 +95,7 @@ namespace PatTech.Localization {
 		///     takes each <c>[Description]</c> for a key and gives no description.
 		///     <see cref="WordsAttribute"/> is registered first, so it wins over another attribute.
 		/// </summary>
-		public static void FillKey<TAttribute>(Func<TAttribute, string?> key) where TAttribute : Attribute {
-			ArgumentNullException.ThrowIfNull(key);
-			Register(current => current.Adding(typeof(TAttribute), new Giver(null, attribute => key((TAttribute)attribute))));
-		}
+		IDescribeBuilder FillKey<TAttribute>(Func<TAttribute, string?> key) where TAttribute : Attribute;
 
 		/// <summary>
 		///     Gives each member of <typeparamref name="TEnum"/> without a key of its own the
@@ -175,13 +103,7 @@ namespace PatTech.Localization {
 		///     reads <c>Brew.Latte</c> at <c>enums.brew.Latte</c>.
 		/// </summary>
 		/// <exception cref="ArgumentException">The prefix is no key's name.</exception>
-		public static void Keys<TEnum>(string prefix) where TEnum : struct, Enum {
-			ArgumentNullException.ThrowIfNull(prefix);
-			if (!WordsParser.IsKeyName(prefix)) {
-				throw new ArgumentException($"'{prefix}' is no key's name", nameof(prefix));
-			}
-			Register(current => current.Keying(typeof(TEnum), (_, name) => $"{prefix}.{name}"));
-		}
+		IDescribeBuilder Keys<TEnum>(string prefix) where TEnum : struct, Enum;
 
 		/// <summary>
 		///     Gives each member of <typeparamref name="TEnum"/> without a key of its own the
@@ -192,16 +114,170 @@ namespace PatTech.Localization {
 		///     <c>HttpStatusCode.NotFound</c> at <c>http.404</c>. Asked once per member, when
 		///     the type is first described.
 		/// </summary>
-		public static void Keys<TEnum>(Func<TEnum, string?> key) where TEnum : struct, Enum {
-			ArgumentNullException.ThrowIfNull(key);
-			Register(current => current.Keying(typeof(TEnum), (value, _) => key((TEnum)value)));
+		IDescribeBuilder Keys<TEnum>(Func<TEnum, string?> key) where TEnum : struct, Enum;
+	}
+
+	/// <summary>
+	///     Enum members as <see cref="IDescribable"/>s, read by a dictionary's
+	///     <see cref="IWords.DescribeRegistry"/> (runtime SPEC: Describe without the type),
+	///     and describables that stand for one.
+	/// </summary>
+	public static class Describable {
+		/// <summary>
+		///     The member <paramref name="value"/> names, as <paramref name="words"/>' registry
+		///     reads it, or, for a value no member has (a <see cref="FlagsAttribute"/>
+		///     combination, an undefined number), a describable of its own name and number,
+		///     with no key and no text.
+		/// </summary>
+		/// <param name="value">The enum value.</param>
+		/// <param name="words">The dictionary whose registry reads the member: <see cref="Words.Known"/> when none.</param>
+		public static IDescribable Of(Enum value, IWords? words = null) {
+			ArgumentNullException.ThrowIfNull(value);
+			return (words ?? Words.Known).DescribeRegistry.MembersOf(value.GetType()).TryGetValue(value, out DescribeRegistry.Member? member)
+				? member
+				: new DescribeRegistry.Member(value.ToString(), value.ToString("D"), null, null);
 		}
 
-		internal static bool IsBuiltIn(char slot) => slot is 'G' or 'N' or 'd' or 'D' or 'S' or 'T' or 's';
+		/// <summary>
+		///     A describable of a key alone, with no type behind it: its name the key's last
+		///     segment, no number and no attribute's text, so each slot reads the words
+		///     beside the key. Wordsmith's <c>enum</c> input describes a member this way.
+		/// </summary>
+		public static IDescribable OfKey(string key) {
+			ArgumentNullException.ThrowIfNull(key);
+			return new DescribeRegistry.Member(key[(key.LastIndexOf('.') + 1)..], "", key, null);
+		}
 
-		private static void Register(Func<State, State> change) {
-			lock (gate) {
-				state = change(state) with { Cache = new() };
+		/// <summary>
+		///     The members <paramref name="value"/> is made of, as <see cref="Enum.ToString()"/>
+		///     names them, so a <see cref="FlagsAttribute"/> combination settles overlapping
+		///     members the way .NET does; any other value is its one describable.
+		/// </summary>
+		/// <param name="value">The enum value.</param>
+		/// <param name="words">The dictionary whose registry reads the members: <see cref="Words.Known"/> when none.</param>
+		public static IReadOnlyList<IDescribable> Members(Enum value, IWords? words = null) {
+			ArgumentNullException.ThrowIfNull(value);
+			words ??= Words.Known;
+			Type type = value.GetType();
+			string[] names = value.ToString().Split(", ");
+			if (names.Length == 1) {
+				return [Of(value, words)];
+			}
+			return [.. names.Select(name => Enum.TryParse(type, name, out object? part) ? Of((Enum)part, words) : new DescribeRegistry.Member(name, "", null, null))];
+		}
+	}
+
+	/// <summary>
+	///     What <c>Describe</c> reads off an enum, frozen into a dictionary (runtime SPEC:
+	///     Describe without the type): which attributes give a member its key or a slot its
+	///     text, the keys an enum gives its members with none of their own, and the slots an
+	///     app added. A <see cref="WordsBuilder"/> makes one of what
+	///     <see cref="WordsBuilder.ConfigureDescribe"/> registered, and each dictionary it
+	///     produces carries it as <see cref="IWords.DescribeRegistry"/>; nothing registers into
+	///     it after. It keeps each enum type's members, built once, for every dictionary
+	///     carrying it, and never their words, so a language switched live reads afresh.
+	/// </summary>
+	public sealed class DescribeRegistry {
+		private readonly State state;
+		private readonly ConcurrentDictionary<Type, Lazy<Dictionary<Enum, Member>>> cache = new();
+
+		private DescribeRegistry(State state) => this.state = state;
+
+		/// <summary>Words' own readings alone: <c>[Words]</c> for the key, <c>[Description]</c> for <c>d</c>, <c>[Tooltip]</c> for <c>S</c> and <c>T</c>.</summary>
+		internal static DescribeRegistry BuiltIn { get; } = new(State.BuiltIn());
+
+		/// <summary>The suffix of a slot an app added, by its letter; <see langword="null"/> for any other letter.</summary>
+		internal string? SuffixOf(char slot) => state.Slots.GetValueOrDefault(slot);
+
+		//runs configure on a registrar adding to this registry, closed once it returns,
+		//and gives the registry it made: this one where it registered nothing, so the
+		//members built stay, and none where it threw
+		internal DescribeRegistry Configure(Action<IDescribeBuilder> configure) {
+			var registering = new Registering(state);
+			try {
+				configure(registering);
+			}
+			finally {
+				registering.Close();
+			}
+			return ReferenceEquals(registering.State, state) ? this : new DescribeRegistry(registering.State);
+		}
+
+		//a type is built once, however many threads first describe it together: GetOrAdd
+		//may make a Lazy for each, but keeps one, and that one alone builds; a build that
+		//threw is not kept, so the next describe tries again
+		internal Dictionary<Enum, Member> MembersOf(Type type) {
+			Lazy<Dictionary<Enum, Member>> members = cache.GetOrAdd(type, kind => new(() => state.Build(kind), LazyThreadSafetyMode.ExecutionAndPublication));
+			try {
+				return members.Value;
+			}
+			catch {
+				cache.TryRemove(new(type, members));
+				throw;
+			}
+		}
+
+		private static bool IsBuiltIn(char slot) => slot is 'G' or 'N' or 'd' or 'D' or 'S' or 'T' or 's';
+
+		//what ConfigureDescribe's callback registers with: each call a new state, kept
+		//only once the callback returns
+		private sealed class Registering(State state) : IDescribeBuilder {
+			private bool closed;
+
+			public State State { get; private set; } = state;
+
+			public void Close() => closed = true;
+
+			public IDescribeBuilder Slot(char slot, string suffix) {
+				ArgumentNullException.ThrowIfNull(suffix);
+				if (!char.IsLetterOrDigit(slot) || IsBuiltIn(slot)) {
+					throw new ArgumentException($"'{slot}' is no slot of the app's own to add: a built-in slot's, or no letter", nameof(slot));
+				}
+				if (!suffix.StartsWith('.') || !WordsParser.IsKeySegment(suffix[1..])) {
+					throw new ArgumentException($"'{suffix}' is no suffix: a dot and one segment of a key's name", nameof(suffix));
+				}
+				return Change(current => {
+					if (current.Slots.ContainsKey(slot)) {
+						throw new ArgumentException($"'{slot}' is a slot already, reading {current.Slots[slot]}", nameof(slot));
+					}
+					return current with { Slots = new(current.Slots) { [slot] = suffix } };
+				});
+			}
+
+			public IDescribeBuilder Fill<TAttribute>(char slot, Func<TAttribute, string?> text) where TAttribute : Attribute {
+				ArgumentNullException.ThrowIfNull(text);
+				return Change(current => {
+					if (slot is not ('G' or 'd' or 'S' or 'T') && !current.Slots.ContainsKey(slot)) {
+						throw new ArgumentException($"'{slot}' takes no text from an attribute: G, d, S, T or a slot the app added", nameof(slot));
+					}
+					return current.Adding(typeof(TAttribute), new Giver(slot, attribute => text((TAttribute)attribute)));
+				});
+			}
+
+			public IDescribeBuilder FillKey<TAttribute>(Func<TAttribute, string?> key) where TAttribute : Attribute {
+				ArgumentNullException.ThrowIfNull(key);
+				return Change(current => current.Adding(typeof(TAttribute), new Giver(null, attribute => key((TAttribute)attribute))));
+			}
+
+			public IDescribeBuilder Keys<TEnum>(string prefix) where TEnum : struct, Enum {
+				ArgumentNullException.ThrowIfNull(prefix);
+				if (!WordsParser.IsKeyName(prefix)) {
+					throw new ArgumentException($"'{prefix}' is no key's name", nameof(prefix));
+				}
+				return Change(current => current.Keying(typeof(TEnum), (_, name) => $"{prefix}.{name}"));
+			}
+
+			public IDescribeBuilder Keys<TEnum>(Func<TEnum, string?> key) where TEnum : struct, Enum {
+				ArgumentNullException.ThrowIfNull(key);
+				return Change(current => current.Keying(typeof(TEnum), (value, _) => key((TEnum)value)));
+			}
+
+			private Registering Change(Func<State, State> change) {
+				if (closed) {
+					throw new InvalidOperationException("ConfigureDescribe has returned: register inside its callback");
+				}
+				State = change(State);
+				return this;
 			}
 		}
 
@@ -211,32 +287,19 @@ namespace PatTech.Localization {
 		//the key a type gives a member with none of its own, from the value and its name
 		private delegate string? KeyOf(Enum value, string name);
 
-		//for a test that registers what other tests read: the registry as it stands,
-		//back in place on dispose
-		internal static IDisposable Keep() => new Kept(state);
-
-		private sealed class Kept(State kept) : IDisposable {
-			public void Dispose() {
-				lock (gate) {
-					state = kept;
-				}
-			}
-		}
-
 		//Defaults: the types still read as Words reads them by default
 		private sealed record State(
 				Dictionary<Type, List<(int Order, Giver Giver)>> Givers,
 				int Registered,
 				Dictionary<Type, KeyOf> TypeKeys,
 				Dictionary<char, string> Slots,
-				HashSet<Type> Defaults,
-				ConcurrentDictionary<Type, Lazy<Dictionary<Enum, Member>>> Cache) {
+				HashSet<Type> Defaults) {
 
 			//a type has one way to key its members, the latest given
 			public State Keying(Type type, KeyOf key) => this with { TypeKeys = new(TypeKeys) { [type] = key } };
 
 			public static State BuiltIn() {
-				var state = new State([], 0, [], [], [], new());
+				var state = new State([], 0, [], [], []);
 				state = state.Adding(typeof(WordsAttribute), new Giver(null, attribute => ((WordsAttribute)attribute).Key));
 				state = state.Adding(typeof(DescriptionAttribute), new Giver('d', attribute => ((DescriptionAttribute)attribute).Description));
 #pragma warning disable CS0618 // the migration aid stays readable for the code that has it
@@ -263,24 +326,10 @@ namespace PatTech.Localization {
 				return this with { Givers = givers, Registered = Registered + 1, Defaults = defaults };
 			}
 
-			//a type is built once, however many threads first describe it together: GetOrAdd
-			//may make a Lazy for each, but keeps one, and that one alone builds; a build that
-			//threw is not kept, so the next describe tries again
-			public Dictionary<Enum, Member> MembersOf(Type type) {
-				Lazy<Dictionary<Enum, Member>> members = Cache.GetOrAdd(type, kind => new(() => Build(kind), LazyThreadSafetyMode.ExecutionAndPublication));
-				try {
-					return members.Value;
-				}
-				catch {
-					Cache.TryRemove(new(type, members));
-					throw;
-				}
-			}
-
 			//each value's member is its first name that is not obsolete, as Enum.GetNames
 			//orders them, or its first; each member's attributes are asked for once, and
 			//only those the registry knows give it anything
-			private Dictionary<Enum, Member> Build(Type type) {
+			public Dictionary<Enum, Member> Build(Type type) {
 				var chosen = new Dictionary<Enum, (string Name, FieldInfo Field, bool Obsolete)>();
 				foreach (string name in Enum.GetNames(type)) {
 					if (type.GetField(name, BindingFlags.Public | BindingFlags.Static) is not { } field || field.GetValue(null) is not Enum value) {
@@ -336,7 +385,7 @@ namespace PatTech.Localization {
 			}
 		}
 
-		private sealed class Member(string name, string number, string? key, Dictionary<char, string>? texts) : IDescribable {
+		internal sealed class Member(string name, string number, string? key, Dictionary<char, string>? texts) : IDescribable {
 			public string Name => name;
 			public string Number => number;
 			public string? Key => key;

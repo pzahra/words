@@ -17,22 +17,24 @@ namespace PatTech.Utils {
 
 		/// <summary>
 		///     The words for an enum value, as <paramref name="format"/> asks for them: the
-		///     member's describable from <see cref="Describable"/>, built once from its type,
-		///     described by <see cref="Describe(IDescribable, string?, IWords?)"/>. A value no
+		///     member's describable, as the dictionary's registry reads it
+		///     (<see cref="Describable.Of"/>), described by
+		///     <see cref="Describe(IDescribable, string?, IWords?)"/>. A value no
 		///     member has, a <see cref="FlagsAttribute"/> combination or an undefined number,
 		///     reads as its own name and number; <see cref="Describable.Members"/> gives a
 		///     combination's members one by one.
 		/// </summary>
 		/// <param name="value">The enum value.</param>
 		/// <param name="format">The slots to read, by their letters: <c>G</c> when none.</param>
-		/// <param name="words">The words to look the keys up in: <see cref="Words.Known"/> when none.</param>
+		/// <param name="words">The words to look the keys up in, whose registry reads the member: <see cref="Words.Known"/> when none.</param>
 		[return: Localized]
 		public static string Describe(
 				this Enum value,
 				string? format = null,
 				IWords? words = null) {
 			Debug.Assert(value != null);
-			return Describable.Of(value).Describe(format, words);
+			words ??= Words.Known;
+			return Describable.Of(value, words).Describe(format, words);
 		}
 
 		/// <summary>
@@ -48,7 +50,8 @@ namespace PatTech.Utils {
 		///         <item><term>s</term><description>the symbol's name</description></item>
 		///         <item><term>D</term><description>the number, in whatever integer type it has, as <see cref="Enum.ToString(string)"/> formats it for <c>D</c></description></item>
 		///     </list>
-		///     A slot the app added (<see cref="Describable.Slot"/>) reads its own suffix. A
+		///     A slot the app added (<see cref="IDescribeBuilder.Slot"/>) reads its own suffix,
+		///     where the dictionary's registry has it (<see cref="IWords.DescribeRegistry"/>). A
 		///     letter no slot answers reads as <c>G</c> marked <c>#!X#</c>, and warns
 		///     (<c>WORDS:SLOT</c>). Text between single quotes is written as it is, <c>''</c>
 		///     being a quote, and so is anything that is no letter or digit. A key is looked up
@@ -56,7 +59,7 @@ namespace PatTech.Utils {
 		/// </summary>
 		/// <param name="value">What to describe.</param>
 		/// <param name="format">The slots to read, by their letters: <c>G</c> when none.</param>
-		/// <param name="words">The words to look the keys up in: <see cref="Words.Known"/> when none.</param>
+		/// <param name="words">The words to look the keys up in, whose registry has the app's slots: <see cref="Words.Known"/> when none.</param>
 		[return: Localized]
 		public static string Describe(
 				this IDescribable value,
@@ -66,6 +69,8 @@ namespace PatTech.Utils {
 			if (string.IsNullOrEmpty(format)) {
 				format = "G";
 			}
+			//one dictionary throughout, however Known swaps meanwhile
+			IWords dictionary = words ?? Words.Known;
 			Dictionary<string, string?>? found = null;
 			var sb = new StringBuilder();
 			bool quoted = false;
@@ -94,8 +99,7 @@ namespace PatTech.Utils {
 				}
 				found ??= [];
 				if (!found.TryGetValue(suffix, out string? text)) {
-					words ??= Words.Known;
-					found[suffix] = words.TryGetValue(key + suffix, out text) ? text : null;
+					found[suffix] = dictionary.TryGetValue(key + suffix, out text) ? text : null;
 				}
 				return text;
 			}
@@ -131,7 +135,7 @@ namespace PatTech.Utils {
 					case var other when !char.IsLetterOrDigit(other):
 						sb.Append(other);
 						break;
-					case var slot when Describable.SuffixOf(slot) is { } suffix:
+					case var slot when dictionary.DescribeRegistry.SuffixOf(slot) is { } suffix:
 						sb.Append(Find(suffix) ?? value.Text(slot));
 						break;
 					default:

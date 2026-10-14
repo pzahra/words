@@ -10,7 +10,7 @@ namespace PatTech.Localization {
 	/// <item>key<i>.sub</i> = Short description (S)</item>
 	/// <item>key<i>.desc</i> = Long description (d)</item>
 	/// </list>
-	/// An app keeps more beside each key with slots of its own (<see cref="Describable.Slot"/>),
+	/// An app keeps more beside each key with slots of its own (<see cref="IDescribeBuilder.Slot"/>),
 	/// such as <c>.unit</c>, a suffix to another value.
 	/// </summary>
 	/// <param name="key">The base key for the primary text.</param>
@@ -27,7 +27,7 @@ namespace PatTech.Localization {
 	/// Migration aid for <see cref="Utils.Extensions.Describe(Enum, string?, IWords?)"/>.
 	/// Enums already using <see cref="System.ComponentModel.DescriptionAttribute"/>
 	/// are picked up by Describe automatically, and a custom attribute an enum
-	/// already carries is better registered (<see cref="Describable.Fill"/>), which
+	/// already carries is better registered (<see cref="IDescribeBuilder.Fill"/>), which
 	/// leaves the enum as it is. Describe reads this one's text (formats "T" and
 	/// "S") for the code that already uses it, and the obsolete warning keeps a
 	/// reminder ticking until the text moves to a words.ini key and the attribute

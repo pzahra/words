@@ -6,7 +6,7 @@ namespace Sample_Shared;
 /// <summary>
 ///     The coffee on the Enums page. Each member names its words with
 ///     <see cref="WordsAttribute"/>, and Describe finds <c>.tooltip</c>, <c>.sub</c> and
-///     <c>.desc</c> beside them, and <c>.unit</c>, the samples' own slot (<see cref="SampleWords"/>);
+///     <c>.desc</c> beside them, and <c>.unit</c>, the samples' own slot (<see cref="SampleWords.LoadShared"/>);
 ///     Americano has only a Description, to show the fallback.
 /// </summary>
 public enum Brew {

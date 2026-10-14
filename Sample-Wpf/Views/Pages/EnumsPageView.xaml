@@ -21,7 +21,7 @@
     <!-- /card -->
 
     <!-- card: enums.variants -->
-    <c:DemoCard Key="enums.variants" MoreKeys="enums.brew" Uses="EnumDescriptionConverter, ConverterParameter, Describable.Slot">
+    <c:DemoCard Key="enums.variants" MoreKeys="enums.brew" Uses="EnumDescriptionConverter, ConverterParameter, ConfigureDescribe">
       <!-- the parameter is the Describe format: G (the default) names it, T, S and d
            read .tooltip, .sub and .desc, and U the samples' own .unit -->
       <StackPanel>

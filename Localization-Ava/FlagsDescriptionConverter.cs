@@ -59,9 +59,11 @@ public class FlagsDescriptionConverter : IValueConverter {
 		if (value is Enum @enum) {
 			// the members .NET names for the value, overlaps settled its way
 			// (runtime SPEC: Describe without the type)
-			var names = Describable.Members(@enum)
+			// one dictionary reads the members and their words, however Known swaps meanwhile
+			IWords words = Words.Known;
+			var names = Describable.Members(@enum, words)
 				.Where(member => IncludeNone || member.Number != "0")
-				.Describe(parameter?.ToString() ?? Format)
+				.Describe(parameter?.ToString() ?? Format, words)
 				// a flag with nothing for the format is left out, not shown as a gap
 				.Where(name => name != "");
 			if (AsArray) {

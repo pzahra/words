@@ -205,15 +205,19 @@ unchanged. `WordsConverter` formats with the culture the binding hands it.
 live (`.Live()` before `Digest`) is the proxy that follows `Words.SwitchLanguage`.
 `[Words("key")]` on enum members plus `Enum.Describe` provides `key`,
 `key.tooltip`, `key.sub`, `key.desc` variants (format letters `G`, `T`, `S`,
-`d`; `D` is the number, as Enum's `D`); `Describable.Slot('U', ".unit")` adds a slot of the app's own,
-`Describable.Fill<TAttribute>` points an existing attribute at a slot and
+`d`; `D` is the number, as Enum's `D`); on the builder before `Digest`,
+`.ConfigureDescribe(describe => describe.Slot('U', ".unit"))` adds a slot of the app's own,
+`describe.Fill<TAttribute>` points an existing attribute at a slot and
 `FillKey<TAttribute>` at the key (another system's key attributes stay in the
 source; a registered attribute is read only as registered, even one that
 subclasses `[Description]`, and the app's registration of `[Words]`,
 `[Description]` or `[Tooltip]` replaces Words' default reading of it),
-`Describable.Keys<TEnum>("prefix")` or `Keys<TEnum>(member => key)` keys an
+`describe.Keys<TEnum>("prefix")` or `Keys<TEnum>(member => key)` keys an
 enum without attributes (one the app doesn't own included), and a letter no
-slot answers reads as `G` marked `#!U#`. The `Format` family describes an
+slot answers reads as `G` marked `#!U#`. The registrations freeze into each
+dictionary the builder makes (`IWords.DescribeRegistry`); `Describe(format, words)`
+reads the one it is handed, `Words.Known` by default, and a wrapping `IWords`
+passes its inner one's `DescribeRegistry` on. The `Format` family describes an
 enum or `IDescribable` argument the same way, in its dictionary: `{0}` is
 `G`, `{0:T}` the tooltip, and Enum's own letters are gone (`{0:d}` is the
 description, `{0:X}` no slot).

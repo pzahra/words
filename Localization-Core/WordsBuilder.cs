@@ -29,6 +29,7 @@ namespace PatTech.Localization {
 		private readonly WordsParser _parser;
 		private bool _showFallback;
 		private bool _useSystemNumbers;
+		private DescribeRegistry _describe = DescribeRegistry.BuiltIn;
 
 		private WordsBuilder(WordsParserToWordsProvider builder, WordsParser parser) {
 			ArgumentNullException.ThrowIfNull(builder);
@@ -170,9 +171,30 @@ namespace PatTech.Localization {
 		}
 
 		/// <summary>
+		/// Registers what <c>Describe</c> reads off an enum (SPEC: Describe without the
+		/// type): <paramref name="configure"/> is handed what registers the attributes that
+		/// give a member its key or a slot its text, the keys an enum gives its members, and
+		/// slots of the app's own, as in
+		/// <c>ConfigureDescribe(describe =&gt; describe.Slot('U', ".unit").Fill&lt;HintAttribute&gt;('T', hint =&gt; hint.Text))</c>.
+		/// It runs at once, adding to what earlier calls registered, and a registration it
+		/// refuses leaves the builder as it was. Each dictionary this builder then produces
+		/// keeps the registry as it stands (<see cref="IWords.DescribeRegistry"/>), so a
+		/// later call changes only the dictionaries made after it, a live switch's among
+		/// them; chain it before <see cref="Digest(string)"/>.
+		/// </summary>
+		/// <param name="configure">Registers, on what it is handed; it refuses any more once this returns.</param>
+		/// <exception cref="ArgumentException">A registration is refused: a slot taken, or a letter, suffix or key prefix that is none.</exception>
+		public WordsBuilder ConfigureDescribe(Action<IDescribeBuilder> configure) {
+			ArgumentNullException.ThrowIfNull(configure);
+			_describe = _describe.Configure(configure);
+			return this;
+		}
+
+		/// <summary>
 		/// Opts in to live language switching (SPEC: Live language switching): keeps this
 		/// builder — its loaded sources, its <see cref="Debug"/> and
-		/// <see cref="UseSystemNumbers"/> settings — alive as <see cref="Words.Live"/>, so
+		/// <see cref="UseSystemNumbers"/> settings, its <see cref="ConfigureDescribe"/>
+		/// registrations — alive as <see cref="Words.Live"/>, so
 		/// <see cref="Words.SwitchLanguage"/> can re-flatten for another language without
 		/// touching disk, and arms the registry that refreshes what is on screen. Off by
 		/// default, where a change of language is a restart. Chain it before
@@ -298,7 +320,7 @@ namespace PatTech.Localization {
 			var uiCulture = CultureOf(languageCode, language);
 			var culture = _useSystemNumbers ? Words.SystemCulture : uiCulture;
 			//the code picks the plural forms: the culture may be the invariant one for a language .NET does not know
-			return new CulturedWords(words, culture, uiCulture) { Language = language };
+			return new CulturedWords(words, culture, uiCulture) { Language = language, DescribeRegistry = _describe };
 		}
 
 		//the culture a name names, where .NET knows it (ca-ES-valencia keeps its variant),

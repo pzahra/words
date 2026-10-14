@@ -66,6 +66,15 @@ namespace PatTech.Localization {
 		string Language => UICulture.Name;
 
 		/// <summary>
+		/// What <c>Describe</c> reads off an enum in this dictionary (runtime SPEC: Describe
+		/// without the type): the registry its builder froze into it from
+		/// <see cref="WordsBuilder.ConfigureDescribe"/>. A dictionary that does not say
+		/// reads by Words' own registrations alone; one wrapping another passes the inner
+		/// one's on.
+		/// </summary>
+		DescribeRegistry DescribeRegistry => DescribeRegistry.BuiltIn;
+
+		/// <summary>
 		/// Checks whether <paramref name="key"/> exists in the underlying <see cref="Provider"/>.
 		/// </summary>
 		/// <param name="key">The key to look up.</param>
@@ -604,10 +613,12 @@ namespace PatTech.Localization {
 		//The array is copied only where there is one
 		[return: NotNullIfNotNull(nameof(args))]
 		private static object?[]? Describing(object?[]? args, IWords? words) {
+			//no dictionary describes in Known, read once for every argument
+			words ??= Words.Known;
 			object?[]? described = null;
 			for (int i = 0; i < (args?.Length ?? 0); ++i) {
 				IDescribable? value = args![i] switch {
-					Enum member => Describable.Of(member),
+					Enum member => Describable.Of(member, words),
 					IDescribable describable => describable,
 					_ => null,
 				};
