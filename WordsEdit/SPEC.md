@@ -1697,3 +1697,64 @@ Cancel stops; a pasted answer fills the grid.
 --stale`, `request` and `apply` first, since an agent can run the loop with
 them at once and the skill can say so (built); then the editor's dialog by
 hand and its grid; then the command runner and the batches.
+
+## Keys without the file's name
+
+A key is held in memory as its file's label, a dot and its name
+(`Example.view.key`), so the session keeps every loaded file's keys in one
+store, and two files can hold the same key: a split and its base, the files
+a merge reads, a library and its host. Nothing outside the editor knows the
+prefix. The runtime stacks the files it loads into one dictionary, the
+command line patches one file by its own names, and the writer and the
+exporters strip the first segment again. Inside, it makes the file's name
+part of every key: renaming a root, moving its file or first saving it under
+another name re-prefixes its keys, and since the undo history and Back's
+history name keys by their labels, both lose what they held of it (*New*;
+*Undo*, Boundaries).
+
+The shape: each `WordsFile` holds its own keys, in order, by the names the
+file writes (`view.key`, `$constant`), and the session's one store goes.
+Whatever names a key names its file beside it:
+- **The session.** Adding, removing, renaming, moving and making a constant
+  take the file and a key of its own. `FileOf(label)` and `FileOfKey` go, and
+  so does the labels' uniqueness, which only kept two files' keys apart.
+- **The tree.** A root carries its file, and a node's full label is its path
+  in that file, today's `KeyNode.Path`. The root shows the file's name,
+  numbered past another file's of the same name to tell them apart
+  (`strings`, `strings-2`): a name for display, carried by nothing in the
+  document.
+- **Undo and navigation.** An entry names its file and a path in it, and so
+  do a `NodeRef`, a `Place` and Back's history. The file is the session's
+  object: a file in or out empties both histories already (*Undo*,
+  Boundaries), so no entry outlives its file.
+- **Previews and checks.** The preview provider stacks the files' stores in
+  tree order, the later winning, as `WordsBuilder` stacks the files it
+  loads. A reference is a key's name as written, and reads as the runtime
+  reads it, with no prefix to probe for. The parameter and translation
+  checks, the `enum` input's prefix and a key's followers look through the
+  same stack.
+- **Writing.** The writer, the exporters, merge and split write each key's
+  name as it is, with nothing to strip, and `KeyTree` builds a root with no
+  label of its own.
+
+Then a root's name is its file's alone. Renaming one in place, moving its
+file or first saving it under another name changes no key and keeps the
+undo history and Back's, so *New*'s renames stop emptying them, and two
+files of one name differ in the tree and nowhere else.
+
+Undecided: whether two files of one name keep the `-2`, or show their folder
+beside the name, now that the number keeps nothing apart.
+
+**Tests.** Two files holding the same key stay apart, each saving its own; a
+root renamed in place, moved or first saved under another name keeps every
+key, the undo history and Back's; a preview reads a bare reference through
+the files in tree order, the later winning; a split, a merge, an export and
+every round trip write as before, byte for byte; and the tests name a key by
+its file and its own name.
+
+**Order.** Authoring first: the files' stores, the session's calls taking a
+file, the stacked provider, the writer, the codecs, merge and split, with a
+shim that reads a prefixed label as a file and a key, so the editor builds
+unchanged. Then the editor: the roots, the undo entries and the navigation
+history move to a file and a path, *New*'s renames stop emptying the
+histories, and the tests name keys by file. Then the shim goes.
