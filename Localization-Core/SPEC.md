@@ -807,8 +807,10 @@ the prefix and its name; or by a function, for an enum one does not own or
 whose keys do not follow its names,
 `Describable.Keys<HttpStatusCode>(code => $"http.{(int)code}")`, a `null`
 leaving a member keyless. The function is asked once per member, when the
-type is first described. A member's own key still wins, and a type has one
-way to key its members, the latest given. Registering belongs at startup. A
+type is first described, however many threads first describe it together; a
+first describe that threw keeps nothing, so the next tries again. A member's
+own key still wins, and a type has one way to key its members, the latest
+given. Registering belongs at startup. A
 registration is a new registry with an empty cache, so a type described
 before reads again, and a describe already under way finishes on the
 registry it began with. This is the
@@ -831,7 +833,9 @@ shows as a description; a plain `[Description]` holding a key, registered with
 `FillKey`, reads as the key alone, the app's next registration adding to it,
 and Words' reading is back once the test puts the registry back; `[Words]` beats an app's own key, which beats a key prefix;
 a function keys an enum one does not own member by member, once each, a
-`null` leaving a member its name, and the latest for a type stands;
+`null` leaving a member its name, and the latest for a type stands; four
+first describes at once ask it once a member, and a first describe it threw
+on reads afresh the next time;
 a slot of one's own reads its suffix, then its attribute; a letter taken, no
 letter and a bad suffix are refused; a letter no slot answers reads as `G`
 marked, and warns; the samples' `U` reads a brew's unit; a combination's

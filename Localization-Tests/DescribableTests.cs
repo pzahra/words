@@ -142,6 +142,15 @@ public enum Late {
 	[Late("late")] One,
 }
 
+public enum Milk {
+	Whole,
+	Oat,
+}
+
+public enum Syrup {
+	Maple,
+}
+
 [Flags]
 public enum Toppings {
 	None = 0,
@@ -390,6 +399,45 @@ public class DescribableTests {
 		Assert.Equal("The weekend", DayOfWeek.Saturday.Describe("G", words));
 		Assert.Equal("Wednesday", DayOfWeek.Wednesday.Describe("G", words)); //no key: its name
 		Assert.Equal(7, asked);
+	}
+
+	//four first describes at once build the type once, the function asked once a member
+	[Fact]
+	public async Task TheFirstDescribesOfAType_RunTogether_BuildItOnce() {
+		int asked = 0;
+		Describable.Keys<Milk>(milk => {
+			Interlocked.Increment(ref asked);
+			Thread.Sleep(100); //holds the build open while the others arrive
+			return $"milk.{milk}";
+		});
+		IWords words = Words("""
+			[milk.Oat]
+			value=Oat milk
+			""");
+
+		using var start = new Barrier(4);
+		string[] read = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Task.Factory.StartNew(() => {
+			start.SignalAndWait();
+			return Milk.Oat.Describe("G", words);
+		}, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)));
+
+		Assert.All(read, text => Assert.Equal("Oat milk", text));
+		Assert.Equal(2, asked);
+	}
+
+	//a build that threw is not kept: the next describe tries again
+	[Fact]
+	public void AFirstDescribeThatThrew_IsNotKept() {
+		bool fail = true;
+		Describable.Keys<Syrup>(syrup => fail ? throw new InvalidOperationException("not yet") : $"syrup.{syrup}");
+		IWords words = Words("""
+			[syrup.Maple]
+			value=Maple syrup
+			""");
+
+		Assert.Throws<InvalidOperationException>(() => Syrup.Maple.Describe("G", words));
+		fail = false;
+		Assert.Equal("Maple syrup", Syrup.Maple.Describe("G", words));
 	}
 
 	[Fact]

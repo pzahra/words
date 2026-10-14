@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 
 namespace PatTech.Localization {
 	/// <summary>
@@ -229,7 +230,7 @@ namespace PatTech.Localization {
 				Dictionary<Type, KeyOf> TypeKeys,
 				Dictionary<char, string> Slots,
 				HashSet<Type> Defaults,
-				ConcurrentDictionary<Type, Dictionary<Enum, Member>> Cache) {
+				ConcurrentDictionary<Type, Lazy<Dictionary<Enum, Member>>> Cache) {
 
 			//a type has one way to key its members, the latest given
 			public State Keying(Type type, KeyOf key) => this with { TypeKeys = new(TypeKeys) { [type] = key } };
@@ -262,7 +263,19 @@ namespace PatTech.Localization {
 				return this with { Givers = givers, Registered = Registered + 1, Defaults = defaults };
 			}
 
-			public Dictionary<Enum, Member> MembersOf(Type type) => Cache.GetOrAdd(type, Build);
+			//a type is built once, however many threads first describe it together: GetOrAdd
+			//may make a Lazy for each, but keeps one, and that one alone builds; a build that
+			//threw is not kept, so the next describe tries again
+			public Dictionary<Enum, Member> MembersOf(Type type) {
+				Lazy<Dictionary<Enum, Member>> members = Cache.GetOrAdd(type, kind => new(() => Build(kind), LazyThreadSafetyMode.ExecutionAndPublication));
+				try {
+					return members.Value;
+				}
+				catch {
+					Cache.TryRemove(new(type, members));
+					throw;
+				}
+			}
 
 			//each value's member is its first name that is not obsolete, as Enum.GetNames
 			//orders them, or its first; each member's attributes are asked for once, and
