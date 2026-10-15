@@ -1686,7 +1686,7 @@ place, unticked or asked for again (a retry sends the selected rows alone); a
 flagged key's rows start unticked and say why, and ticking one is the
 person's call. A row whose link target changed starts ticked, saying so, and
 applying it raises the key's hand. Apply writes the ticked rows into the open file as edits, each
-entry marked stale with the mark, as one undo entry (*Undo*). Save writes the
+entry marked stale with the mark, as one undo entry (*One entry for many edits*). Save writes the
 file as ever, and the stale filter surfaces the rows for a translator to
 review, as it does any stale translation. The command line writes the file;
 the editor writes its document, so undo and an unsaved file stay whole.
@@ -1742,7 +1742,69 @@ Cancel stops; a pasted answer fills the grid.
 **Order.** Authoring's document and check with the command line's `list
 --stale`, `request` and `apply` first, since an agent can run the loop with
 them at once and the skill can say so (built); then the editor's dialog by
-hand and its grid; then the command runner and the batches.
+hand and its grid, its Apply one batch entry (*One entry for many edits*);
+then the command runner and the batches.
+
+## One entry for many edits
+
+An action that is a run of edits the history already knows, each to its own
+key, field or language, should undo as one: Machine translation's Apply
+writes a field, marks it stale and may raise a hand, row after row, and is
+one undo entry (*Machine translation*, It lands for review). A `BatchEdit`
+holds those entries, in the order they were made, and is one entry on the
+stack.
+- **Recording.** A batch is a scope on the one door (*Undo*, Recording):
+  inside `Batch(action)`, each `Perform` the action makes, its own or a
+  command's, adds its entry to the open batch instead of the stack. When the
+  scope closes, the batch goes on the stack as one entry, or nothing when no
+  edit was made, and one edit alone goes on as itself. A batch opened inside a
+  batch adds to the outer one. So an action is made of the commands there are,
+  and a command is recorded as it always is.
+- **Applying.** Undone, the batch applies its entries last to first; redone,
+  first to last, each whole: a field edit in it is never stepped through by a
+  box. That each entry finds what it changes is the stack's own
+  guarantee, entries applied in order, so every label means what it meant.
+  The selection goes where the last entry applied says.
+- **Dirtiness.** The batch records whether the document was dirty before it,
+  and a save moves its marks, as any entry's; the marks of the entries inside
+  it are never read. Pushing a batch ends a typing run.
+- **Navigate first.** A batch whose entries share one node goes there first,
+  as an entry does, and switches the translation language only when every
+  entry that names one names the same: Stale All's stamps, one a language,
+  go to their key and leave the language be. One spread across nodes shows
+  nowhere, and applies at once.
+- **What cannot go back.** A boundary inside a batch clears the stack as it
+  does anywhere (*Undo*, Boundaries), and the edits the batch had recorded go
+  with it: a Language Manager commit that merges two languages keeps no
+  reversible state. What the batch records after it goes on as one entry. An
+  action that throws ends the batch: the edits it recorded, each whole, go on
+  the stack as one entry, so they can be taken back, and the error goes on.
+  An entry that throws as the batch applies clears the stack, as any entry
+  does.
+
+Stale All Languages becomes a batch of `StaleEdit`s, one a language, and
+`StaleAllEdit` goes. The rest stay as they are, each for its reason: a
+Language Manager commit is put back whole from a snapshot, never by replaying
+inverses (*Undo*, Languages); a typing run's stale stamps and raised hand
+belong to the step that made them, which a box steps through; and a Constant
+toggle's cleared translations are no entry of their own yet.
+
+**Where it lives.** The editor's, beside the entries it holds:
+`BatchEdit` with them, and the scope on the main view model's `Perform`.
+
+**Tests.** A batch of a written field, a stale mark and a raised hand across
+two keys and two languages is one entry: undone, every file's saved text is
+as before and the title as it was, and redone as after; a batch with no
+edit records nothing, and one with one edit records that edit; a batch inside
+a batch is one; a merging recode inside one clears the stack and the edits
+before it, and the edits after it are one entry; an action throwing part way
+leaves its recorded edits one entry, undone to before; a batch on one key goes
+there before it applies, in its language when its entries share one, and one
+across keys applies at once; and Stale All undoes and redoes as before, going
+to its key in whatever language is showing.
+
+**Order.** With Machine translation's grid, its Apply the first batch, and
+Stale All moved onto it in the same step.
 
 ## Keys without the file's name
 
