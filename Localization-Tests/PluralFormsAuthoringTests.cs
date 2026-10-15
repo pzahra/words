@@ -130,7 +130,7 @@ value=a key named like a form
 
 	[Fact]
 	public void Writer_PutsEachFormAfterItsPlainValue_InCldrOrder() {
-		var word = new WordsKey("F.word") { DefaultValue = "Word" };
+		var word = new WordsKey("word") { DefaultValue = "Word" };
 		word.Forms["other"] = "Words";
 		word.Forms["zero"] = "No words";
 		word.Forms["few"] = ""; //an empty form is none
@@ -245,7 +245,7 @@ value-it#other=Parole
 
 	[Fact]
 	public void Providers_ReadAFormAsTheRuntimeFlattensIt_SoACountSelects() {
-		var word = new WordsKey("A.word") { DefaultValue = "Word" };
+		var word = new WordsKey("word") { DefaultValue = "Word" };
 		word.Forms["other"] = "Words";
 		word.Entries["en"] = new WordsEntry { Value = "Word (en)" };
 		word.Entries["en"].Forms["other"] = "Words (en)";
@@ -253,21 +253,21 @@ value-it#other=Parole
 		word.Entries["mt"] = new WordsEntry { Value = "Kelma" };
 		word.Entries["mt"].Forms["few"] = "Kelmiet";
 		word.Entries["fil"] = new WordsEntry();
-		Dictionary<string, WordsKey> keys = new() { ["A.word"] = word };
+		Dictionary<string, WordsKey> keys = new() { ["word"] = word };
 
-		var defaults = new DefaultWordsProvider(keys, ["A"]);
+		var defaults = new DefaultWordsProvider(keys);
 		Assert.Equal("Words", defaults["word#other"]);
 		Assert.True(defaults.ContainsKey("word"));
 		Assert.False(defaults.ContainsKey("word#few"));
 		Assert.False(defaults.ContainsKey("missing#other"));
 
-		var british = new LanguageWordsProvider(keys, "en-GB", ["A"]);
+		var british = new LanguageWordsProvider(keys, "en-GB");
 		Assert.Equal("Words (en)", british["word#other"]); //no words of its own: the family's
 
-		var untranslated = new LanguageWordsProvider(keys, "fil", ["A"]);
+		var untranslated = new LanguageWordsProvider(keys, "fil");
 		Assert.Equal("Words", untranslated["word#other"]); //no words anywhere: the default's
 
-		var maltese = new LanguageWordsProvider(keys, "mt", ["A"]);
+		var maltese = new LanguageWordsProvider(keys, "mt");
 		Assert.Equal("Kelmiet", maltese["word#few"]);
 		Assert.False(maltese.ContainsKey("word#other")); //its own words keep the default's forms out
 
@@ -281,16 +281,16 @@ value-it#other=Parole
 
 	[Fact]
 	public void FormatSample_SelectsByTheSamples_InTheDictionarysLanguage() {
-		var word = new WordsKey("A.word") { DefaultValue = "Word" };
+		var word = new WordsKey("word") { DefaultValue = "Word" };
 		word.Forms["other"] = "Words";
 		word.Entries["mt"] = new WordsEntry { Value = "Kelma" };
 		word.Entries["mt"].Forms["few"] = "Kelmiet";
-		var count = new WordsKey("A.count") { DefaultValue = "{0} {0#word}, {Name}" };
-		Dictionary<string, WordsKey> keys = new() { ["A.word"] = word, ["A.count"] = count };
+		var count = new WordsKey("count") { DefaultValue = "{0} {0#word}, {Name}" };
+		Dictionary<string, WordsKey> keys = new() { ["word"] = word, ["count"] = count };
 		Dictionary<string, object?> values = new() { ["0"] = 4, ["Name"] = "Pat" };
 
-		Assert.Equal("4 Words, Pat", WordsOperations.FormatSample(new CulturedWords(new DefaultWordsProvider(keys, ["A"]), CultureInfo.InvariantCulture), "A.count", values));
+		Assert.Equal("4 Words, Pat", WordsOperations.FormatSample(new CulturedWords(new DefaultWordsProvider(keys), CultureInfo.InvariantCulture), "count", values));
 		var maltese = CultureInfo.GetCultureInfo("mt");
-		Assert.Equal("4 Kelmiet, Pat", WordsOperations.FormatSample(new CulturedWords(new LanguageWordsProvider(keys, "mt", ["A"]), maltese), "A.count", values, maltese));
+		Assert.Equal("4 Kelmiet, Pat", WordsOperations.FormatSample(new CulturedWords(new LanguageWordsProvider(keys, "mt"), maltese), "count", values, maltese));
 	}
 }

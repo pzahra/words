@@ -92,7 +92,7 @@ public sealed class ParametersPane : ViewModelBase {
 		}
 	}
 
-	internal IReadOnlyList<string> MembersUnder(string prefix) => WordsOperations.MembersUnder(vm.Session.Keys, vm.Tree.FileLabels, prefix);
+	internal IReadOnlyList<string> MembersUnder(string prefix) => WordsOperations.MembersUnder(vm.Session.FilesOf(vm.Tree.FileLabels).Select(file => file.Keys), prefix);
 
 	internal static string NothingUnder(string name, string prefix) => Words.Known.Format("parameters.nothing-under", FoundParameters.Placeholder(name), prefix);
 
@@ -116,7 +116,7 @@ public sealed class ParametersPane : ViewModelBase {
 			if (vm.Tree.SelectedKeyNode is { } node) {
 				vm.Tree.RefreshBadges(node);
 			}
-			return WordsParameter.Same(before, after) ? null : new ParametersEdit(changed.BlockKey, before, after);
+			return WordsParameter.Same(before, after) ? null : new ParametersEdit(vm.Session.LabelOf(changed), before, after);
 		});
 		vm.RenderPreviews();
 	}

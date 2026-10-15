@@ -47,17 +47,19 @@ value-fr=Ouvrir
 	}
 
 	[Fact]
-	public void Load_PrefixesKeysDropsEmptyOnesAndKeepsDocumentOrder() {
+	public void Load_HoldsTheFilesKeysByName_DropsEmptyOnes_AndKeepsDocumentOrder() {
 		var session = Load(Main);
 		WordsFile file = Assert.Single(session.Files);
 
 		Assert.Equal("Main", file.Label);
 		Assert.Equal("Main", file.Path);
-		Assert.Equal(["Main.greeting", "Main.menu.file", "Main.menu.file.open"], session.Keys.Keys);
-		Assert.False(session.Keys.ContainsKey("Main.menu")); //the bare header is a group, not a key
+		Assert.Equal(["greeting", "menu.file", "menu.file.open"], file.Keys.Keys);
+		Assert.False(file.Keys.ContainsKey("menu")); //the bare header is a group, not a key
+		Assert.Equal(["Main.greeting", "Main.menu.file", "Main.menu.file.open"], session.Keys.Keys); //the shim's labels
+		Assert.Same(file.Keys["menu.file"], session.Keys["Main.menu.file"]);
 		Assert.Equal(" about Main", file.Preamble);
 		Assert.Equal(["en", "fr"], file.Languages);
-		Assert.Equal(" the file menu", file.BlockComments["Main.menu.file"]);
+		Assert.Equal(" the file menu", file.BlockComments["menu.file"]);
 		Assert.Empty(file.Errors);
 	}
 
@@ -234,7 +236,7 @@ value-fr=Ouvrir
 		Assert.False(session.Keys.ContainsKey("Main.menu.file.open"));
 		Assert.Equal("Hi", session.Keys["Main.greeting"].DefaultValue);
 		//document order, not the old slots: a plain Dictionary would come back reversed
-		Assert.Equal(["Main.menu.file", "Main.greeting"], session.KeysOf(session.Files[0]).Select(key => key.BlockKey));
+		Assert.Equal(["menu.file", "greeting"], session.KeysOf(session.Files[0]).Select(key => key.BlockKey));
 		//fr was declared by nobody else and holds no words any more: gone
 		Assert.DoesNotContain(session.Languages.Known, language => language.Code == "fr");
 		Assert.All(session.Keys.Values, key => Assert.False(key.Entries.ContainsKey("fr")));
@@ -795,12 +797,47 @@ value-fr=Bonjour
 		Assert.Equal("first", session.Provider(["Over", "Main"]).GetValue("k"));
 		Assert.Equal("premier", session.Provider(["Main"], "fr").GetValue("k"));
 		Assert.Equal("first", session.Provider(["Main"], "de").GetValue("k")); //falls back to the default
+
+		//by the files themselves, as the editor will hand them: a key is its name, read as
+		//the runtime reads it, the later file winning, with no prefix to probe for
+		WordsFile main = session.Files[0], over = session.Files[1];
+		Assert.Equal("second", session.Provider([main, over]).GetValue("k"));
+		Assert.Equal("first", session.Provider([over, main]).GetValue("k"));
+		Assert.False(session.Provider([main, over]).ContainsKey("Main.k"));
+	}
+
+	//the editor's SPEC (Keys without the file's name): each file holds its own keys, so
+	//two holding the same key stay apart, each saving its own, and a key moved from one
+	//to the other leaves the one and joins the other
+	[Fact]
+	public void TwoFilesHoldingOneKey_StayApart_EachSavingItsOwn() {
+		const string Base = "value-en=English\n\n[k]\nvalue=base\n\n[g.a]\nvalue=A\n\n";
+		var session = new WordsSession();
+		WordsFile basis = session.Load(new StringReader(Base), "Base");
+		WordsFile copy = session.Load(new StringReader("value-en=English\n\n[k]\nvalue=copy\n\n"), "Copy");
+
+		Assert.NotSame(basis.Keys["k"], copy.Keys["k"]);
+		session.AddKey(copy, "fresh").DefaultValue = "new";
+		Assert.False(basis.Keys.ContainsKey("fresh"));
+		Assert.Equal(Base, Save(session, basis).ReplaceLineEndings("\n"));
+		Assert.Equal("value-en=English\n\n[k]\nvalue=copy\n\n[fresh]\nvalue=new\n\n", Save(session, copy).ReplaceLineEndings("\n"));
+
+		//across files: all or nothing, nothing overwritten
+		Assert.False(session.TryMove(basis, "k", copy, "", out var collisions));
+		Assert.Equal(["k"], collisions);
+		Assert.True(session.TryMove(basis, "g.a", copy, "h", out _));
+		Assert.Equal(["k"], basis.Keys.Keys);
+		Assert.Equal("A", copy.Keys["h.a"].DefaultValue);
+		Assert.Equal("h.a", copy.Keys["h.a"].BlockKey);
+		Assert.Equal(3, session.RemoveKeysUnder(copy, "")); //an empty name is the whole file
+		Assert.Empty(copy.Keys);
+		Assert.Equal(["k"], basis.Keys.Keys);
 	}
 
 	//the editor's SPEC (New): a file started with no path, labelled by the name it
 	//was given, renamed in place, and given a path at its first Save
 	[Fact]
-	public void ANewFile_HasNoPath_UntilMovedTo_ItsKeysFollowingItsLabel() {
+	public void ANewFile_HasNoPath_UntilMovedTo_ItsKeysUntouchedByItsLabel() {
 		var session = new WordsSession();
 		WordsFile first = session.New(new StringReader("value-en=English\n\n[k]\nvalue=x\n"), "anonymous-words");
 		WordsFile second = session.New(new StringReader(""), "anonymous-words");
@@ -808,12 +845,16 @@ value-fr=Bonjour
 		Assert.Null(first.Path);
 		Assert.Equal("anonymous-words", first.Label);
 		Assert.Equal("anonymous-words-2", second.Label);
-		Assert.Equal(["anonymous-words.k"], session.KeysOf(first).Select(key => key.BlockKey));
+		WordsKey k = Assert.Single(session.KeysOf(first));
+		Assert.Equal("k", k.BlockKey);
 		Assert.Null(session.FileAt("anonymous-words.ini")); //a file not saved is at no path
 		Assert.Throws<InvalidOperationException>(() => session.Save(first, KeyTree.Build(session, first)));
 
+		//a root's name is its file's alone: the key stays as it was, the shim's label follows
 		session.Rename(first, "strings");
 		Assert.Equal("strings", first.Label);
+		Assert.Same(k, Assert.Single(session.KeysOf(first)));
+		Assert.Equal("k", k.BlockKey);
 		Assert.Equal(["strings.k"], session.Keys.Keys);
 		Assert.Throws<ArgumentException>(() => session.Rename(first, "anonymous-words-2")); //another's
 		Assert.Throws<ArgumentException>(() => session.Rename(first, "a.b"));               //no segment

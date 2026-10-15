@@ -178,7 +178,7 @@ value-fr=Ouvrir
 		//parent before its children
 		var reversed = KeyTree.Build(file.Label, session.KeysOf(file).Reverse(), file.BlockComments);
 		var source = new ExportSource(session, file, reversed);
-		Assert.Equal(["Main.menu.file", "Main.menu.file.open", "Main.$unit", "Main.greeting"], source.Keys().Select(key => key.BlockKey));
+		Assert.Equal(["menu.file", "menu.file.open", "$unit", "greeting"], source.Keys().Select(key => key.BlockKey));
 		Assert.Equal(["en", "fr"], source.Languages.Select(language => language.Code));
 
 		//a tree that is not the file's, or misses some of its keys, is refused before a byte lands
@@ -210,7 +210,7 @@ value-fr=Ouvrir
 		List<string> gripes = [];
 		ExportSource source = Source(session, full);
 		format.Write(source, Assert.Single(format.Plan(source, "Out.ctx")), output, gripes);
-		Assert.Equal("Main.greeting=Hello {0}\nMain.$unit=kg\nMain.menu.file=File\nMain.menu.file.open=Open\n", output.ToString().ReplaceLineEndings("\n"));
+		Assert.Equal("greeting=Hello {0}\n$unit=kg\nmenu.file=File\nmenu.file.open=Open\n", output.ToString().ReplaceLineEndings("\n"));
 		Assert.Equal(["dropped the rest"], gripes);
 	}
 

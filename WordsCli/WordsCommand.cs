@@ -183,7 +183,7 @@ namespace PatTech.Localization.Cli {
 			if (!keys.TryGetValue(key, out var written)) {
 				yield break;
 			}
-			var mismatch = ParameterUse.Check(written, code, new DefaultWordsProvider(keys, []), patcher.DefaultLanguage, new LanguageWordsProvider(keys, code, []));
+			var mismatch = ParameterUse.Check(written, code, new DefaultWordsProvider(keys), patcher.DefaultLanguage, new LanguageWordsProvider(keys, code));
 			if (mismatch.Dropped.Count != 0) {
 				yield return $"{key}: the {code} words drop {Placeholders(mismatch.Dropped)}, which the default uses, so the app's value never shows";
 			}
@@ -294,8 +294,8 @@ namespace PatTech.Localization.Cli {
 				throw new InvalidDataException($"{call.File} does not declare {code}, so it takes no {code} words");
 			}
 			var keys = patcher.Keys.ToDictionary(key => key.BlockKey);
-			var defaults = new DefaultWordsProvider(keys, []);
-			var translations = new LanguageWordsProvider(keys, code, []);
+			var defaults = new DefaultWordsProvider(keys);
+			var translations = new LanguageWordsProvider(keys, code);
 			var mark = new WordsField("stale", code, "");
 			var hand = new WordsField("stale", "", "");
 			List<string> gripes = [];

@@ -359,19 +359,19 @@ public sealed class KeyAdded(string label) : UndoEntry {
 }
 
 /// <summary>Key information removed from a node, a copy of the key kept.</summary>
-public sealed class KeyRemoved(WordsKey key) : UndoEntry {
+public sealed class KeyRemoved(string label, WordsKey key) : UndoEntry {
 	private readonly WordsKey kept = new(key);
 
-	public override NodeRef? Site(bool undoing) => new NodeRef(kept.BlockKey);
+	public override NodeRef? Site(bool undoing) => new NodeRef(label);
 
 	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) {
 		if (undoing) {
-			session.Restore(kept);
+			session.Restore(label, kept);
 		}
 		else {
-			session.RemoveKey(kept.BlockKey);
+			session.RemoveKey(label);
 		}
-		return new NodeRef(kept.BlockKey);
+		return new NodeRef(label);
 	}
 }
 
@@ -384,7 +384,7 @@ public abstract class NodeEdit : UndoEntry {
 	private readonly string parent;
 	private readonly int index;
 	private readonly KeyNode node;
-	private readonly IReadOnlyList<WordsKey> keys;
+	private readonly IReadOnlyList<(string Label, WordsKey Key)> keys;
 	private readonly string text;
 
 	protected NodeEdit(WordsSession session, KeyNode node) {
@@ -392,7 +392,7 @@ public abstract class NodeEdit : UndoEntry {
 		parent = at.FullLabel;
 		index = at.Children.IndexOf(node);
 		this.node = node;
-		keys = node is OrganizerNode ? [] : [.. session.KeysUnder(node.FullLabel).Select(key => new WordsKey(key))];
+		keys = node is OrganizerNode ? [] : [.. session.KeysUnder(node.FullLabel).Select(key => (session.LabelOf(key), new WordsKey(key)))];
 		text = (node as OrganizerNode)?.Text ?? "";
 	}
 
@@ -405,8 +405,8 @@ public abstract class NodeEdit : UndoEntry {
 			return null;
 		}
 		at.Children.Insert(index, node);
-		foreach (WordsKey key in keys) {
-			session.Restore(key);
+		foreach (var (label, key) in keys) {
+			session.Restore(label, key);
 		}
 		if (node is OrganizerNode organizer) {
 			organizer.Text = text;

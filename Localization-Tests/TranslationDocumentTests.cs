@@ -179,7 +179,7 @@ public class TranslationDocumentTests {
 			TranslationRequest.Held(sent?.Entries.GetValueOrDefault(code)), translation);
 		since?.Invoke(patcher);
 		var keys = patcher.Keys.ToDictionary(found => found.BlockKey);
-		return item.Check(keys.GetValueOrDefault(key), code, new DefaultWordsProvider(keys, []), patcher.DefaultLanguage, new LanguageWordsProvider(keys, code, []));
+		return item.Check(keys.GetValueOrDefault(key), code, new DefaultWordsProvider(keys), patcher.DefaultLanguage, new LanguageWordsProvider(keys, code));
 	}
 
 	[Fact]

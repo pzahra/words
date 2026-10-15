@@ -17,12 +17,12 @@ namespace PatTech.Localization.Authoring {
 		private readonly KnownList knownBefore;
 		private KnownList? knownAfter;
 		//every key's languages in its order, which its fields are written in, and each
-		//touched code's entries, block key to entry, as they stood before the change
-		//first touched it, and after the change
-		private readonly Dictionary<string, string[]> ordersBefore;
-		private Dictionary<string, string[]> ordersAfter = [];
-		private readonly Dictionary<string, Dictionary<string, WordsEntry>> entriesBefore = [];
-		private Dictionary<string, Dictionary<string, WordsEntry>> entriesAfter = [];
+		//touched code's entries, a key by its file and its name, as they stood before the
+		//change first touched it, and after the change
+		private readonly Dictionary<(WordsFile, string), string[]> ordersBefore;
+		private Dictionary<(WordsFile, string), string[]> ordersAfter = [];
+		private readonly Dictionary<string, Dictionary<(WordsFile, string), WordsEntry>> entriesBefore = [];
+		private Dictionary<string, Dictionary<(WordsFile, string), WordsEntry>> entriesAfter = [];
 
 		//the session's list as it stands: its entries in order, each with its names
 		private sealed record KnownList((LanguageEntry Entry, string NativeName, string EnglishName)[] Languages) {
@@ -122,11 +122,14 @@ namespace PatTech.Localization.Authoring {
 		//a code's entries as they stand, the first time the change touches it
 		private void Keep(string code) => entriesBefore.TryAdd(code, Entries(code));
 
-		private Dictionary<string, WordsEntry> Entries(string code) => session.Keys.Values
-			.Where(key => key.Entries.ContainsKey(code))
-			.ToDictionary(key => key.BlockKey, key => new WordsEntry(key.Entries[code]));
+		private Dictionary<(WordsFile, string), WordsEntry> Entries(string code) => Placed()
+			.Where(placed => placed.Key.Entries.ContainsKey(code))
+			.ToDictionary(placed => (placed.File, placed.Key.BlockKey), placed => new WordsEntry(placed.Key.Entries[code]));
 
-		private Dictionary<string, string[]> Orders() => session.Keys.Values.ToDictionary(key => key.BlockKey, key => key.Entries.Keys.ToArray());
+		private Dictionary<(WordsFile, string), string[]> Orders() => Placed().ToDictionary(placed => (placed.File, placed.Key.BlockKey), placed => placed.Key.Entries.Keys.ToArray());
+
+		//every key with the file holding it
+		private IEnumerable<(WordsFile File, WordsKey Key)> Placed() => session.Files.SelectMany(file => file.Keys.Values.Select(key => (file, key)));
 
 		private Dictionary<WordsFile, FileTable> Tables() => session.Files.ToDictionary(file => file, FileTable.Of);
 
@@ -151,12 +154,12 @@ namespace PatTech.Localization.Authoring {
 			//each key's entries rebuilt in its order then: a touched code's from the copy,
 			//any other the one it holds, which the change left alone
 			var (orders, kept) = before ? (ordersBefore, entriesBefore) : (ordersAfter, entriesAfter);
-			foreach (WordsKey key in session.Keys.Values) {
-				if (!orders.TryGetValue(key.BlockKey, out string[]? codes)) {
+			foreach (var (file, key) in Placed()) {
+				if (!orders.TryGetValue((file, key.BlockKey), out string[]? codes)) {
 					continue;
 				}
 				List<(string Code, WordsEntry Entry)> entries = [.. codes.Select(code =>
-					(code, kept.TryGetValue(code, out var copies) && copies.TryGetValue(key.BlockKey, out WordsEntry? copy) ? new WordsEntry(copy) : key.Entries[code]))];
+					(code, kept.TryGetValue(code, out var copies) && copies.TryGetValue((file, key.BlockKey), out WordsEntry? copy) ? new WordsEntry(copy) : key.Entries[code]))];
 				key.Entries.Clear();
 				foreach (var (code, entry) in entries) {
 					key.Entries[code] = entry;

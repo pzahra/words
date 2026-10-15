@@ -2,20 +2,15 @@ using System.Globalization;
 
 namespace PatTech.Localization.Authoring {
 	/// <summary>
-	///     Document-level operations over key dictionaries (keys prefixed with
-	///     their file's label, e.g. <c>File.group.key</c>). These do the
-	///     processing; the editor's ViewModels only gather the intent.
+	///     Document-level operations over key stores, each a file's keys by the
+	///     names it writes (<see cref="WordsFile.Keys"/>). These do the processing;
+	///     the editor's ViewModels only gather the intent.
 	/// </summary>
 	public static class WordsOperations {
 
-		/// <summary>All keys belonging to <paramref name="fileLabel"/>.</summary>
-		public static Dictionary<string, WordsKey> KeysOf(IReadOnlyDictionary<string, WordsKey> allKeys, string fileLabel)
-			=> allKeys.Where(pair => pair.Key.StartsWith(fileLabel + ".", StringComparison.Ordinal))
-				.ToDictionary(pair => pair.Key, pair => pair.Value);
-
 		/// <summary>
-		///     True when every set holds the same keys once the file prefix is
-		///     stripped; the odd ones out come back in <paramref name="conflicts"/>.
+		///     True when every set holds the same keys; the odd ones out come back in
+		///     <paramref name="conflicts"/>.
 		/// </summary>
 		public static bool HaveSameKeys(
 				IEnumerable<IReadOnlyDictionary<string, WordsKey>> keySets,
@@ -25,10 +20,7 @@ namespace PatTech.Localization.Authoring {
 			conflicts = [];
 
 			foreach (var keySet in keySets) {
-				HashSet<string> currentKeySet = [];
-				foreach (var key in keySet.Keys) {
-					currentKeySet.Add(key[(key.IndexOf('.') + 1)..]);
-				}
+				HashSet<string> currentKeySet = [.. keySet.Keys];
 				if (firstKeySet is null) {
 					firstKeySet = currentKeySet;
 				}
@@ -43,42 +35,27 @@ namespace PatTech.Localization.Authoring {
 
 		/// <summary>
 		///     The translator round trip in bulk: the merged file takes every key
-		///     from <paramref name="baseFile"/> and each language's entries from
+		///     from <paramref name="baseKeys"/> and each language's entries from
 		///     the file mapped to it in <paramref name="languageSources"/>.
 		///     Returns <see langword="null"/> when the files disagree on their key
 		///     sets; the disagreements come back in <paramref name="conflicts"/>.
 		/// </summary>
-		/// <param name="allKeys">Every loaded key, file-prefixed.</param>
-		/// <param name="baseFile">The label of the file providing the keys and unlocalised fields.</param>
-		/// <param name="languageSources">Language code to the label of the file providing that language's entries.</param>
-		/// <param name="mergedFile">The label the merged keys are prefixed with.</param>
-		/// <param name="conflicts">Key suffixes the involved files disagree on.</param>
+		/// <param name="baseKeys">The keys of the file providing the keys and unlocalised fields.</param>
+		/// <param name="languageSources">Language code to the keys of the file providing that language's entries.</param>
+		/// <param name="conflicts">Keys the involved files disagree on.</param>
 		public static Dictionary<string, WordsKey>? Merge(
-				IReadOnlyDictionary<string, WordsKey> allKeys,
-				string baseFile,
-				IReadOnlyDictionary<string, string> languageSources,
-				string mergedFile,
+				IReadOnlyDictionary<string, WordsKey> baseKeys,
+				IReadOnlyDictionary<string, IReadOnlyDictionary<string, WordsKey>> languageSources,
 				out HashSet<string> conflicts) {
-			Dictionary<string, WordsKey> merged = [];
-			foreach (var key in KeysOf(allKeys, baseFile).Values) {
-				var copy = new WordsKey(key) {
-					BlockKey = mergedFile + key.BlockKey[key.BlockKey.IndexOf('.')..]
-				};
-				merged[copy.BlockKey] = copy;
-			}
-			var sources = languageSources.ToDictionary(
-				pair => pair.Key,
-				pair => KeysOf(allKeys, pair.Value));
-			if (!HaveSameKeys([merged, .. sources.Values], out conflicts)) {
+			Dictionary<string, WordsKey> merged = baseKeys.Values.ToDictionary(key => key.BlockKey, key => new WordsKey(key));
+			if (!HaveSameKeys([merged, .. languageSources.Values], out conflicts)) {
 				return null;
 			}
-			foreach (var (language, keys) in sources) {
+			foreach (var (language, keys) in languageSources) {
 				foreach (var key in keys.Values) {
-					if (!key.Entries.TryGetValue(language, out var entry)) {
-						continue;
+					if (key.Entries.TryGetValue(language, out var entry)) {
+						merged[key.BlockKey].Entries[language] = new WordsEntry(entry);
 					}
-					string suffix = key.BlockKey[(key.BlockKey.IndexOf('.') + 1)..];
-					merged[$"{mergedFile}.{suffix}"].Entries[language] = new WordsEntry(entry);
 				}
 			}
 			return merged;
@@ -90,20 +67,12 @@ namespace PatTech.Localization.Authoring {
 		///     so a translator can work on it separately. The result is exactly
 		///     the shape <see cref="Merge"/> consumes back.
 		/// </summary>
-		/// <param name="allKeys">Every loaded key, file-prefixed.</param>
-		/// <param name="sourceFile">The label of the file being split.</param>
+		/// <param name="sourceKeys">The keys of the file being split.</param>
 		/// <param name="languageCode">The one language the split file carries.</param>
-		/// <param name="splitFile">The label the split keys are prefixed with.</param>
-		public static Dictionary<string, WordsKey> Split(
-				IReadOnlyDictionary<string, WordsKey> allKeys,
-				string sourceFile,
-				string languageCode,
-				string splitFile) {
+		public static Dictionary<string, WordsKey> Split(IReadOnlyDictionary<string, WordsKey> sourceKeys, string languageCode) {
 			Dictionary<string, WordsKey> split = [];
-			foreach (var key in KeysOf(allKeys, sourceFile).Values) {
-				var copy = new WordsKey(key) {
-					BlockKey = splitFile + key.BlockKey[key.BlockKey.IndexOf('.')..]
-				};
+			foreach (var key in sourceKeys.Values) {
+				var copy = new WordsKey(key);
 				foreach (var code in copy.Entries.Keys.Where(code => code != languageCode).ToArray()) {
 					copy.Entries.Remove(code);
 				}
@@ -166,21 +135,30 @@ namespace PatTech.Localization.Authoring {
 			 : existing + "\n" + addition;
 
 		/// <summary>
-		///     Renames <paramref name="oldKey"/> and every key below it — <c>F.a</c>
-		///     to <c>F.b</c> also takes <c>F.a.x</c> to <c>F.b.x</c>; a prefix with no
+		///     Renames <paramref name="oldKey"/> and every key below it — <c>a</c>
+		///     to <c>b</c> also takes <c>a.x</c> to <c>b.x</c>; a prefix with no
 		///     key of its own (a group) renames its descendants alone. All or
 		///     nothing: when any target already exists, and is not itself being
 		///     vacated by this rename, nothing changes and the occupied targets come
 		///     back in <paramref name="collisions"/>. Nothing is ever overwritten.
 		/// </summary>
-		public static bool TryRename(IDictionary<string, WordsKey> keys, string oldKey, string newKey, out HashSet<string> collisions) {
+		public static bool TryRename(IDictionary<string, WordsKey> keys, string oldKey, string newKey, out HashSet<string> collisions)
+			=> TryRename(keys, oldKey, keys, newKey, out collisions);
+
+		/// <summary>
+		///     <see cref="TryRename(IDictionary{string, WordsKey}, string, string, out HashSet{string})"/>
+		///     from one file's store into another's: the keys leave <paramref name="from"/>
+		///     and join <paramref name="to"/> under their new names, on the same terms;
+		///     the collisions are names in <paramref name="to"/>.
+		/// </summary>
+		public static bool TryRename(IDictionary<string, WordsKey> from, string oldKey, IDictionary<string, WordsKey> to, string newKey, out HashSet<string> collisions) {
 			collisions = [];
-			if (oldKey == newKey) {
+			if (from == to && oldKey == newKey) {
 				return true;
 			}
 			string oldPrefix = oldKey + ".";
 			List<(string From, string To)> moves = [];
-			foreach (string key in keys.Keys) {
+			foreach (string key in from.Keys) {
 				if (key == oldKey) {
 					moves.Add((key, newKey));
 				}
@@ -188,10 +166,10 @@ namespace PatTech.Localization.Authoring {
 					moves.Add((key, newKey + key[oldKey.Length..]));
 				}
 			}
-			HashSet<string> vacated = [.. moves.Select(move => move.From)];
-			foreach (var (_, to) in moves) {
-				if (keys.ContainsKey(to) && !vacated.Contains(to)) {
-					collisions.Add(to);
+			HashSet<string> vacated = from == to ? [.. moves.Select(move => move.From)] : [];
+			foreach (var (_, target) in moves) {
+				if (to.ContainsKey(target) && !vacated.Contains(target)) {
+					collisions.Add(target);
 				}
 			}
 			if (collisions.Count > 0) {
@@ -200,14 +178,14 @@ namespace PatTech.Localization.Authoring {
 			//all out, then all in: a rename that shifts keys within their own prefix
 			//(a → a.x) must not land on a key still waiting to move
 			List<WordsKey> moving = [];
-			foreach (var (from, to) in moves) {
-				WordsKey key = keys[from];
-				keys.Remove(from);
-				key.BlockKey = to;
+			foreach (var (source, target) in moves) {
+				WordsKey key = from[source];
+				from.Remove(source);
+				key.BlockKey = target;
 				moving.Add(key);
 			}
 			foreach (WordsKey key in moving) {
-				keys.Add(key.BlockKey, key);
+				to.Add(key.BlockKey, key);
 			}
 			return true;
 		}
@@ -215,17 +193,18 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>
 		///     Moves <paramref name="key"/> (and everything below it) under
 		///     <paramref name="newParent"/>, keeping its last segment — marker and
-		///     all. Same all-or-nothing contract as <see cref="TryRename"/>.
+		///     all; an empty parent is the top of the file. Same all-or-nothing
+		///     contract as <see cref="TryRename(IDictionary{string, WordsKey}, string, string, out HashSet{string})"/>.
 		/// </summary>
 		public static bool TryMove(IDictionary<string, WordsKey> keys, string key, string newParent, out HashSet<string> collisions)
-			=> TryRename(keys, key, $"{newParent}.{LastSegment(key)}", out collisions);
+			=> TryRename(keys, key, KeyTree.Join(newParent, LastSegment(key)), out collisions);
 
-		/// <summary>The text after the last dot: <c>F.group.$key</c> gives <c>$key</c>.</summary>
+		/// <summary>The text after the last dot: <c>group.$key</c> gives <c>$key</c>, and a name without one is its own.</summary>
 		public static string LastSegment(string key) => key[(key.LastIndexOf('.') + 1)..];
 
 		/// <summary>
 		///     Adds or strips the constant marker on the last segment only:
-		///     <c>F.view.key</c> ↔ <c>F.view.$key</c>.
+		///     <c>view.key</c> ↔ <c>view.$key</c>.
 		/// </summary>
 		public static string SetConstantMarker(string key, bool isConstant) {
 			int start = key.LastIndexOf('.') + 1;
@@ -236,7 +215,7 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>
 		///     Makes the key at <paramref name="blockKey"/> a constant, or a regular
 		///     key again: it moves to its marked (or unmarked) name, descendants
-		///     following as in <see cref="TryRename"/>, and its
+		///     following as in <see cref="TryRename(IDictionary{string, WordsKey}, string, string, out HashSet{string})"/>, and its
 		///     <see cref="WordsKey.IsConstant"/> follows. Translations are kept
 		///     unless <paramref name="clearEntries"/> — a constant reads the same in
 		///     every language, so a caller normally asks before discarding them.
@@ -319,20 +298,19 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>
 		///     The members an <c>enum</c> parameter offers (editor SPEC: Parameters →
 		///     Types): the keys directly under <paramref name="prefix"/>, found as a
-		///     reference finds one, through every file in <paramref name="fileLabels"/>,
+		///     reference finds one, through every store in <paramref name="stores"/>,
 		///     each by its last segment, once, in the order the files hold them. A key
 		///     beside a member, its <c>.tooltip</c> and kin, is the member's own and
 		///     lies deeper; the prefix's own slots and its constants are no members.
 		/// </summary>
-		/// <param name="keys">Every loaded key, by full label.</param>
-		/// <param name="fileLabels">The loaded files' labels, in tree order.</param>
+		/// <param name="stores">Each loaded file's keys, in tree order.</param>
 		/// <param name="prefix">The prefix, as the type names it: <c>enums.brew</c>.</param>
-		public static IReadOnlyList<string> MembersUnder(IReadOnlyDictionary<string, WordsKey> keys, IEnumerable<string> fileLabels, string prefix) {
+		public static IReadOnlyList<string> MembersUnder(IEnumerable<IReadOnlyDictionary<string, WordsKey>> stores, string prefix) {
 			List<string> members = [];
-			foreach (string file in fileLabels) {
-				string under = $"{file}.{prefix}.";
-				foreach (string label in keys.Keys) {
-					if (label.StartsWith(under, StringComparison.Ordinal) && label[under.Length..] is var member
+			string under = prefix + ".";
+			foreach (var store in stores) {
+				foreach (string name in store.Keys) {
+					if (name.StartsWith(under, StringComparison.Ordinal) && name[under.Length..] is var member
 							&& WordsParser.IsKeySegment(member) && !member.StartsWith('$') && !slotSuffixes.Contains(member) && !members.Contains(member)) {
 						members.Add(member);
 					}

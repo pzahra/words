@@ -12,34 +12,37 @@ public class WordsOperationsTests {
 		return key;
 	}
 
-	// base file A (defaults + en), translated file B (fr)
-	private static Dictionary<string, WordsKey> TwoFiles() => new() {
-		["A.title"] = Key("A.title", "Title", ("en", "EN title"), ("fr", "")),
-		["A.body"] = Key("A.body", "Body", ("en", "EN body"), ("fr", "")),
-		["B.title"] = Key("B.title", "Titre", ("fr", "FR title")),
-		["B.body"] = Key("B.body", "", ("fr", "FR body")),
+	// base file A (defaults + en), translated file B (fr), each its own keys
+	private static Dictionary<string, WordsKey> FileA() => new() {
+		["title"] = Key("title", "Title", ("en", "EN title"), ("fr", "")),
+		["body"] = Key("body", "Body", ("en", "EN body"), ("fr", "")),
 	};
+
+	private static Dictionary<string, WordsKey> FileB() => new() {
+		["title"] = Key("title", "Titre", ("fr", "FR title")),
+		["body"] = Key("body", "", ("fr", "FR body")),
+	};
+
+	private static Dictionary<string, IReadOnlyDictionary<string, WordsKey>> From(string code, IReadOnlyDictionary<string, WordsKey> keys) => new() { [code] = keys };
 
 	[Fact]
 	public void WordsOperations_MergeTakesEachLanguageFromItsSource() {
-		var merged = WordsOperations.Merge(TwoFiles(), "A",
-			new Dictionary<string, string> { ["fr"] = "B" }, "M", out var conflicts);
+		var merged = WordsOperations.Merge(FileA(), From("fr", FileB()), out var conflicts);
 
 		Assert.NotNull(merged);
 		Assert.Empty(conflicts);
-		Assert.Equal("Title", merged["M.title"].DefaultValue);
-		Assert.Equal("EN title", merged["M.title"].Entries["en"].Value);
-		Assert.Equal("FR title", merged["M.title"].Entries["fr"].Value);
-		Assert.Equal("FR body", merged["M.body"].Entries["fr"].Value);
+		Assert.Equal("Title", merged["title"].DefaultValue);
+		Assert.Equal("EN title", merged["title"].Entries["en"].Value);
+		Assert.Equal("FR title", merged["title"].Entries["fr"].Value);
+		Assert.Equal("FR body", merged["body"].Entries["fr"].Value);
 	}
 
 	[Fact]
 	public void WordsOperations_MergeRefusesMismatchedKeySets() {
-		var keys = TwoFiles();
-		keys["B.extra"] = Key("B.extra", "spurious");
+		var french = FileB();
+		french["extra"] = Key("extra", "spurious");
 
-		var merged = WordsOperations.Merge(keys, "A",
-			new Dictionary<string, string> { ["fr"] = "B" }, "M", out var conflicts);
+		var merged = WordsOperations.Merge(FileA(), From("fr", french), out var conflicts);
 
 		Assert.Null(merged);
 		Assert.Contains("extra", conflicts);
@@ -48,40 +51,36 @@ public class WordsOperationsTests {
 	[Fact]
 	public void WordsOperations_MergeCopiesParametersAndReviewFlags() {
 		// the WordsKey copy constructor used to drop these silently
-		var keys = TwoFiles();
-		keys["A.title"].Parameters.Add(new WordsParameter("0", WordsParameterType.Int, "the files"));
-		keys["A.title"].NeedsReview = true;
+		var keys = FileA();
+		keys["title"].Parameters.Add(new WordsParameter("0", WordsParameterType.Int, "the files"));
+		keys["title"].NeedsReview = true;
 
-		var merged = WordsOperations.Merge(keys, "A", new Dictionary<string, string>(), "M", out _);
+		var merged = WordsOperations.Merge(keys, new Dictionary<string, IReadOnlyDictionary<string, WordsKey>>(), out _);
 
 		Assert.NotNull(merged);
-		var parameter = Assert.Single(merged["M.title"].Parameters);
+		var parameter = Assert.Single(merged["title"].Parameters);
 		Assert.Equal(WordsParameterType.Int, parameter.DataType);
 		Assert.Equal("the files", parameter.Description);
-		Assert.True(merged["M.title"].NeedsReview);
+		Assert.True(merged["title"].NeedsReview);
+		Assert.NotSame(keys["title"], merged["title"]); //copies: the base keeps its own
 	}
 
 	[Fact]
 	public void WordsOperations_SplitRoundTripsThroughMerge() {
 		// split carries one language plus the unlocalised reference fields, and
 		// merge consumes its output straight back
-		var keys = TwoFiles();
+		var keys = FileA();
 
-		var split = WordsOperations.Split(keys, "A", "en", "S");
+		var split = WordsOperations.Split(keys, "en");
 
-		Assert.Equal("Title", split["S.title"].DefaultValue);
-		Assert.Equal("EN title", split["S.title"].Entries["en"].Value);
-		Assert.DoesNotContain("fr", split["S.title"].Entries.Keys);
+		Assert.Equal("Title", split["title"].DefaultValue);
+		Assert.Equal("EN title", split["title"].Entries["en"].Value);
+		Assert.DoesNotContain("fr", split["title"].Entries.Keys);
 
-		var everything = new Dictionary<string, WordsKey>(keys);
-		foreach (var (blockKey, key) in split) {
-			everything[blockKey] = key;
-		}
-		var merged = WordsOperations.Merge(everything, "A",
-			new Dictionary<string, string> { ["en"] = "S" }, "M", out _);
+		var merged = WordsOperations.Merge(keys, From("en", split), out _);
 
 		Assert.NotNull(merged);
-		Assert.Equal("EN title", merged["M.title"].Entries["en"].Value);
+		Assert.Equal("EN title", merged["title"].Entries["en"].Value);
 	}
 
 	[Fact]
@@ -165,24 +164,24 @@ public class WordsOperationsTests {
 	}
 
 	[Fact]
-	public void WordsOperations_HaveSameKeysComparesAcrossFilePrefixes() {
+	public void WordsOperations_HaveSameKeysComparesTheFilesKeysByName() {
 		List<Dictionary<string, WordsKey>> keySets = [
 			new() {
-				["dictionary1.test1"] = new WordsKey("dictionary1.test1"),
-				["dictionary1.test2"] = new WordsKey("dictionary1.test2"),
+				["group.test1"] = new WordsKey("group.test1"),
+				["test2"] = new WordsKey("test2"),
 			},
 			new() {
-				["dictionary2.test1"] = new WordsKey("dictionary2.test1"),
-				["dictionary2.test2"] = new WordsKey("dictionary2.test2"),
+				["group.test1"] = new WordsKey("group.test1"),
+				["test2"] = new WordsKey("test2"),
 			},
 		];
 
 		Assert.True(WordsOperations.HaveSameKeys(keySets, out var conflicts));
 		Assert.Empty(conflicts);
 
-		keySets[1]["dictionary2.test3"] = new WordsKey("dictionary2.test3");
+		keySets[1]["test3"] = new WordsKey("test3");
 		Assert.False(WordsOperations.HaveSameKeys(keySets, out conflicts));
-		Assert.Contains("test3", conflicts);
+		Assert.Equal(["test3"], conflicts);
 	}
 
 	private static Dictionary<string, WordsKey> Keys(params string[] blockKeys)
@@ -239,6 +238,29 @@ public class WordsOperationsTests {
 		Assert.False(WordsOperations.TryMove(keys, "F.g.c", "F.h", out var collisions));
 		Assert.Equal(["F.h.c"], collisions);
 		Assert.True(keys.ContainsKey("F.g.c"));
+
+		//an empty parent is the top of the file
+		Assert.True(WordsOperations.TryMove(keys, "F.g.c", "", out _));
+		Assert.Equal(["F.h.c", "c"], keys.Keys.Order(StringComparer.Ordinal));
+	}
+
+	[Fact]
+	public void WordsOperations_RenameIntoAnotherStore_TakesTheKeysAcross_AndNeverOverwrites() {
+		// a drag from one file into another: the keys leave the one and join the other
+		var from = Keys("g.a", "g.a.tip", "g.b");
+		var to = Keys("h.x");
+
+		Assert.True(WordsOperations.TryRename(from, "g.a", to, "h.a", out _));
+		Assert.Equal(["g.b"], from.Keys);
+		Assert.Equal(["h.a", "h.a.tip", "h.x"], to.Keys.Order(StringComparer.Ordinal));
+		Assert.Equal("g.a.tip", to["h.a.tip"].DefaultValue); //the same object, renamed
+		Assert.Equal("h.a.tip", to["h.a.tip"].BlockKey);
+
+		//the same name in both is no collision until it lands on one
+		from = Keys("g.b", "h.x");
+		Assert.False(WordsOperations.TryRename(from, "h.x", to, "h.x", out var collisions));
+		Assert.Equal(["h.x"], collisions);
+		Assert.True(from.ContainsKey("h.x"));
 	}
 
 	[Fact]
@@ -330,17 +352,17 @@ public class WordsOperationsTests {
 	public void WordsOperations_AnEnumInputDescribesInTheLanguageItFormatsIn() {
 		// the member's words in the pane's language, or its name where it has none,
 		// and its tooltip through the template's letter
-		var latte = new WordsKey("A.enums.brew.latte") { DefaultValue = "Latte" };
+		var latte = new WordsKey("enums.brew.latte") { DefaultValue = "Latte" };
 		latte.Entries["it"] = new WordsEntry { Value = "Caffellatte" };
-		var tip = new WordsKey("A.enums.brew.latte.tooltip") { DefaultValue = "Milky" };
+		var tip = new WordsKey("enums.brew.latte.tooltip") { DefaultValue = "Milky" };
 		tip.Entries["it"] = new WordsEntry { Value = "Con latte" };
 		Dictionary<string, WordsKey> keys = new() { [latte.BlockKey] = latte, [tip.BlockKey] = tip };
 		var brew = WordsParameterType.Enum("enums.brew");
-		var english = new CulturedWords(new DefaultWordsProvider(keys, ["A"]), System.Globalization.CultureInfo.InvariantCulture);
-		var italian = new CulturedWords(new LanguageWordsProvider(keys, "it", ["A"]), System.Globalization.CultureInfo.GetCultureInfo("it"));
-		string Sample(IWords words, string input) => WordsOperations.FormatSample(words, "A.sample", WordsOperations.ReadInputs([("0", brew, input)]).Values);
-		keys["A.sample"] = new WordsKey("A.sample") { DefaultValue = "{0}: {0:T}" };
-		keys["A.sample"].Entries["it"] = new WordsEntry { Value = "{0}: {0:T}" };
+		var english = new CulturedWords(new DefaultWordsProvider(keys), System.Globalization.CultureInfo.InvariantCulture);
+		var italian = new CulturedWords(new LanguageWordsProvider(keys, "it"), System.Globalization.CultureInfo.GetCultureInfo("it"));
+		string Sample(IWords words, string input) => WordsOperations.FormatSample(words, "sample", WordsOperations.ReadInputs([("0", brew, input)]).Values);
+		keys["sample"] = new WordsKey("sample") { DefaultValue = "{0}: {0:T}" };
+		keys["sample"].Entries["it"] = new WordsEntry { Value = "{0}: {0:T}" };
 
 		Assert.Equal("Latte: Milky", Sample(english, "latte"));
 		Assert.Equal("Caffellatte: Con latte", Sample(italian, "latte"));
@@ -351,15 +373,12 @@ public class WordsOperationsTests {
 	public void WordsOperations_MembersUnderAPrefixAreTheKeysDirectlyUnderIt() {
 		// through every file, once each, in the files' order; a member's own slots
 		// lie deeper, and the prefix's own slots and constants are no members
-		Dictionary<string, WordsKey> keys = [];
-		foreach (string label in (string[])["A.brew", "A.brew.tooltip", "A.brew.$house", "A.brew.latte", "A.brew.latte.tooltip", "A.brew.mocha",
-				"B.brew.desc", "B.brew.sub", "B.brew.ristretto", "B.brew.latte", "B.other.cola"]) {
-			keys[label] = new WordsKey(label);
-		}
+		var a = Keys("brew", "brew.tooltip", "brew.$house", "brew.latte", "brew.latte.tooltip", "brew.mocha");
+		var b = Keys("brew.desc", "brew.sub", "brew.ristretto", "brew.latte", "other.cola");
 
-		Assert.Equal(["latte", "mocha", "ristretto"], WordsOperations.MembersUnder(keys, ["A", "B"], "brew"));
-		Assert.Equal(["ristretto", "latte"], WordsOperations.MembersUnder(keys, ["B"], "brew"));
-		Assert.Empty(WordsOperations.MembersUnder(keys, ["A", "B"], "nowhere"));
+		Assert.Equal(["latte", "mocha", "ristretto"], WordsOperations.MembersUnder([a, b], "brew"));
+		Assert.Equal(["ristretto", "latte"], WordsOperations.MembersUnder([b], "brew"));
+		Assert.Empty(WordsOperations.MembersUnder([a, b], "nowhere"));
 	}
 
 	[Fact]

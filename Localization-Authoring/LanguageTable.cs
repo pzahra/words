@@ -112,7 +112,7 @@ namespace PatTech.Localization.Authoring {
 
 		//the invariant: every key, every known language
 		private void Backfill() {
-			foreach (WordsKey key in session.Keys.Values) {
+			foreach (WordsKey key in session.AllKeys) {
 				foreach (LanguageEntry language in Known) {
 					key.Entries.TryAdd(language.Code, new WordsEntry());
 				}
@@ -346,7 +346,7 @@ namespace PatTech.Localization.Authoring {
 				}
 				else {
 					Known.Remove(known);
-					foreach (WordsKey key in session.Keys.Values) {
+					foreach (WordsKey key in session.AllKeys) {
 						key.Entries.Remove(code);
 					}
 				}
@@ -360,7 +360,7 @@ namespace PatTech.Localization.Authoring {
 
 		private bool Held(string code)
 			=> session.Files.Any(file => file.Languages.Contains(code))
-			|| session.Keys.Values.Any(key => key.Entries.TryGetValue(code, out WordsEntry? entry) && !entry.IsEmpty());
+			|| session.AllKeys.Any(key => key.Entries.TryGetValue(code, out WordsEntry? entry) && !entry.IsEmpty());
 
 		//the union's name for a language is a file's label for it, a listed one before
 		//one a library hides, so a dropdown names what a host offers; its exonym is the
@@ -396,7 +396,7 @@ namespace PatTech.Localization.Authoring {
 		//those files alone would
 		internal void Prune() {
 			HashSet<string> keep = [.. session.Files.SelectMany(file => file.Languages)];
-			foreach (WordsKey key in session.Keys.Values) {
+			foreach (WordsKey key in session.AllKeys) {
 				foreach (var (code, entry) in key.Entries) {
 					if (!entry.IsEmpty()) {
 						keep.Add(code);
@@ -408,7 +408,7 @@ namespace PatTech.Localization.Authoring {
 					continue;
 				}
 				Known.Remove(known);
-				foreach (WordsKey key in session.Keys.Values) {
+				foreach (WordsKey key in session.AllKeys) {
 					key.Entries.Remove(known.Code);
 				}
 			}

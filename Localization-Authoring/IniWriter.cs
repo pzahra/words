@@ -9,7 +9,12 @@ namespace PatTech.Localization.Authoring {
 	///     use any structure that answers the same three questions.
 	/// </summary>
 	public interface IKeyTreeNode {
-		/// <summary>The full dotted key this node stands for, e.g. <c>file.group.key</c>.</summary>
+		/// <summary>
+		///     The key this node stands for, by its name in its file, <c>group.key</c>;
+		///     the root's is empty. The writer reads a tree labelled so; an editor
+		///     whose tree prefixes its labels hands the session the tree as it is,
+		///     and the session relabels it (<see cref="KeyTree.Relabel"/>).
+		/// </summary>
 		string FullLabel { get; }
 		/// <summary>The nodes below this one, in write order.</summary>
 		IEnumerable<IKeyTreeNode> Children { get; }
@@ -238,9 +243,7 @@ namespace PatTech.Localization.Authoring {
 
 		private void StartBase(string blockKey) {
 			baseKey = blockKey;
-			// the header drops the leading file segment; only the base keeps it
-			// so the StartsWith chain check compares whole keys
-			WriteBlockHeader(blockKey[(blockKey.IndexOf('.') + 1)..]);
+			WriteBlockHeader(blockKey);
 		}
 
 		public void WritePair(string key, string value) {

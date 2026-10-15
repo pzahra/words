@@ -41,16 +41,16 @@ public class IniWriterTests {
 	public void IniWriter_ChainsBlocksUnderTheLastFullHeader() {
 		// a block whose key extends the previous base writes as [.suffix];
 		// a sibling that doesn't resets the base with a full header
-		var tree = new FakeNode("F",
-			new FakeNode("F.group",
-				new FakeNode("F.group.a",
-					new FakeNode("F.group.a.b"))),
-			new FakeNode("F.other"));
+		var tree = new FakeNode("",
+			new FakeNode("group",
+				new FakeNode("group.a",
+					new FakeNode("group.a.b"))),
+			new FakeNode("other"));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.group"] = new WordsKey("F.group") { DefaultValue = "G" },
-			["F.group.a"] = new WordsKey("F.group.a") { DefaultValue = "A" },
-			["F.group.a.b"] = new WordsKey("F.group.a.b") { DefaultValue = "B" },
-			["F.other"] = new WordsKey("F.other") { DefaultValue = "O" },
+			["group"] = new WordsKey("group") { DefaultValue = "G" },
+			["group.a"] = new WordsKey("group.a") { DefaultValue = "A" },
+			["group.a.b"] = new WordsKey("group.a.b") { DefaultValue = "B" },
+			["other"] = new WordsKey("other") { DefaultValue = "O" },
 		};
 
 		var ini = Write(tree, allKeys);
@@ -72,16 +72,16 @@ public class IniWriterTests {
 	public void IniWriter_CutStrategyWritesBareHeaderForKeylessBase() {
 		// cutting at a keyless group node emits a bare [group] header so its
 		// descendants shorten to [.suffix]; the bare header reloads as an empty key
-		var tree = new FakeNode("F",
-			new FakeNode("F.deep",
-				new FakeNode("F.deep.a"),
-				new FakeNode("F.deep.b")));
+		var tree = new FakeNode("",
+			new FakeNode("deep",
+				new FakeNode("deep.a"),
+				new FakeNode("deep.b")));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.deep.a"] = new WordsKey("F.deep.a") { DefaultValue = "A" },
-			["F.deep.b"] = new WordsKey("F.deep.b") { DefaultValue = "B" },
+			["deep.a"] = new WordsKey("deep.a") { DefaultValue = "A" },
+			["deep.b"] = new WordsKey("deep.b") { DefaultValue = "B" },
 		};
 
-		var ini = Write(tree, allKeys, new CutAt("F.deep"));
+		var ini = Write(tree, allKeys, new CutAt("deep"));
 
 		var lines = ini.Split(Environment.NewLine);
 		Assert.Contains("[deep]", lines);
@@ -99,15 +99,15 @@ public class IniWriterTests {
 		// the preamble tops the file; comment nodes write themselves wherever
 		// they stand in the walk (above full or dot-relative headers alike), and
 		// reload anchored to the block that follows them
-		var tree = new FakeNode("F",
+		var tree = new FakeNode("",
 			new FakeComment(" about group"),
-			new FakeNode("F.group",
+			new FakeNode("group",
 				new FakeComment(" about a\n second line"),
-				new FakeNode("F.group.a")),
+				new FakeNode("group.a")),
 			new FakeComment(" the trailer"));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.group"] = new WordsKey("F.group") { DefaultValue = "G" },
-			["F.group.a"] = new WordsKey("F.group.a") { DefaultValue = "A" },
+			["group"] = new WordsKey("group") { DefaultValue = "G" },
+			["group.a"] = new WordsKey("group.a") { DefaultValue = "A" },
 		};
 		List<LanguageEntry> languages = [new LanguageEntry("en", "English")];
 
@@ -136,9 +136,9 @@ public class IniWriterTests {
 		// the settings-file references write as keyless param fields in the
 		// language section and come back through the provider's Settings and
 		// LanguageSettings — never as keys, never as languages
-		var tree = new FakeNode("F", new FakeNode("F.k"));
+		var tree = new FakeNode("", new FakeNode("k"));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.k"] = new WordsKey("F.k") { DefaultValue = "V" },
+			["k"] = new WordsKey("k") { DefaultValue = "V" },
 		};
 		List<LanguageEntry> languages = [new LanguageEntry("en", "English")];
 		var perLanguage = new Dictionary<string, string> { ["de"] = "wordsmith-de.ini", ["fr"] = "" };
@@ -166,9 +166,9 @@ public class IniWriterTests {
 	public void IniWriter_SettingsReferences_SaveLoadSaveStable() {
 		// the second save matches the first byte for byte: capture order is
 		// preserved, so the param lines come back in the same shape
-		var tree = new FakeNode("F", new FakeNode("F.k"));
+		var tree = new FakeNode("", new FakeNode("k"));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.k"] = new WordsKey("F.k") { DefaultValue = "V" },
+			["k"] = new WordsKey("k") { DefaultValue = "V" },
 		};
 		List<LanguageEntry> languages = [new LanguageEntry("en", "English")];
 		var perLanguage = new Dictionary<string, string> { ["de"] = "wordsmith-de.ini", ["fr"] = "fr/wordsmith.ini" };
@@ -180,8 +180,8 @@ public class IniWriterTests {
 		WordsParserToLocalizationProvider consumer = new();
 		new WordsParser(consumer).Load(new StringReader(firstSave));
 		var reloadedKeys = consumer.WordKeys.ToDictionary(
-			pair => "F." + pair.Key,
-			pair => new WordsKey(pair.Value) { BlockKey = "F." + pair.Value.BlockKey });
+			pair => pair.Key,
+			pair => new WordsKey(pair.Value));
 
 		var secondOut = new StringWriter();
 		IniWriter.WriteFile(tree, secondOut, reloadedKeys, [.. consumer.KnownLanguages.Values],
@@ -194,14 +194,14 @@ public class IniWriterTests {
 	public void IniWriter_CutStrategyCannotBreakTheChain() {
 		// a strategy that never cuts where it should still yields a correct file:
 		// blocks outside the current base always force a full header
-		var tree = new FakeNode("F",
-			new FakeNode("F.one",
-				new FakeNode("F.one.a")),
-			new FakeNode("F.two",
-				new FakeNode("F.two.a")));
+		var tree = new FakeNode("",
+			new FakeNode("one",
+				new FakeNode("one.a")),
+			new FakeNode("two",
+				new FakeNode("two.a")));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.one.a"] = new WordsKey("F.one.a") { DefaultValue = "1A" },
-			["F.two.a"] = new WordsKey("F.two.a") { DefaultValue = "2A" },
+			["one.a"] = new WordsKey("one.a") { DefaultValue = "1A" },
+			["two.a"] = new WordsKey("two.a") { DefaultValue = "2A" },
 		};
 
 		var ini = Write(tree, allKeys, IniWriter.NeverCuts);
@@ -215,13 +215,13 @@ public class IniWriterTests {
 	public void GroupCuts_IsTheDefault_CutsKeylessGroupsWithEnoughKeys() {
 		// no strategy passed: a keyless group gathering two keyed blocks gets a
 		// bare header and its children shorten to [.suffix]
-		var tree = new FakeNode("F",
-			new FakeNode("F.deep",
-				new FakeNode("F.deep.a"),
-				new FakeNode("F.deep.b")));
+		var tree = new FakeNode("",
+			new FakeNode("deep",
+				new FakeNode("deep.a"),
+				new FakeNode("deep.b")));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.deep.a"] = new WordsKey("F.deep.a") { DefaultValue = "A" },
-			["F.deep.b"] = new WordsKey("F.deep.b") { DefaultValue = "B" },
+			["deep.a"] = new WordsKey("deep.a") { DefaultValue = "A" },
+			["deep.b"] = new WordsKey("deep.b") { DefaultValue = "B" },
 		};
 
 		var ini = Write(tree, allKeys);
@@ -236,11 +236,11 @@ public class IniWriterTests {
 	public void GroupCuts_OneKeyedDescendant_KeepsItsFullHeader() {
 		// a single block doesn't pay for the bare header (which would reload as
 		// an extra empty key)
-		var tree = new FakeNode("F",
-			new FakeNode("F.deep",
-				new FakeNode("F.deep.only")));
+		var tree = new FakeNode("",
+			new FakeNode("deep",
+				new FakeNode("deep.only")));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.deep.only"] = new WordsKey("F.deep.only") { DefaultValue = "O" },
+			["deep.only"] = new WordsKey("deep.only") { DefaultValue = "O" },
 		};
 
 		var ini = Write(tree, allKeys);
@@ -254,14 +254,14 @@ public class IniWriterTests {
 	public void GroupCuts_KeyedGroups_NeverCut() {
 		// a keyed group re-bases the chain with its own header; forcing a cut
 		// there would gain nothing
-		var tree = new FakeNode("F",
-			new FakeNode("F.group",
-				new FakeNode("F.group.a"),
-				new FakeNode("F.group.b")));
+		var tree = new FakeNode("",
+			new FakeNode("group",
+				new FakeNode("group.a"),
+				new FakeNode("group.b")));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.group"] = new WordsKey("F.group") { DefaultValue = "G" },
-			["F.group.a"] = new WordsKey("F.group.a") { DefaultValue = "A" },
-			["F.group.b"] = new WordsKey("F.group.b") { DefaultValue = "B" },
+			["group"] = new WordsKey("group") { DefaultValue = "G" },
+			["group.a"] = new WordsKey("group.a") { DefaultValue = "A" },
+			["group.b"] = new WordsKey("group.b") { DefaultValue = "B" },
 		};
 
 		Assert.False(new GroupCuts(allKeys).Cuts(tree.Children.First(), 0));
@@ -274,14 +274,14 @@ public class IniWriterTests {
 	public void GroupCuts_KeysBeyondADeeperCut_DontCountForTheOuterGroup() {
 		// all keys sit under the inner group, which cuts and re-bases; a bare
 		// header on the outer group would shorten nothing
-		var tree = new FakeNode("F",
-			new FakeNode("F.outer",
-				new FakeNode("F.outer.inner",
-					new FakeNode("F.outer.inner.x"),
-					new FakeNode("F.outer.inner.y"))));
+		var tree = new FakeNode("",
+			new FakeNode("outer",
+				new FakeNode("outer.inner",
+					new FakeNode("outer.inner.x"),
+					new FakeNode("outer.inner.y"))));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.outer.inner.x"] = new WordsKey("F.outer.inner.x") { DefaultValue = "X" },
-			["F.outer.inner.y"] = new WordsKey("F.outer.inner.y") { DefaultValue = "Y" },
+			["outer.inner.x"] = new WordsKey("outer.inner.x") { DefaultValue = "X" },
+			["outer.inner.y"] = new WordsKey("outer.inner.y") { DefaultValue = "Y" },
 		};
 
 		var ini = Write(tree, allKeys);
@@ -298,21 +298,21 @@ public class IniWriterTests {
 		// the bare header reloads as an empty key, and that empty key writes
 		// back as the same bare header — the second save matches the first byte
 		// for byte
-		var tree = new FakeNode("F",
-			new FakeNode("F.deep",
-				new FakeNode("F.deep.a"),
-				new FakeNode("F.deep.b")));
+		var tree = new FakeNode("",
+			new FakeNode("deep",
+				new FakeNode("deep.a"),
+				new FakeNode("deep.b")));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.deep.a"] = new WordsKey("F.deep.a") { DefaultValue = "A" },
-			["F.deep.b"] = new WordsKey("F.deep.b") { DefaultValue = "B" },
+			["deep.a"] = new WordsKey("deep.a") { DefaultValue = "A" },
+			["deep.b"] = new WordsKey("deep.b") { DefaultValue = "B" },
 		};
 
 		var firstSave = Write(tree, allKeys);
 
 		Dictionary<string, WordsKey> reloaded = Reload(firstSave).ToDictionary(
-			pair => "F." + pair.Key,
-			pair => new WordsKey(pair.Value) { BlockKey = "F." + pair.Value.BlockKey });
-		Assert.Equal("", reloaded["F.deep"].DefaultValue);
+			pair => pair.Key,
+			pair => new WordsKey(pair.Value));
+		Assert.Equal("", reloaded["deep"].DefaultValue);
 		var secondSave = Write(tree, reloaded);
 
 		Assert.Equal(firstSave, secondSave);
@@ -322,14 +322,14 @@ public class IniWriterTests {
 	public void IniWriter_BackslashValuesRoundTrip() {
 		// internal, UNC-doubled and trailing backslashes all survive: the writer
 		// escapes each `\` as `\\`, the parser collapses it back
-		var tree = new FakeNode("F",
-			new FakeNode("F.path"),
-			new FakeNode("F.unc"),
-			new FakeNode("F.trailing"));
+		var tree = new FakeNode("",
+			new FakeNode("path"),
+			new FakeNode("unc"),
+			new FakeNode("trailing"));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.path"] = new WordsKey("F.path") { DefaultValue = @"C:\net\share" },
-			["F.unc"] = new WordsKey("F.unc") { DefaultValue = @"\\server\share\" },
-			["F.trailing"] = new WordsKey("F.trailing") { DefaultValue = @"one\" },
+			["path"] = new WordsKey("path") { DefaultValue = @"C:\net\share" },
+			["unc"] = new WordsKey("unc") { DefaultValue = @"\\server\share\" },
+			["trailing"] = new WordsKey("trailing") { DefaultValue = @"one\" },
 		};
 
 		var reloaded = Reload(Write(tree, allKeys));
@@ -352,9 +352,9 @@ public class IniWriterTests {
 		var parameter = Assert.Single(reloaded["k"].Parameters);
 		Assert.Equal((type, description), (parameter.DataType.ToString(), parameter.Description));
 
-		var key = new WordsKey("F.k") { DefaultValue = "x" };
+		var key = new WordsKey("k") { DefaultValue = "x" };
 		key.Parameters.Add(parameter);
-		var output = Write(new FakeNode("F", new FakeNode("F.k")), new() { ["F.k"] = key });
+		var output = Write(new FakeNode("", new FakeNode("k")), new() { ["k"] = key });
 
 		Assert.Contains($"\nparam-0={written}\n", output.ReplaceLineEndings("\n"));
 		var again = Assert.Single(Reload(output)["k"].Parameters);
@@ -365,9 +365,9 @@ public class IniWriterTests {
 	public void IniWriter_TerminalBackslashInContextDoesNotSwallowTheNextField() {
 		// a context ending in a literal backslash used to write as a naked
 		// continuation and eat the following `value=` line whole
-		var tree = new FakeNode("F", new FakeNode("F.k"));
+		var tree = new FakeNode("", new FakeNode("k"));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.k"] = new WordsKey("F.k") { Context = @"see path\", DefaultValue = "V" },
+			["k"] = new WordsKey("k") { Context = @"see path\", DefaultValue = "V" },
 		};
 
 		var reloaded = Reload(Write(tree, allKeys));
@@ -380,10 +380,10 @@ public class IniWriterTests {
 	public void IniWriter_BackslashAndNewlineValue_RoundTripsWithoutBreakingTheFile() {
 		// a multi-line, backslash-laden value ending in a backslash, whose second
 		// line even looks like a header, reloads intact and the next block survives
-		var tree = new FakeNode("F", new FakeNode("F.k"), new FakeNode("F.after"));
+		var tree = new FakeNode("", new FakeNode("k"), new FakeNode("after"));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.k"] = new WordsKey("F.k") { DefaultValue = "C:\\one\n[two]\\" },
-			["F.after"] = new WordsKey("F.after") { DefaultValue = "after" },
+			["k"] = new WordsKey("k") { DefaultValue = "C:\\one\n[two]\\" },
+			["after"] = new WordsKey("after") { DefaultValue = "after" },
 		};
 
 		var reloaded = Reload(Write(tree, allKeys));
@@ -398,10 +398,10 @@ public class IniWriterTests {
 		// ending in one: the soft wrap must not fall right after a `\`, which
 		// would strand half of an escaped pair and end the line prematurely
 		var value = @"C:\" + new string('x', 60) + @"\a\b\c\d\e\f\g\h\i\j\";
-		var tree = new FakeNode("F", new FakeNode("F.k"), new FakeNode("F.after"));
+		var tree = new FakeNode("", new FakeNode("k"), new FakeNode("after"));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.k"] = new WordsKey("F.k") { DefaultValue = value },
-			["F.after"] = new WordsKey("F.after") { DefaultValue = "after" },
+			["k"] = new WordsKey("k") { DefaultValue = value },
+			["after"] = new WordsKey("after") { DefaultValue = "after" },
 		};
 
 		var reloaded = Reload(Write(tree, allKeys));
@@ -413,15 +413,15 @@ public class IniWriterTests {
 	[Fact]
 	public void IniWriter_BackslashValues_SaveLoadSaveStable() {
 		// the second save matches the first byte for byte once backslashes are in
-		var tree = new FakeNode("F", new FakeNode("F.k"));
+		var tree = new FakeNode("", new FakeNode("k"));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.k"] = new WordsKey("F.k") { DefaultValue = @"a\b\" },
+			["k"] = new WordsKey("k") { DefaultValue = @"a\b\" },
 		};
 
 		var firstSave = Write(tree, allKeys);
 		Dictionary<string, WordsKey> reloaded = Reload(firstSave).ToDictionary(
-			pair => "F." + pair.Key,
-			pair => new WordsKey(pair.Value) { BlockKey = "F." + pair.Value.BlockKey });
+			pair => pair.Key,
+			pair => new WordsKey(pair.Value));
 		var secondSave = Write(tree, reloaded);
 
 		Assert.Equal(firstSave, secondSave);
@@ -433,10 +433,10 @@ public class IniWriterTests {
 		// chars a wrap could fall inside; a long, spaceless, apostrophe-laden
 		// value must round-trip whole
 		var value = new string('x', 70) + "'a'b'c'd'e'f'g'h'i'j'k";
-		var tree = new FakeNode("F", new FakeNode("F.k"), new FakeNode("F.after"));
+		var tree = new FakeNode("", new FakeNode("k"), new FakeNode("after"));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.k"] = new WordsKey("F.k") { DefaultValue = value },
-			["F.after"] = new WordsKey("F.after") { DefaultValue = "after" },
+			["k"] = new WordsKey("k") { DefaultValue = value },
+			["after"] = new WordsKey("after") { DefaultValue = "after" },
 		};
 
 		var reloaded = Reload(Write(tree, allKeys));
@@ -451,10 +451,10 @@ public class IniWriterTests {
 		// before the second half of a pair, so a long value packed with them
 		// (and long enough to wrap at its spaces) round-trips
 		var value = new string('a', 55) + " middle_word_here_" + new string('b', 55) + " tail_";
-		var tree = new FakeNode("F", new FakeNode("F.k"), new FakeNode("F.after"));
+		var tree = new FakeNode("", new FakeNode("k"), new FakeNode("after"));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.k"] = new WordsKey("F.k") { DefaultValue = value },
-			["F.after"] = new WordsKey("F.after") { DefaultValue = "after" },
+			["k"] = new WordsKey("k") { DefaultValue = value },
+			["after"] = new WordsKey("after") { DefaultValue = "after" },
 		};
 
 		var reloaded = Reload(Write(tree, allKeys));
@@ -472,8 +472,8 @@ public class IniWriterTests {
 		// apostrophe sends it colouring the rest of the file as a string. So the
 		// guard is on the bytes written: every value-bearing line carries an even
 		// number of apostrophes, never a stray one.
-		var tree = new FakeNode("F", new FakeNode("F.k"));
-		var key = new WordsKey("F.k") {
+		var tree = new FakeNode("", new FakeNode("k"));
+		var key = new WordsKey("k") {
 			DefaultValue = "don't stop",
 			Context = "the user's account",
 			Comment = "O'Brien's note",
@@ -483,7 +483,7 @@ public class IniWriterTests {
 			Context = "l'contesto",
 			Comment = "l'commento",
 		};
-		Dictionary<string, WordsKey> allKeys = new() { ["F.k"] = key };
+		Dictionary<string, WordsKey> allKeys = new() { ["k"] = key };
 
 		var ini = Write(tree, allKeys);
 
@@ -513,9 +513,9 @@ public class IniWriterTests {
 		// The one place apostrophes stay single: `;` comment lines. The parser hands
 		// comment text back raw (no unescape), so doubling here would corrupt the
 		// comment on reload. A standalone comment node marks that boundary.
-		var tree = new FakeNode("F", new FakeComment("don't double me"), new FakeNode("F.k"));
+		var tree = new FakeNode("", new FakeComment("don't double me"), new FakeNode("k"));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.k"] = new WordsKey("F.k") { DefaultValue = "v" },
+			["k"] = new WordsKey("k") { DefaultValue = "v" },
 		};
 
 		var ini = Write(tree, allKeys);
@@ -586,8 +586,8 @@ public class IniWriterTests {
 
 		Assert.Contains("😀", written);
 		new UTF8Encoding(false, throwOnInvalidBytes: true).GetBytes(written); //throws on a stranded half
-		var tree = new FakeNode("F", new FakeNode("F.k"));
-		Assert.Equal(value, Reload(Write(tree, new() { ["F.k"] = new WordsKey("F.k") { DefaultValue = value } }))["k"].DefaultValue);
+		var tree = new FakeNode("", new FakeNode("k"));
+		Assert.Equal(value, Reload(Write(tree, new() { ["k"] = new WordsKey("k") { DefaultValue = value } }))["k"].DefaultValue);
 	}
 
 	[Fact]
@@ -656,19 +656,19 @@ public class IniWriterTests {
 
 	[Fact]
 	public void GroupCuts_SnapshotsTheKeySet_LaterDictChangesDoNotDesyncIt() {
-		var tree = new FakeNode("F",
-			new FakeNode("F.deep",
-				new FakeNode("F.deep.a"),
-				new FakeNode("F.deep.b")));
+		var tree = new FakeNode("",
+			new FakeNode("deep",
+				new FakeNode("deep.a"),
+				new FakeNode("deep.b")));
 		Dictionary<string, WordsKey> allKeys = new() {
-			["F.deep.a"] = new WordsKey("F.deep.a") { DefaultValue = "A" },
-			["F.deep.b"] = new WordsKey("F.deep.b") { DefaultValue = "B" },
+			["deep.a"] = new WordsKey("deep.a") { DefaultValue = "A" },
+			["deep.b"] = new WordsKey("deep.b") { DefaultValue = "B" },
 		};
 		var cuts = new GroupCuts(allKeys);
 
 		// mutating the dictionary the strategy was built from must not change its
 		// decisions: it snapshotted the key set at construction
-		allKeys["F.deep"] = new WordsKey("F.deep") { DefaultValue = "now keyed" };
+		allKeys["deep"] = new WordsKey("deep") { DefaultValue = "now keyed" };
 
 		// F.deep is still seen as keyless (as it was at construction), so it cuts
 		Assert.True(cuts.Cuts(tree.Children.First(), 0));

@@ -11,7 +11,7 @@ public class KeyTreeTests {
 	[Fact]
 	public void Build_NestsDottedKeysInOrderOfFirstAppearance() {
 		var tree = KeyTree.Build("F",
-			[Key("F.view.section.key"), Key("F.view.section.key.tip"), Key("F.$unit"), Key("F.main"), Key("F.main.title"), Key("F.view.other")],
+			[Key("view.section.key"), Key("view.section.key.tip"), Key("$unit"), Key("main"), Key("main.title"), Key("view.other")],
 			new Dictionary<string, string>());
 
 		Assert.True(tree.IsFile);
@@ -25,14 +25,31 @@ public class KeyTreeTests {
 		Assert.Equal("F.$unit", tree.Children[1].FullLabel); //the marker stays in the key, not the label
 	}
 
+	//a file's own tree labels each node by its path in the file, and its root by nothing
+	[Fact]
+	public void Build_FromAFile_LabelsEachNodeByItsPath() {
+		var session = new WordsSession();
+		WordsFile file = session.Load(new StringReader("[view.key]\nvalue=V\n\n[$unit]\nvalue=m\n\n; bye\n"), "F");
+
+		KeyTreeNode tree = KeyTree.Build(file);
+
+		Assert.Equal("", tree.FullLabel);
+		Assert.Equal("view", tree.Children[0].FullLabel);
+		Assert.Equal("view.key", tree.Children[0].Children[0].FullLabel);
+		Assert.Equal("$unit", tree.Children[1].FullLabel);
+		Assert.Equal(";trailer", tree.Children[2].FullLabel);
+		Assert.Equal("F.view.key", KeyTree.Build(session, file).Children[0].Children[0].FullLabel); //the editor's, prefixed
+		Assert.Equal("view.key", KeyTree.PathOf(KeyTree.Build(session, file), KeyTree.Build(session, file).Children[0].Children[0]));
+	}
+
 	[Fact]
 	public void Build_AnchorsCommentsInFrontOfTheirBlockAndClosesWithTheTrailer() {
 		var comments = new Dictionary<string, string> {
-			["F.main.title"] = " a banner",
-			["F.empty"] = " above a block that had nothing in it",
+			["main.title"] = " a banner",
+			["empty"] = " above a block that had nothing in it",
 		};
 
-		var tree = KeyTree.Build("F", [Key("F.main.title"), Key("F.main.body")], comments, " the trailer");
+		var tree = KeyTree.Build("F", [Key("main.title"), Key("main.body")], comments, " the trailer");
 
 		KeyTreeNode main = tree.Children[0];
 		var banner = Assert.IsType<CommentTreeNode>(main.Children[0]);
@@ -72,7 +89,7 @@ public class KeyTreeTests {
 
 	[Fact]
 	public void Relabel_CopiesTheShapeUnderANewPrefixCommentsIncluded() {
-		var tree = KeyTree.Build("F", [Key("F.g.k"), Key("F.$c")], new Dictionary<string, string> { ["F.g.k"] = " note" }, " end");
+		var tree = KeyTree.Build("F", [Key("g.k"), Key("$c")], new Dictionary<string, string> { ["g.k"] = " note" }, " end");
 
 		KeyTreeNode copy = KeyTree.Relabel(tree, "M");
 
@@ -86,5 +103,11 @@ public class KeyTreeTests {
 		Assert.Equal("c", copy.Children[1].Label);
 		Assert.Equal("M.;trailer", copy.Children[2].FullLabel);
 		Assert.NotSame(tree.Children[0], copy.Children[0]);
+
+		//and under no label at all: each node by its path, what the writer reads
+		KeyTreeNode bare = KeyTree.Relabel(tree, "");
+		Assert.Equal("", bare.FullLabel);
+		Assert.Equal("g.k", bare.Children[0].Children[1].FullLabel);
+		Assert.Equal(";trailer", bare.Children[2].FullLabel);
 	}
 }

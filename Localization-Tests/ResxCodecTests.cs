@@ -259,7 +259,7 @@ value=Open
 			WordsFile again = session.Import(codec, codec.Discover(Path.Combine(outFolder, "Strings.resx")));
 			Assert.Empty(again.Errors); //the writer emits only what the reader takes
 			foreach (WordsKey before in session.KeysOf(imported)) {
-				WordsKey after = session.Keys[again.Label + before.BlockKey[imported.Label.Length..]];
+				WordsKey after = again.Keys[before.BlockKey]; //each file holds its own keys, by name
 				Assert.Equal(before.DefaultValue, after.DefaultValue);
 				Assert.Equal(before.Context, after.Context);
 				Assert.Equal(before.IsConstant, after.IsConstant);

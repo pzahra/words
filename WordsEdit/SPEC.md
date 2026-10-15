@@ -1869,6 +1869,13 @@ its file and its own name.
 **Order.** Authoring first: the files' stores, the session's calls taking a
 file, the stacked provider, the writer, the codecs, merge and split, with a
 shim that reads a prefixed label as a file and a key, so the editor builds
-unchanged. Then the editor: the roots, the undo entries and the navigation
-history move to a file and a path, *New*'s renames stop emptying the
-histories, and the tests name keys by file. Then the shim goes.
+unchanged (built). Each `WordsFile` holds its keys by name (`Keys`), a key's
+`BlockKey` is its name, and the writer, the exporters and the command line's
+patcher write it with nothing to strip. The shim is the session's `Keys`, its
+calls taking a label, `KeyTree.Build(session, file)`, `Provider(fileLabels)`,
+`FilesOf` and `LabelOf`. The editor read a key's label off the key in a
+dozen places; those now read the node's label, or `LabelOf`, and the two
+entries that keep removed keys keep each one's label. Then the editor: the
+roots, the undo entries and the navigation history move to a file and a path,
+*New*'s renames stop emptying the histories, and the tests name keys by file.
+Then the shim goes.

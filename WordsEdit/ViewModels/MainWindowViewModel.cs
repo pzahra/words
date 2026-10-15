@@ -650,7 +650,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			if (!Session.Keys.TryGetValue(node.FullLabel, out WordsKey? key)) {
 				return null;
 			}
-			var removed = new KeyRemoved(key);
+			var removed = new KeyRemoved(node.FullLabel, key);
 			Session.RemoveKey(node.FullLabel);
 			Tree.FollowSelectedKey();
 			Tree.RefreshBadges(node);
@@ -665,7 +665,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 		Perform(() => {
 			string stamp = DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture);
-			var edit = new StaleAllEdit(key.BlockKey, key.Entries.ToDictionary(pair => pair.Key, pair => pair.Value.Stale), stamp);
+			var edit = new StaleAllEdit(node.FullLabel, key.Entries.ToDictionary(pair => pair.Key, pair => pair.Value.Stale), stamp);
 			foreach (WordsEntry entry in key.Entries.Values) {
 				entry.Stale = stamp;
 			}
@@ -683,7 +683,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			string? before = entry.Stale;
 			entry.Stale = before is null ? DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture) : null;
 			Tree.RefreshBadges(node);
-			return new StaleEdit(key.BlockKey, languageCode, before, entry.Stale);
+			return new StaleEdit(node.FullLabel, languageCode, before, entry.Stale);
 		});
 	}
 
@@ -694,7 +694,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Perform(() => {
 			key.NeedsReview = !key.NeedsReview;
 			Tree.RefreshBadges(node);
-			return new ReviewEdit(key.BlockKey, key.NeedsReview);
+			return new ReviewEdit(node.FullLabel, key.NeedsReview);
 		});
 	}
 
@@ -713,7 +713,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			clearEntries = true;
 		}
 		Perform(() => {
-			string label = key.BlockKey;
+			string label = node.FullLabel;
 			IReadOnlyDictionary<string, WordsEntry>? cleared = clearEntries ? key.CopyEntries() : null;
 			string? newKey = Session.SetConstant(label, makeConstant, clearEntries);
 			if (newKey is null) {
@@ -900,7 +900,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		string text;
 		using (Gripes.Listen(gripes)) {
 			IWordsProvider provider = PaneProvider(key, languageCode, forms);
-			text = Words.RenderKey(provider, key.BlockKey);
+			text = Words.RenderKey(provider, Session.LabelOf(key));
 			List<string> complaints = [];
 			try {
 				text = Fill(key, provider, forms, WordsOperations.CultureFor(cultureCode), complaints) ?? text;
@@ -916,7 +916,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	//the words a pane reads: every loaded file in tree order, the pane's form read as the key
 	private IWordsProvider PaneProvider(WordsKey key, string? languageCode, FormPane forms) {
 		IWordsProvider provider = Session.Provider(Tree.FileLabels, languageCode);
-		return forms.IsPlain ? provider : new FormAsKey(provider, key.BlockKey, Words.FormKey(provider, forms.Language, key.BlockKey, forms.Form));
+		return forms.IsPlain ? provider : new FormAsKey(provider, Session.LabelOf(key), Words.FormKey(provider, forms.Language, Session.LabelOf(key), forms.Form));
 	}
 
 	//the key's words in a pane filled with its inputs, as an app's Format fills them, an
@@ -937,7 +937,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		List<string> heard = [];
 		try {
 			using (Gripes.Listen(heard)) {
-				return WordsOperations.FormatSample(words, key.BlockKey, values, culture);
+				return WordsOperations.FormatSample(words, Session.LabelOf(key), values, culture);
 			}
 		}
 		finally {

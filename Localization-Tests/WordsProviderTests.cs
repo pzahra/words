@@ -5,28 +5,32 @@ using Xunit;
 namespace PatTech.Localization.Tests;
 public class WordsProviderTests {
 
-	// two loaded files: bare references must resolve across both,
-	// with the later-loaded file winning, like a host app stacking dictionaries
-	private static Dictionary<string, WordsKey> TwoFiles() => new() {
-		["A.msg"] = new WordsKey("A.msg") { DefaultValue = "see {>other.key} at {$unit}" },
-		["A.shared"] = new WordsKey("A.shared") { DefaultValue = "from A" },
-		["B.shared"] = new WordsKey("B.shared") { DefaultValue = "from B" },
-		["B.other.key"] = new WordsKey("B.other.key") { DefaultValue = "yonder" },
-		["B.$unit"] = new WordsKey("B.$unit") { DefaultValue = "m2·K/W", IsConstant = true },
+	// two loaded files, each its own keys by name: a key and a reference resolve
+	// across both, the later file winning, like a host app stacking dictionaries
+	private static Dictionary<string, WordsKey> FileA() => new() {
+		["msg"] = new WordsKey("msg") { DefaultValue = "see {>other.key} at {$unit}" },
+		["shared"] = new WordsKey("shared") { DefaultValue = "from A" },
+	};
+
+	private static Dictionary<string, WordsKey> FileB() => new() {
+		["shared"] = new WordsKey("shared") { DefaultValue = "from B" },
+		["other.key"] = new WordsKey("other.key") { DefaultValue = "yonder" },
+		["$unit"] = new WordsKey("$unit") { DefaultValue = "m2·K/W", IsConstant = true },
 	};
 
 	[Fact]
-	public void DefaultWordsProvider_ResolvesBareKeysAcrossFiles() {
-		var provider = new DefaultWordsProvider(TwoFiles(), ["A", "B"]);
+	public void DefaultWordsProvider_ResolvesKeysAcrossFiles_TheLaterWinning() {
+		var provider = new DefaultWordsProvider([FileA(), FileB()]);
 
-		Assert.True(provider.TryGetValue("A.msg", out var exact));
-		Assert.Equal("see {>other.key} at {$unit}", exact);
+		Assert.True(provider.TryGetValue("msg", out var own));
+		Assert.Equal("see {>other.key} at {$unit}", own);
 
 		Assert.True(provider.TryGetValue("other.key", out var cross));
 		Assert.Equal("yonder", cross);
 
 		Assert.True(provider.TryGetValue("shared", out var shared));
 		Assert.Equal("from B", shared);
+		Assert.Equal("from A", new DefaultWordsProvider([FileB(), FileA()])["shared"]);
 
 		Assert.True(provider.ContainsKey("$unit"));
 		Assert.False(provider.TryGetValue("missing", out _));
@@ -34,27 +38,27 @@ public class WordsProviderTests {
 
 	[Fact]
 	public void WordsRenderKey_ResolvesReferencesAndConstantsAcrossFiles() {
-		var provider = new DefaultWordsProvider(TwoFiles(), ["A", "B"]);
+		var provider = new DefaultWordsProvider([FileA(), FileB()]);
 
-		Assert.Equal("see yonder at m2·K/W", Words.RenderKey(provider, "A.msg"));
+		Assert.Equal("see yonder at m2·K/W", Words.RenderKey(provider, "msg"));
 	}
 
 	[Fact]
 	public void LanguageWordsProvider_FallsBackFamilyThenDefault() {
 		Dictionary<string, WordsKey> keys = new() {
-			["A.k"] = new WordsKey("A.k") {
+			["k"] = new WordsKey("k") {
 				DefaultValue = "default",
 				Entries = {
 					{ "en", new WordsEntry { Value = "family" } },
 					{ "en-GB", new WordsEntry() },
 				},
 			},
-			["A.d"] = new WordsKey("A.d") {
+			["d"] = new WordsKey("d") {
 				DefaultValue = "default only",
 				Entries = { { "en", new WordsEntry() } },
 			},
 		};
-		var provider = new LanguageWordsProvider(keys, "en-GB", ["A"]);
+		var provider = new LanguageWordsProvider(keys, "en-GB");
 
 		Assert.True(provider.TryGetValue("k", out var familyValue));
 		Assert.Equal("family", familyValue);
@@ -65,10 +69,10 @@ public class WordsProviderTests {
 
 	[Fact]
 	public void WordsProviderBase_IndexerResolvesKeysAndThrowsForMissing() {
-		var provider = new DefaultWordsProvider(TwoFiles(), ["A", "B"]);
+		var provider = new DefaultWordsProvider([FileA(), FileB()]);
 
-		// exact (already-prefixed) and bare cross-file keys both resolve
-		Assert.Equal("from A", provider["A.shared"]);
+		// a key in either file resolves
+		Assert.Equal("see {>other.key} at {$unit}", provider["msg"]);
 		Assert.Equal("yonder", provider["other.key"]);
 
 		// a missing key throws KeyNotFoundException, never NotImplementedException

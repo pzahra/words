@@ -224,7 +224,7 @@ public class TreeViewModel : ViewModelBase {
 	//the raw text a count in the form reads, as the runtime picks it (Words.FormKey)
 	private string? Reads(string? languageCode, string rules, WordsKey key, string form) {
 		IWordsProvider provider = session.Provider(FileLabels, languageCode);
-		return provider.TryGetValue(Words.FormKey(provider, rules, key.BlockKey, form), out string? text) && text != "" ? text : null;
+		return provider.TryGetValue(Words.FormKey(provider, rules, session.LabelOf(key), form), out string? text) && text != "" ? text : null;
 	}
 
 	/// <summary>Picks the baseline's form.</summary>

@@ -69,17 +69,17 @@ public class KeptStateTests {
 
 	[Fact]
 	public void AKeptKey_IsRestoredAsItWas_AndTheCopyStaysKept() {
-		var (session, _) = Load();
-		List<WordsKey> kept = [.. session.KeysUnder("Main.k").Select(key => new WordsKey(key))];
-		Assert.Equal(["Main.k", "Main.k.sub"], kept.Select(key => key.BlockKey));
-		Assert.Empty(session.KeysUnder("Main.k.s")); //a segment whole, never a prefix of one
+		var (session, file) = Load();
+		List<WordsKey> kept = [.. session.KeysUnder(file, "k").Select(key => new WordsKey(key))];
+		Assert.Equal(["k", "k.sub"], kept.Select(key => key.BlockKey));
+		Assert.Empty(session.KeysUnder(file, "k.s")); //a segment whole, never a prefix of one
 
-		Assert.Equal(2, session.RemoveKeysUnder("Main.k"));
+		Assert.Equal(2, session.RemoveKeysUnder(file, "k"));
 		foreach (WordsKey key in kept) {
-			session.Restore(key);
+			session.Restore(file, key);
 		}
 
-		WordsKey sub = session.Keys["Main.k.sub"];
+		WordsKey sub = file.Keys["k.sub"];
 		Assert.Equal(("y", "ys", "yy", "then"), (sub.DefaultValue, sub.Forms["other"], sub.Entries["de"].Value, sub.Entries["de"].Stale));
 		Assert.Equal("a count", Assert.Single(sub.Parameters).Description);
 		sub.Entries["de"].Value = "changed";

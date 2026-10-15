@@ -16,16 +16,16 @@ public class ParameterUseTests {
 	}
 
 	private static FoundParameters InDefault(Dictionary<string, WordsKey> keys, string key, string? language = null)
-		=> ParameterUse.InDefault(keys[key], new DefaultWordsProvider(keys, []), language);
+		=> ParameterUse.InDefault(keys[key], new DefaultWordsProvider(keys), language);
 
 	private static FoundParameters InLanguage(Dictionary<string, WordsKey> keys, string key, string code)
-		=> ParameterUse.InLanguage(keys[key], code, new LanguageWordsProvider(keys, code, []));
+		=> ParameterUse.InLanguage(keys[key], code, new LanguageWordsProvider(keys, code));
 
 	private static ParameterMismatch Check(Dictionary<string, WordsKey> keys, string key, string code, string? defaultLanguage = null)
-		=> ParameterUse.Check(keys[key], code, new DefaultWordsProvider(keys, []), defaultLanguage, new LanguageWordsProvider(keys, code, []));
+		=> ParameterUse.Check(keys[key], code, new DefaultWordsProvider(keys), defaultLanguage, new LanguageWordsProvider(keys, code));
 
 	private static bool Follows(Dictionary<string, WordsKey> keys, string key, string code)
-		=> ParameterUse.Follows(keys[key], code, new LanguageWordsProvider(keys, code, []));
+		=> ParameterUse.Follows(keys[key], code, new LanguageWordsProvider(keys, code));
 
 	[Fact]
 	public void TheDefault_FindsWhatItPrintsAndCounts_ReferencesAndFormsExpanded() {

@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 namespace PatTech.Localization.Authoring {
 
 	public class WordsKey : ViewModelBase {
+		/// <summary>The key's name as its file writes it, <c>view.key</c> or <c>$constant</c>: its file holds it by this name (<see cref="WordsFile.Keys"/>).</summary>
 		public string BlockKey { get; set => ChangeProperty(ref field, value); }
 
 		public bool IsConstant { get; set => ChangeProperty(ref field, value); }
@@ -365,29 +366,33 @@ namespace PatTech.Localization.Authoring {
 	}
 
 	/// <summary>
-	///     Resolves a key against every loaded file the way a host app stacking
-	///     dictionaries would: an exact (already-prefixed) key hits directly; a bare
-	///     reference like <c>{&gt;group.key}</c> or <c>{$constant}</c> probes each
-	///     file's prefix, later-loaded files winning. A plural form, <c>key#few</c>,
-	///     is there when the key has it at the first of the language, its family and
-	///     the default that has any of its words, the way the runtime flattens forms.
+	///     Resolves a key against stacked stores the way a host app stacking
+	///     dictionaries would: a key, or a reference like <c>{&gt;group.key}</c> or
+	///     <c>{$constant}</c>, is the name a file writes, found in the latest store
+	///     that has it. A plural form, <c>key#few</c>, is there when the key has it at
+	///     the first of the language, its family and the default that has any of its
+	///     words, the way the runtime flattens forms.
 	/// </summary>
-	public abstract class WordsProviderBase(IReadOnlyDictionary<string, WordsKey> keys, IEnumerable<string> fileNames) : IWordsProvider {
-		private readonly string[] fileNames = [.. fileNames.Reverse()];
+	public abstract class WordsProviderBase : IWordsProvider {
+		//latest first
+		private readonly IReadOnlyDictionary<string, WordsKey>[] stores;
+
+		/// <param name="stores">Each file's keys by name, in precedence order: a later store wins.</param>
+		protected WordsProviderBase(IEnumerable<IReadOnlyDictionary<string, WordsKey>> stores) {
+			this.stores = [.. stores.Reverse()];
+		}
 
 		public string this[string key] => TryGetValue(key, out var value) ? value : throw new KeyNotFoundException(key);
 
 		public bool ContainsKey(string key) => TryGetValue(key, out _);
 
 		protected bool TryFind(string key, [MaybeNullWhen(false)] out WordsKey word) {
-			if (keys.TryGetValue(key, out word)) {
-				return true;
-			}
-			foreach (var fileName in fileNames) {
-				if (keys.TryGetValue($"{fileName}.{key}", out word)) {
+			foreach (var store in stores) {
+				if (store.TryGetValue(key, out word)) {
 					return true;
 				}
 			}
+			word = null;
 			return false;
 		}
 
@@ -412,15 +417,26 @@ namespace PatTech.Localization.Authoring {
 		protected abstract string Form(WordsKey word, string form);
 	}
 
-	public class DefaultWordsProvider(IReadOnlyDictionary<string, WordsKey> keys, IEnumerable<string> fileNames)
-			: WordsProviderBase(keys, fileNames) {
+	/// <summary>The defaults' words.</summary>
+	/// <param name="stores">Each file's keys by name, in precedence order: a later store wins.</param>
+	public class DefaultWordsProvider(IEnumerable<IReadOnlyDictionary<string, WordsKey>> stores) : WordsProviderBase(stores) {
+		/// <summary>The defaults' words in one store.</summary>
+		public DefaultWordsProvider(IReadOnlyDictionary<string, WordsKey> keys) : this([keys]) {
+		}
+
 		protected override string Value(WordsKey word) => word.DefaultValue;
 
 		protected override string Form(WordsKey word, string form) => word.Forms.GetValueOrDefault(form, "");
 	}
 
-	public class LanguageWordsProvider(IReadOnlyDictionary<string, WordsKey> keys, string code, IEnumerable<string> fileNames)
-			: WordsProviderBase(keys, fileNames) {
+	/// <summary>A language's words, falling back as the runtime falls back.</summary>
+	/// <param name="stores">Each file's keys by name, in precedence order: a later store wins.</param>
+	/// <param name="code">The language.</param>
+	public class LanguageWordsProvider(IEnumerable<IReadOnlyDictionary<string, WordsKey>> stores, string code) : WordsProviderBase(stores) {
+		/// <summary>A language's words in one store.</summary>
+		public LanguageWordsProvider(IReadOnlyDictionary<string, WordsKey> keys, string code) : this([keys], code) {
+		}
+
 		//the code, then each shorter one it falls back to, as the runtime flattens them
 		private readonly string[] chain = LanguageCode.TryParse(code, out var parsed) ? [.. parsed.Chain.Select(level => level.ToString())] : [code];
 

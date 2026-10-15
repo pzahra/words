@@ -141,7 +141,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 				Drop("the default's language", (used & WordsFeatures.DefaultLanguage) != 0 ? 1 : 0);
 			}
 			foreach (WordsKey key in source.Keys()) {
-				string name = key.BlockKey[(key.BlockKey.IndexOf('.') + 1)..];
+				string name = key.BlockKey;
 				if (code is null) {
 					root.Add(Data(name, key.DefaultValue, key.Context));
 					Drop("comment=", key.Comment != "" ? 1 : 0);

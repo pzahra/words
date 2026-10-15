@@ -546,7 +546,7 @@ context-fr=untranslated, with a note
 			Assert.Equal(["en", "fr"], again.Languages);
 			Assert.Equal("en-AU", again.DefaultLanguage); //source-language, there and back
 			foreach (WordsKey before in session.KeysOf(original)) {
-				WordsKey after = session.Keys[again.Label + before.BlockKey[original.Label.Length..]];
+				WordsKey after = again.Keys[before.BlockKey]; //each file holds its own keys, by name
 				Assert.Equal(before.DefaultValue, after.DefaultValue);
 				Assert.Equal(before.Context, after.Context);
 				Assert.Equal(before.Comment, after.Comment);

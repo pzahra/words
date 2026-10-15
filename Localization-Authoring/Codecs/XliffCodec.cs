@@ -349,7 +349,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 			int forms = 0;
 			foreach (WordsKey key in source.Keys()) {
 				forms += key.Forms.Written().Count() + (key.Entries.GetValueOrDefault(code)?.Forms.Written().Count() ?? 0);
-				string name = key.BlockKey[(key.BlockKey.IndexOf('.') + 1)..];
+				string name = key.BlockKey;
 				var trans = new XElement(Xliff + "trans-unit", new XAttribute("id", name), new XAttribute(XNamespace.Xml + "space", "preserve"));
 				if (key.IsConstant) {
 					trans.Add(new XAttribute("translate", "no"));

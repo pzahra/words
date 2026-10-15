@@ -157,15 +157,15 @@ namespace PatTech.Localization.Authoring {
 		public WordsSession Session { get; }
 		/// <summary>The file being exported.</summary>
 		public WordsFile File { get; }
-		/// <summary>The file's node: its walk is the key order, its comment nodes the freeform comments.</summary>
+		/// <summary>The file's node, each node labelled by its path in the file: its walk is the key order, its comment nodes the freeform comments.</summary>
 		public IKeyTreeNode Tree { get; }
 
 		/// <exception cref="InvalidOperationException">The tree is not the file's, or does not cover exactly its keys.</exception>
 		public ExportSource(WordsSession session, WordsFile file, IKeyTreeNode tree) {
-			session.EnsureTreeCovers(file, tree);
+			WordsSession.EnsureTreeCovers(file, tree);
 			Session = session;
 			File = file;
-			Tree = tree;
+			Tree = KeyTree.Relabel(tree, "");
 		}
 
 		/// <summary>The file's own language table, with the session's labels.</summary>
@@ -178,7 +178,7 @@ namespace PatTech.Localization.Authoring {
 			if (node is ICommentNode) {
 				yield break;
 			}
-			if (Session.Keys.TryGetValue(node.FullLabel, out var key)) {
+			if (File.Keys.TryGetValue(node.FullLabel, out var key)) {
 				yield return key;
 			}
 			foreach (IKeyTreeNode child in node.Children) {

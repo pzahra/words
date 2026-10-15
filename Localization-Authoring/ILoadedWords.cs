@@ -10,7 +10,7 @@ namespace PatTech.Localization.Authoring {
 	///     backfill, reload in place — for free.
 	/// </summary>
 	public interface ILoadedWords {
-		/// <summary>Every key by its (unprefixed) block key, in document order.</summary>
+		/// <summary>Every key by its name, in document order.</summary>
 		IReadOnlyDictionary<string, WordsKey> WordKeys { get; }
 		/// <summary>Every language the keys carry entries for, by code, in order of first appearance.</summary>
 		IReadOnlyDictionary<string, LanguageEntry> KnownLanguages { get; }
@@ -22,7 +22,7 @@ namespace PatTech.Localization.Authoring {
 		string Preamble { get; }
 		/// <summary>The comment run after the last block.</summary>
 		string Trailer { get; }
-		/// <summary>Comment runs by the (unprefixed) block key they sat above.</summary>
+		/// <summary>Comment runs by the name of the block they sat above.</summary>
 		IReadOnlyDictionary<string, string> BlockComments { get; }
 		/// <summary>The project settings file, relative to the file, or empty.</summary>
 		string Settings { get; }

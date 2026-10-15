@@ -348,9 +348,8 @@ value-de=n={0:N1}
 	[Fact]
 	public void MainWindowViewModel_ToggleConstantTest() {
 		var vm = NewVm();
-		vm.Session.AddKey("fullLabel");
-		vm.Tree.KeyNodes.Add(new KeyNode("label", "fullLabel"));
-		vm.Tree.SelectedKeyNode = vm.Tree.KeyNodes[0];
+		vm.LoadFile(new StringReader("value-en=English\n\n[label]\nvalue=x\n"), "F"); //a key lives in a file
+		vm.Tree.SelectedKeyNode = Node(vm, "F.label");
 
 		vm.ToggleConstantCommand.Execute(null);
 
@@ -368,7 +367,7 @@ value-de=n={0:N1}
 
 		vm.ToggleConstantCommand.Execute(null);
 
-		Assert.Equal("Example.view.section-name.$key", vm.Tree.SelectedKey?.BlockKey);
+		Assert.Equal("view.section-name.$key", vm.Tree.SelectedKey?.BlockKey); //its name in its file
 		Assert.Equal("Example.view.section-name.$key", vm.Tree.SelectedKeyNode.FullLabel);
 		Assert.Equal("Example.view.section-name.$key.tooltip", vm.Tree.SelectedKeyNode.Children[0].FullLabel); //descendants follow
 		Assert.True(vm.Session.Keys.ContainsKey("Example.view.section-name.$key"));
@@ -377,7 +376,7 @@ value-de=n={0:N1}
 
 		vm.ToggleConstantCommand.Execute(null);
 
-		Assert.Equal("Example.view.section-name.key", vm.Tree.SelectedKey?.BlockKey);
+		Assert.Equal("view.section-name.key", vm.Tree.SelectedKey?.BlockKey);
 		Assert.True(vm.Session.Keys.ContainsKey("Example.view.section-name.key"));
 	}
 
@@ -946,7 +945,7 @@ value=x
 	public void MainWindowViewModel_RemoveNodeTest() {
 		var vm = LoadExample();
 		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
-		string blockKey = vm.Tree.SelectedKey?.BlockKey ?? throw new InvalidOperationException();
+		string blockKey = "Example.view.section-name.key";
 
 		vm.RemoveNodeCommand.Execute(null);
 
@@ -958,13 +957,13 @@ value=x
 	public void MainWindowViewModel_RenameNodeTest() {
 		var vm = LoadExample();
 		vm.Tree.SelectedKeyNode = Node(vm, "Example.view.section-name.key");
-		string blockKey = vm.Tree.SelectedKey?.BlockKey ?? throw new InvalidOperationException();
+		string blockKey = "Example.view.section-name.key";
 
 		vm.RenameNode("test");
 
 		Assert.Equal("test", vm.Tree.SelectedKeyNode.Label);
 		Assert.Equal("Example.view.section-name.test", vm.Tree.SelectedKeyNode.FullLabel);
-		Assert.Equal("Example.view.section-name.test", vm.Tree.SelectedKey.BlockKey);
+		Assert.Equal("view.section-name.test", vm.Tree.SelectedKey?.BlockKey); //its name in its file
 		Assert.Equal("Example.view.section-name.test.tooltip", vm.Tree.SelectedKeyNode.Children[0].FullLabel);
 		Assert.True(vm.Session.Keys.ContainsKey("Example.view.section-name.test.tooltip"));
 		Assert.DoesNotContain(vm.Session.Keys.Keys, k => k.StartsWith(blockKey));
@@ -1039,25 +1038,23 @@ value=x
 		var vm = LoadExample();
 		vm.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.MergeTestFile.ini"), "MergeTestFile");
 		vm.LoadFile(GetExampleFileReader("WordsEdit.Tests.Resources.MergeTestFile2.ini"), "MergeTestFile2");
-		var sources = new Dictionary<string, string> {
-			["en"] = "Example",
-			["zh"] = "MergeTestFile",
-			["en-CA"] = "MergeTestFile2",
+		IReadOnlyDictionary<string, WordsKey> Of(string label) => vm.Session.FileOf(label)!.Keys;
+		var sources = new Dictionary<string, IReadOnlyDictionary<string, WordsKey>> {
+			["en"] = Of("Example"),
+			["zh"] = Of("MergeTestFile"),
+			["en-CA"] = Of("MergeTestFile2"),
 		};
 
-		var rewrite = WordsOperations.Merge(vm.Session.Keys, "Example", sources, "Example", out var conflicts);
-		var newFile = WordsOperations.Merge(vm.Session.Keys, "Example", sources, "MergedFile", out _);
+		var merged = WordsOperations.Merge(Of("Example"), sources, out var conflicts);
 
 		Assert.Empty(conflicts);
-		Assert.NotNull(rewrite);
-		Assert.NotNull(newFile);
-		AssertMerged(rewrite, "Example");
-		AssertMerged(newFile, "MergedFile");
+		Assert.NotNull(merged);
+		AssertMerged(merged);
 
 		//each language's fields come from the file mapped to it
-		static void AssertMerged(Dictionary<string, WordsKey> merged, string prefix) {
-			foreach (string suffix in new[] { "view.section-name.key", "view.section-name.key.tooltip" }) {
-				WordsKey key = merged[$"{prefix}.{suffix}"];
+		static void AssertMerged(Dictionary<string, WordsKey> merged) {
+			foreach (string name in new[] { "view.section-name.key", "view.section-name.key.tooltip" }) {
+				WordsKey key = merged[name];
 				Assert.Equal("Base", key.DefaultValue);
 				Assert.Equal("Base", key.Context);
 				Assert.Equal("Base", key.Comment);

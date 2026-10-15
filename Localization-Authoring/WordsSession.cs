@@ -4,8 +4,8 @@ using System.Text;
 namespace PatTech.Localization.Authoring {
 	/// <summary>
 	///     The document an authoring session holds: every loaded file
-	///     (<see cref="Files"/>), the one store of their keys (<see cref="Keys"/>,
-	///     prefixed with each file's label, in load order) and the language table
+	///     (<see cref="Files"/>), each holding its own keys by the names it writes
+	///     (<see cref="WordsFile.Keys"/>), and the language table
 	///     (<see cref="Languages"/>). This is where the processing lives; a
 	///     ViewModel over it only gathers intent. Everything here runs on a
 	///     <see cref="TextReader"/>, so it is testable without a UI.
@@ -14,16 +14,24 @@ namespace PatTech.Localization.Authoring {
 	///     language, so <c>key.Entries[code]</c> is safe for any code in
 	///     <see cref="LanguageTable.Known"/>. Empty entries write nothing.
 	///     </para>
+	///     <para>
+	///     A key is named by its file and its name in it. The calls taking a label,
+	///     <c>Label.view.key</c>, are a shim that reads the label's first segment as
+	///     a file's <see cref="WordsFile.Label"/> and the rest as the name, so the
+	///     editor runs on as it named keys until it names them by file (the editor's
+	///     SPEC: Keys without the file's name).
+	///     </para>
 	/// </summary>
 	public sealed class WordsSession {
-		//insertion-ordered on purpose: the tree is built from a file's keys in the
-		//order they were read, and a plain Dictionary re-uses freed slots, so a
-		//reload (remove all, add all) would come back reversed
-		private readonly OrderedDictionary<string, WordsKey> keys = new();
 		private readonly List<WordsFile> files = [];
 
-		/// <summary>Every loaded key by its prefixed block key, in load order. Change it through the session.</summary>
-		public IReadOnlyDictionary<string, WordsKey> Keys => keys;
+		/// <summary>
+		///     Every loaded key by its file's label and its name, <c>Label.view.key</c>,
+		///     file by file in load order: the shim's view. Change it through the session.
+		/// </summary>
+		public IReadOnlyDictionary<string, WordsKey> Keys { get; }
+		/// <summary>Every loaded key, file by file in load order, each file's in its order.</summary>
+		public IEnumerable<WordsKey> AllKeys => files.SelectMany(file => file.Keys.Values);
 		/// <summary>The loaded files, in load order (a reload keeps its place).</summary>
 		public IReadOnlyList<WordsFile> Files => files;
 		/// <summary>The session union of languages and each file's own table.</summary>
@@ -31,6 +39,7 @@ namespace PatTech.Localization.Authoring {
 
 		public WordsSession() {
 			Languages = new LanguageTable(this);
+			Keys = new LabelledKeys(this);
 		}
 
 		/// <summary>The file loaded from <paramref name="path"/>, if any (paths compare in full, case-insensitively); a file not saved yet is at none.</summary>
@@ -39,13 +48,20 @@ namespace PatTech.Localization.Authoring {
 			return files.FirstOrDefault(file => file.Path is { } at && string.Equals(System.IO.Path.GetFullPath(at), full, StringComparison.OrdinalIgnoreCase));
 		}
 
-		/// <summary>The file whose keys carry <paramref name="label"/> as their prefix, if any.</summary>
+		/// <summary>The file whose <see cref="WordsFile.Label"/> is <paramref name="label"/>, if any.</summary>
 		public WordsFile? FileOf(string label) => files.FirstOrDefault(file => file.Label == label);
 
-		/// <summary>The file a prefixed block key belongs to, if it is loaded.</summary>
-		public WordsFile? FileOfKey(string blockKey) {
-			int dot = blockKey.IndexOf('.');
-			return FileOf(dot < 0 ? blockKey : blockKey[..dot]);
+		/// <summary>The shim: the file a label's first segment names, if it is loaded.</summary>
+		public WordsFile? FileOfKey(string label) => Resolve(label)?.File;
+
+		/// <summary>The shim: the files <paramref name="labels"/> name, in their order; a label no file has is passed over.</summary>
+		public IEnumerable<WordsFile> FilesOf(IEnumerable<string> labels) => labels.Select(FileOf).OfType<WordsFile>();
+
+		//the shim: a label read as a file and a key's name in it, the file's own label
+		//alone being the file, with an empty name
+		private (WordsFile File, string Name)? Resolve(string label) {
+			int dot = label.IndexOf('.');
+			return FileOf(dot < 0 ? label : label[..dot]) is { } file ? (file, dot < 0 ? "" : label[(dot + 1)..]) : null;
 		}
 
 		/// <summary>
@@ -129,10 +145,10 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		/// <summary>
-		///     Renames a file's root: <paramref name="label"/> becomes its label, and every
-		///     key it holds is prefixed with it (the editor's SPEC: New → Renaming a root).
-		///     For a file not saved yet it is the name its first Save proposes; a file on
-		///     disk is renamed by moving it (<see cref="MoveTo"/>).
+		///     Renames a file's root: <paramref name="label"/> becomes its label, and no
+		///     key changes (the editor's SPEC: New → Renaming a root). For a file not
+		///     saved yet it is the name its first Save proposes; a file on disk is
+		///     renamed by moving it (<see cref="MoveTo"/>).
 		/// </summary>
 		/// <exception cref="ArgumentException">The label is no segment of a key's name, or another file has it.</exception>
 		public void Rename(WordsFile file, string label) {
@@ -161,14 +177,8 @@ namespace PatTech.Localization.Authoring {
 			Relabel(file, UniqueLabel(System.IO.Path.GetFileNameWithoutExtension(path), file));
 		}
 
-		//the file's keys move under the new label in one go: no other file has it, so none collides
-		private void Relabel(WordsFile file, string label) {
-			if (label == file.Label) {
-				return;
-			}
-			WordsOperations.TryRename(keys, file.Label, label, out _);
-			file.Label = label;
-		}
+		//the file's keys are its own, by their names: the label is the root's alone
+		private static void Relabel(WordsFile file, string label) => file.Label = label;
 
 		//the first line break decides; a file with none takes the system's
 		private static string? NewLineOf(string text) {
@@ -197,13 +207,12 @@ namespace PatTech.Localization.Authoring {
 
 		/// <summary>
 		///     The one load path — the ini reader and every importer come through
-		///     here. Loads one file: its keys join the store prefixed with the file's
-		///     label (empty keys — bare headers — are dropped, so a bare <c>[group]</c>
-		///     round-trips as a group), its languages join the table and every key
-		///     is backfilled for them. Loading a path already loaded replaces that
-		///     file in place: its old keys go first, so a key deleted on disk does
-		///     not survive the reload. The reader's gripes land in
-		///     <see cref="WordsFile.Errors"/>.
+		///     here. Loads one file: it holds its keys by their names (empty keys —
+		///     bare headers — are dropped, so a bare <c>[group]</c> round-trips as a
+		///     group), its languages join the table and every key is backfilled for
+		///     them. Loading a path already loaded replaces that file in place, its old
+		///     keys with it, so a key deleted on disk does not survive the reload. The
+		///     reader's gripes land in <see cref="WordsFile.Errors"/>.
 		/// </summary>
 		/// <param name="loaded">The file, read into the document surface.</param>
 		/// <param name="path">Where it came from — the file's identity and its save target.</param>
@@ -224,25 +233,25 @@ namespace PatTech.Localization.Authoring {
 			return file;
 		}
 
-		//the file joins the session at position, its keys prefixed with label
+		//the file joins the session at position, labelled label
 		private WordsFile Add(ILoadedWords loaded, string? path, string label, string? newLine, Encoding? encoding, int position) {
 			var file = new WordsFile(path, label, loaded, newLine ?? Environment.NewLine, encoding ?? IniWriter.Utf8);
 			files.Insert(position, file);
 			foreach (WordsKey read in loaded.WordKeys.Values) {
 				//a copy: the caller's document stays as read, so loading it twice
 				//gives each file keys of its own
-				var key = new WordsKey(read) { BlockKey = $"{label}.{read.BlockKey}" };
+				var key = new WordsKey(read);
 				if (!key.IsEmpty()) {
-					keys.Add(key.BlockKey, key);
+					file.Store.Add(key.BlockKey, key);
 				}
 			}
 			Languages.Absorb(loaded, firstFile: files.Count == 1);
 			return file;
 		}
 
-		//the file name, dots replaced (the writer strips one leading segment), and
-		//suffixed past any label another loaded file already carries; a file moving
-		//may keep its own
+		//the file name, dots replaced (the shim reads a label's first segment as the
+		//file), and suffixed past any label another loaded file already carries; a
+		//file moving may keep its own
 		private string UniqueLabel(string fileName, WordsFile? moving = null) {
 			string name = fileName.Replace('.', '-');
 			if (name == "") {
@@ -256,8 +265,8 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		/// <summary>
-		///     Forgets a file: its keys leave the store and languages no remaining
-		///     file declares (and no remaining key has words in) leave the table.
+		///     Forgets a file, its keys with it; languages no remaining file declares
+		///     (and no remaining key has words in) leave the table.
 		/// </summary>
 		public bool Unload(WordsFile file) => Unload(file, prune: true);
 
@@ -265,7 +274,6 @@ namespace PatTech.Localization.Authoring {
 			if (!files.Remove(file)) {
 				return false;
 			}
-			RemoveKeysUnder(file.Label);
 			if (prune) {
 				Languages.Prune();
 			}
@@ -274,7 +282,6 @@ namespace PatTech.Localization.Authoring {
 
 		/// <summary>Back to an empty session with the default language.</summary>
 		public void Reset() {
-			keys.Clear();
 			files.Clear();
 			settingsCache.Clear();
 			layeredCache.Clear();
@@ -317,31 +324,32 @@ namespace PatTech.Localization.Authoring {
 		public void Save(WordsFile file, IKeyTreeNode tree, TextWriter writer) {
 			EnsureTreeCovers(file, tree);
 			writer.NewLine = file.NewLine;
-			IniWriter.WriteFile(tree, writer, keys, Languages.For(file), preamble: file.Preamble, settings: file.Settings, languageSettings: file.LanguageSettings, defaultLanguage: file.DefaultLanguage);
+			IniWriter.WriteFile(KeyTree.Relabel(tree, ""), writer, file.Keys, Languages.For(file), preamble: file.Preamble, settings: file.Settings, languageSettings: file.LanguageSettings, defaultLanguage: file.DefaultLanguage);
 		}
 
 		//the writer only emits keys the walk reaches, so a stale or wrong tree would
-		//quietly drop the rest: the tree must be the file's and its keyed nodes must
-		//be exactly the file's keys, no more, no fewer. An exporter walks the same
-		//tree, so an ExportSource checks the same way
-		internal void EnsureTreeCovers(WordsFile file, IKeyTreeNode tree) {
-			if (tree.FullLabel != file.Label) {
+		//quietly drop the rest: the tree must be the file's, its root labelled by
+		//nothing or by the file's label, and its keyed nodes must be exactly the file's
+		//keys, no more, no fewer. An exporter walks the same tree, so an ExportSource
+		//checks the same way
+		internal static void EnsureTreeCovers(WordsFile file, IKeyTreeNode tree) {
+			if (tree.FullLabel != "" && tree.FullLabel != file.Label) {
 				throw new InvalidOperationException($"tree root '{tree.FullLabel}' does not own file '{file.Label}'");
 			}
 			var covered = new HashSet<string>();
-			Collect(tree);
-			var owned = new HashSet<string>(KeysOf(file).Select(key => key.BlockKey));
+			foreach (IKeyTreeNode child in tree.Children) {
+				Collect(child);
+			}
+			var owned = new HashSet<string>(file.Keys.Keys);
 			if (!covered.SetEquals(owned)) {
 				string missing = string.Join(", ", owned.Except(covered));
-				string foreign = string.Join(", ", covered.Except(owned));
 				throw new InvalidOperationException($"tree for '{file.Label}' does not match its keys"
-					+ (missing != "" ? $"; missing: {missing}" : "")
-					+ (foreign != "" ? $"; not the file's: {foreign}" : ""));
+					+ (missing != "" ? $"; missing: {missing}" : ""));
 			}
 
 			void Collect(IKeyTreeNode node) {
-				if (node is not ICommentNode && keys.ContainsKey(node.FullLabel)) {
-					covered.Add(node.FullLabel);
+				if (node is not ICommentNode && KeyTree.PathOf(tree, node) is var path && file.Keys.ContainsKey(path)) {
+					covered.Add(path);
 				}
 				foreach (IKeyTreeNode child in node.Children) {
 					Collect(child);
@@ -350,44 +358,60 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		/// <summary>The keys of <paramref name="file"/>, in store order (document order after a load).</summary>
-		public IEnumerable<WordsKey> KeysOf(WordsFile file) {
-			string prefix = file.Label + ".";
-			return keys.Values.Where(key => key.BlockKey.StartsWith(prefix, StringComparison.Ordinal));
-		}
+		public IEnumerable<WordsKey> KeysOf(WordsFile file) => file.Keys.Values;
 
 		/// <summary>
-		///     A new key at <paramref name="blockKey"/>, carrying an empty entry for
-		///     every known language; the existing key when there already is one.
+		///     A new key in <paramref name="file"/> named <paramref name="name"/>,
+		///     carrying an empty entry for every known language; the existing key when
+		///     there already is one.
 		/// </summary>
-		public WordsKey AddKey(string blockKey) {
-			if (keys.TryGetValue(blockKey, out var existing)) {
+		public WordsKey AddKey(WordsFile file, string name) {
+			if (file.Store.TryGetValue(name, out var existing)) {
 				return existing;
 			}
-			var key = new WordsKey(blockKey);
+			var key = new WordsKey(name);
 			foreach (LanguageEntry language in Languages.Known) {
 				key.Entries[language.Code] = new WordsEntry();
 			}
-			keys.Add(blockKey, key);
+			file.Store.Add(name, key);
 			return key;
 		}
 
-		/// <summary>Removes the key at <paramref name="blockKey"/> alone; descendants stay.</summary>
-		public bool RemoveKey(string blockKey) => keys.Remove(blockKey);
+		/// <summary>Removes <paramref name="file"/>'s key named <paramref name="name"/> alone; descendants stay.</summary>
+		public bool RemoveKey(WordsFile file, string name) => file.Store.Remove(name);
 
-		/// <summary>The key at <paramref name="blockKey"/> and every key below it, as <see cref="RemoveKeysUnder"/> takes them.</summary>
-		public IEnumerable<WordsKey> KeysUnder(string blockKey) {
-			string prefix = blockKey + ".";
-			return keys.Values.Where(key => key.BlockKey == blockKey || key.BlockKey.StartsWith(prefix, StringComparison.Ordinal));
+		/// <summary>
+		///     <paramref name="file"/>'s key named <paramref name="name"/> and every key
+		///     below it, as <see cref="RemoveKeysUnder(WordsFile, string)"/> takes them;
+		///     an empty name is every key of the file.
+		/// </summary>
+		public IEnumerable<WordsKey> KeysUnder(WordsFile file, string name) {
+			string prefix = name + ".";
+			return file.Keys.Values.Where(key => name == "" || key.BlockKey == name || key.BlockKey.StartsWith(prefix, StringComparison.Ordinal));
 		}
 
 		/// <summary>
-		///     Puts a kept copy of a key (<c>new WordsKey(key)</c>) back as it was: the
-		///     session makes the key, as <see cref="AddKey"/> does, and the copy fills
-		///     it, plural forms, parameters, entries and all, so the copy stays as it
-		///     was kept and can go back again.
+		///     Removes <paramref name="file"/>'s key named <paramref name="name"/> and
+		///     every key below it — exact-or-prefix, so <c>view</c> never catches
+		///     <c>viewer</c>. Returns how many went.
 		/// </summary>
-		public WordsKey Restore(WordsKey kept) {
-			WordsKey key = AddKey(kept.BlockKey);
+		public int RemoveKeysUnder(WordsFile file, string name) {
+			List<WordsKey> going = [.. KeysUnder(file, name)];
+			foreach (WordsKey key in going) {
+				file.Store.Remove(key.BlockKey);
+			}
+			return going.Count;
+		}
+
+		/// <summary>
+		///     Puts a kept copy of a key (<c>new WordsKey(key)</c>) back in
+		///     <paramref name="file"/> as it was: the session makes the key, as
+		///     <see cref="AddKey(WordsFile, string)"/> does, and the copy fills it,
+		///     plural forms, parameters, entries and all, so the copy stays as it was
+		///     kept and can go back again.
+		/// </summary>
+		public WordsKey Restore(WordsFile file, WordsKey kept) {
+			WordsKey key = AddKey(file, kept.BlockKey);
 			key.IsConstant = kept.IsConstant;
 			key.DefaultValue = kept.DefaultValue;
 			key.Context = kept.Context;
@@ -404,38 +428,78 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		/// <summary>
-		///     Removes the key at <paramref name="blockKey"/> and every key below it —
-		///     exact-or-prefix, so <c>view</c> never catches <c>viewer</c>. Returns how
-		///     many went.
+		///     Renames <paramref name="file"/>'s key <paramref name="name"/> and every
+		///     key below it (<see cref="WordsOperations.TryRename(IDictionary{string, WordsKey}, string, string, out HashSet{string})"/>).
 		/// </summary>
-		public int RemoveKeysUnder(string blockKey) {
-			string prefix = blockKey + ".";
-			int removed = 0;
-			for (int i = keys.Count - 1; i >= 0; i--) {
-				string candidate = keys.GetAt(i).Key;
-				if (candidate == blockKey || candidate.StartsWith(prefix, StringComparison.Ordinal)) {
-					keys.RemoveAt(i);
-					removed++;
-				}
+		public bool TryRename(WordsFile file, string name, string newName, out HashSet<string> collisions)
+			=> WordsOperations.TryRename(file.Store, name, newName, out collisions);
+
+		/// <summary>
+		///     Moves <paramref name="file"/>'s key <paramref name="name"/> and every key
+		///     below it under <paramref name="newParent"/> in <paramref name="to"/>,
+		///     another file or the same, keeping its last segment, marker and all; an
+		///     empty parent is the top of the file. All or nothing, as a rename; the
+		///     collisions are names in <paramref name="to"/>.
+		/// </summary>
+		public bool TryMove(WordsFile file, string name, WordsFile to, string newParent, out HashSet<string> collisions)
+			=> WordsOperations.TryRename(file.Store, name, to.Store, KeyTree.Join(newParent, WordsOperations.LastSegment(name)), out collisions);
+
+		/// <summary>Makes <paramref name="file"/>'s key <paramref name="name"/> a constant, or a regular key again (<see cref="WordsOperations.SetConstant"/>): its new name, or <see langword="null"/>.</summary>
+		public string? SetConstant(WordsFile file, string name, bool isConstant, bool clearEntries = false)
+			=> WordsOperations.SetConstant(file.Store, name, isConstant, clearEntries);
+
+		/// <summary>True when the files hold the same keys; the odd ones out come back.</summary>
+		public bool HaveSameKeys(IEnumerable<WordsFile> files, out HashSet<string> conflicts)
+			=> WordsOperations.HaveSameKeys(files.Select(file => file.Keys), out conflicts);
+
+		/// <summary>The shim: <see cref="AddKey(WordsFile, string)"/> at a label.</summary>
+		/// <exception cref="ArgumentException">The label names no key of a loaded file.</exception>
+		public WordsKey AddKey(string label)
+			=> Resolve(label) is ({ } file, { Length: > 0 } name) ? AddKey(file, name) : throw new ArgumentException($"'{label}' names no key of a loaded file", nameof(label));
+
+		/// <summary>The shim: <see cref="RemoveKey(WordsFile, string)"/> at a label.</summary>
+		public bool RemoveKey(string label) => Resolve(label) is ({ } file, { Length: > 0 } name) && RemoveKey(file, name);
+
+		/// <summary>The shim: <see cref="KeysUnder(WordsFile, string)"/> at a label; a file's label alone is every key of the file.</summary>
+		public IEnumerable<WordsKey> KeysUnder(string label) => Resolve(label) is ({ } file, { } name) ? KeysUnder(file, name) : [];
+
+		/// <summary>The shim: <see cref="RemoveKeysUnder(WordsFile, string)"/> at a label.</summary>
+		public int RemoveKeysUnder(string label) => Resolve(label) is ({ } file, { } name) ? RemoveKeysUnder(file, name) : 0;
+
+		/// <summary>The shim: <see cref="Restore(WordsFile, WordsKey)"/> in the file a label names.</summary>
+		/// <exception cref="ArgumentException">The label names no loaded file.</exception>
+		public WordsKey Restore(string label, WordsKey kept)
+			=> Restore(FileOfKey(label) ?? throw new ArgumentException($"'{label}' names no loaded file", nameof(label)), kept);
+
+		/// <summary>
+		///     The shim: a rename from one label to another, the keys moving into the
+		///     file the new one names where it names another (<see cref="TryMove(WordsFile, string, WordsFile, string, out HashSet{string})"/>);
+		///     the collisions come back as labels.
+		/// </summary>
+		public bool TryRename(string oldLabel, string newLabel, out HashSet<string> collisions) {
+			if (Resolve(oldLabel) is not ({ } from, { } name) || Resolve(newLabel) is not ({ } to, { } newName)) {
+				collisions = [];
+				return true;
 			}
-			return removed;
+			bool moved = WordsOperations.TryRename(from.Store, name, to.Store, newName, out var names);
+			collisions = [.. names.Select(found => KeyTree.Join(to.Label, found))];
+			return moved;
 		}
 
-		/// <inheritdoc cref="WordsOperations.TryRename"/>
-		public bool TryRename(string oldKey, string newKey, out HashSet<string> collisions)
-			=> WordsOperations.TryRename(keys, oldKey, newKey, out collisions);
+		/// <summary>The shim: a move under another label, keeping the last segment, as a rename to there.</summary>
+		public bool TryMove(string label, string newParent, out HashSet<string> collisions)
+			=> TryRename(label, KeyTree.Join(newParent, WordsOperations.LastSegment(label)), out collisions);
 
-		/// <inheritdoc cref="WordsOperations.TryMove"/>
-		public bool TryMove(string key, string newParent, out HashSet<string> collisions)
-			=> WordsOperations.TryMove(keys, key, newParent, out collisions);
+		/// <summary>The shim: <see cref="SetConstant(WordsFile, string, bool, bool)"/> at a label, the new label coming back.</summary>
+		public string? SetConstant(string label, bool isConstant, bool clearEntries = false)
+			=> Resolve(label) is ({ } file, { Length: > 0 } name) && SetConstant(file, name, isConstant, clearEntries) is { } marked ? KeyTree.Join(file.Label, marked) : null;
 
-		/// <inheritdoc cref="WordsOperations.SetConstant"/>
-		public string? SetConstant(string blockKey, bool isConstant, bool clearEntries = false)
-			=> WordsOperations.SetConstant(keys, blockKey, isConstant, clearEntries);
-
-		/// <summary>True when the files hold the same keys (file prefix aside); the odd ones out come back.</summary>
-		public bool HaveSameKeys(IEnumerable<WordsFile> files, out HashSet<string> conflicts)
-			=> WordsOperations.HaveSameKeys(files.Select(file => WordsOperations.KeysOf(keys, file.Label)), out conflicts);
+		/// <summary>The shim: a loaded key's label, <c>Label.view.key</c>, by the file holding it.</summary>
+		/// <exception cref="ArgumentException">No loaded file holds the key.</exception>
+		public string LabelOf(WordsKey key)
+			=> files.FirstOrDefault(file => file.Keys.TryGetValue(key.BlockKey, out WordsKey? held) && held == key) is { } holder
+				? KeyTree.Join(holder.Label, key.BlockKey)
+				: throw new ArgumentException($"no loaded file holds '{key.BlockKey}'", nameof(key));
 
 		/// <summary>
 		///     The translator round trip in bulk: writes a file at
@@ -451,7 +515,7 @@ namespace PatTech.Localization.Authoring {
 		/// <param name="languageSources">Language code to the file providing that language's entries.</param>
 		/// <param name="baseTree">The base file's node; the merged file keeps its shape and comments.</param>
 		/// <param name="outPath">Where the merged file is written (and loaded from).</param>
-		/// <param name="conflicts">Key suffixes the involved files disagree on.</param>
+		/// <param name="conflicts">Keys the involved files disagree on.</param>
 		/// <exception cref="InvalidOperationException"><paramref name="baseTree"/> does not cover exactly the base file's keys.</exception>
 		/// <exception cref="ArgumentException">A source does not declare the language mapped to it: its entries are only backfill, and would empty the base's.</exception>
 		public WordsFile? Merge(WordsFile baseFile, IReadOnlyDictionary<string, WordsFile> languageSources, IKeyTreeNode baseTree, string outPath, out HashSet<string> conflicts) {
@@ -462,9 +526,8 @@ namespace PatTech.Localization.Authoring {
 			}
 			//the writer walks the tree, so one that misses a key would merge without it
 			EnsureTreeCovers(baseFile, baseTree);
-			string outLabel = UniqueLabel(System.IO.Path.GetFileNameWithoutExtension(outPath));
-			var sources = languageSources.ToDictionary(pair => pair.Key, pair => pair.Value.Label);
-			var merged = WordsOperations.Merge(keys, baseFile.Label, sources, outLabel, out conflicts);
+			var sources = languageSources.ToDictionary(pair => pair.Key, pair => pair.Value.Keys);
+			var merged = WordsOperations.Merge(baseFile.Keys, sources, out conflicts);
 			if (merged is null) {
 				return null;
 			}
@@ -475,7 +538,7 @@ namespace PatTech.Localization.Authoring {
 					languages.Add(label);
 				}
 			}
-			IniWriter.WriteFile(KeyTree.Relabel(baseTree, outLabel), outPath, merged, languages,
+			IniWriter.WriteFile(KeyTree.Relabel(baseTree, ""), outPath, merged, languages,
 				preamble: baseFile.Preamble, settings: baseFile.Settings, languageSettings: baseFile.LanguageSettings, newLine: baseFile.NewLine, defaultLanguage: baseFile.DefaultLanguage, encoding: baseFile.Encoding);
 			return Load(outPath);
 		}
@@ -491,12 +554,11 @@ namespace PatTech.Localization.Authoring {
 		/// <exception cref="InvalidOperationException"><paramref name="sourceTree"/> does not cover exactly the source's keys.</exception>
 		public WordsFile Split(WordsFile source, string languageCode, IKeyTreeNode sourceTree, string outPath) {
 			EnsureTreeCovers(source, sourceTree);
-			string outLabel = UniqueLabel(System.IO.Path.GetFileNameWithoutExtension(outPath));
-			var split = WordsOperations.Split(keys, source.Label, languageCode, outLabel);
+			var split = WordsOperations.Split(source.Keys, languageCode);
 			//the language as the source labels it, and only its own settings reference
 			List<LanguageEntry> languages = (Languages.For(source).FirstOrDefault(language => language.Code == languageCode) ?? Languages.Find(languageCode)) is { } label ? [label] : [];
 			Dictionary<string, string> languageSettings = source.LanguageSettings.TryGetValue(languageCode, out string? path) ? new() { [languageCode] = path } : [];
-			IniWriter.WriteFile(KeyTree.Relabel(sourceTree, outLabel), outPath, split, languages,
+			IniWriter.WriteFile(KeyTree.Relabel(sourceTree, ""), outPath, split, languages,
 				preamble: source.Preamble, settings: source.Settings, languageSettings: languageSettings, newLine: source.NewLine, defaultLanguage: source.DefaultLanguage, encoding: source.Encoding);
 			return Load(outPath);
 		}
@@ -538,14 +600,49 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		/// <summary>
-		///     A provider over every loaded file, later files winning bare-reference
-		///     lookups like a host app stacking dictionaries — for previews.
+		///     A provider over <paramref name="files"/>' keys, stacked as a host app
+		///     stacks dictionaries, a later file winning — for previews and checks.
 		/// </summary>
-		/// <param name="fileLabels">The files in precedence order (the tree's order, typically).</param>
+		/// <param name="files">The files in precedence order (the tree's order, typically).</param>
 		/// <param name="languageCode">A language for its values with fallback to the defaults, or <see langword="null"/> for the defaults alone.</param>
+		public IWordsProvider Provider(IEnumerable<WordsFile> files, string? languageCode = null)
+			=> Provider(files.Select(file => file.Keys), languageCode);
+
+		/// <summary>
+		///     The shim: <see cref="Provider(IEnumerable{WordsFile}, string?)"/> over
+		///     the files <paramref name="fileLabels"/> name, a label, <c>Label.view.key</c>,
+		///     finding its own file's key ahead of the stack.
+		/// </summary>
 		public IWordsProvider Provider(IEnumerable<string> fileLabels, string? languageCode = null)
-			=> languageCode is null
-				? new DefaultWordsProvider(keys, fileLabels)
-				: new LanguageWordsProvider(keys, languageCode, fileLabels);
+			=> Provider([.. FilesOf(fileLabels).Select(file => file.Keys), Keys], languageCode);
+
+		private static IWordsProvider Provider(IEnumerable<IReadOnlyDictionary<string, WordsKey>> stores, string? languageCode)
+			=> languageCode is null ? new DefaultWordsProvider(stores) : new LanguageWordsProvider(stores, languageCode);
+
+		//the shim's view: a label read as a file and a name (Resolve), every key listed by its
+		//file's label and its name, file by file
+		private sealed class LabelledKeys(WordsSession session) : IReadOnlyDictionary<string, WordsKey> {
+			public WordsKey this[string key] => TryGetValue(key, out WordsKey? value) ? value : throw new KeyNotFoundException(key);
+
+			public IEnumerable<string> Keys => Pairs().Select(pair => pair.Key);
+
+			public IEnumerable<WordsKey> Values => session.AllKeys;
+
+			public int Count => session.files.Sum(file => file.Keys.Count);
+
+			public bool ContainsKey(string key) => TryGetValue(key, out _);
+
+			public bool TryGetValue(string key, [System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out WordsKey value) {
+				value = null;
+				return session.Resolve(key) is ({ } file, { Length: > 0 } name) && file.Keys.TryGetValue(name, out value);
+			}
+
+			public IEnumerator<KeyValuePair<string, WordsKey>> GetEnumerator() => Pairs().GetEnumerator();
+
+			System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+			private IEnumerable<KeyValuePair<string, WordsKey>> Pairs()
+				=> session.files.SelectMany(file => file.Keys.Select(pair => KeyValuePair.Create(KeyTree.Join(file.Label, pair.Key), pair.Value)));
+		}
 	}
 }

@@ -126,8 +126,7 @@ namespace PatTech.Localization.Authoring {
 			}
 			var writer = new StringWriter { NewLine = "\n" };
 			using (var ini = new IniWriter(writer)) {
-				//the writer drops a leading label segment from the header
-				ini.WriteBlock(new WordsKey(found) { BlockKey = "_." + found.BlockKey });
+				ini.WriteBlock(found);
 				return writer.ToString().TrimEnd('\r', '\n');
 			}
 		}

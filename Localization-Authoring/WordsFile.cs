@@ -1,10 +1,10 @@
 namespace PatTech.Localization.Authoring {
 	/// <summary>
-	///     One loaded <c>words.ini</c>: everything of the file's that is not a key.
-	///     The keys themselves live in the session's store, prefixed with this
-	///     file's <see cref="Label"/>; the file is identified by its
-	///     <see cref="Path"/>, so two <c>strings.ini</c> in different folders are two
-	///     files (the second gets a disambiguated label).
+	///     One loaded <c>words.ini</c>: its keys (<see cref="Keys"/>), by the names
+	///     the file writes, and everything else of the file's. The file is
+	///     identified by its <see cref="Path"/>, so two <c>strings.ini</c> in
+	///     different folders are two files, each holding its own keys (the second
+	///     gets a disambiguated label).
 	/// </summary>
 	public sealed class WordsFile {
 		/// <summary>
@@ -15,14 +15,24 @@ namespace PatTech.Localization.Authoring {
 		/// </summary>
 		public string? Path { get; internal set; }
 		/// <summary>
-		///     The tree prefix its keys carry (<c>label.group.key</c>): the file name
-		///     without extension, dots replaced and a <c>-2</c>, <c>-3</c>… suffix
-		///     when another loaded file already took it, or the name a file not saved
-		///     yet was given. Dot-free by construction, since the writer drops exactly
-		///     one leading segment. It follows the file (<see cref="WordsSession.Rename"/>,
-		///     <see cref="WordsSession.MoveTo"/>).
+		///     The name its root shows: the file name without extension, dots
+		///     replaced and a <c>-2</c>, <c>-3</c>… suffix when another loaded file
+		///     already took it, or the name a file not saved yet was given. It follows
+		///     the file (<see cref="WordsSession.Rename"/>, <see cref="WordsSession.MoveTo"/>)
+		///     and no key carries it. Until the editor names keys by file, it also
+		///     prefixes the labels the session's shim reads (<see cref="WordsSession.Keys"/>),
+		///     so it is dot-free and unique.
 		/// </summary>
 		public string Label { get; internal set; }
+		/// <summary>
+		///     The file's keys by the names it writes (<c>view.key</c>, <c>$constant</c>),
+		///     in store order: document order after a load, a key added since at the
+		///     end. Change them through the session.
+		/// </summary>
+		public IReadOnlyDictionary<string, WordsKey> Keys => Store;
+		//insertion-ordered on purpose: the tree is built from the keys in the order they
+		//were read, and a plain Dictionary re-uses freed slots
+		internal OrderedDictionary<string, WordsKey> Store { get; } = new();
 		/// <summary>The comment run above the language table; written back above it.</summary>
 		public string Preamble { get; set; }
 		/// <summary>
@@ -75,9 +85,9 @@ namespace PatTech.Localization.Authoring {
 		/// </summary>
 		public bool IsLibrary => Languages.All(code => Labels.TryGetValue(code, out LanguageEntry? label) && label.NativeName.StartsWith('!'));
 		/// <summary>
-		///     Comment runs by the (prefixed) block key they sat above, as loaded —
-		///     <see cref="KeyTree.Build(WordsSession, WordsFile)"/> anchors them. After
-		///     that the tree is the truth; this is not updated.
+		///     Comment runs by the name of the block they sat above, as loaded —
+		///     <see cref="KeyTree.Build(WordsFile)"/> anchors them. After that the tree
+		///     is the truth; this is not updated.
 		/// </summary>
 		public IReadOnlyDictionary<string, string> BlockComments { get; }
 		/// <summary>
@@ -125,7 +135,7 @@ namespace PatTech.Localization.Authoring {
 				}
 			}
 			Errors = errors;
-			BlockComments = loaded.BlockComments.ToDictionary(pair => $"{label}.{pair.Key}", pair => pair.Value);
+			BlockComments = loaded.BlockComments.ToDictionary();
 		}
 
 		/// <summary>The folder the file sits in — the working directory for a bare name, or a file not saved yet.</summary>
