@@ -212,7 +212,7 @@ namespace PatTech.Localization.Authoring {
 			var holds = answered.SelectMany(ParameterUse.Tokens).Select(token => token.Token).ToHashSet();
 			Compare(held.Where(token => !token.Selects).Select(token => token.Token), holds, held.Select(token => token.Token), "");
 			//a parameter's format items are kept as the default writes them, since
-			//string.Format throws on a format its argument does not take ({0:Q} for a
+			//the app marks a format its argument does not take ({0:Q} for a
 			//count); one the default does not use may come bare, as its definition lets
 			//the parameter check pass it, and a parameter dropped whole is that check's
 			var formats = said.SelectMany(ParameterUse.Items).ToHashSet();

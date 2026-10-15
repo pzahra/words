@@ -7,16 +7,15 @@ using System.Text;
 namespace PatTech.Localization {
 	public static partial class Words {
 		//one rendering of words, written as it goes (SPEC: One pass for every brace): the
-		//provider its keys are read from, the arguments its selectors count by, and, when
-		//formatting, the numbering its format items are written with for string.Format.
-		//Each value is read into its pieces once, and what a reference or a selector brings
-		//in is rendered as pieces of its own, never re-read with the text around it
-		private sealed class Rendering(IWordsProvider provider, Selecting? selecting, Numbering? numbering) {
+		//provider its keys are read from, the arguments its selectors count by, and what its
+		//format items are written as, filled or numbered for string.Format. Each value is
+		//read into its pieces once, and what a reference or a selector brings in is rendered
+		//as pieces of its own, never re-read with the text around it
+		private sealed class Rendering(IWordsProvider provider, Selecting? selecting, Items? items) {
 			private readonly StringBuilder written = new();
 			//the entries being rendered, for the circular cut
 			private readonly Stack<string> path = new();
 
-			//the text; when formatting, a template for string.Format, the text escaped in it
 			public override string ToString() => written.ToString();
 
 			//entry's words, rendered against the key they are words of, however the entry
@@ -75,7 +74,7 @@ namespace PatTech.Localization {
 			//words would be, so a selector reaching back to its own key is cut. With neither
 			//to fill, they stand as they are
 			private void Answer(string words, string entry) {
-				if (selecting is null && numbering is null) {
+				if (selecting is null && items is null) {
 					written.Append(words);
 					return;
 				}
@@ -105,8 +104,8 @@ namespace PatTech.Localization {
 						case WordsPiece.Selector selector when selecting is not null:
 							Select(selecting, selector.Argument, Relative(selector.Key, key));
 							break;
-						case WordsPiece.Item item when numbering is not null:
-							Item(numbering, item);
+						case WordsPiece.Item item when items is not null:
+							items.Write(written, item, piece.In(text));
 							break;
 						case WordsPiece.Malformed:
 							Logger.Warn($"WORDS:FORMAT:`{piece.In(text)}`");
@@ -128,14 +127,134 @@ namespace PatTech.Localization {
 					Text("# ∞ #");
 					return;
 				}
-				Key(FormKey(provider, counting.Language, key, Category(counting.Language, counting.Argument(argument))));
+				Key(FormKey(provider, counting.Language, key, Category(counting.Language, counting.Values.Read(argument))));
 			}
 
-			//an item as string.Format reads one, by its number; one with nothing to read
-			//collapses to its argument, marked, its alignment and spec dropped
-			private void Item(Numbering items, WordsPiece.Item item) {
-				if (items.Number(item.Argument) is not { } number) {
-					Text($"#{{{item.Argument}}}#");
+			private void Text(string text) {
+				if (items is null) {
+					written.Append(text);
+				}
+				else {
+					items.Text(written, text);
+				}
+			}
+		}
+
+		//the arguments a call's selectors and format items read: by number, a positional
+		//argument, and on the named path the one past them is the value itself,
+		//PreFormatByName's slot; by name, on the named path, a member of the value as
+		//FormatByName reads it, and on the positional path none
+		private sealed class Arguments(object?[]? args, bool named, object? value = null) {
+			private readonly int count = args?.Length ?? 0;
+
+			public bool TryRead(string argument, out object? found) {
+				if (char.IsAsciiDigit(argument[0])) {
+					if (int.TryParse(argument, NumberStyles.None, CultureInfo.InvariantCulture, out int index)) {
+						if (index < count) {
+							found = args![index];
+							return true;
+						}
+						if (named && index == count) {
+							found = value;
+							return true;
+						}
+					}
+				}
+				else if (named) {
+					return TryMember(value, argument, out found);
+				}
+				found = null;
+				return false;
+			}
+
+			//what a selector counts: an argument there is none of warns, and is nothing
+			public object? Read(string argument) {
+				if (TryRead(argument, out var found)) {
+					return found;
+				}
+				Logger.Warn($"WORDS:FIELD:`{argument}`");
+				return null;
+			}
+		}
+
+		//what a rendering writes its format items, and the text around them, as
+		private abstract class Items {
+			public virtual void Text(StringBuilder written, string text) => written.Append(text);
+
+			public abstract void Write(StringBuilder written, WordsPiece.Item item, string asWritten);
+
+			//an item with nothing to read collapses to its argument, marked, and warns
+			protected static string Unread(string argument) {
+				Logger.Warn($"WORDS:FIELD:`{argument}`");
+				return Marked(argument);
+			}
+
+			protected static string Marked(string argument) => $"#{{{argument}}}#";
+		}
+
+		//items filled as string.Format fills them: the provider's ICustomFormatter first,
+		//then the argument's IFormattable with the spec, else its ToString(), null printing
+		//nothing, padded to the alignment. An enum or a describable is described in the
+		//dictionary, the spec being Describe's letters; a spec the argument rejects marks
+		//the item, as an argument there is none of does
+		private sealed class Filling(Arguments arguments, IFormatProvider? provider, IWords? dictionary) : Items {
+			private readonly ICustomFormatter? custom = provider?.GetFormat(typeof(ICustomFormatter)) as ICustomFormatter;
+			//no dictionary describes in Known, read once for every argument
+			private readonly IWords words = dictionary ?? Known;
+
+			public override void Write(StringBuilder written, WordsPiece.Item item, string asWritten) {
+				if (!arguments.TryRead(item.Argument, out object? value)) {
+					written.Append(Unread(item.Argument));
+					return;
+				}
+				string text;
+				try {
+					text = Formatted(Describing(value, words), item.Format);
+				}
+				catch (FormatException) {
+					Logger.Warn($"WORDS:FORMAT:`{asWritten}`");
+					written.Append(Marked(item.Argument));
+					return;
+				}
+				int padding = Math.Abs(item.Alignment ?? 0) - text.Length;
+				if (padding > 0 && item.Alignment > 0) {
+					written.Append(' ', padding);
+				}
+				written.Append(text);
+				if (padding > 0 && item.Alignment < 0) {
+					written.Append(' ', padding);
+				}
+			}
+
+			private string Formatted(object? value, string? format)
+				=> custom?.Format(format, value, provider)
+					?? (value is IFormattable formattable ? formattable.ToString(format, provider) : value?.ToString())
+					?? "";
+		}
+
+		//items written for string.Format, numbered, and the arguments they read, as
+		//PreFormatByName hands them over: the positional arguments, the value itself, then a
+		//slot per name as it first appears. The text is escaped as string.Format wants it
+		private sealed class Numbering(object?[]? args, object? value) : Items {
+			private readonly Arguments arguments = new(args, named: true, value);
+			private readonly int count = args?.Length ?? 0;
+			private readonly List<object?> slots = [.. args ?? [], value];
+			private readonly List<string> names = [];
+
+			public object?[] Slots => [.. slots];
+
+			public override void Text(StringBuilder written, string text) {
+				if (text.AsSpan().IndexOfAny('{', '}') < 0) {
+					written.Append(text);
+				}
+				else {
+					written.Append(text.Replace("{", "{{").Replace("}", "}}"));
+				}
+			}
+
+			public override void Write(StringBuilder written, WordsPiece.Item item, string asWritten) {
+				if (Number(item.Argument) is not { } number) {
+					Text(written, Unread(item.Argument));
 					return;
 				}
 				written.Append('{').Append(number);
@@ -148,50 +267,18 @@ namespace PatTech.Localization {
 				written.Append('}');
 			}
 
-			//text as it stands, its braces escaped in a template
-			private void Text(string text) {
-				if (numbering is null || text.AsSpan().IndexOfAny('{', '}') < 0) {
-					written.Append(text);
-				}
-				else {
-					written.Append(text.Replace("{", "{{").Replace("}", "}}"));
-				}
-			}
-		}
-
-		//a rendering's format items numbered for string.Format, and the arguments they
-		//read: a number keeps its argument, and on the named path the one past them is the
-		//value itself, PreFormatByName's slot; a name takes a slot past those, one per name
-		//as it first appears, read as FormatByName reads it
-		private sealed class Numbering(object?[]? args, bool named, object? value = null) {
-			private readonly int count = args?.Length ?? 0;
-			private readonly List<object?> arguments = named ? [.. args ?? [], value] : [.. args ?? []];
-			private readonly List<string> names = [];
-
-			public object?[] Arguments => [.. arguments];
-
-			//the number argument is written as, or null for one with nothing to read, warned
-			//about: a number past the arguments, a name on the positional path, or a name no
-			//member answers
-			public string? Number(string argument) {
+			//the number an argument is written as; none for one there is none of
+			private string? Number(string argument) {
 				if (char.IsAsciiDigit(argument[0])) {
-					if (int.Parse(argument, NumberStyles.None, CultureInfo.InvariantCulture) < count + (named ? 1 : 0)) {
-						return argument;
-					}
+					return arguments.TryRead(argument, out _) ? argument : null;
 				}
-				else if (named) {
-					int slot = names.IndexOf(argument);
-					if (slot < 0 && TryMember(value, argument, out var found)) {
-						slot = names.Count;
-						names.Add(argument);
-						arguments.Add(found);
-					}
-					if (slot >= 0) {
-						return (count + 1 + slot).ToString(CultureInfo.InvariantCulture);
-					}
+				int slot = names.IndexOf(argument);
+				if (slot < 0 && arguments.TryRead(argument, out object? found)) {
+					slot = names.Count;
+					names.Add(argument);
+					slots.Add(found);
 				}
-				Logger.Warn($"WORDS:FIELD:`{argument}`");
-				return null;
+				return slot < 0 ? null : (count + 1 + slot).ToString(CultureInfo.InvariantCulture);
 			}
 		}
 	}

@@ -129,6 +129,53 @@ public class OnePassTests {
 	}
 
 	[Fact]
+	public void AFormatItsArgumentRejects_IsMarked_AndWarns() {
+		using var globals = new WordsGlobals();
+		var logger = new CaptureLogger();
+		Words.Logger = logger;
+		var en = Load("[k]\nvalue=[{0,5:Q}] {0} {1:N1}\n");
+
+		Assert.Equal("[#{0}#] 3 2.5", en.Format(CultureInfo.InvariantCulture, "k", 3, 2.5)); //string.Format threw
+		Assert.Equal(["WORDS:FORMAT:`{0,5:Q}`"], logger.Messages);
+	}
+
+	//an IFormatProvider whose formatter shouts strings and leaves the rest to the argument
+	private sealed class Shouting(CultureInfo culture) : IFormatProvider, ICustomFormatter {
+		public object? GetFormat(Type? formatType) => formatType == typeof(ICustomFormatter) ? this : culture.GetFormat(formatType);
+		public string Format(string? format, object? arg, IFormatProvider? formatProvider) => (arg as string)?.ToUpperInvariant()!;
+	}
+
+	[Theory]
+	[InlineData("{0}")]
+	[InlineData("{0,9}|")]
+	[InlineData("{0,-9}|")]
+	[InlineData("{1:N2}")]
+	[InlineData("{1,12:N2}|")]
+	[InlineData("{2:D5}")]
+	[InlineData("{2,-6:X}|")]
+	[InlineData("{3:yyyy-MM-dd HH:mm}")]
+	[InlineData("{3:d}")]
+	[InlineData("{3}")]
+	[InlineData("[{4}]")]
+	[InlineData("[{4,5}]")]
+	[InlineData("{5}")]
+	[InlineData("{5,-8}|")]
+	[InlineData("{0:E3} {1:P1}")]
+	[InlineData("{0:0.##}")]
+	[InlineData("{{0 {6}")]
+	[InlineData("{7:C}")]
+	[InlineData("x{0}y{1}z{2}")]
+	[InlineData("{2:#,##0}")]
+	public void ATemplateWithNoWordsSyntax_FormatsAsStringFormatFormatsIt(string template) {
+		object?[] args = [3.14159, 1234.5678, 42, new DateTime(2026, 10, 15, 13, 45, 30), null, "text", true, 1234567.891m];
+		IFormatProvider?[] providers = [null, CultureInfo.InvariantCulture, CultureInfo.GetCultureInfo("de-DE"), CultureInfo.GetCultureInfo("fr-FR"),
+			CultureInfo.GetCultureInfo("ja-JP"), CultureInfo.GetCultureInfo("ar-SA"), new Shouting(CultureInfo.GetCultureInfo("en-GB"))];
+		foreach (IFormatProvider? provider in providers) {
+			Assert.Equal(string.Format(provider, template, args), Words.FormatByName(provider, template, null, args));
+		}
+	}
+
+	[Fact]
 	public void PreFormatByName_WritesATemplateStringFormatReads() {
 		var (template, arguments) = Words.PreFormatByName("{{x} {Name:N1} }", new { Name = 2.5 });
 

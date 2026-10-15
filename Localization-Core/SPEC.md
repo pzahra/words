@@ -1058,7 +1058,9 @@ a value read as written. A reference in a format item and a lone `{` show as
 written, with a warning, where `Format` threw. An item with nothing to read, a
 number past the arguments or a name in a positional `Format`, shows marked, `#{3}#`,
 with a warning, where `Format` threw, and a name no member answers shows `#{Name}#`
-where it showed `#Name#`; a selector past the arguments picks `other` and warns. No
+where it showed `#Name#`; a selector past the arguments picks `other` and warns. A
+format its argument rejects, `{0:Q}` for a count, shows `#{0}#`, with a warning,
+where `Format` threw. No
 file in the repository writes any of them, and its `{{>key}`s keep their meaning.
 
 **Tests.** The parser: each piece and its place, `{{`, a `}` always itself, numbers as
@@ -1071,8 +1073,9 @@ the plain value's; an `IWords` of one's own answering `{{` shows a brace and its
 selectors still pick; an item with nothing to read is marked, its alignment and spec
 dropped, and a selector past the arguments picks `other`, each warning;
 `PreFormatByName`'s output formats through string.Format as before; and a template with no Words syntax formats as string.Format formats it,
-character for character, across alignments, specs, cultures, a custom formatter,
-nulls and enums. Authoring: the finder reads an item spanning a reference as
+character for character, across alignments, specs, cultures, a custom formatter
+and nulls, while an enum is described as before; a format its argument rejects is
+marked. Authoring: the finder reads an item spanning a reference as
 malformed and gripes, a constant brings in no parameter, and the translation check
 reads items as the runtime does.
 
@@ -1086,7 +1089,7 @@ reads items as the runtime does.
    name takes an alignment, already.
 3. The engine fills the items itself, so a spec its argument rejects is marked
    too, and string.Format leaves the runtime, `PreFormatByName` still writing a
-   template for it.
+   template for it. Built.
 4. Authoring reads the pieces: the finder, the translation check, the followers and
    the samples' cards. The editor spec's *Parameters* stops reading the runtime as
    it was.

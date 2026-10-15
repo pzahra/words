@@ -79,8 +79,8 @@ person. `--stale it` asks for the stale ones instead, or as well, and
 `apply` reads the same document back, code fence and chatter around it
 included, and is fussy about what it writes. A key is skipped, with its
 reason on stderr, when its answer drops or invents a `{0}` or a `{>reference}`,
-dresses a `{0:N1}` in another format (`string.Format` would throw at the
-first `{0:Q}`), loses a `` `code span` `` or a link, or grows an extra one,
+dresses a `{0:N1}` in another format (the app would show `#{0}#` for a
+`{0:Q}`), loses a `` `code span` `` or a link, or grows an extra one,
 fills a form the language doesn't use or a slot nobody asked for (that one
 has a translation already, which it would trample), or when the key's
 default or its Italian changed since the request. It reads the markdown the

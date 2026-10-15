@@ -104,8 +104,8 @@ namespace PatTech.Localization {
 		private static IWords _Known = new CulturedWords(WordsProvider.Empty(), CultureInfo.InvariantCulture);
 
 		//what a selector picks a form with: the language whose rules count, and the
-		//arguments, by number or name
-		private sealed record Selecting(string Language, Func<string, object?> Argument);
+		//arguments it counts, by number or name
+		private sealed record Selecting(string Language, Arguments Values);
 
 		/// <summary>
 		/// The process-wide dictionary, installed once at startup — usually by
@@ -190,9 +190,10 @@ namespace PatTech.Localization {
 			}
 			//the text is the caller's, not baseKey's words, so it may refer to baseKey and
 			//select its forms, as it may without arguments
-			var rendering = new Rendering(words.Provider, new(words.Language, Positional(args)), new Numbering(args, named: false));
+			var arguments = new Arguments(args, named: false);
+			var rendering = new Rendering(words.Provider, new(words.Language, arguments), new Filling(arguments, null, words));
 			rendering.Value(text, baseKey);
-			return string.Format(rendering.ToString(), Describing(args, words));
+			return rendering.ToString();
 		}
 
 		/// <summary>
@@ -213,9 +214,9 @@ namespace PatTech.Localization {
 			ArgumentNullException.ThrowIfNull(wordsProvider);
 			ArgumentNullException.ThrowIfNull(key);
 
-			var rendering = new Rendering(wordsProvider, null, args?.Length > 0 ? new Numbering(args, named: false) : null);
+			var rendering = new Rendering(wordsProvider, null, args?.Length > 0 ? new Filling(new Arguments(args, named: false), null, null) : null);
 			rendering.Key(key);
-			return args is { Length: > 0 } filled ? string.Format(rendering.ToString(), args: Describing(filled, null)) : rendering.ToString();
+			return rendering.ToString();
 		}
 		/// <summary>
 		/// Expands every <c>{$constant}</c> and <c>{&gt;key}</c> reference in
@@ -237,9 +238,9 @@ namespace PatTech.Localization {
 			ArgumentNullException.ThrowIfNull(wordsProvider);
 			ArgumentNullException.ThrowIfNull(text);
 
-			var rendering = new Rendering(wordsProvider, null, args?.Length > 0 ? new Numbering(args, named: false) : null);
+			var rendering = new Rendering(wordsProvider, null, args?.Length > 0 ? new Filling(new Arguments(args, named: false), null, null) : null);
 			rendering.Value(text, baseKey);
-			return args is { Length: > 0 } filled ? string.Format(rendering.ToString(), args: Describing(filled, null)) : rendering.ToString();
+			return rendering.ToString();
 		}
 
 		//the key an entry is words of: the entry itself, or for a form (word#other) the
@@ -345,35 +346,6 @@ namespace PatTech.Localization {
 			}
 		}
 
-		//a selector's argument by number, where a format item finds it; a name is none of
-		//the positional arguments, nor is a number past them, and either picks other with
-		//a warning, as an item with nothing to read is marked
-		private static Func<string, object?> Positional(object?[]? args) => name => {
-			if (char.IsAsciiDigit(name[0]) && int.TryParse(name, NumberStyles.None, CultureInfo.InvariantCulture, out int index) && index < (args?.Length ?? 0)) {
-				return args![index];
-			}
-			Logger.Warn($"WORDS:FIELD:`{name}`");
-			return null;
-		};
-		//by name, a public field or property of value, as FormatByName reads it; by number,
-		//a positional argument, and the one past them value itself (PreFormatByName's slot)
-		private static Func<string, object?> Named(object? value, object?[]? args) {
-			var positional = Positional(args);
-			int count = args?.Length ?? 0;
-			return name => {
-				if (char.IsDigit(name[0])) {
-					return int.TryParse(name, NumberStyles.None, CultureInfo.InvariantCulture, out int index) && index == count
-						? value
-						: positional(name);
-				}
-				if (TryMember(value, name, out var found)) {
-					return found;
-				}
-				Logger.Warn($"WORDS:FIELD:`{name}`");
-				return null;
-			};
-		}
-
 		//a dictionary's value by name, else a public field or property; a null item has
 		//every member, as null. A dictionary answers with its values alone, so a
 		//{Count} reads the entry and never the dictionary's own Count
@@ -447,9 +419,11 @@ namespace PatTech.Localization {
 			=> Format(known, null, key, args);
 		/// <summary>
 		/// Looks up <paramref name="key"/> and applies <paramref name="args"/> to its
-		/// <c>{0}</c>-style placeholders, exactly like
-		/// <see cref="string.Format(IFormatProvider, string, object[])"/> but with a
-		/// words key instead of a format string. First each plural selector,
+		/// <c>{0}</c>-style placeholders, each formatted as
+		/// <see cref="string.Format(IFormatProvider, string, object[])"/> formats it, but
+		/// with a words key instead of a format string; a placeholder with no argument to
+		/// read, or a format its argument rejects, shows marked, <c>#{0}#</c>, and warns
+		/// via <see cref="Logger"/>. Each plural selector,
 		/// <c>{0#word}</c>, is replaced by the form of <c>word</c> its argument's count
 		/// picks (<see cref="IWords.this[string, decimal]"/>), so <c>{0} {0#word}</c>
 		/// reads "1 Word" and "2 Words"; the argument itself prints only where a
@@ -464,38 +438,25 @@ namespace PatTech.Localization {
 		/// <param name="args">The values to format into the template.</param>
 		[return: Localized]
 		public static string Format(this IWords known, IFormatProvider? provider, [WordsKey] string key, params object?[] args)
-			=> string.Format(provider, Template(known, key, new(known.Language, Positional(args)), new Numbering(args, named: false)), Describing(args, known));
+			=> Filled(known, provider, key, new Arguments(args, named: false));
 
-		//key's words in known, rendered as a template for string.Format: selecting counts its
-		//selectors, and numbering writes its items and holds what they read
-		private static string Template(IWords known, string key, Selecting selecting, Numbering numbering) {
-			var rendering = new Rendering(known.Provider, selecting, numbering);
+		//key's words in known, its selectors counting and its items filled by arguments
+		private static string Filled(IWords known, IFormatProvider? provider, string key, Arguments arguments) {
+			var rendering = new Rendering(known.Provider, new(known.Language, arguments), new Filling(arguments, provider, known));
 			rendering.Entry(known, key);
 			return rendering.ToString();
 		}
 
-		//each enum or describable argument, described in words where string.Format prints
-		//it (runtime SPEC: Describe in a template); a selector has read its count before.
-		//The array is copied only where there is one
-		[return: NotNullIfNotNull(nameof(args))]
-		private static object?[]? Describing(object?[]? args, IWords? words) {
-			//no dictionary describes in Known, read once for every argument
-			words ??= Words.Known;
-			object?[]? described = null;
-			for (int i = 0; i < (args?.Length ?? 0); ++i) {
-				IDescribable? value = args![i] switch {
-					Enum member => Describable.Of(member, words),
-					IDescribable describable => describable,
-					_ => null,
-				};
-				if (value is not null) {
-					(described ??= (object?[])args.Clone())[i] = new Described(value, words);
-				}
-			}
-			return described ?? args;
-		}
+		//an enum or describable argument, described in words where an item prints it
+		//(runtime SPEC: Describe in a template); a selector has read its count before
+		private static object? Describing(object? value, IWords words) => value switch {
+			Enum member => new Described(Describable.Of(member, words), words),
+			IDescribable describable => new Described(describable, words),
+			_ => value,
+		};
 
-		//a describable as string.Format takes one: the format is Describe's letters
+		//a describable as an item formats one, a custom formatter seeing it as before: the
+		//format is Describe's letters
 		private sealed class Described(IDescribable value, IWords? words) : IFormattable {
 			public string ToString(string? format, IFormatProvider? provider) => value.Describe(format, words);
 			public override string ToString() => value.Describe(null, words);
@@ -521,11 +482,8 @@ namespace PatTech.Localization {
 		/// <param name="value">The object whose members, or the dictionary whose values, are read by name; <see langword="null"/> fills every name with nothing.</param>
 		/// <param name="args">Additional positional arguments.</param>
 		[return: Localized]
-		public static string FormatByName(this IWords known, IFormatProvider? provider, [WordsKey] string key, object? value, params object?[] args) {
-			var numbering = new Numbering(args, named: true, value);
-			string template = Template(known, key, new(known.Language, Named(value, args)), numbering);
-			return string.Format(provider, template, Describing(numbering.Arguments, known));
-		}
+		public static string FormatByName(this IWords known, IFormatProvider? provider, [WordsKey] string key, object? value, params object?[] args)
+			=> Filled(known, provider, key, new Arguments(args, named: true, value));
 
 		/// <summary>
 		/// Looks up <paramref name="key"/> and fills its placeholders from whatever
@@ -614,10 +572,10 @@ namespace PatTech.Localization {
 		/// <returns>A numbered format string and the matching argument array, ready for <see cref="string.Format(string, object[])"/>.</returns>
 		public static (string FormatString, object?[] FormatArgs) PreFormatByName(string template, object? value, params object?[] args) {
 			ArgumentNullException.ThrowIfNull(template);
-			var numbering = new Numbering(args, named: true, value);
+			var numbering = new Numbering(args, value);
 			var rendering = new Rendering(WordsProvider.Empty(), null, numbering);
 			rendering.Template(template);
-			return (rendering.ToString(), numbering.Arguments);
+			return (rendering.ToString(), numbering.Slots);
 		}
 		/// <summary>
 		/// <see cref="PreFormatByName(string, object?, object?[])"/>, which reads a
@@ -670,8 +628,10 @@ namespace PatTech.Localization {
 		/// <param name="value">The object whose public fields and properties, or the dictionary whose values, are read by name.</param>
 		/// <param name="args">Additional positional arguments, addressed by the template's numbered tags.</param>
 		public static string FormatByName(IFormatProvider? provider, string template, object? value, params object?[] args) {
-			var (formatString, formatArgs) = PreFormatByName(template, value, args);
-			return string.Format(provider, formatString, Describing(formatArgs, null));
+			ArgumentNullException.ThrowIfNull(template);
+			var rendering = new Rendering(WordsProvider.Empty(), null, new Filling(new Arguments(args, named: true, value), provider, null));
+			rendering.Template(template);
+			return rendering.ToString();
 		}
 		/// <summary>
 		/// <see cref="FormatByName(string, object?, object?[])"/>, which reads a dictionary
