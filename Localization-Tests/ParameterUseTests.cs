@@ -87,8 +87,8 @@ public class ParameterUseTests {
 			"k: value holds `{0:{>fmt}}`, a brace that opens nothing, shown as written in the app; {{ writes a brace",
 			"k: value#other holds `{0,x}`, a brace that opens nothing, shown as written in the app; {{ writes a brace",
 			"k: value-it holds `{`, `{}`, braces that open nothing, shown as written in the app; {{ writes a brace"], file.Errors);
-		Assert.Equal("{0:{>fmt}} {{0} and {{", session.Keys["T.k"].DefaultValue); //loaded all the same
-		Assert.Empty(ParameterUse.Malformed(session.Keys["T.$json"])); //a constant's words are text
+		Assert.Equal("{0:{>fmt}} {{0} and {{", session.FileNamed("T").Keys["k"].DefaultValue); //loaded all the same
+		Assert.Empty(ParameterUse.Malformed(session.FileNamed("T").Keys["$json"])); //a constant's words are text
 		Assert.Empty(ParameterUse.Malformed("a } b {{ c { Name }")); //a closing brace is itself, {{ one, and a name may stand in spaces
 		Assert.Equal(["{"], ParameterUse.Malformed("{0 and {"));     //each once
 	}

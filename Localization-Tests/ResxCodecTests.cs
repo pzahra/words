@@ -104,15 +104,15 @@ public class ResxCodecTests {
 			Assert.Equal("français", session.Languages.Find("fr")!.NativeName);
 			Assert.Equal("French", session.Languages.Find("fr")!.EnglishName);
 			//the neutral file's keys lead, in its order; a key only a culture has follows
-			Assert.Equal(["Strings.greeting", "Strings.menu.file", "Strings.$unit", "Strings.bad_name", "Strings.only.in.fr"], session.Keys.Keys);
-			WordsKey greeting = session.Keys["Strings.greeting"];
+			Assert.Equal(["greeting", "menu.file", "$unit", "bad_name", "only.in.fr"], file.Keys.Keys);
+			WordsKey greeting = session.FileNamed("Strings").Keys["greeting"];
 			Assert.Equal("Hello {0}", greeting.DefaultValue);
 			Assert.Equal("shown at login", greeting.Context);
 			Assert.Equal("Bonjour {0}", greeting.Entries["fr"].Value);
 			Assert.Equal("formal", greeting.Entries["fr"].Context);
-			Assert.True(session.Keys["Strings.$unit"].IsConstant);
-			Assert.Equal("", session.Keys["Strings.only.in.fr"].DefaultValue);
-			Assert.Equal("seulement", session.Keys["Strings.only.in.fr"].Entries["fr"].Value);
+			Assert.True(session.FileNamed("Strings").Keys["$unit"].IsConstant);
+			Assert.Equal("", session.FileNamed("Strings").Keys["only.in.fr"].DefaultValue);
+			Assert.Equal("seulement", session.FileNamed("Strings").Keys["only.in.fr"].Entries["fr"].Value);
 			//the bitmap and the renamed key are gripes, not crashes
 			Assert.Equal(2, file.Errors.Count);
 			Assert.Contains(file.Errors, error => error.Contains("'logo' is not a string resource"));
@@ -179,7 +179,7 @@ context-fr=untranslated, with a note
 value=Open
 "), "Main.ini");
 		var codec = new ResxCodec();
-		var source = new ExportSource(session, file, KeyTree.Build(session, file));
+		var source = new ExportSource(session, file, KeyTree.Build(file));
 
 		Assert.Equal(WordsFeatures.All & ~(WordsFeatures.Context | WordsFeatures.EntryContext | WordsFeatures.Constants), codec.Loses(source));
 
@@ -245,7 +245,7 @@ value=Open
 			var codec = new ResxCodec();
 			var session = new WordsSession();
 			WordsFile imported = session.Import(codec, codec.Discover(Path.Combine(folder, "Strings.resx")));
-			var source = new ExportSource(session, imported, KeyTree.Build(session, imported));
+			var source = new ExportSource(session, imported, KeyTree.Build(imported));
 			string outFolder = Path.Combine(folder, "out");
 			Directory.CreateDirectory(outFolder);
 
@@ -279,13 +279,13 @@ value=Open
 		try {
 			var session = new WordsSession();
 			WordsFile file = session.Load(new StringReader("value-fr=Français\n\n[padded]\nvalue=x\nvalue-fr=y\n\n[blank]\nvalue=x\n\n[lines]\nvalue=x\n\n[markup]\nvalue=x\n"), Path.Combine(folder, "Main.ini"));
-			session.Keys["Main.padded"].DefaultValue = "  padded  ";
-			session.Keys["Main.padded"].Entries["fr"].Value = "\tonglet ";
-			session.Keys["Main.blank"].DefaultValue = " ";
-			session.Keys["Main.lines"].DefaultValue = "one\ntwo\n";
-			session.Keys["Main.markup"].DefaultValue = "<a> & \"b\" <https://x.y>";
+			session.FileNamed("Main").Keys["padded"].DefaultValue = "  padded  ";
+			session.FileNamed("Main").Keys["padded"].Entries["fr"].Value = "\tonglet ";
+			session.FileNamed("Main").Keys["blank"].DefaultValue = " ";
+			session.FileNamed("Main").Keys["lines"].DefaultValue = "one\ntwo\n";
+			session.FileNamed("Main").Keys["markup"].DefaultValue = "<a> & \"b\" <https://x.y>";
 			var codec = new ResxCodec();
-			var source = new ExportSource(session, file, KeyTree.Build(session, file));
+			var source = new ExportSource(session, file, KeyTree.Build(file));
 			List<string> gripes = [];
 			foreach (ExportUnit unit in codec.Plan(source, Path.Combine(folder, "Strings.resx"))) {
 				IniWriter.WriteAtomic(unit.Path, writer => codec.Write(source, unit, writer, gripes));

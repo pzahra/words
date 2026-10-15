@@ -24,13 +24,6 @@ namespace PatTech.Localization.Authoring {
 		/// </summary>
 		public string Name { get; internal set; }
 		/// <summary>
-		///     The prefix of the labels the session's shim reads (<see cref="WordsSession.Keys"/>):
-		///     the name with dots replaced and a <c>-2</c>, <c>-3</c>… suffix when another
-		///     loaded file already took it, so it is dot-free and unique. It follows the
-		///     name, and goes with the shim.
-		/// </summary>
-		public string Label { get; internal set; }
-		/// <summary>
 		///     The file's keys by the names it writes (<c>view.key</c>, <c>$constant</c>),
 		///     in store order: document order after a load, a key added since at the
 		///     end. Change them through the session.
@@ -110,10 +103,9 @@ namespace PatTech.Localization.Authoring {
 		/// </summary>
 		public System.Text.Encoding Encoding { get; }
 
-		internal WordsFile(string? path, string name, string label, ILoadedWords loaded, string newLine, System.Text.Encoding encoding) {
+		internal WordsFile(string? path, string name, ILoadedWords loaded, string newLine, System.Text.Encoding encoding) {
 			Path = path;
 			Name = name;
-			Label = label;
 			NewLine = newLine;
 			Encoding = encoding;
 			Preamble = loaded.Preamble;

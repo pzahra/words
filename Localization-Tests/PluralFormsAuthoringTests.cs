@@ -19,7 +19,7 @@ public class PluralFormsAuthoringTests {
 
 	private static string Save(WordsSession session, WordsFile file) {
 		var output = new StringWriter();
-		session.Save(file, KeyTree.Build(session, file), output);
+		session.Save(file, KeyTree.Build(file), output);
 		return output.ToString();
 	}
 
@@ -172,7 +172,7 @@ value-it#other=Parole
 
 		//a form long enough to fold comes back whole, and the fold is the fixed point
 		string longer = string.Join(' ', Enumerable.Repeat("Kelmiet twal ħafna,", 12));
-		session.Keys["Main.word"].Entries["mt"].Forms["few"] = longer;
+		session.FileNamed("Main").Keys["word"].Entries["mt"].Forms["few"] = longer;
 		string first = Save(session, file);
 		Assert.Contains("value-mt#few=Kelmiet", first);
 		Assert.Contains("_" + Environment.NewLine, first);
@@ -180,7 +180,7 @@ value-it#other=Parole
 		var again = new WordsSession();
 		WordsFile reloaded = again.Load(new StringReader(first), "Main.ini");
 		Assert.Empty(reloaded.Errors);
-		Assert.Equal(longer, again.Keys["Main.word"].Entries["mt"].Forms["few"]);
+		Assert.Equal(longer, again.FileNamed("Main").Keys["word"].Entries["mt"].Forms["few"]);
 		Assert.Equal(first, Save(again, reloaded));
 	}
 

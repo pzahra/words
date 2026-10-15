@@ -42,7 +42,7 @@ value-fr=Ouvrir
 
 	private static string Save(WordsSession session, WordsFile file) {
 		var output = new StringWriter();
-		session.Save(file, KeyTree.Build(session, file), output);
+		session.Save(file, KeyTree.Build(file), output);
 		return output.ToString();
 	}
 
@@ -51,12 +51,11 @@ value-fr=Ouvrir
 		var session = Load(Main);
 		WordsFile file = Assert.Single(session.Files);
 
-		Assert.Equal("Main", file.Label);
+		Assert.Equal("Main", file.Name);
 		Assert.Equal("Main", file.Path);
 		Assert.Equal(["greeting", "menu.file", "menu.file.open"], file.Keys.Keys);
 		Assert.False(file.Keys.ContainsKey("menu")); //the bare header is a group, not a key
-		Assert.Equal(["Main.greeting", "Main.menu.file", "Main.menu.file.open"], session.Keys.Keys); //the shim's labels
-		Assert.Same(file.Keys["menu.file"], session.Keys["Main.menu.file"]);
+		Assert.Equal(file.Keys.Values, session.AllKeys);
 		Assert.Equal(" about Main", file.Preamble);
 		Assert.Equal(["en", "fr"], file.Languages);
 		Assert.Equal(" the file menu", file.BlockComments["menu.file"]);
@@ -84,13 +83,16 @@ value-fr=Ouvrir
 
 	[Fact]
 	public void Save_RefusesATreeThatIsNotTheFiles() {
-		// a tree rooted on another label would write the wrong keys
+		// another file's tree, or one whose root is labelled, would write the wrong keys
 		var session = Load(Main);
 		WordsFile file = session.Files[0];
-		var alien = KeyTree.Build("Other", session.KeysOf(file), file.BlockComments);
+		WordsFile other = session.Load(new StringReader("value-en=English\n\n[other]\nvalue=x\n"), "Other");
 
-		var ex = Assert.Throws<InvalidOperationException>(() => session.Save(file, alien, new StringWriter()));
-		Assert.Contains("does not own", ex.Message);
+		var ex = Assert.Throws<InvalidOperationException>(() => session.Save(file, KeyTree.Build(other), new StringWriter()));
+		Assert.Contains("does not match its keys", ex.Message);
+		var labelled = new KeyTreeNode("Main", "Main") { IsFile = true };
+		ex = Assert.Throws<InvalidOperationException>(() => session.Save(file, labelled, new StringWriter()));
+		Assert.Contains("is no file's", ex.Message);
 	}
 
 	[Fact]
@@ -99,7 +101,7 @@ value-fr=Ouvrir
 		// drop the rest, so it is refused before anything is written
 		var session = Load(Main);
 		WordsFile file = session.Files[0];
-		var partial = KeyTree.Build(file.Label, session.KeysOf(file).Take(1), file.BlockComments);
+		var partial = KeyTree.Build(session.KeysOf(file).Take(1), file.BlockComments);
 
 		var ex = Assert.Throws<InvalidOperationException>(() => session.Save(file, partial, new StringWriter()));
 		Assert.Contains("missing", ex.Message);
@@ -114,7 +116,7 @@ value-fr=Ouvrir
 			File.WriteAllText(path, "ORIGINAL");
 			var session = new WordsSession();
 			WordsFile file = session.Load(new StringReader(Main), path);
-			var partial = KeyTree.Build(file.Label, session.KeysOf(file).Take(1), file.BlockComments);
+			var partial = KeyTree.Build(session.KeysOf(file).Take(1), file.BlockComments);
 
 			Assert.Throws<InvalidOperationException>(() => session.Save(file, partial));
 
@@ -149,7 +151,7 @@ value-fr=Ouvrir
 			var session = new WordsSession();
 			WordsFile file = session.Load(path);
 
-			session.Save(file, KeyTree.Build(session, file));
+			session.Save(file, KeyTree.Build(file));
 
 			Assert.Equal(bytes, File.ReadAllBytes(path));
 		}
@@ -169,9 +171,9 @@ value-fr=Ouvrir
 			File.WriteAllText(path, Main);
 			var session = new WordsSession();
 			WordsFile file = session.Load(path);
-			session.Keys["Main.greeting"].DefaultValue = "Hello \uD83D";
+			session.FileNamed("Main").Keys["greeting"].DefaultValue = "Hello \uD83D";
 
-			Assert.Throws<EncoderFallbackException>(() => session.Save(file, KeyTree.Build(session, file)));
+			Assert.Throws<EncoderFallbackException>(() => session.Save(file, KeyTree.Build(file)));
 
 			Assert.Equal(Main, File.ReadAllText(path));
 			Assert.Empty(Directory.GetFiles(folder, "*.tmp"));
@@ -195,7 +197,7 @@ value-fr=Ouvrir
 			var session = new WordsSession();
 
 			WordsFile file = session.Import(new IniCodec(), [path]);
-			session.Save(file, KeyTree.Build(session, file));
+			session.Save(file, KeyTree.Build(file));
 
 			Assert.Equal(newLine, file.NewLine);
 			Assert.Equal(bytes, File.ReadAllBytes(path));
@@ -215,11 +217,11 @@ value-fr=Ouvrir
 
 		WordsFile one = session.Load(loaded, "One.ini");
 		WordsFile two = session.Load(loaded, "Two.ini");
-		session.Keys["One.greeting"].DefaultValue = "Hi";
+		session.FileNamed("One").Keys["greeting"].DefaultValue = "Hi";
 
 		Assert.Equal(3, session.KeysOf(one).Count());
 		Assert.Equal(3, session.KeysOf(two).Count());
-		Assert.Equal("Hello", session.Keys["Two.greeting"].DefaultValue);
+		Assert.Equal("Hello", session.FileNamed("Two").Keys["greeting"].DefaultValue);
 		Assert.Equal("greeting", loaded.WordKeys["greeting"].BlockKey);
 		Assert.Equal("Hello", loaded.WordKeys["greeting"].DefaultValue);
 	}
@@ -232,35 +234,35 @@ value-fr=Ouvrir
 		//the same path again, now without [menu.file.open], and with [greeting] moved last
 		session.Load(new StringReader("value-en=English\n\n[menu.file]\nvalue=File\n\n[greeting]\nvalue=Hi\n"), "Main");
 
-		Assert.Equal(["Main", "Other"], session.Files.Select(file => file.Label)); //kept its place
-		Assert.False(session.Keys.ContainsKey("Main.menu.file.open"));
-		Assert.Equal("Hi", session.Keys["Main.greeting"].DefaultValue);
+		Assert.Equal(["Main", "Other"], session.Files.Select(file => file.Name)); //kept its place
+		Assert.False(session.FileNamed("Main").Keys.ContainsKey("menu.file.open"));
+		Assert.Equal("Hi", session.FileNamed("Main").Keys["greeting"].DefaultValue);
 		//document order, not the old slots: a plain Dictionary would come back reversed
 		Assert.Equal(["menu.file", "greeting"], session.KeysOf(session.Files[0]).Select(key => key.BlockKey));
 		//fr was declared by nobody else and holds no words any more: gone
 		Assert.DoesNotContain(session.Languages.Known, language => language.Code == "fr");
-		Assert.All(session.Keys.Values, key => Assert.False(key.Entries.ContainsKey("fr")));
+		Assert.All(session.AllKeys, key => Assert.False(key.Entries.ContainsKey("fr")));
 	}
 
 	[Fact]
-	public void Load_TwoFilesWithTheSameNameGetDistinctLabels() {
+	public void Load_TwoFilesWithTheSameName_StayTwo_EachHoldingItsOwnKeys() {
 		// two strings.ini in different folders used to write over each other
 		var session = new WordsSession();
 		string a = Path.Combine("one", "strings.ini");
 		string b = Path.Combine("two", "strings.ini");
-		session.Load(new StringReader("value-en=English\n\n[k]\nvalue=A\n"), a);
-		session.Load(new StringReader("value-en=English\n\n[k]\nvalue=B\n"), b);
+		WordsFile one = session.Load(new StringReader("value-en=English\n\n[k]\nvalue=A\n"), a);
+		WordsFile two = session.Load(new StringReader("value-en=English\n\n[k]\nvalue=B\n"), b);
 
-		Assert.Equal(["strings", "strings-2"], session.Files.Select(file => file.Label));
-		Assert.Equal("A", session.Keys["strings.k"].DefaultValue);
-		Assert.Equal("B", session.Keys["strings-2.k"].DefaultValue);
-		Assert.Same(session.Files[1], session.FileAt(b));
-		Assert.Same(session.Files[1], session.FileOf("strings-2"));
-		Assert.Same(session.Files[0], session.FileOfKey("strings.k"));
+		Assert.Equal(["strings", "strings"], session.Files.Select(file => file.Name)); //never numbered
+		Assert.Equal("A", one.Keys["k"].DefaultValue);
+		Assert.Equal("B", two.Keys["k"].DefaultValue);
+		Assert.Same(one, session.FileAt(a));
+		Assert.Same(two, session.FileAt(b));
 
-		//a dotted file name would confuse the writer's one-segment prefix: dots go
-		session.Load(new StringReader("[k]\nvalue=C\n"), "strings.v2.ini");
-		Assert.Equal("strings-v2", session.Files[2].Label);
+		//a dotted file name keeps its dots: no key carries it
+		WordsFile dotted = session.Load(new StringReader("[k]\nvalue=C\n"), "strings.v2.ini");
+		Assert.Equal("strings.v2", dotted.Name);
+		Assert.Equal(["k"], dotted.Keys.Keys);
 	}
 
 	[Fact]
@@ -270,7 +272,7 @@ value-fr=Ouvrir
 
 		LanguageEntry only = Assert.Single(session.Languages.Known);
 		Assert.Equal("en", only.Code);
-		Assert.True(session.Keys["Bare.k"].Entries.ContainsKey("en"));
+		Assert.True(session.FileNamed("Bare").Keys["k"].Entries.ContainsKey("en"));
 		Assert.Empty(session.Files[0].Languages);
 		Assert.True(session.Files[0].IsLibrary);
 		Assert.DoesNotContain("value-en", Save(session, session.Files[0])); //declares nothing, writes no table
@@ -287,7 +289,7 @@ value-fr=Ouvrir
 		Assert.Equal(["en"], session.Languages.For(session.Files[0]).Select(language => language.Code));
 		Assert.Equal(["en", "eo"], session.Languages.For(lib).Select(language => language.Code));
 		//the union backfills every key, so any known code indexes any key
-		Assert.True(session.Keys["Main.a"].Entries.ContainsKey("eo"));
+		Assert.True(session.FileNamed("Main").Keys["a"].Entries.ContainsKey("eo"));
 		Assert.DoesNotContain("value-eo", Save(session, session.Files[0]));
 	}
 
@@ -406,19 +408,19 @@ value-fr=Ouvrir
 		var session = Load(Main);
 		WordsFile extra = session.Load(new StringReader("value-en=English\nvalue-de=Deutsch\n\n[x]\nvalue=X\nvalue-de=Ix\n"), "Extra");
 		//a German word in Main's key, though Main never declared de
-		session.Keys["Main.greeting"].Entries["de"].Value = "Hallo";
+		session.FileNamed("Main").Keys["greeting"].Entries["de"].Value = "Hallo";
 
 		Assert.True(session.Unload(extra));
 
-		Assert.Equal(["Main"], session.Files.Select(file => file.Label));
-		Assert.DoesNotContain(session.Keys.Keys, key => key.StartsWith("Extra."));
+		Assert.Equal(["Main"], session.Files.Select(file => file.Name));
+		Assert.DoesNotContain(extra.Keys["x"], session.AllKeys);
 		//de has words in a remaining key: it stays
 		Assert.Contains(session.Languages.Known, language => language.Code == "de");
 
-		session.Keys["Main.greeting"].Entries["de"].Value = "";
+		session.FileNamed("Main").Keys["greeting"].Entries["de"].Value = "";
 		session.Unload(session.Files[0]);
 		Assert.Empty(session.Files);
-		Assert.Empty(session.Keys);
+		Assert.Empty(session.AllKeys);
 		Assert.Equal("en", Assert.Single(session.Languages.Known).Code);
 	}
 
@@ -444,16 +446,17 @@ value-fr=Ouvrir
 	[Fact]
 	public void Keys_AddRemoveAndRemoveUnderKeepTheInvariantAndSpareSimilarNames() {
 		var session = Load(Main);
+		WordsFile main = session.Files[0];
 
-		WordsKey added = session.AddKey("Main.menu");
-		Assert.Same(added, session.AddKey("Main.menu"));
+		WordsKey added = session.AddKey(main, "menu");
+		Assert.Same(added, session.AddKey(main, "menu"));
 		Assert.Equal(["en", "fr"], added.Entries.Keys.Order(StringComparer.Ordinal));
 
-		session.AddKey("Main.menu.filer");
-		Assert.Equal(2, session.RemoveKeysUnder("Main.menu.file"));
-		Assert.Equal(["Main.greeting", "Main.menu", "Main.menu.filer"], session.Keys.Keys.Order(StringComparer.Ordinal));
-		Assert.True(session.RemoveKey("Main.menu"));
-		Assert.False(session.RemoveKey("Main.menu"));
+		session.AddKey(main, "menu.filer");
+		Assert.Equal(2, session.RemoveKeysUnder(main, "menu.file"));
+		Assert.Equal(["greeting", "menu", "menu.filer"], main.Keys.Keys.Order(StringComparer.Ordinal));
+		Assert.True(session.RemoveKey(main, "menu"));
+		Assert.False(session.RemoveKey(main, "menu"));
 	}
 
 	[Fact]
@@ -468,7 +471,7 @@ value-fr=Ouvrir
 		Assert.False(session.Languages.Add(main, new LanguageEntry("de", "again")));
 		Assert.Equal(["en", "fr", "de"], main.Languages);
 		Assert.Equal(["en"], extra.Languages);
-		Assert.All(session.Keys.Values, key => Assert.True(key.Entries.ContainsKey("de")));
+		Assert.All(session.AllKeys, key => Assert.True(key.Entries.ContainsKey("de")));
 		Assert.DoesNotContain("value-de", Save(session, extra));
 		Assert.True(session.Languages.Add(extra, new LanguageEntry("de", "!Deutsch")));
 		Assert.Contains("value-de=!Deutsch", Save(session, extra));
@@ -482,17 +485,17 @@ value-fr=Ouvrir
 		Assert.True(saved.IndexOf("value-de") < saved.IndexOf("value-en"));
 
 		//a removal is the file's: its keys lose their words, the other file's keep theirs
-		session.Keys["Main.greeting"].Entries["de"].Value = "Hallo";
-		session.Keys["Extra.x"].Entries["de"].Value = "Ix";
+		session.FileNamed("Main").Keys["greeting"].Entries["de"].Value = "Hallo";
+		session.FileNamed("Extra").Keys["x"].Entries["de"].Value = "Ix";
 		Assert.True(session.Languages.Remove(main, "de"));
 		Assert.Equal(["en", "fr"], main.Languages);
-		Assert.Equal("", session.Keys["Main.greeting"].Entries["de"].Value);
-		Assert.Equal("Ix", session.Keys["Extra.x"].Entries["de"].Value);
+		Assert.Equal("", session.FileNamed("Main").Keys["greeting"].Entries["de"].Value);
+		Assert.Equal("Ix", session.FileNamed("Extra").Keys["x"].Entries["de"].Value);
 		Assert.Contains(session.Languages.Known, language => language.Code == "de");
 		//the last file to declare it takes it out of the session
 		Assert.True(session.Languages.Remove(extra, "de"));
 		Assert.DoesNotContain(session.Languages.Known, language => language.Code == "de");
-		Assert.All(session.Keys.Values, key => Assert.False(key.Entries.ContainsKey("de")));
+		Assert.All(session.AllKeys, key => Assert.False(key.Entries.ContainsKey("de")));
 
 		//a file keeps its last language
 		Assert.False(session.Languages.Remove(extra, "en"));
@@ -527,9 +530,9 @@ value-fr=Ouvrir
 
 		Assert.Equal(["en", "de-DE"], host.Languages);
 		Assert.Equal(["en", "de"], library.Languages); //another host may want its de
-		Assert.Equal("Ix", session.Keys["Main.k"].Entries["de-DE"].Value);
-		Assert.Equal("", session.Keys["Main.k"].Entries["de"].Value);
-		Assert.Equal("Ypsilon", session.Keys["Lib.j"].Entries["de"].Value);
+		Assert.Equal("Ix", session.FileNamed("Main").Keys["k"].Entries["de-DE"].Value);
+		Assert.Equal("", session.FileNamed("Main").Keys["k"].Entries["de"].Value);
+		Assert.Equal("Ypsilon", session.FileNamed("Lib").Keys["j"].Entries["de"].Value);
 		Assert.Equal(["en", "de-DE", "de"], session.Languages.Known.Select(language => language.Code));
 	}
 
@@ -542,24 +545,24 @@ value-fr=Ouvrir
 		LanguageEntry relabelled = session.Languages.Rename(main, "en", new LanguageEntry("en", "English (US)"));
 		Assert.Same(relabelled, session.Languages.Find("en"));
 		Assert.Equal("English (US)", relabelled.NativeName);
-		Assert.Equal("family", session.Keys["Main.k"].Entries["en"].Value);
+		Assert.Equal("family", session.FileNamed("Main").Keys["k"].Entries["en"].Value);
 
 		//re-coding onto a language the file declares absorbs into it
 		LanguageEntry survivor = session.Languages.Rename(main, "en-GB", new LanguageEntry("en", "English"));
 		Assert.Same(relabelled, survivor);
 		Assert.Equal(["en"], session.Languages.Known.Select(language => language.Code));
 		Assert.Equal(["en"], main.Languages);
-		WordsKey collided = session.Keys["Main.k"];
+		WordsKey collided = session.FileNamed("Main").Keys["k"];
 		Assert.Equal("family", collided.Entries["en"].Value);
 		Assert.Equal("regional", collided.Entries["en"].Context);
 		Assert.NotNull(collided.Entries["en"].Stale);
-		Assert.Equal("only regional", session.Keys["Main.j"].Entries["en"].Value);
-		Assert.All(session.Keys.Values, key => Assert.False(key.Entries.ContainsKey("en-GB")));
+		Assert.Equal("only regional", session.FileNamed("Main").Keys["j"].Entries["en"].Value);
+		Assert.All(session.AllKeys, key => Assert.False(key.Entries.ContainsKey("en-GB")));
 
 		//re-coding onto a new code moves the file's declaration
 		session.Languages.Rename(main, "en", new LanguageEntry("eo", "Esperanto"));
 		Assert.Equal(["eo"], main.Languages);
-		Assert.Equal("family", session.Keys["Main.k"].Entries["eo"].Value);
+		Assert.Equal("family", session.FileNamed("Main").Keys["k"].Entries["eo"].Value);
 	}
 
 	//value=!xx says which language the default is written in: no language of the
@@ -618,14 +621,14 @@ value-fr=Bonjour
 			WordsFile french = session.Load(new StringReader("value-fr=Français\n\n[k]\nvalue-fr=ix\n\n[k.sub]\nvalue-fr=esse\n"), Path.Combine(folder, "French.ini"));
 			string outPath = Path.Combine(folder, "Merged.ini");
 
-			WordsFile? merged = session.Merge(basis, new Dictionary<string, WordsFile> { ["fr"] = french }, KeyTree.Build(session, basis), outPath, out var conflicts);
+			WordsFile? merged = session.Merge(basis, new Dictionary<string, WordsFile> { ["fr"] = french }, KeyTree.Build(basis), outPath, out var conflicts);
 
 			Assert.NotNull(merged);
 			Assert.Empty(conflicts);
-			Assert.Equal("Merged", merged.Label);
+			Assert.Equal("Merged", merged.Name);
 			Assert.Equal(3, session.Files.Count);
-			Assert.Equal("ix", session.Keys["Merged.k"].Entries["fr"].Value);
-			Assert.Equal("ex", session.Keys["Merged.k"].Entries["en"].Value);
+			Assert.Equal("ix", session.FileNamed("Merged").Keys["k"].Entries["fr"].Value);
+			Assert.Equal("ex", session.FileNamed("Merged").Keys["k"].Entries["en"].Value);
 			string text = File.ReadAllText(outPath);
 			Assert.StartsWith("; the base", text);
 			Assert.Contains("value-en=English", text);
@@ -636,7 +639,7 @@ value-fr=Bonjour
 			//a disagreement writes nothing
 			session.Load(new StringReader("value-de=Deutsch\n\n[k]\nvalue-de=ix\n\n[extra]\nvalue-de=!\n"), Path.Combine(folder, "German.ini"));
 			string refused = Path.Combine(folder, "Refused.ini");
-			Assert.Null(session.Merge(basis, new Dictionary<string, WordsFile> { ["de"] = session.Files[3] }, KeyTree.Build(session, basis), refused, out conflicts));
+			Assert.Null(session.Merge(basis, new Dictionary<string, WordsFile> { ["de"] = session.Files[3] }, KeyTree.Build(basis), refused, out conflicts));
 			Assert.Contains("extra", conflicts);
 			Assert.False(File.Exists(refused));
 		}
@@ -705,9 +708,9 @@ value-fr=Bonjour
 			string outPath = Path.Combine(folder, "Main.fr.ini");
 			source.DefaultLanguage = "en";
 
-			WordsFile split = session.Split(source, "fr", KeyTree.Build(session, source), outPath);
+			WordsFile split = session.Split(source, "fr", KeyTree.Build(source), outPath);
 
-			Assert.Equal("Main-fr", split.Label);
+			Assert.Equal("Main.fr", split.Name);
 			Assert.Equal("en", split.DefaultLanguage); //the defaults kept for reference are still English
 			Assert.Equal(["fr"], split.Languages);
 			string text = File.ReadAllText(outPath);
@@ -716,13 +719,13 @@ value-fr=Bonjour
 			Assert.DoesNotContain("value-en=", text);
 			Assert.Contains("; the file menu", text); //comments ride along
 			Assert.DoesNotContain('\r', text); //and the source's line break
-			Assert.Equal("Bonjour", session.Keys["Main-fr.greeting"].Entries["fr"].Value);
-			Assert.Equal("Hello", session.Keys["Main-fr.greeting"].DefaultValue); //reference kept
+			Assert.Equal("Bonjour", split.Keys["greeting"].Entries["fr"].Value);
+			Assert.Equal("Hello", split.Keys["greeting"].DefaultValue); //reference kept
 
 			//and merge takes it straight back
-			WordsFile? merged = session.Merge(source, new Dictionary<string, WordsFile> { ["fr"] = split }, KeyTree.Build(session, source), Path.Combine(folder, "Back.ini"), out _);
+			WordsFile? merged = session.Merge(source, new Dictionary<string, WordsFile> { ["fr"] = split }, KeyTree.Build(source), Path.Combine(folder, "Back.ini"), out _);
 			Assert.NotNull(merged);
-			Assert.Equal("Ouvrir", session.Keys["Back.menu.file.open"].Entries["fr"].Value);
+			Assert.Equal("Ouvrir", session.FileNamed("Back").Keys["menu.file.open"].Entries["fr"].Value);
 			Assert.Equal("en", merged.DefaultLanguage);
 			Assert.DoesNotContain('\r', File.ReadAllText(Path.Combine(folder, "Back.ini")));
 		}
@@ -742,7 +745,7 @@ value-fr=Bonjour
 			string merged = Path.Combine(folder, "Merged.ini");
 
 			//its French entries are backfill: taking them would empty the base's
-			Assert.Throws<ArgumentException>(() => session.Merge(basis, new Dictionary<string, WordsFile> { ["fr"] = english }, KeyTree.Build(session, basis), merged, out _));
+			Assert.Throws<ArgumentException>(() => session.Merge(basis, new Dictionary<string, WordsFile> { ["fr"] = english }, KeyTree.Build(basis), merged, out _));
 			Assert.False(File.Exists(merged));
 
 			//a split takes the language as its file labels it, and only its settings reference
@@ -750,7 +753,7 @@ value-fr=Bonjour
 			session.Load(new StringReader("value-de=Deutsch\nparam-de=german.ini\n\n[x]\nvalue=X\n"), Path.Combine(folder, "Other.ini"));
 			session.Languages.Rename(basis, "fr", new LanguageEntry("fr", "Français") { EnglishName = "French" });
 			library.LanguageSettings["de"] = "german.ini"; //a stray reference the split leaves behind
-			WordsFile split = session.Split(library, "fr", KeyTree.Build(session, library), Path.Combine(folder, "Lib.fr.ini"));
+			WordsFile split = session.Split(library, "fr", KeyTree.Build(library), Path.Combine(folder, "Lib.fr.ini"));
 			string text = File.ReadAllText(split.Path!);
 			Assert.Contains("value-fr=!Français", text);
 			Assert.Contains("param-fr=french.ini", text);
@@ -772,7 +775,7 @@ value-fr=Bonjour
 			var session = new WordsSession();
 			WordsFile source = session.Load(new StringReader(Main), Path.Combine(folder, "Main.ini"));
 			WordsFile french = session.Load(new StringReader("value-fr=Français\n\n[greeting]\nvalue-fr=Salut\n"), Path.Combine(folder, "French.ini"));
-			var partial = KeyTree.Build(source.Label, session.KeysOf(source).Take(1), source.BlockComments);
+			var partial = KeyTree.Build(session.KeysOf(source).Take(1), source.BlockComments);
 			string merged = Path.Combine(folder, "Merged.ini"), split = Path.Combine(folder, "Split.ini");
 			File.WriteAllText(merged, "ORIGINAL");
 
@@ -792,17 +795,14 @@ value-fr=Bonjour
 	public void Provider_StacksFilesLaterWinning() {
 		var session = Load("value-en=English\n\n[k]\nvalue=first\nvalue-fr=premier\n");
 		session.Load(new StringReader("value-en=English\n\n[k]\nvalue=second\n"), "Over");
-
-		Assert.Equal("second", session.Provider(["Main", "Over"]).GetValue("k"));
-		Assert.Equal("first", session.Provider(["Over", "Main"]).GetValue("k"));
-		Assert.Equal("premier", session.Provider(["Main"], "fr").GetValue("k"));
-		Assert.Equal("first", session.Provider(["Main"], "de").GetValue("k")); //falls back to the default
-
-		//by the files themselves, as the editor hands them: a key is its name, read as
-		//the runtime reads it, the later file winning, with no prefix to probe for
 		WordsFile main = session.Files[0], over = session.Files[1];
+
+		//a key is its name, read as the runtime reads it, the later file winning, with no
+		//prefix to probe for
 		Assert.Equal("second", session.Provider([main, over]).GetValue("k"));
 		Assert.Equal("first", session.Provider([over, main]).GetValue("k"));
+		Assert.Equal("premier", session.Provider([main], "fr").GetValue("k"));
+		Assert.Equal("first", session.Provider([main], "de").GetValue("k")); //falls back to the default
 		Assert.False(session.Provider([main, over]).ContainsKey("Main.k"));
 
 		//the key a preview shows reads its own words, though a later file has its name
@@ -854,12 +854,11 @@ value-fr=Bonjour
 		Assert.Null(session.FileAt("anonymous-words.ini")); //a file not saved is at no path
 		Assert.Throws<InvalidOperationException>(() => session.Save(first, KeyTree.Build(first)));
 
-		//a root's name is its file's alone: the key stays as it was, the shim's label follows
+		//a root's name is its file's alone: the key stays as it was
 		session.Rename(first, "Strings.Designer");
 		Assert.Equal("Strings.Designer", first.Name); //dots and all
 		Assert.Same(k, Assert.Single(session.KeysOf(first)));
 		Assert.Equal("k", k.BlockKey);
-		Assert.Equal(["Strings-Designer.k"], session.Keys.Keys);
 		session.Rename(second, "Strings.Designer"); //another's name too
 		Assert.Equal("Strings.Designer", session.ShownName(second));
 		Assert.Throws<ArgumentException>(() => session.Rename(first, "a/b")); //no file name
@@ -869,17 +868,15 @@ value-fr=Bonjour
 		session.MoveTo(first, Path.Combine(folder, "Words.ini"));
 		Assert.Equal(Path.Combine(folder, "Words.ini"), first.Path);
 		Assert.Equal("Words", first.Name); //named as a file loaded from there
-		Assert.Equal(["Words.k"], session.Keys.Keys);
+		Assert.Same(k, Assert.Single(session.KeysOf(first)));
 		Assert.Same(first, session.FileAt(Path.Combine(folder, "Words.ini")));
 		Assert.Throws<ArgumentException>(() => session.MoveTo(second, Path.Combine(folder, "Words.ini"))); //another's path
 
 		session.MoveTo(second, Path.Combine(folder, "sub", "Words.ini"));
-		Assert.Equal("Words", second.Name);
-		Assert.Equal("Words-2", second.Label);
+		Assert.Equal("Words", second.Name); //never numbered
 		Assert.Equal("Words (sub)", session.ShownName(second));
 		Assert.Equal("Words (WordsSessionMove)", session.ShownName(first));
 		session.MoveTo(first, Path.Combine(folder, "other", "Words.ini"));
-		Assert.Equal("Words", first.Label); //its own label is no other's
 		Assert.Equal("Words (other)", session.ShownName(first));
 	}
 
@@ -918,7 +915,7 @@ value-fr=Bonjour
 		Assert.Equal(["en"], file.Languages);
 		Assert.Empty(session.KeysOf(file));
 		var output = new StringWriter();
-		session.Save(file, KeyTree.Build(session, file), output);
+		session.Save(file, KeyTree.Build(file), output);
 		Assert.Equal("; An app's words.\n;\n; Save says where.\nvalue=!en\nvalue-en=English\n\n", output.ToString().ReplaceLineEndings("\n")); //in the system's breaks
 	}
 }

@@ -54,12 +54,12 @@ value-fr=Ouvrir
 
 	private static string Save(WordsSession session, WordsFile file) {
 		var output = new StringWriter();
-		session.Save(file, KeyTree.Build(session, file), output);
+		session.Save(file, KeyTree.Build(file), output);
 		return output.ToString();
 	}
 
 	private static ExportSource Source(WordsSession session, WordsFile file)
-		=> new(session, file, KeyTree.Build(session, file));
+		=> new(session, file, KeyTree.Build(file));
 
 	/// <summary>Reads nothing from disk: the surface is built by hand, the way a foreign importer builds it.</summary>
 	private sealed class FooImporter : IWordsImporter {
@@ -145,8 +145,8 @@ value-fr=Ouvrir
 
 	[Fact]
 	public void Load_ASurfaceBuiltByHand_GoesThroughTheSamePipeline() {
-		//label disambiguation, empty-key dropping, language backfill, the gripes
-		//convention: an importer inherits all of it from the one load path
+		//two files of one name told apart, empty-key dropping, language backfill, the
+		//gripes convention: an importer inherits all of it from the one load path
 		var session = new WordsSession();
 		var importer = new FooImporter();
 
@@ -155,11 +155,13 @@ value-fr=Ouvrir
 
 		//the foreign file becomes a native one: same name, ini extension
 		Assert.Equal(Path.Combine("one", "strings.ini"), one.Path);
-		Assert.Equal(["strings", "strings-2"], session.Files.Select(file => file.Label));
-		Assert.Equal(["strings.a", "strings-2.a"], session.Keys.Keys);
-		Assert.Equal("strings.foo", session.Keys["strings.a"].DefaultValue);
-		Assert.Equal("A", session.Keys["strings.a"].Entries["en"].Value);
-		Assert.True(session.Keys["strings.a"].Entries.ContainsKey("fr"));
+		Assert.Equal(["strings", "strings"], session.Files.Select(file => file.Name)); //never numbered
+		Assert.Equal(["strings (one)", "strings (two)"], session.Files.Select(session.ShownName));
+		Assert.Equal(["a"], one.Keys.Keys);
+		Assert.Equal(["a"], two.Keys.Keys); //each its own
+		Assert.Equal("strings.foo", one.Keys["a"].DefaultValue);
+		Assert.Equal("A", one.Keys["a"].Entries["en"].Value);
+		Assert.True(one.Keys["a"].Entries.ContainsKey("fr"));
 		Assert.Equal(["en", "fr"], two.Languages);
 		Assert.Equal("French", session.Languages.Find("fr")!.EnglishName);
 		Assert.Equal(["guessed something"], one.Errors);
@@ -176,15 +178,15 @@ value-fr=Ouvrir
 
 		//the tree decides the order, as it does for Save: siblings as built, a
 		//parent before its children
-		var reversed = KeyTree.Build(file.Label, session.KeysOf(file).Reverse(), file.BlockComments);
+		var reversed = KeyTree.Build(session.KeysOf(file).Reverse(), file.BlockComments);
 		var source = new ExportSource(session, file, reversed);
 		Assert.Equal(["menu.file", "menu.file.open", "$unit", "greeting"], source.Keys().Select(key => key.BlockKey));
 		Assert.Equal(["en", "fr"], source.Languages.Select(language => language.Code));
 
-		//a tree that is not the file's, or misses some of its keys, is refused before a byte lands
-		var alien = KeyTree.Build("Other", session.KeysOf(file), file.BlockComments);
+		//a tree that is another file's, or misses some of its keys, is refused before a byte lands
+		var alien = KeyTree.Build(session.Load(new StringReader("value-en=English\n\n[other]\nvalue=x\n"), "Other.ini"));
 		Assert.Throws<InvalidOperationException>(() => new ExportSource(session, file, alien));
-		var partial = KeyTree.Build(file.Label, session.KeysOf(file).Take(1), file.BlockComments);
+		var partial = KeyTree.Build(session.KeysOf(file).Take(1), file.BlockComments);
 		Assert.Throws<InvalidOperationException>(() => new ExportSource(session, file, partial));
 	}
 
@@ -203,7 +205,7 @@ value-fr=Ouvrir
 		//the comment half of FreeComments follows the tree, where the editor keeps comments
 		WordsFile commented = session.Load(new StringReader("value-en=English\n\n[k]\n; above k\nvalue=x\n"), "Commented.ini");
 		Assert.Equal(WordsFeatures.FreeComments, Source(session, commented).Used());
-		var bare = KeyTree.Build(commented.Label, session.KeysOf(commented), new Dictionary<string, string>());
+		var bare = KeyTree.Build(session.KeysOf(commented), new Dictionary<string, string>());
 		Assert.Equal(WordsFeatures.None, new ExportSource(session, commented, bare).Used());
 
 		var output = new StringWriter();

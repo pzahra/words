@@ -19,7 +19,7 @@ public class KeptStateTests {
 
 	private static string Saved(WordsSession session, WordsFile file) {
 		var writer = new StringWriter();
-		session.Save(file, KeyTree.Build(session, file), writer);
+		session.Save(file, KeyTree.Build(file), writer);
 		return writer.ToString();
 	}
 
@@ -49,7 +49,7 @@ public class KeptStateTests {
 		Assert.Equal("german.ini", file.LanguageSettings["de"]);
 		change.PutBack(before: false);
 		Assert.Equal(after, Saved(session, file));
-		Assert.Equal("ix", session.Keys["Main.k"].Entries["en"].Value);
+		Assert.Equal("ix", session.FileNamed("Main").Keys["k"].Entries["en"].Value);
 		Assert.Equal("it", file.DefaultLanguage);
 	}
 
@@ -91,7 +91,7 @@ public class KeptStateTests {
 	[Fact]
 	public void AKeysParametersAndEntries_AreCopied_AndPutBack() {
 		var (session, _) = Load();
-		WordsKey key = session.Keys["Main.k.sub"];
+		WordsKey key = session.FileNamed("Main").Keys["k.sub"];
 		var parameters = key.CopyParameters();
 		var entries = key.CopyEntries();
 

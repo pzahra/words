@@ -236,7 +236,7 @@ public class LanguageCodeTests {
 		WordsFile file = session.Load(new StringReader(ini), "Odd");
 
 		Assert.Equal(["zh-Hans-CN"], file.Languages);
-		Assert.Equal("y", session.Keys["Odd.k"].Entries["zh-Hans-CN"].Value);
+		Assert.Equal("y", session.FileNamed("Odd").Keys["k"].Entries["zh-Hans-CN"].Value);
 		Assert.StartsWith("value-english in [k]: no language code, so a runtime skips it and so does Save", Assert.Single(file.Errors));
 	}
 
@@ -248,9 +248,9 @@ public class LanguageCodeTests {
 		WordsFile file = session.Load(new StringReader(ini), "Params");
 
 		Assert.Empty(file.Errors);
-		Assert.Equal(["P1", "Count"], session.Keys["Params.k"].Parameters.Select(parameter => parameter.Key));
+		Assert.Equal(["P1", "Count"], session.FileNamed("Params").Keys["k"].Parameters.Select(parameter => parameter.Key));
 		var output = new StringWriter { NewLine = "\n" };
-		session.Save(file, KeyTree.Build(session, file), output);
+		session.Save(file, KeyTree.Build(file), output);
 		Assert.Contains("param-sr-Latn=rules-sr.ini\n", output.ToString());
 		Assert.Contains("param-P1=a\nparam-Count=int:2\n", output.ToString()); //1.4.0 reloaded them as p1 and count; 1.3.0's types are written short
 	}
@@ -279,10 +279,10 @@ public class LanguageCodeTests {
 			Assert.Empty(file.Errors);
 			Assert.Equal(["zh-Hans-CN"], file.Languages);
 			var output = new StringWriter { NewLine = "\n" };
-			session.Save(file, KeyTree.Build(session, file), output);
+			session.Save(file, KeyTree.Build(file), output);
 			var again = new WordsSession();
 			again.Load(new StringReader(output.ToString()), "Again");
-			Assert.Equal("你好", again.Keys["Again.hello"].Entries["zh-Hans-CN"].Value); //1.4.0 dropped it here
+			Assert.Equal("你好", again.FileNamed("Again").Keys["hello"].Entries["zh-Hans-CN"].Value); //1.4.0 dropped it here
 		}
 		finally {
 			Directory.Delete(folder, recursive: true);

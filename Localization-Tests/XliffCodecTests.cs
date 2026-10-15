@@ -147,9 +147,9 @@ context-fr=untranslated, with a note
 			Assert.Equal("en", file.DefaultLanguage); //the source text is the default
 			Assert.Equal("français", session.Languages.Find("fr")!.NativeName);
 			Assert.Equal("French", session.Languages.Find("fr")!.EnglishName); //an English source: names in English
-			Assert.Equal(["Strings.greeting", "Strings.$unit", "Strings.menu.file", "Strings.frozen"], session.Keys.Keys);
+			Assert.Equal(["greeting", "$unit", "menu.file", "frozen"], file.Keys.Keys);
 
-			WordsKey greeting = session.Keys["Strings.greeting"];
+			WordsKey greeting = session.FileNamed("Strings").Keys["greeting"];
 			Assert.Equal("Hello {0}", greeting.DefaultValue);
 			Assert.Equal("shown at login", greeting.Context); //once, though both files carry the note
 			Assert.Equal("keep it short", greeting.Comment);
@@ -163,13 +163,13 @@ context-fr=untranslated, with a note
 			Assert.Equal("Hallo {0}", greeting.Entries["de"].Value);
 			Assert.Null(greeting.Entries["de"].Stale);
 
-			Assert.True(session.Keys["Strings.$unit"].IsConstant);
-			WordsKey menuFile = session.Keys["Strings.menu.file"]; //found inside a group
+			Assert.True(session.FileNamed("Strings").Keys["$unit"].IsConstant);
+			WordsKey menuFile = session.FileNamed("Strings").Keys["menu.file"]; //found inside a group
 			Assert.Equal("a bare note is the developer's, on the source", menuFile.Context);
 			Assert.Equal("", menuFile.Entries["fr"].Value);
 			Assert.Null(menuFile.Entries["fr"].Stale);
-			Assert.Equal("Gelé", session.Keys["Strings.frozen"].Entries["fr"].Value);
-			Assert.False(session.Keys["Strings.frozen"].IsConstant);
+			Assert.Equal("Gelé", session.FileNamed("Strings").Keys["frozen"].Entries["fr"].Value);
+			Assert.False(session.FileNamed("Strings").Keys["frozen"].IsConstant);
 
 			Assert.Equal(4, file.Errors.Count);
 			Assert.Contains(file.Errors, error => error.StartsWith("Strings.es.xlf: not an XLIFF document"));
@@ -462,7 +462,7 @@ context-fr=untranslated, with a note
 		var session = new WordsSession();
 		WordsFile file = session.Load(new StringReader(Full), "Main.ini");
 		var codec = new XliffCodec();
-		var source = new ExportSource(session, file, KeyTree.Build(session, file));
+		var source = new ExportSource(session, file, KeyTree.Build(file));
 
 		Assert.Equal(WordsFeatures.FreeComments | WordsFeatures.Settings | WordsFeatures.PluralForms, codec.Loses(source));
 
@@ -530,7 +530,7 @@ context-fr=untranslated, with a note
 			WordsFile original = session.Load(new StringReader(Full), Path.Combine(folder, "Main.ini"));
 			original.DefaultLanguage = "en-AU";
 			var codec = new XliffCodec();
-			var source = new ExportSource(session, original, KeyTree.Build(session, original));
+			var source = new ExportSource(session, original, KeyTree.Build(original));
 			string outFolder = Path.Combine(folder, "out");
 			Directory.CreateDirectory(outFolder);
 
@@ -578,15 +578,15 @@ context-fr=untranslated, with a note
 		try {
 			var session = new WordsSession();
 			WordsFile file = session.Load(new StringReader("value-fr=Français\n\n[padded]\nvalue=x\nvalue-fr=y\n\n[blank]\nvalue=x\nvalue-fr=y\n\n[lines]\nvalue=x\n\n[markup]\nvalue=x\n"), Path.Combine(folder, "Main.ini"));
-			session.Keys["Main.padded"].DefaultValue = "  padded  ";
-			session.Keys["Main.padded"].Entries["fr"].Value = "\tonglet ";
-			session.Keys["Main.blank"].DefaultValue = " ";
-			session.Keys["Main.blank"].Entries["fr"].Value = " ";
-			session.Keys["Main.blank"].Entries["fr"].Stale = "a mark\nof two lines";
-			session.Keys["Main.lines"].DefaultValue = "one\ntwo\n";
-			session.Keys["Main.markup"].DefaultValue = "<a> & \"b\" <https://x.y>";
+			session.FileNamed("Main").Keys["padded"].DefaultValue = "  padded  ";
+			session.FileNamed("Main").Keys["padded"].Entries["fr"].Value = "\tonglet ";
+			session.FileNamed("Main").Keys["blank"].DefaultValue = " ";
+			session.FileNamed("Main").Keys["blank"].Entries["fr"].Value = " ";
+			session.FileNamed("Main").Keys["blank"].Entries["fr"].Stale = "a mark\nof two lines";
+			session.FileNamed("Main").Keys["lines"].DefaultValue = "one\ntwo\n";
+			session.FileNamed("Main").Keys["markup"].DefaultValue = "<a> & \"b\" <https://x.y>";
 			var codec = new XliffCodec();
-			var source = new ExportSource(session, file, KeyTree.Build(session, file));
+			var source = new ExportSource(session, file, KeyTree.Build(file));
 			List<string> gripes = [];
 			ExportUnit unit = Assert.Single(codec.Plan(source, Path.Combine(folder, "Strings.xlf")));
 			IniWriter.WriteAtomic(unit.Path, writer => codec.Write(source, unit, writer, gripes));

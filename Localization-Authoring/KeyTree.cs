@@ -1,15 +1,15 @@
 namespace PatTech.Localization.Authoring {
 	/// <summary>
-	///     A structural tree node: what <see cref="KeyTree.Build(string, IEnumerable{WordsKey}, IReadOnlyDictionary{string, string}, string)"/>
+	///     A structural tree node: what <see cref="KeyTree.Build(IEnumerable{WordsKey}, IReadOnlyDictionary{string, string}, string)"/>
 	///     produces and what the writer walks. An editor wraps these with its UI
 	///     state; they carry none.
 	/// </summary>
 	public class KeyTreeNode : IKeyTreeNode {
-		/// <summary>The last segment as shown: without its <c>$</c> marker; the whole label for a file; <c>;</c> for a comment.</summary>
+		/// <summary>The last segment as shown: without its <c>$</c> marker; empty for a file; <c>;</c> for a comment.</summary>
 		public string Label { get; }
 		/// <inheritdoc/>
 		public string FullLabel { get; }
-		/// <summary>True for the root: the file node, whose <see cref="FullLabel"/> is empty, or the label a prefixed tree gives it.</summary>
+		/// <summary>True for the root: the file node, whose <see cref="FullLabel"/> is empty.</summary>
 		public bool IsFile { get; init; }
 		/// <summary>The nodes below this one, in write order.</summary>
 		public List<KeyTreeNode> Children { get; } = [];
@@ -46,27 +46,19 @@ namespace PatTech.Localization.Authoring {
 	/// </summary>
 	public static class KeyTree {
 		/// <summary>The tree of <paramref name="file"/> as it holds its keys right after a load, each node labelled with its path in the file.</summary>
-		public static KeyTreeNode Build(WordsFile file) => Build("", file.Keys.Values, file.BlockComments, file.Trailer);
+		public static KeyTreeNode Build(WordsFile file) => Build(file.Keys.Values, file.BlockComments, file.Trailer);
 
-		/// <summary>
-		///     The tree of <paramref name="file"/>, each node's label prefixed with the
-		///     file's, <c>Label.view.key</c>, as the editor names nodes until it names
-		///     them by file and path (the editor's SPEC: Keys without the file's name).
-		/// </summary>
-		public static KeyTreeNode Build(WordsSession session, WordsFile file) => Build(file.Label, file.Keys.Values, file.BlockComments, file.Trailer);
-
-		/// <param name="label">The root's label, which prefixes every node's; empty for a tree labelled by path alone.</param>
 		/// <param name="keysInOrder">The file's keys in document order; the order children take.</param>
 		/// <param name="blockComments">Comment runs by the name of the block they sat above.</param>
 		/// <param name="trailer">The comment run after the last block, or empty.</param>
-		public static KeyTreeNode Build(string label, IEnumerable<WordsKey> keysInOrder, IReadOnlyDictionary<string, string> blockComments, string trailer = "") {
-			var file = new KeyTreeNode(label, label) { IsFile = true };
+		public static KeyTreeNode Build(IEnumerable<WordsKey> keysInOrder, IReadOnlyDictionary<string, string> blockComments, string trailer = "") {
+			var file = new KeyTreeNode("", "") { IsFile = true };
 			var nodes = new Dictionary<string, KeyTreeNode> { [""] = file };
 			foreach (string path in keysInOrder.Select(key => key.BlockKey).Concat(blockComments.Keys)) {
 				Ensure(path);
 			}
 			if (trailer != "") {
-				file.Children.Add(new CommentTreeNode(Join(label, ";trailer"), trailer));
+				file.Children.Add(new CommentTreeNode(";trailer", trailer));
 			}
 			return file;
 
@@ -75,7 +67,7 @@ namespace PatTech.Localization.Authoring {
 					return node;
 				}
 				KeyTreeNode parent = Ensure(path.LastIndexOf('.') is >= 0 and var dot ? path[..dot] : "");
-				node = new KeyTreeNode(KeyTreeNode.LabelOf(path), Join(label, path));
+				node = new KeyTreeNode(KeyTreeNode.LabelOf(path), path);
 				if (blockComments.TryGetValue(path, out var text)) {
 					//the run that sat above this block stands in front of it; from
 					//here on, position is the anchor
@@ -87,33 +79,7 @@ namespace PatTech.Localization.Authoring {
 			}
 		}
 
-		/// <summary>
-		///     A structural copy of <paramref name="tree"/> under a new root label,
-		///     each node's path in the file kept: empty labels each node by its path
-		///     alone, the shape the writer and the exporters read. Comments come along.
-		/// </summary>
-		public static KeyTreeNode Relabel(IKeyTreeNode tree, string newLabel) {
-			return Copy(tree, newLabel, isFile: true);
-
-			KeyTreeNode Copy(IKeyTreeNode node, string fullLabel, bool isFile) {
-				KeyTreeNode copy = node is ICommentNode comment
-					? new CommentTreeNode(fullLabel, comment.Text)
-					: new KeyTreeNode(isFile ? fullLabel : KeyTreeNode.LabelOf(fullLabel), fullLabel) { IsFile = isFile };
-				foreach (IKeyTreeNode child in node.Children) {
-					copy.Children.Add(Copy(child, Join(newLabel, PathOf(tree, child)), isFile: false));
-				}
-				return copy;
-			}
-		}
-
-		/// <summary>
-		///     The path in its file of a node of <paramref name="tree"/>: its full
-		///     label, the root's label and its dot taken off where the root has one.
-		/// </summary>
-		public static string PathOf(IKeyTreeNode tree, IKeyTreeNode node)
-			=> tree.FullLabel != "" && node.FullLabel.StartsWith(tree.FullLabel + ".", StringComparison.Ordinal) ? node.FullLabel[(tree.FullLabel.Length + 1)..] : node.FullLabel;
-
-		//a path under a label; empty adds nothing
-		internal static string Join(string label, string path) => label == "" ? path : path == "" ? label : $"{label}.{path}";
+		//a name under a parent's path; under the root, the name alone
+		internal static string Join(string parent, string name) => parent == "" ? name : name == "" ? parent : $"{parent}.{name}";
 	}
 }

@@ -23,7 +23,7 @@ public class LanguagePlanTests {
 
 	private static PlannedLanguage Recode(PlannedLanguage row, string code) => row with { Label = new LanguageEntry(row.Label) { Code = code } };
 
-	private static string Said(WordsSession session, string code) => session.Keys["Main.k"].Entries[code].Value;
+	private static string Said(WordsSession session, string code) => session.FileNamed("Main").Keys["k"].Entries[code].Value;
 
 	private static void NothingParked(WordsSession session, WordsFile file) {
 		Assert.DoesNotContain(session.Languages.Known, language => language.Code.StartsWith("zz-"));

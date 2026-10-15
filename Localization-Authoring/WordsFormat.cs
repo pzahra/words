@@ -165,7 +165,7 @@ namespace PatTech.Localization.Authoring {
 			WordsSession.EnsureTreeCovers(file, tree);
 			Session = session;
 			File = file;
-			Tree = KeyTree.Relabel(tree, "");
+			Tree = tree;
 		}
 
 		/// <summary>The file's own language table, with the session's labels.</summary>

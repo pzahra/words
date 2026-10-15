@@ -15,21 +15,13 @@ namespace PatTech.Localization.Authoring {
 	///     <see cref="LanguageTable.Known"/>. Empty entries write nothing.
 	///     </para>
 	///     <para>
-	///     A key is named by its file and its name in it. The calls taking a label,
-	///     <c>Label.view.key</c>, are a shim that reads the label's first segment as
-	///     a file's <see cref="WordsFile.Label"/> and the rest as the name, so the
-	///     editor runs on as it named keys until it names them by file (the editor's
-	///     SPEC: Keys without the file's name).
+	///     A key is named by its file and its name in it, as the file writes it: no
+	///     key carries its file's name (the editor's SPEC: Keys without the file's name).
 	///     </para>
 	/// </summary>
 	public sealed class WordsSession {
 		private readonly List<WordsFile> files = [];
 
-		/// <summary>
-		///     Every loaded key by its file's label and its name, <c>Label.view.key</c>,
-		///     file by file in load order: the shim's view. Change it through the session.
-		/// </summary>
-		public IReadOnlyDictionary<string, WordsKey> Keys { get; }
 		/// <summary>Every loaded key, file by file in load order, each file's in its order.</summary>
 		public IEnumerable<WordsKey> AllKeys => files.SelectMany(file => file.Keys.Values);
 		/// <summary>The loaded files, in load order (a reload keeps its place).</summary>
@@ -39,29 +31,12 @@ namespace PatTech.Localization.Authoring {
 
 		public WordsSession() {
 			Languages = new LanguageTable(this);
-			Keys = new LabelledKeys(this);
 		}
 
 		/// <summary>The file loaded from <paramref name="path"/>, if any (paths compare in full, case-insensitively); a file not saved yet is at none.</summary>
 		public WordsFile? FileAt(string path) {
 			string full = System.IO.Path.GetFullPath(path);
 			return files.FirstOrDefault(file => file.Path is { } at && string.Equals(System.IO.Path.GetFullPath(at), full, StringComparison.OrdinalIgnoreCase));
-		}
-
-		/// <summary>The file whose <see cref="WordsFile.Label"/> is <paramref name="label"/>, if any.</summary>
-		public WordsFile? FileOf(string label) => files.FirstOrDefault(file => file.Label == label);
-
-		/// <summary>The shim: the file a label's first segment names, if it is loaded.</summary>
-		public WordsFile? FileOfKey(string label) => Resolve(label)?.File;
-
-		/// <summary>The shim: the files <paramref name="labels"/> name, in their order; a label no file has is passed over.</summary>
-		public IEnumerable<WordsFile> FilesOf(IEnumerable<string> labels) => labels.Select(FileOf).OfType<WordsFile>();
-
-		//the shim: a label read as a file and a key's name in it, the file's own label
-		//alone being the file, with an empty name
-		private (WordsFile File, string Name)? Resolve(string label) {
-			int dot = label.IndexOf('.');
-			return FileOf(dot < 0 ? label : label[..dot]) is { } file ? (file, dot < 0 ? "" : label[(dot + 1)..]) : null;
 		}
 
 		/// <summary>
@@ -179,12 +154,10 @@ namespace PatTech.Localization.Authoring {
 			Name(file, System.IO.Path.GetFileNameWithoutExtension(path), path);
 		}
 
-		//the file's keys are its own, by their names: the name, and the shim's label after
-		//it, are the file's alone
-		private void Name(WordsFile file, string name, string? path) {
+		//the file's keys are its own, by their names: the name is the file's alone
+		private static void Name(WordsFile file, string name, string? path) {
 			file.Path = path;
 			file.Name = name;
-			file.Label = UniqueLabel(name, file);
 		}
 
 		//the first line break decides; a file with none takes the system's
@@ -241,7 +214,7 @@ namespace PatTech.Localization.Authoring {
 
 		//the file joins the session at position, named name
 		private WordsFile Add(ILoadedWords loaded, string? path, string name, string? newLine, Encoding? encoding, int position) {
-			var file = new WordsFile(path, name, UniqueLabel(name), loaded, newLine ?? Environment.NewLine, encoding ?? IniWriter.Utf8);
+			var file = new WordsFile(path, name, loaded, newLine ?? Environment.NewLine, encoding ?? IniWriter.Utf8);
 			files.Insert(position, file);
 			foreach (WordsKey read in loaded.WordKeys.Values) {
 				//a copy: the caller's document stays as read, so loading it twice
@@ -253,21 +226,6 @@ namespace PatTech.Localization.Authoring {
 			}
 			Languages.Absorb(loaded, firstFile: files.Count == 1);
 			return file;
-		}
-
-		//the shim's label: the name, dots replaced (the shim reads a label's first segment
-		//as the file), and suffixed past any label another loaded file already carries; a
-		//file renamed may keep its own
-		private string UniqueLabel(string fileName, WordsFile? renamed = null) {
-			string name = fileName.Replace('.', '-');
-			if (name == "") {
-				name = "file";
-			}
-			string label = name;
-			for (int i = 2; FileOf(label) is { } other && other != renamed; i++) {
-				label = $"{name}-{i}";
-			}
-			return label;
 		}
 
 		/// <summary>
@@ -357,17 +315,17 @@ namespace PatTech.Localization.Authoring {
 		public void Save(WordsFile file, IKeyTreeNode tree, TextWriter writer) {
 			EnsureTreeCovers(file, tree);
 			writer.NewLine = file.NewLine;
-			IniWriter.WriteFile(KeyTree.Relabel(tree, ""), writer, file.Keys, Languages.For(file), preamble: file.Preamble, settings: file.Settings, languageSettings: file.LanguageSettings, defaultLanguage: file.DefaultLanguage);
+			IniWriter.WriteFile(tree, writer, file.Keys, Languages.For(file), preamble: file.Preamble, settings: file.Settings, languageSettings: file.LanguageSettings, defaultLanguage: file.DefaultLanguage);
 		}
 
 		//the writer only emits keys the walk reaches, so a stale or wrong tree would
-		//quietly drop the rest: the tree must be the file's, its root labelled by
-		//nothing or by the file's label, and its keyed nodes must be exactly the file's
-		//keys, no more, no fewer. An exporter walks the same tree, so an ExportSource
-		//checks the same way
+		//quietly drop the rest: the tree must be a file's, its root labelled by nothing
+		//and every node by its path, and its keyed nodes must be exactly the file's keys,
+		//no more, no fewer. An exporter walks the same tree, so an ExportSource checks
+		//the same way
 		internal static void EnsureTreeCovers(WordsFile file, IKeyTreeNode tree) {
-			if (tree.FullLabel != "" && tree.FullLabel != file.Label) {
-				throw new InvalidOperationException($"tree root '{tree.FullLabel}' does not own file '{file.Name}'");
+			if (tree.FullLabel != "") {
+				throw new InvalidOperationException($"tree root '{tree.FullLabel}' is no file's: a file's tree is labelled by its paths alone");
 			}
 			var covered = new HashSet<string>();
 			foreach (IKeyTreeNode child in tree.Children) {
@@ -381,8 +339,8 @@ namespace PatTech.Localization.Authoring {
 			}
 
 			void Collect(IKeyTreeNode node) {
-				if (node is not ICommentNode && KeyTree.PathOf(tree, node) is var path && file.Keys.ContainsKey(path)) {
-					covered.Add(path);
+				if (node is not ICommentNode && file.Keys.ContainsKey(node.FullLabel)) {
+					covered.Add(node.FullLabel);
 				}
 				foreach (IKeyTreeNode child in node.Children) {
 					Collect(child);
@@ -485,55 +443,6 @@ namespace PatTech.Localization.Authoring {
 		public bool HaveSameKeys(IEnumerable<WordsFile> files, out HashSet<string> conflicts)
 			=> WordsOperations.HaveSameKeys(files.Select(file => file.Keys), out conflicts);
 
-		/// <summary>The shim: <see cref="AddKey(WordsFile, string)"/> at a label.</summary>
-		/// <exception cref="ArgumentException">The label names no key of a loaded file.</exception>
-		public WordsKey AddKey(string label)
-			=> Resolve(label) is ({ } file, { Length: > 0 } name) ? AddKey(file, name) : throw new ArgumentException($"'{label}' names no key of a loaded file", nameof(label));
-
-		/// <summary>The shim: <see cref="RemoveKey(WordsFile, string)"/> at a label.</summary>
-		public bool RemoveKey(string label) => Resolve(label) is ({ } file, { Length: > 0 } name) && RemoveKey(file, name);
-
-		/// <summary>The shim: <see cref="KeysUnder(WordsFile, string)"/> at a label; a file's label alone is every key of the file.</summary>
-		public IEnumerable<WordsKey> KeysUnder(string label) => Resolve(label) is ({ } file, { } name) ? KeysUnder(file, name) : [];
-
-		/// <summary>The shim: <see cref="RemoveKeysUnder(WordsFile, string)"/> at a label.</summary>
-		public int RemoveKeysUnder(string label) => Resolve(label) is ({ } file, { } name) ? RemoveKeysUnder(file, name) : 0;
-
-		/// <summary>The shim: <see cref="Restore(WordsFile, WordsKey)"/> in the file a label names.</summary>
-		/// <exception cref="ArgumentException">The label names no loaded file.</exception>
-		public WordsKey Restore(string label, WordsKey kept)
-			=> Restore(FileOfKey(label) ?? throw new ArgumentException($"'{label}' names no loaded file", nameof(label)), kept);
-
-		/// <summary>
-		///     The shim: a rename from one label to another, the keys moving into the
-		///     file the new one names where it names another (<see cref="TryMove(WordsFile, string, WordsFile, string, out HashSet{string})"/>);
-		///     the collisions come back as labels.
-		/// </summary>
-		public bool TryRename(string oldLabel, string newLabel, out HashSet<string> collisions) {
-			if (Resolve(oldLabel) is not ({ } from, { } name) || Resolve(newLabel) is not ({ } to, { } newName)) {
-				collisions = [];
-				return true;
-			}
-			bool moved = WordsOperations.TryRename(from.Store, name, to.Store, newName, out var names);
-			collisions = [.. names.Select(found => KeyTree.Join(to.Label, found))];
-			return moved;
-		}
-
-		/// <summary>The shim: a move under another label, keeping the last segment, as a rename to there.</summary>
-		public bool TryMove(string label, string newParent, out HashSet<string> collisions)
-			=> TryRename(label, KeyTree.Join(newParent, WordsOperations.LastSegment(label)), out collisions);
-
-		/// <summary>The shim: <see cref="SetConstant(WordsFile, string, bool, bool)"/> at a label, the new label coming back.</summary>
-		public string? SetConstant(string label, bool isConstant, bool clearEntries = false)
-			=> Resolve(label) is ({ } file, { Length: > 0 } name) && SetConstant(file, name, isConstant, clearEntries) is { } marked ? KeyTree.Join(file.Label, marked) : null;
-
-		/// <summary>The shim: a loaded key's label, <c>Label.view.key</c>, by the file holding it.</summary>
-		/// <exception cref="ArgumentException">No loaded file holds the key.</exception>
-		public string LabelOf(WordsKey key)
-			=> files.FirstOrDefault(file => file.Keys.TryGetValue(key.BlockKey, out WordsKey? held) && held == key) is { } holder
-				? KeyTree.Join(holder.Label, key.BlockKey)
-				: throw new ArgumentException($"no loaded file holds '{key.BlockKey}'", nameof(key));
-
 		/// <summary>
 		///     The translator round trip in bulk: writes a file at
 		///     <paramref name="outPath"/> taking every key and the unlocalised fields
@@ -571,7 +480,7 @@ namespace PatTech.Localization.Authoring {
 					languages.Add(label);
 				}
 			}
-			IniWriter.WriteFile(KeyTree.Relabel(baseTree, ""), outPath, merged, languages,
+			IniWriter.WriteFile(baseTree, outPath, merged, languages,
 				preamble: baseFile.Preamble, settings: baseFile.Settings, languageSettings: baseFile.LanguageSettings, newLine: baseFile.NewLine, defaultLanguage: baseFile.DefaultLanguage, encoding: baseFile.Encoding);
 			return Load(outPath);
 		}
@@ -591,7 +500,7 @@ namespace PatTech.Localization.Authoring {
 			//the language as the source labels it, and only its own settings reference
 			List<LanguageEntry> languages = (Languages.For(source).FirstOrDefault(language => language.Code == languageCode) ?? Languages.Find(languageCode)) is { } label ? [label] : [];
 			Dictionary<string, string> languageSettings = source.LanguageSettings.TryGetValue(languageCode, out string? path) ? new() { [languageCode] = path } : [];
-			IniWriter.WriteFile(KeyTree.Relabel(sourceTree, ""), outPath, split, languages,
+			IniWriter.WriteFile(sourceTree, outPath, split, languages,
 				preamble: source.Preamble, settings: source.Settings, languageSettings: languageSettings, newLine: source.NewLine, defaultLanguage: source.DefaultLanguage, encoding: source.Encoding);
 			return Load(outPath);
 		}
@@ -650,41 +559,7 @@ namespace PatTech.Localization.Authoring {
 		public IWordsProvider Provider(IEnumerable<WordsFile> files, WordsKey shown, string? languageCode = null)
 			=> Provider([.. files.Select(file => file.Keys), new Dictionary<string, WordsKey> { [shown.BlockKey] = shown }], languageCode);
 
-		/// <summary>
-		///     The shim: <see cref="Provider(IEnumerable{WordsFile}, string?)"/> over
-		///     the files <paramref name="fileLabels"/> name, a label, <c>Label.view.key</c>,
-		///     finding its own file's key ahead of the stack.
-		/// </summary>
-		public IWordsProvider Provider(IEnumerable<string> fileLabels, string? languageCode = null)
-			=> Provider([.. FilesOf(fileLabels).Select(file => file.Keys), Keys], languageCode);
-
 		private static IWordsProvider Provider(IEnumerable<IReadOnlyDictionary<string, WordsKey>> stores, string? languageCode)
 			=> languageCode is null ? new DefaultWordsProvider(stores) : new LanguageWordsProvider(stores, languageCode);
-
-		//the shim's view: a label read as a file and a name (Resolve), every key listed by its
-		//file's label and its name, file by file
-		private sealed class LabelledKeys(WordsSession session) : IReadOnlyDictionary<string, WordsKey> {
-			public WordsKey this[string key] => TryGetValue(key, out WordsKey? value) ? value : throw new KeyNotFoundException(key);
-
-			public IEnumerable<string> Keys => Pairs().Select(pair => pair.Key);
-
-			public IEnumerable<WordsKey> Values => session.AllKeys;
-
-			public int Count => session.files.Sum(file => file.Keys.Count);
-
-			public bool ContainsKey(string key) => TryGetValue(key, out _);
-
-			public bool TryGetValue(string key, [System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out WordsKey value) {
-				value = null;
-				return session.Resolve(key) is ({ } file, { Length: > 0 } name) && file.Keys.TryGetValue(name, out value);
-			}
-
-			public IEnumerator<KeyValuePair<string, WordsKey>> GetEnumerator() => Pairs().GetEnumerator();
-
-			System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
-
-			private IEnumerable<KeyValuePair<string, WordsKey>> Pairs()
-				=> session.files.SelectMany(file => file.Keys.Select(pair => KeyValuePair.Create(KeyTree.Join(file.Label, pair.Key), pair.Value)));
-		}
 	}
 }

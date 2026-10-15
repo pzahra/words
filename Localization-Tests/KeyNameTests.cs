@@ -142,12 +142,12 @@ public class KeyNameTests {
 
 		WordsFile file = session.Load(new StringReader(ini), "Odd");
 
-		Assert.Equal("a", session.Keys["Odd.a"].DefaultValue);
-		Assert.Equal("b", session.Keys["Odd.b"].DefaultValue);
+		Assert.Equal("a", session.FileNamed("Odd").Keys["a"].DefaultValue);
+		Assert.Equal("b", session.FileNamed("Odd").Keys["b"].DefaultValue);
 		Assert.All(file.Errors, error => Assert.StartsWith("[]: names no key", error));
 		Assert.Equal(2, file.Errors.Count);
 		var output = new StringWriter { NewLine = "\n" };
-		session.Save(file, KeyTree.Build(session, file), output);
+		session.Save(file, KeyTree.Build(file), output);
 		//a leading [] once read its value as the file's default label, saved as value=!keep
 		Assert.DoesNotContain("keep", output.ToString());
 		Assert.DoesNotContain("lost", output.ToString());
@@ -185,10 +185,10 @@ public class KeyNameTests {
 
 		WordsFile file = session.Load(new StringReader(ini), "Odd");
 
-		Assert.Equal("C#", session.Keys["Odd.lang.c#"].DefaultValue);
+		Assert.Equal("C#", session.FileNamed("Odd").Keys["lang.c#"].DefaultValue);
 		Assert.StartsWith("[lang.c#]: 'lang.c#' is no key name, so a runtime skips it", Assert.Single(file.Errors));
 		var output = new StringWriter { NewLine = "\n" };
-		session.Save(file, KeyTree.Build(session, file), output);
+		session.Save(file, KeyTree.Build(file), output);
 		Assert.Equal(ini, output.ToString()); //written back unchanged, for a rename to fix
 	}
 
