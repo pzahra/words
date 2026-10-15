@@ -30,8 +30,6 @@ public sealed class LanguageRow : DataViewModelBase {
 		get => owner.DefaultRow == this;
 		set => owner.DefaultRow = value ? this : IsDefault ? null : owner.DefaultRow;
 	}
-	/// <summary>Whether applying the row would change the file: new, or no longer as its origin reads.</summary>
-	public bool IsChanged => Origin is null || NormalCode != Origin.Code || NativeName != Origin.NativeName || EnglishName != Origin.EnglishName;
 	public ICommand RemoveCommand { get; }
 
 	public LanguageRow(LanguageManagerViewModel owner, LanguageEntry? origin) {

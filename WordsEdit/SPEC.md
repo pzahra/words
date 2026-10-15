@@ -378,7 +378,10 @@ order follows the rows. A new row that takes a removed language's code
 replaces it: the old language parks on a throwaway code, the new one comes
 in, and the old one goes, words and all — so even the only language can be
 replaced. Whatever the table refuses is told after OK, never skipped in
-silence.
+silence. The order these go in is the table's to plan (`LanguageTable.Apply`):
+the manager hands it the rows, each with the label it came from, and the
+table makes the operations through what stands in front of it, the commit's
+recorder (*Undo*, Languages), so that nothing is refused that need not be.
 One row may be the default's language: a tick in the pane sets it and moves
 it from the row that had it, a mark beside the code shows it in the list, and
 the field for the names written in the default's language is headed by it
@@ -419,7 +422,13 @@ language and the host (not one hiding it), until the library declares it hidden,
 raises the flag again. The table's own operations — add, remove, relabel,
 recode, reorder — round-trip file by file and leave every other file's
 table as it was; a library's fallback or its default's language covers what
-a host lists, and a host's hidden language asks nothing of it.
+a host lists, and a host's hidden language asks nothing of it. The table's
+plan: a swap and a three-way cycle go through, the words following their
+language and no throwaway code left; a new row takes a removed language's
+code without its words; the default is declared only when the tick moved, a
+default in a language the table does not list kept; the table takes the
+rows' order and says what it refused; and every operation goes through the
+edits it is given.
 
 ## Merge
 

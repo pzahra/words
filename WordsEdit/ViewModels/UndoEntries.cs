@@ -525,7 +525,7 @@ public sealed class FileSettingsEdit(string file, FileSettingsEdit.Slots before,
 ///     <see cref="Merged"/> says the commit made one, and the commit is a
 ///     boundary instead. It shows nowhere in the tree.
 /// </summary>
-public sealed class LanguagesEdit : UndoEntry {
+public sealed class LanguagesEdit : UndoEntry, ILanguageEdits {
 	private readonly WordsSession session;
 	private readonly Dictionary<WordsFile, FileTable> tablesBefore;
 	private Dictionary<WordsFile, FileTable> tablesAfter = [];
@@ -626,7 +626,7 @@ public sealed class LanguagesEdit : UndoEntry {
 	/// <summary>Declares the language <paramref name="file"/>'s default is written in (SPEC: Languages); nothing happens when the file says so already.</summary>
 	public void Declare(WordsFile file, string? code) {
 		if (file.DefaultLanguage != code) {
-			file.DefaultLanguage = code;
+			Table.Declare(file, code);
 			Note(true);
 		}
 	}

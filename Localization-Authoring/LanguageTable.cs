@@ -2,6 +2,32 @@ using System.Collections.ObjectModel;
 
 namespace PatTech.Localization.Authoring {
 	/// <summary>
+	///     The operations on one file's language table: the <see cref="LanguageTable"/>'s
+	///     own, or a recorder's standing in front of them, as an editor's undo does.
+	/// </summary>
+	public interface ILanguageEdits {
+		/// <inheritdoc cref="LanguageTable.Add"/>
+		bool Add(WordsFile file, LanguageEntry language);
+		/// <inheritdoc cref="LanguageTable.Remove"/>
+		bool Remove(WordsFile file, string code);
+		/// <inheritdoc cref="LanguageTable.Rename"/>
+		LanguageEntry Rename(WordsFile file, string code, LanguageEntry replacement);
+		/// <inheritdoc cref="LanguageTable.Reorder"/>
+		void Reorder(WordsFile file, int from, int to);
+		/// <inheritdoc cref="LanguageTable.Declare"/>
+		void Declare(WordsFile file, string? code);
+	}
+
+	/// <summary>One language of a file's table as a manager wants it (<see cref="LanguageTable.Apply"/>).</summary>
+	/// <param name="Origin">The file's label it comes from, as <see cref="LanguageTable.For"/> read it; <see langword="null"/> for one added.</param>
+	/// <param name="Label">The label it is to have, its code as the file writes it.</param>
+	/// <param name="IsDefault">Whether the default is written in it.</param>
+	public sealed record PlannedLanguage(LanguageEntry? Origin, LanguageEntry Label, bool IsDefault = false) {
+		//whether applying it changes the file: new, or no longer as its origin reads
+		internal bool Changes => Origin is null || Label.Code != Origin.Code || Label.NativeName != Origin.NativeName || Label.EnglishName != Origin.EnglishName;
+	}
+
+	/// <summary>
 	///     The languages of a <see cref="WordsSession"/>. Each file keeps its own
 	///     table, its codes in <see cref="WordsFile.Languages"/> and its labels in
 	///     <see cref="WordsFile.Labels"/>, and writes back only those; every change
@@ -11,7 +37,7 @@ namespace PatTech.Localization.Authoring {
 	///     order. Every change keeps the session's invariant: each key has an entry
 	///     for each known language.
 	/// </summary>
-	public sealed class LanguageTable {
+	public sealed class LanguageTable : ILanguageEdits {
 		private readonly WordsSession session;
 
 		/// <summary>The session union, in dropdown order. Never empty: a session with no languages shows <see cref="Default"/>.</summary>
@@ -193,6 +219,88 @@ namespace PatTech.Localization.Authoring {
 			file.Languages.RemoveAt(from);
 			file.Languages.Insert(to, code);
 			Resort();
+		}
+
+		/// <summary>Declares the language <paramref name="file"/>'s default is written in, or that it says none (<see cref="WordsFile.DefaultLanguage"/>).</summary>
+		public void Declare(WordsFile file, string? code) => file.DefaultLanguage = code;
+
+		/// <summary>
+		///     Brings <paramref name="file"/>'s table to <paramref name="rows"/>, a
+		///     language manager's list (the editor's SPEC: Languages): each row keeps,
+		///     re-codes or relabels the language it comes from, or adds one, a language
+		///     no row comes from goes, the default is declared in the ticked row's when
+		///     the tick moved, and the table takes the rows' order. Every operation goes
+		///     through <paramref name="edits"/>, the table itself unless a recorder
+		///     stands in front of it, in an order that refuses nothing it need not:
+		///     additions whose code is free first, so the last-language rule never
+		///     refuses a removal; removals next, freeing codes, one whose code a new row
+		///     takes parked on a throwaway code first, so the new row comes in before it
+		///     goes; then the re-codes, one whose code is still taken waiting for the
+		///     re-code that frees it, a cycle of swaps parking one language on a
+		///     throwaway code; then the additions that waited for a code; then the
+		///     default's language, every code being final; then the order.
+		/// </summary>
+		/// <param name="file">The file whose table changes; no other file's does.</param>
+		/// <param name="rows">The languages it is to have, in order, their codes unique.</param>
+		/// <param name="edits">What makes the changes; <see langword="null"/> for the table.</param>
+		/// <returns>The codes the table refused, a file's last language or a code that stayed taken, for the caller to tell.</returns>
+		public IReadOnlyList<string> Apply(WordsFile file, IReadOnlyList<PlannedLanguage> rows, ILanguageEdits? edits = null) {
+			edits ??= this;
+			List<string> refused = [];
+			//the tick as the file has it, so the default is declared only when it moved
+			PlannedLanguage? declared = file.DefaultLanguage is { } language ? rows.FirstOrDefault(row => row.Origin?.Code == language) : null;
+			PlannedLanguage? ticked = rows.FirstOrDefault(row => row.IsDefault);
+			List<LanguageEntry> gone = [.. For(file).Where(label => rows.All(row => row.Origin?.Code != label.Code))];
+			List<PlannedLanguage> additions = [.. rows.Where(row => row.Origin is null)];
+			AddFree();
+			foreach (LanguageEntry entry in gone) {
+				string code = entry.Code;
+				if (additions.Any(row => row.Label.Code == code)) {
+					code = Parking();
+					edits.Rename(file, entry.Code, new LanguageEntry(code, entry.NativeName) { EnglishName = entry.EnglishName });
+					AddFree();
+				}
+				if (!edits.Remove(file, code)) {
+					refused.Add(entry.Code);
+				}
+			}
+			List<PlannedLanguage> renames = [.. rows.Where(row => row.Origin is not null && row.Changes)];
+			Dictionary<PlannedLanguage, string> current = renames.ToDictionary(row => row, row => row.Origin!.Code);
+			while (renames.Count > 0) {
+				PlannedLanguage next = renames.FirstOrDefault(row => row.Label.Code == current[row] || !file.Languages.Contains(row.Label.Code)) ?? renames[0];
+				if (next.Label.Code != current[next] && file.Languages.Contains(next.Label.Code)) {
+					LanguageEntry blocking = For(file).First(label => label.Code == next.Label.Code);
+					PlannedLanguage blocked = renames.First(row => current[row] == blocking.Code);
+					current[blocked] = Parking();
+					edits.Rename(file, blocking.Code, new LanguageEntry(current[blocked], blocking.NativeName) { EnglishName = blocking.EnglishName });
+				}
+				edits.Rename(file, current[next], next.Label);
+				renames.Remove(next);
+			}
+			AddFree();
+			refused.AddRange(additions.Select(row => row.Label.Code));
+			if (!ReferenceEquals(ticked, declared)) {
+				edits.Declare(file, ticked?.Label.Code);
+			}
+			int place = 0;
+			foreach (PlannedLanguage row in rows) {
+				int at = file.Languages.IndexOf(row.Label.Code);
+				if (at >= 0) {
+					edits.Reorder(file, at, place++);
+				}
+			}
+			return refused;
+
+			//adds the rows whose code the file does not declare yet, and drops them from the list
+			void AddFree() {
+				foreach (PlannedLanguage row in additions.Where(row => !file.Languages.Contains(row.Label.Code)).ToList()) {
+					if (edits.Add(file, row.Label)) {
+						additions.Remove(row);
+					}
+				}
+			}
+
+			static string Parking() => $"zz-{Guid.NewGuid():N}";
 		}
 
 		/// <summary>
