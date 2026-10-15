@@ -15,7 +15,7 @@ public class ViewModelSaveBaseTests {
 
 		public override void Save() {
 			Saves++;
-			IsDirty = false;
+			MarkClean();
 		}
 	}
 
@@ -42,5 +42,8 @@ public class ViewModelSaveBaseTests {
 		document.MarkDirty(); //a command's edit takes the same door
 		Assert.True(document.IsDirty);
 		Assert.Equal("Wordsmith *", document.TitleMarked);
+
+		//and no other: the flag's setter is the base's own
+		Assert.True(typeof(ViewModelSaveBase).GetProperty(nameof(ViewModelSaveBase.IsDirty))!.SetMethod!.IsPrivate);
 	}
 }

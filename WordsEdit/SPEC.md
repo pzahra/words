@@ -23,8 +23,10 @@ line that ships beside it, has its own ([../WordsCli/SPEC.md](../WordsCli/SPEC.m
 - Dirtiness has one door. `ViewModelSaveBase` owns `IsDirty`: a command that
   edited the document calls `MarkDirty()`, a property that *is* document state
   sets itself with the `dirty: true` overload of `ChangeProperty`, and only
-  Save and Reset clear it — and Undo and Redo, which put back the dirtiness
-  their entry recorded (Undo). Nowhere else assigns the flag.
+  Save and Reset clear it (`MarkClean()`) — and the history, which puts back
+  the dirtiness it recorded (`PutBack`): Undo and Redo, and a keystroke typing
+  its run back to where it started (Undo). Nowhere else assigns the flag, and
+  the compiler holds it: its setter is private.
 - The main window is three panes: **tree** (left), **baseline** (middle),
   **translation** (right).
 - Dialogs are tool windows: one shell (`DialogWindow`), resizable, close
@@ -446,10 +448,12 @@ first is saved makes `anonymous-words-2`, and so on, so the two are told apart.
 It is unsaved work, as an import is: nothing reaches the disk until Save, and
 closing asks.
 
-**Its text.** `MainWindowViewModel.Starter`: a header as comment lines, which
-the file's preamble keeps, then `value=!en` and `value-en=English`, which make
-English the default's language, then the blank line Save writes between the
-table and the first key, so Save writes back exactly what New started with.
+**Its text.** The editor hands Authoring its words and Authoring makes the file
+(`WordsSession.New`, with a header and a language): the header as its preamble's
+comment lines, `; ` before each line of it, then `value=!en` and
+`value-en=English`, which make English the default's language, then the blank
+line Save writes between the table and the first key, so the first Save writes
+just that.
 The header (`file.new-preamble`, in Wordsmith's language) is boilerplate a
 familiar hand leaves in as readily as a newcomer reads it, not a tutorial: what
 the file holds, that it ships in the app's assets for `WordsBuilder` to load,
@@ -504,7 +508,8 @@ New over a path already loaded, which replaced that file's unsaved work.
 - A path the session already has is refused, and the dialog asks again.
 - In the session: a new file has no path and is at none, cannot save until it
   has one, renames in place to a key segment no other file has, and moves to
-  a path no other file has, labelled as a file loaded from there.
+  a path no other file has, labelled as a file loaded from there; one started
+  with a header and a language writes them, and nothing else.
 
 ## Saving
 

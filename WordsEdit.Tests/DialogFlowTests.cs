@@ -513,7 +513,7 @@ value-de=y
 		var (vm, dialogs) = Load();
 		Assert.True(vm.TryClose());
 
-		vm.IsDirty = true;
+		vm.MarkDirty();
 		dialogs.SaveAnswer = CloseAnswer.Cancel;
 		Assert.False(vm.TryClose());
 		Assert.True(vm.IsDirty);
@@ -531,7 +531,7 @@ value-de=y
 			var vm = new MainWindowViewModel(dialogs);
 			string path = Path.Combine(folder, "Example.ini");
 			vm.LoadFile(new StringReader(Ini), path);
-			vm.IsDirty = true;
+			vm.MarkDirty();
 
 			Assert.True(vm.TryClose());
 			Assert.True(File.Exists(path));
@@ -539,7 +539,7 @@ value-de=y
 
 			//a file that cannot be written keeps the window open
 			vm.LoadFile(new StringReader(Ini), Path.Combine(folder, "missing", "Nowhere.ini"));
-			vm.IsDirty = true;
+			vm.MarkDirty();
 			Assert.False(vm.TryClose());
 			Assert.Single(dialogs.Notices);
 		}

@@ -10,7 +10,7 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>
 		///     The path the file was loaded from, or first saved to — its identity, and
 		///     where it saves; <see langword="null"/> for a file started in the editor
-		///     and not saved yet (<see cref="WordsSession.New"/>), which asks where at
+		///     and not saved yet (<see cref="WordsSession.New(string, string, LanguageEntry)"/>), which asks where at
 		///     its first Save (<see cref="WordsSession.MoveTo"/>).
 		/// </summary>
 		public string? Path { get; internal set; }

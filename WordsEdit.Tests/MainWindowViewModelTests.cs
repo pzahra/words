@@ -1,4 +1,5 @@
 using System.Reflection;
+using PatTech.Localization;
 using PatTech.Localization.Authoring;
 using WordsEdit.ViewModels;
 using Xunit;
@@ -32,6 +33,13 @@ public class MainWindowViewModelTests {
 		var writer = new StringWriter();
 		vm.Session.Save(vm.Session.FileOf(label)!, vm.Tree.KeyNodes.First(k => k.FullLabel == label), writer);
 		return writer.ToString();
+	}
+
+	//what a new file's first Save writes: its header, a comment line to a line of it, then
+	//the table making English the default's language, parted from where the keys go
+	private static string Starter() {
+		var header = Words.Known["file.new-preamble"].ReplaceLineEndings("\n").Split('\n').Select(line => line == "" ? ";" : "; " + line);
+		return string.Join(Environment.NewLine, [.. header, "value=!en", "value-en=English", "", ""]);
 	}
 
 	[Fact]
@@ -433,7 +441,7 @@ value=w
 			}
 			var vm = NewVm();
 			vm.LoadFile(filePath);
-			vm.IsDirty = true;
+			vm.MarkDirty();
 
 			vm.Save();
 
@@ -538,7 +546,7 @@ value=w
 		Assert.Equal(folder["Strings.ini"], file.Path);
 		Assert.Equal("Strings", file.Label); //the root follows the name picked
 		Assert.Equal("Strings", vm.Tree.KeyNodes.Single().Label);
-		Assert.Equal(MainWindowViewModel.Starter(), File.ReadAllText(folder["Strings.ini"])); //written as it started
+		Assert.Equal(Starter(), File.ReadAllText(folder["Strings.ini"])); //written as it started
 		string[] lines = File.ReadAllLines(folder["Strings.ini"]);
 		Assert.StartsWith("; An app's words", lines[0]);
 		Assert.Equal(["value=!en", "value-en=English", ""], lines[^3..]);
@@ -564,7 +572,7 @@ value=w
 		Assert.Contains(folder["Taken.ini"], Assert.Single(dialogs.Notices));
 		Assert.Equal(["anonymous-words.ini", folder["Taken.ini"]], dialogs.SaveProposals); //asked again, from the path refused
 		Assert.Equal(folder["Free.ini"], file.Path);
-		Assert.Equal(MainWindowViewModel.Starter(), File.ReadAllText(folder["Free.ini"]));
+		Assert.Equal(Starter(), File.ReadAllText(folder["Free.ini"]));
 		Assert.False(vm.IsDirty);
 	}
 
@@ -634,7 +642,7 @@ value=w
 			vm.LoadFile(good);
 			vm.Session.Keys["Bad.k"].DefaultValue = "broken \uD83D";
 			vm.Session.Keys["Good.k"].DefaultValue = "fine";
-			vm.IsDirty = true;
+			vm.MarkDirty();
 
 			vm.Save();
 
@@ -1183,7 +1191,7 @@ value=x
 		vm.LoadFile(new StringReader("value-en=English\n\n[a]\nvalue=A\n"), "Main");
 		vm.LoadFile(new StringReader("value-en=English\n\n[b]\nvalue=B\n"), "Lib");
 		Assert.Equal("Wordsmith Editor — Main, Lib", vm.Title);
-		vm.IsDirty = true;
+		vm.MarkDirty();
 		Assert.Equal("Wordsmith Editor — Main, Lib *", vm.TitleMarked);
 
 		vm.RemoveFileNodeCore(vm.Tree.KeyNodes[0]);
@@ -1307,7 +1315,7 @@ value=x
 		WordsKey key = vm.Tree.SelectedKey!;
 		key.DefaultValue = "Base {0:N1} {1}";
 		vm.Tree.SelectedEntry!.Value = "Basis {1} {0:N1}";
-		vm.IsDirty = false;
+		vm.MarkClean();
 		int done = vm.UndoStack.DoneCount;
 		ParametersPane pane = vm.ParametersPane;
 
@@ -1499,7 +1507,7 @@ value=x
 			Assert.False(vm.IsDirty);
 
 			void Dirties(string what, Action edit) {
-				vm.IsDirty = false;
+				vm.MarkClean();
 				edit();
 				Assert.True(vm.IsDirty, $"{what} should dirty the session");
 			}
@@ -1527,7 +1535,7 @@ value=x
 			Assert.Empty(dialogs.Notices);
 			Assert.Contains("renamed", File.ReadAllText(path));
 
-			vm.IsDirty = true;
+			vm.MarkDirty();
 			vm.ResetCore();
 			Assert.False(vm.IsDirty);
 		}

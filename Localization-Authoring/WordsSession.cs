@@ -102,6 +102,24 @@ namespace PatTech.Localization.Authoring {
 			return Add(loaded, null, UniqueLabel(name), newLine, null, files.Count);
 		}
 
+		/// <summary>
+		///     Starts an empty file with no path, as <see cref="New(TextReader, string)"/>
+		///     does: <paramref name="preamble"/> its comment lines above the language
+		///     table, written <c>; line</c>, and its default written in
+		///     <paramref name="language"/>, which it declares, listed.
+		/// </summary>
+		/// <param name="name">Its label, and the name its first Save proposes.</param>
+		/// <param name="preamble">What the file is and where it goes, a line of text to a comment line.</param>
+		/// <param name="language">The default's language, as the table lists it.</param>
+		public WordsFile New(string name, string preamble, LanguageEntry language) {
+			var loaded = new LoadedWords {
+				Preamble = string.Join('\n', preamble.ReplaceLineEndings("\n").Split('\n').Select(line => line == "" ? "" : " " + line)),
+				DefaultLanguage = language.Code,
+			};
+			loaded.Declare(language.Code, language.NativeName, language.EnglishName is "" ? null : language.EnglishName);
+			return Add(loaded, null, UniqueLabel(name), null, null, files.Count);
+		}
+
 		//read whole first: the parser's lines lose their breaks, and saving keeps the file's
 		private static (WordsParserToLocalizationProvider Loaded, string? NewLine) Read(TextReader reader) {
 			string text = reader.ReadToEnd();

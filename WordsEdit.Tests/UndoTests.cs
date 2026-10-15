@@ -59,7 +59,7 @@ public class UndoTests {
 		string loaded = State(vm);
 
 		void Twin(string what, Action act) {
-			vm.IsDirty = false;
+			vm.MarkClean();
 			string before = State(vm);
 			int depth = vm.UndoStack.DoneCount;
 			act();
@@ -570,7 +570,7 @@ public class UndoTests {
 		vm.Tree.Select(Node(vm, "Example.enum.none"));
 		vm.ToggleNeedsReviewCommand.Execute(null);
 		vm.Perform(() => new Failing());
-		vm.IsDirty = false;
+		vm.MarkClean();
 
 		Assert.Throws<InvalidOperationException>(() => vm.UndoCommand.Execute(null));
 
@@ -590,7 +590,7 @@ public class UndoTests {
 		vm.ChangeLanguages(edit => { }); //nothing changed, nothing recorded
 		Assert.Equal(1, vm.UndoStack.DoneCount);
 
-		vm.IsDirty = false;
+		vm.MarkClean();
 		vm.ChangeLanguages(edit => edit.Rename(vm.Session.Files[0], "en-GB", new LanguageEntry("en", "English")));
 		Assert.Equal(0, vm.UndoStack.DoneCount);
 		Assert.True(vm.IsDirty);

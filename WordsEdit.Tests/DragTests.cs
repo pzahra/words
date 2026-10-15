@@ -68,7 +68,7 @@ public class DragTests {
 		var dialogs = new FakeDialogs();
 		var vm = new MainWindowViewModel(dialogs);
 		vm.LoadFile(MainWindowViewModelTests.GetExampleFileReader("WordsEdit.Tests.Resources.ExampleFile.ini"), "Example");
-		vm.IsDirty = false;
+		vm.MarkClean();
 		return (vm, dialogs, vm.KeyDrag);
 	}
 

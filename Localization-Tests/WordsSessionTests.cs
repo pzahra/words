@@ -831,4 +831,20 @@ value-fr=Bonjour
 		session.MoveTo(first, Path.Combine(folder, "other", "Words.ini"));
 		Assert.Equal("Words", first.Label); //its own label is no other's
 	}
+
+	//the editor's starter: a header above the table, the default's language declared
+	[Fact]
+	public void ANewFile_StartsWithItsHeader_AndItsDefaultsLanguage() {
+		var session = new WordsSession();
+
+		WordsFile file = session.New("anonymous-words", "An app's words.\r\n\r\nSave says where.", new LanguageEntry("en", "English"));
+
+		Assert.Null(file.Path);
+		Assert.Equal("en", file.DefaultLanguage);
+		Assert.Equal(["en"], file.Languages);
+		Assert.Empty(session.KeysOf(file));
+		var output = new StringWriter();
+		session.Save(file, KeyTree.Build(session, file), output);
+		Assert.Equal("; An app's words.\n;\n; Save says where.\nvalue=!en\nvalue-en=English\n\n", output.ToString().ReplaceLineEndings("\n")); //in the system's breaks
+	}
 }

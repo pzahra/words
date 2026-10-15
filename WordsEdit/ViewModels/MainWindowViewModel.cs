@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
-using System.Text;
 using System.Windows.Input;
 using WordsEdit.Utils;
 using WordsEdit.Views;
@@ -132,12 +131,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		this.spellCheckers = spellCheckers ?? SpellCheckers.IsInstalled;
 		Tree = new TreeViewModel(Session);
 		ParametersPane = new ParametersPane(this);
-		Tree.Edited += () => {
-			//a keystroke that took its run back leaves the document as the run found it
-			IsDirty = typedBack ?? true;
-			typedBack = null;
-			RenderPreviews();
-		};
+		Tree.Edited += AfterTyping;
 		Tree.FieldEdited += OnFieldEdited;
 		Tree.KeyNodes.CollectionChanged += (_, e) => {
 			UpdateTitle();
@@ -218,31 +212,16 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	/// <summary>
 	///     Presents a new file with no path, <see cref="NewFileName"/>, selected, as
-	///     unsaved work: <see cref="Starter"/>'s header and English as the default's
-	///     language. Nothing is written until Save, which asks where.
+	///     unsaved work: a header saying what it is and where it goes, which names no
+	///     file, so a rename leaves it true, and English as the default's language.
+	///     Nothing is written until Save, which asks where.
 	/// </summary>
 	public WordsFile NewFile() {
-		WordsFile file = Session.New(new StringReader(Starter()), NewFileName);
+		WordsFile file = Session.New(NewFileName, Words.Known["file.new-preamble"], new LanguageEntry("en", "English"));
 		Tree.Present(file);
 		Tree.Select(Tree.NodeOf(file));
 		MarkDirty();
 		return file;
-	}
-
-	/// <summary>
-	///     What a new file starts as: a header saying what it is and where it goes,
-	///     as comment lines its preamble keeps, then the two lines that make English
-	///     the default's language. It names no file, so a rename leaves it true.
-	/// </summary>
-	public static string Starter() {
-		var text = new StringBuilder();
-		foreach (string line in Words.Known["file.new-preamble"].ReplaceLineEndings("\n").Split('\n')) {
-			text.AppendLine(line == "" ? ";" : "; " + line);
-		}
-		text.AppendLine("value=!en");
-		text.AppendLine("value-en=English");
-		text.AppendLine(); //where Save parts the table from the first key, so it writes the start back as it was
-		return text.ToString();
 	}
 
 	//Load
@@ -347,7 +326,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Session.Reset();
 		Inputs.Clear();
 		Tree.Clear();
-		IsDirty = false;
+		MarkClean();
 	}
 
 	//Save
@@ -375,7 +354,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			}
 		}
 		if (saved == Session.Files.Count) {
-			IsDirty = false;
+			MarkClean();
 			UndoStack.Saved();
 		}
 		else if (saved > 0) {
@@ -868,7 +847,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 		RenderPreviews();
 		Commands.Refresh();
-		IsDirty = edit?.DirtyAt(standing) ?? (undoing ? entry.DirtyBefore : entry.DirtyAfter);
+		PutBack(edit?.DirtyAt(standing) ?? (undoing ? entry.DirtyBefore : entry.DirtyAfter));
 		if (edit is not null) {
 			FieldFocusRequested?.Invoke(edit.Field, edit.Form, edit.SelectionAt(standing, undoing));
 		}
@@ -977,7 +956,18 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	/// </summary>
 	internal void Typed(FieldEdit edit) {
 		OnFieldEdited(edit);
-		IsDirty = typedBack ?? true;
+		AfterTyping();
+	}
+
+	//a keystroke reached the document; one that took its run back leaves it as dirty as
+	//the run found it (SPEC: Undo)
+	private void AfterTyping() {
+		if (typedBack is { } back) {
+			PutBack(back);
+		}
+		else {
+			MarkDirty();
+		}
 		typedBack = null;
 		RenderPreviews();
 	}
