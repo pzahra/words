@@ -41,29 +41,25 @@ public class ParameterUseTests {
 
 		FoundParameters found = InDefault(keys, "k");
 
-		Assert.Equal(["0", "1", "3", "4", "5", "6", "Name"], found.Names);
+		Assert.Equal(["0", "1", "3", "4", "6", "Name"], found.Names); //{{{{2}} and {{5} are braces
 		Assert.Equal(["1"], found.Counted);
 		Assert.False(found.Unfollowed);
 	}
 
 	[Fact]
-	public void AnEscape_CollapsesBeforeStringFormatReadsTheRest() {
-		var keys = Keys("""
-			[k]
-			value={{0} {{{{1}} {{2#word}
-			""");
+	public void AnEscapedBrace_AndAMalformedOne_HoldNoUse_AsTheRuntimeShowsThem() {
+		const string Ini = "[fmt]\nvalue=N2\n\n[k]\nvalue={{0} {{{{1}} {{2#word} {3:{>fmt}}\n";
+		var keys = Keys(Ini);
 
-		//{{0} renders {0}, which string.Format filled; {{{{1}} renders {{1}}, a brace pair;
-		//{{2#word} renders {2#word}, no selector and no item
-		Assert.Equal(["0"], InDefault(keys, "k").Names);
-		//the runtime as it was: it reads each brace once now, and the finder follows when it
-		//reads the same pieces (runtime SPEC: One pass for every brace)
-		IWords words = WordsBuilder.Create().LoadString("[k]\nvalue={{0} {{{{1}}\n").ToWords("en");
-		Assert.Equal("{0} {{1}}", words.Format("k", "zero", "one"));
+		//until the runtime read each brace once, {{0} rendered {0} and was filled, and a
+		//reference inside {3:…} formatted it while the finder saw no {3}
+		Assert.Empty(InDefault(keys, "k").Names);
+		IWords words = WordsBuilder.Create().LoadString(Ini).ToWords("en");
+		Assert.Equal("{0} {{1}} {2#word} {3:{>fmt}}", words.Format("k", "zero", "one", "two", 3));
 	}
 
 	[Fact]
-	public void ANamedCount_AConstant_ARelativeReference_AndACircle_AreFollowedAsWordsFollowsThem() {
+	public void ANamedCount_ARelativeReference_AndACircle_AreFollowedAsWordsFollowsThem_AndAConstantIsText() {
 		var keys = Keys("""
 			[$unit]
 			value={7}
@@ -81,7 +77,7 @@ public class ParameterUseTests {
 
 		FoundParameters found = InDefault(keys, "k");
 
-		Assert.Equal(["7", "8", "Count"], found.Names);
+		Assert.Equal(["8", "Count"], found.Names);                 //$unit's {7} is text, as the runtime shows it
 		Assert.Equal(["Count"], found.Counted);
 		Assert.False(found.Unfollowed); //a circle is cut, not missed
 	}
@@ -97,7 +93,7 @@ public class ParameterUseTests {
 
 		Assert.Equal(["0", "1"], found.Names);
 		Assert.True(found.Unfollowed);
-		Assert.True(InDefault(Keys("[k]\nvalue={$nowhere}\n"), "k").Unfollowed);
+		Assert.False(InDefault(Keys("[k]\nvalue={$nowhere}\n"), "k").Unfollowed); //a constant is text, and hides no parameter
 	}
 
 	[Fact]

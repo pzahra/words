@@ -1,3 +1,4 @@
+using PatTech.Localization;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -144,23 +145,32 @@ public sealed partial class CardSources(IReadOnlyList<CardSource> pages, IReadOn
 			return new(file.File, lines, blocks);
 		}
 
-		/// <summary>The keys a block's values reference: <c>{>key}</c>, <c>{>.sub}</c> beneath the block's key, <c>{$constant}</c>, and the keys plural selectors pick from, <c>{0#key}</c>; <c>{{</c> escapes.</summary>
+		/// <summary>
+		///     The keys a block's values reference: <c>{>key}</c>, <c>{>.sub}</c> beneath the
+		///     block's key, <c>{$constant}</c>, and the keys plural selectors pick from,
+		///     <c>{0#key}</c>; read in the pieces Words reads, so <c>{{</c> escapes.
+		/// </summary>
 		public IEnumerable<string> References(IniBlock block) {
 			for (int i = block.Header + 1; i <= block.End; i++) {
 				if (IsComment(Lines[i])) {
 					continue;
 				}
-				foreach (Match reference in ReferencePattern().Matches(Lines[i])) {
-					string name = reference.Groups["key"].Value;
-					yield return reference.Groups["kind"].Value == "$" ? "$" + name
-						: name.StartsWith('.') ? block.Key + name
-						: name;
-				}
-				foreach (Match selector in SelectorPattern().Matches(Lines[i])) {
-					string name = selector.Groups["key"].Value;
-					yield return name.StartsWith('.') ? block.Key + name : name;
+				foreach (WordsPiece piece in WordsTemplate.Parse(Lines[i])) {
+					switch (piece) {
+						case WordsPiece.Reference reference:
+							yield return Relative(reference.Key);
+							break;
+						case WordsPiece.Constant constant:
+							yield return constant.Key;
+							break;
+						case WordsPiece.Selector selector:
+							yield return Relative(selector.Key);
+							break;
+					}
 				}
 			}
+
+			string Relative(string name) => name.StartsWith('.') ? block.Key + name : name;
 		}
 
 		//the blocks as written, in the order given; blocks not next to each other in the file
@@ -206,9 +216,5 @@ public sealed partial class CardSources(IReadOnlyList<CardSource> pages, IReadOn
 		private static partial Regex FieldPattern();
 		[GeneratedRegex(@"^([\\_].|[^\\_])*[\\_]$")]
 		private static partial Regex ContinuedPattern();
-		[GeneratedRegex(@"(?<!\{)\{(?<kind>[>$])(?<key>[^{}]+)\}")]
-		private static partial Regex ReferencePattern();
-		[GeneratedRegex(@"(?<!\{)\{(\d+|[_a-zA-Z]\w*)#(?<key>[^{}#\s]+)\}")]
-		private static partial Regex SelectorPattern();
 	}
 }

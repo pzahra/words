@@ -1044,8 +1044,8 @@ alike, reads those.
   It reads the template with `ParseFormat` and writes it back numbered, each brace
   escaped as string.Format wants.
 - **Authoring.** The parameter finder (`ParameterUse`'s `Tokens`, `Items` and its
-  walk), the translation check and the editor's followers (`TreeViewModel`'s
-  `rxFollows`) read the same pieces, so they agree with the runtime by
+  walk, and `IsName`), the translation check and the editor's followers
+  (`TreeViewModel`'s) read the same pieces, so they agree with the runtime by
   construction, and so do the samples' source cards. A constant brings in no
   parameter.
 
@@ -1092,6 +1092,6 @@ reads items as the runtime does.
    template for it. Built.
 4. Authoring reads the pieces: the finder, the translation check, the followers and
    the samples' cards. The editor spec's *Parameters* stops reading the runtime as
-   it was.
+   it was. Built: a constant, being text, is no follower either.
 5. Malformed pieces are caught where words are written: the gripe on load, the
    badge, `set` and the answer check. This section moves up.

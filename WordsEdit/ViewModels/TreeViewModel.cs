@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
 using System.Windows.Input;
 using WordsEdit.Utils;
 
@@ -735,8 +734,6 @@ public class TreeViewModel : ViewModelBase {
 
 	//the translation check in one language, its words read once for a pass
 	private sealed class ParameterCheck(WordsSession session, IEnumerable<string> fileLabels, string code) {
-		//a reference, a constant or a selector: words another key brings in
-		private static readonly Regex rxFollows = new(@"\{(?:[>$]|\w+#)", RegexOptions.Compiled);
 		private readonly IWordsProvider defaults = session.Provider(fileLabels);
 		private readonly IWordsProvider translations = session.Provider(fileLabels, code);
 
@@ -744,8 +741,11 @@ public class TreeViewModel : ViewModelBase {
 
 		//whether the key's default or translation brings in another key's words, whose edit may change its check
 		public bool Follows(WordsKey key)
-			=> rxFollows.IsMatch(key.DefaultValue) || key.Forms.Values.Any(rxFollows.IsMatch)
-				|| (key.Entries.GetValueOrDefault(code) is { } entry && (rxFollows.IsMatch(entry.Value) || entry.Forms.Values.Any(rxFollows.IsMatch)));
+			=> Brings(key.DefaultValue) || key.Forms.Values.Any(Brings)
+				|| (key.Entries.GetValueOrDefault(code) is { } entry && (Brings(entry.Value) || entry.Forms.Values.Any(Brings)));
+
+		//a reference or a selector, read as the runtime reads them; a constant brings in text alone
+		private static bool Brings(string text) => WordsTemplate.Parse(text).Any(piece => piece is WordsPiece.Reference or WordsPiece.Selector);
 	}
 
 	//a language the file registers (listed or !-hidden) wants words; one the file never

@@ -1269,11 +1269,10 @@ references and selected forms expanded as the runtime expands them, through
 every loaded file as the previews resolve them, so a `{>files}` whose words
 print `{0}` uses `{0}`. Numbered ones come first, by number, `{01}` being
 `{1}` as string.Format reads it, then named ones as they first appear. The
-words are read as the runtime read them before it read each brace once (the
-runtime spec's *One pass for every brace*): rendering collapsed Words' escapes
-before string.Format saw them, so `{{0}` rendered to `{0}` and was a use, and
-only `{{{{0}}` was a brace. The runtime now shows `{{0}` as `{0}`, formatted or
-not, and the finder follows when it reads the same pieces. A parameter found and not
+words are read in the runtime's own pieces, each brace once (the runtime
+spec's *One pass for every brace*), so the finder and the app agree: `{{0}` is a
+brace and text, no use; a malformed brace, `{0:{>fmt}}`, holds none; and a
+constant is text, so its words bring in no parameter. A parameter found and not
 defined shows faintly under the definitions, `+ {0}`, and a click makes it
 one, its type guessed: `int` for a selector's count, `str` otherwise. The
 + adds the first of those, or else the lowest number no definition has, so
@@ -1322,8 +1321,8 @@ do: orange braces, whose tooltip says what is dropped and what is extra.
 Mismatch View, beside Missing View, filters for it, and a note under the
 translation's title says the same, with what each costs as its tooltip. An
 edit checks its own key again, and every key whose words bring in another's,
-a reference, a constant or a selector, since what they bring in may have
-changed; a definition added, renamed, retyped or taken away checks its key
+a reference or a selector, since what they bring in may have changed (a
+constant brings in text alone); a definition added, renamed, retyped or taken away checks its key
 again too. A full pass, as a language picked or an undo makes one, checks
 every key. The filters follow the badges an edit changes at once: a follower
 whose mismatch went leaves Mismatch View, one that gained one joins it, while

@@ -118,8 +118,9 @@ their common indent taken off. Every card on every page has its markers.
 
 **The words.** From `sample-words.ini`, then the sample's `framework-words.ini`, each block
 whose key is the card's key or beneath it, then each block those reference with
-`{>key}`, `{>.sub}` or `{$constant}`, followed until nothing new turns up; an
-escaped `{{>key}` is not followed. A card that looks keys up in code names them
+`{>key}`, `{>.sub}` or `{$constant}`, or selects from with `{0#key}`, followed until
+nothing new turns up, each line read in the pieces Words reads (`WordsTemplate`), so
+an escaped `{{>key}` is not followed. A card that looks keys up in code names them
 in `MoreKeys` — the Enums cards name their `[Words]` enums' — and those join the
 card's own. A block brings the comments right above its header; a comment set
 apart by a blank line is a section's, and stays out. Blocks come in file order,

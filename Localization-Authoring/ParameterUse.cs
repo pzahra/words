@@ -1,13 +1,10 @@
 using PatTech.Localization;
-using PatTech.Utils;
 using System.Globalization;
-using System.Text;
-using System.Text.RegularExpressions;
 
 namespace PatTech.Localization.Authoring {
 	/// <summary>
-	///     The parameters a key's words use, found as the runtime renders and then
-	///     formats them (editor SPEC: Parameters → Defined by hand, found to help).
+	///     The parameters a key's words use, found as the runtime renders and fills
+	///     them (editor SPEC: Parameters → Defined by hand, found to help).
 	/// </summary>
 	/// <param name="Names">
 	///     Each parameter once: numbered ones first, by number, then named ones as
@@ -51,26 +48,14 @@ namespace PatTech.Localization.Authoring {
 	///     badges and the command line's note read, as <see cref="MissingWords"/> is
 	///     (editor SPEC: Parameters). A use is a parameter printed, <c>{0}</c>,
 	///     <c>{0:N2}</c>, <c>{Name}</c>, or counted, <c>{0#word}</c>, over the plain value
-	///     and every form. The words are read as the runtime read them before it read each
-	///     brace once, in two passes: rendering expands each reference and collapses Words'
-	///     escapes, then string.Format reads what is left, so <c>{{0}</c> renders to
-	///     <c>{0}</c> and is a use, and <c>{{{{0}}</c> is not; the finder keeps that until it
-	///     reads the runtime's pieces (runtime SPEC: One pass for every brace). A reference's words are its own and their uses
-	///     are the key's; a selector may pick any form of its key the language counts
-	///     by, so the uses of every one of them are.
+	///     and every form. The words are read in the runtime's own pieces
+	///     (<see cref="WordsTemplate"/>), each brace once, so the finder agrees with it:
+	///     <c>{{0}</c> is a brace and text, no use; a malformed brace holds none; and a
+	///     constant is text, which brings in no parameter. A reference's words are its own
+	///     and their uses are the key's; a selector may pick any form of its key the
+	///     language counts by, so the uses of every one of them are.
 	/// </summary>
 	public static class ParameterUse {
-		//the rendering pass as Words' own matches it: an escaped pair, a {$constant} or
-		//{>key} reference, or a {0#word} / {Count#word} selector
-		private static readonly Regex rxRender = new(
-				@"(?<1>[\\'""{])\1|\{[$>](?<2>[^}]+)\}|\{(?<3>\d+|(?=[_a-zA-Z])\w+)#(?<4>[^{}#\s]+)\}",
-				RegexOptions.Compiled | RegexOptions.ExplicitCapture);
-		//the inside of a format item: a number, with an alignment, as string.Format reads
-		//one, or a name, as FormatByName does; either with a format after a ':'
-		private static readonly Regex rxItem = new(
-				@"^(?:(?<1>\d+) *(?:, *(?<2>-?\d+) *)?|[\s-[\r\n]]*(?<1>(?=[_a-zA-Z])\w+)[\s-[\r\n]]*)(?::(?<3>.*))?\z",
-				RegexOptions.Compiled | RegexOptions.ExplicitCapture | RegexOptions.Singleline);
-
 		/// <summary>
 		///     What the default uses, its references and selectors followed through
 		///     <paramref name="provider"/>, the words a default preview reads.
@@ -162,73 +147,35 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>
 		///     The references, constants and selectors <paramref name="text"/> holds,
 		///     as written, <c>{&gt;key}</c>, <c>{$name}</c> and <c>{0#word}</c>, which
-		///     <c>Selects</c>; read as rendering reads them, so an escaped brace holds none.
+		///     <c>Selects</c>; read in the runtime's pieces, so an escaped brace holds none.
 		/// </summary>
-		public static IEnumerable<(string Token, bool Selects)> Tokens(string text) {
-			for (Match match = rxRender.Match(text); match.Success; match = match.NextMatch()) {
-				if (!match.Groups[1].Success) {
-					yield return (match.Value, match.Groups[3].Success);
-				}
-			}
-		}
+		public static IEnumerable<(string Token, bool Selects)> Tokens(string text)
+			=> WordsTemplate.Parse(text)
+				.Where(piece => piece is WordsPiece.Reference or WordsPiece.Constant or WordsPiece.Selector)
+				.Select(piece => (piece.In(text), piece is WordsPiece.Selector));
 
 		/// <summary>
 		///     The format items <paramref name="text"/> holds, each by its parameter and
 		///     written one way: <c>{0,5:N2}</c>, the number as string.Format reads it
 		///     (<c>{00}</c> is <c>{0}</c>), no spaces around the alignment, and an empty
-		///     format none. Read as rendering leaves them, so an escaped brace holds none,
+		///     format none. Read in the runtime's pieces, so an escaped brace holds none,
 		///     and what a reference or a selector brings in is not the text's own.
 		/// </summary>
-		public static IEnumerable<(string Name, string Item)> Items(string text) {
-			List<(string Name, string Item)> items = [];
-			var stretch = new StringBuilder();
-			int start = 0;
-			for (Match match = rxRender.Match(text); match.Success; match = match.NextMatch()) {
-				stretch.Append(text, start, match.Index - start);
-				start = match.Index + match.Length;
-				if (match.Groups[1].Success) {
-					stretch.Append(match.Groups[1].Value);
-					continue;
-				}
-				Read(stretch.ToString());
-				stretch.Clear();
-			}
-			stretch.Append(text, start, text.Length - start);
-			Read(stretch.ToString());
-			return items;
+		public static IEnumerable<(string Name, string Item)> Items(string text)
+			=> WordsTemplate.Parse(text).OfType<WordsPiece.Item>().Select(item => (item.Argument, Written(item)));
 
-			void Read(string words) {
-				foreach (Match item in FormatItems(words)) {
-					string name = Normal(item.Groups[1].Value);
-					string alignment = item.Groups[2].Success ? $",{item.Groups[2].Value}" : "";
-					string format = item.Groups[3].Value is { Length: > 0 } spec ? $":{spec}" : "";
-					items.Add((name, $"{{{name}{alignment}{format}}}"));
-				}
-			}
+		private static string Written(WordsPiece.Item item) {
+			string alignment = item.Alignment is int width ? $",{width.ToString(CultureInfo.InvariantCulture)}" : "";
+			string format = item.Format is { } spec ? $":{spec}" : "";
+			return $"{{{item.Argument}{alignment}{format}}}";
 		}
 
-		//string.Format's items in text: {{ is a brace, and an item runs to the first }
-		private static IEnumerable<Match> FormatItems(string text) {
-			for (int i = text.IndexOf('{'); i >= 0 && i < text.Length; i = text.IndexOf('{', i)) {
-				if (i + 1 < text.Length && text[i + 1] == '{') {
-					i += 2;
-					continue;
-				}
-				int close = text.IndexOf('}', i + 1);
-				if (close < 0) {
-					yield break;
-				}
-				if (rxItem.TryMatch(text[(i + 1)..close], out var item)) {
-					yield return item;
-				}
-				i = close + 1;
-			}
-		}
-
-		//a number as string.Format reads it, 01 being 1; a name as written
-		/// <summary>Whether <paramref name="name"/> names a parameter a text can use: a number, <c>{0}</c>, or a name, <c>{Count}</c>, as FormatByName reads one.</summary>
-		public static bool IsName(string name) => rxName.IsMatch(name);
-		private static readonly Regex rxName = new(@"^(?:\d+|(?=[_a-zA-Z])\w+)\z", RegexOptions.Compiled);
+		/// <summary>
+		///     Whether <paramref name="name"/> names a parameter a text can use: a number,
+		///     <c>{0}</c>, or a name, <c>{Count}</c>, as a format item reads one.
+		/// </summary>
+		public static bool IsName(string name)
+			=> !name.Any(char.IsWhiteSpace) && WordsTemplate.ParseFormat($"{{{name}}}") is [WordsPiece.Item { Alignment: null, Format: null } item] && item.Length == name.Length + 2;
 
 		/// <summary>Whether two names are one parameter, as string.Format reads a number: <c>01</c> is <c>1</c>.</summary>
 		public static bool SameName(string a, string b) => Normal(a) == Normal(b);
@@ -249,52 +196,40 @@ namespace PatTech.Localization.Authoring {
 				return new([.. numbered, .. order.Where(name => !char.IsAsciiDigit(name[0]))], counted, unfollowed);
 			}
 
-			//entry's words, rendered against key: each stretch between references and
-			//selectors is read for format items once its escapes collapse, and what a
-			//reference or a selector brings in, in turn
+			//entry's words, rendered against key, piece by piece: what a reference or a
+			//selector brings in, in turn; a constant is text, and brings in no parameter
 			public void Words(string text, string entry, string key) {
 				path.Push(entry);
 				try {
-					var stretch = new StringBuilder();
-					int start = 0;
-					for (Match match = rxRender.Match(text); match.Success; match = match.NextMatch()) {
-						stretch.Append(text, start, match.Index - start);
-						start = match.Index + match.Length;
-						if (match.Groups[1].Success) {
-							stretch.Append(match.Groups[1].Value);
-							continue;
-						}
-						Items(stretch.ToString());
-						stretch.Clear();
-						if (match.Groups[2].Success) {
-							Reference(match.Value[1] == '$' ? "$" + match.Groups[2].Value : Relative(match.Groups[2].Value, key));
-						}
-						else {
-							string count = Normal(match.Groups[3].Value);
-							Use(count);
-							counted.Add(count);
-							Select(Relative(match.Groups[4].Value, key));
+					foreach (WordsPiece piece in WordsTemplate.Parse(text)) {
+						switch (piece) {
+							case WordsPiece.Item item:
+								Use(item.Argument);
+								break;
+							case WordsPiece.Reference reference:
+								Reference(Relative(reference.Key, key));
+								break;
+							case WordsPiece.Selector selector:
+								Use(selector.Argument);
+								counted.Add(selector.Argument);
+								Select(Relative(selector.Key, key));
+								break;
 						}
 					}
-					stretch.Append(text, start, text.Length - start);
-					Items(stretch.ToString());
 				}
 				finally {
 					path.Pop();
 				}
 			}
 
-			//a constant's words go to string.Format as they are; a key's are rendered
-			//against the key they are words of, a form's against its key
+			//a key's words, rendered against the key they are words of, a form's against its
+			//key; a constant's are text
 			private void Reference(string entry) {
-				if (path.Contains(entry)) {
+				if (entry.StartsWith('$') || path.Contains(entry)) {
 					return;
 				}
 				if (!provider.TryGetValue(entry, out string? words)) {
 					unfollowed = true;
-				}
-				else if (entry.StartsWith('$')) {
-					Items(words);
 				}
 				else {
 					Words(words, entry, entry.IndexOf('#') is > 0 and var mark ? entry[..mark] : entry);
@@ -308,12 +243,6 @@ namespace PatTech.Localization.Authoring {
 				}
 				foreach (string form in PluralRules.Categories(language).Select(category => PatTech.Localization.Words.FormKey(provider, language, key, category)).Distinct()) {
 					Reference(form);
-				}
-			}
-
-			private void Items(string text) {
-				foreach (Match item in FormatItems(text)) {
-					Use(Normal(item.Groups[1].Value));
 				}
 			}
 
