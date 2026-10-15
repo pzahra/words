@@ -265,8 +265,9 @@ namespace PatTech.Localization.Authoring {
 		///     value) exactly the way a host app formats it: numbered parameters
 		///     (<c>0</c>, <c>1</c>…) fill the positional slots, the rest go by name
 		///     through <see cref="Words.FormatByName(IFormatProvider?, string, object?, object?[])"/>, which reads a dictionary by name.
-		///     A template <see cref="string.Format(string, object[])"/> rejects throws
-		///     <see cref="FormatException"/>: the same failure the host would see.
+		///     An item with no value shows marked, <c>#{3}#</c>, a malformed brace as
+		///     written, each with a warning, and a format its value rejects throws
+		///     <see cref="FormatException"/>: what the host would see.
 		/// </summary>
 		/// <param name="text">The template.</param>
 		/// <param name="values">What the code would pass, by parameter name (<see cref="ReadInputs"/>).</param>

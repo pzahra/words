@@ -35,8 +35,8 @@ namespace PatTech.Localization.Authoring {
 	/// <param name="Dropped">Those the default uses and the translation never does: the app's value never shows.</param>
 	/// <param name="Extra">
 	///     Those the translation uses that the default does not and no definition
-	///     names: an app passing what the default needs throws on a numbered one, and
-	///     shows <c>#Name#</c> for a named one.
+	///     names: an app passing what the default needs shows it marked, <c>#{1}#</c> or
+	///     <c>#{Name}#</c>.
 	/// </param>
 	public sealed record ParameterMismatch(IReadOnlyList<string> Dropped, IReadOnlyList<string> Extra) {
 		/// <summary>Nothing dropped and nothing extra.</summary>
@@ -51,11 +51,11 @@ namespace PatTech.Localization.Authoring {
 	///     badges and the command line's note read, as <see cref="MissingWords"/> is
 	///     (editor SPEC: Parameters). A use is a parameter printed, <c>{0}</c>,
 	///     <c>{0:N2}</c>, <c>{Name}</c>, or counted, <c>{0#word}</c>, over the plain value
-	///     and every form. The words are read as the runtime reads them, in two passes:
-	///     rendering expands each reference and collapses Words' escapes, then
-	///     string.Format reads what is left, so <c>{{0}</c> renders to <c>{0}</c> and is a
-	///     use, and <c>{{{{0}}</c> is not; a runtime bug this follows until it is fixed
-	///     (runtime SPEC: One escape for a brace). A reference's words are its own and their uses
+	///     and every form. The words are read as the runtime read them before it read each
+	///     brace once, in two passes: rendering expands each reference and collapses Words'
+	///     escapes, then string.Format reads what is left, so <c>{{0}</c> renders to
+	///     <c>{0}</c> and is a use, and <c>{{{{0}}</c> is not; the finder keeps that until it
+	///     reads the runtime's pieces (runtime SPEC: One pass for every brace). A reference's words are its own and their uses
 	///     are the key's; a selector may pick any form of its key the language counts
 	///     by, so the uses of every one of them are.
 	/// </summary>

@@ -145,7 +145,7 @@ public class RenderScopeTests {
 		var en = WordsBuilder.Create().LoadString("[word]\nvalue=word\nvalue#other=words\n\n[escaped]\nvalue={{0#word}\n").ToWords("en");
 
 		Assert.Equal("{0#word}", en["escaped"]);
-		Assert.Throws<FormatException>(() => en.Format("escaped", 2)); //string.Format sees a lone brace, as for {{>key}
+		Assert.Equal("{0#word}", en.Format("escaped", 2)); //one brace, formatted or not, where string.Format saw a lone one and threw
 	}
 
 	[Fact]
@@ -168,10 +168,10 @@ public class RenderScopeTests {
 		Assert.Equal("5 items", en.FormatByName("named", new Dictionary<string, int> { ["Count"] = 5 }));
 		Assert.Equal("5 items", en.FormatByName("named", (IReadOnlyDictionary<string, object?>)new Dictionary<string, object?> { ["Count"] = 5 }));
 		Assert.Equal("7 met", Words.FormatByName("{Count} met", new Dictionary<string, object?> { ["Count"] = 7 }));
-		Assert.Equal("#Count# met", Words.FormatByName("{Count} met", new Dictionary<string, object?>()));
+		Assert.Equal("#{Count}# met", Words.FormatByName("{Count} met", new Dictionary<string, object?>()));
 		//one of one's own, of another value type: its Count, 1 and then 0, read 'item' and '0'
 		Assert.Equal("5 items", en.FormatByName("named", new Tally(new() { ["Count"] = 5 })));
-		Assert.Equal("#Count# met", Words.FormatByName("{Count} met", new Tally([])));
+		Assert.Equal("#{Count}# met", Words.FormatByName("{Count} met", new Tally([])));
 	}
 
 	//a dictionary by name that is no IDictionary, and whose values are no objects
@@ -194,11 +194,11 @@ public class RenderScopeTests {
 		Func<string, IReadOnlyDictionary<string, object?>?, object?[], (string, object?[])> preFormat = Words.PreFormatByName;
 		var values = new Dictionary<string, object?> { ["Count"] = 7 };
 
-		Assert.Equal("7 met {0}", format("{Count} met {{0}}", values, []));
+		Assert.Equal("7 met {0}", format("{Count} met {{0}", values, []));
 		Assert.Equal("7 met Sam", formatIn(null, "{Count} met {0}", values, ["Sam"]));
 		Assert.Equal(" met", format("{Count} met", null, []));
 		Assert.Equal(Words.PreFormatByName("{Count}", (object?)values).FormatArgs, preFormat("{Count}", values, []).Item2);
-		Assert.Equal("{1:}", preFormat("{Count}", null, []).Item1);
+		Assert.Equal("{1}", preFormat("{Count}", null, []).Item1);
 	}
 
 	//a dictionary of one's own whose indexer dresses the words up
@@ -224,7 +224,7 @@ public class RenderScopeTests {
 		public IWordsProvider Provider => inner.Provider;
 		public string Language => inner.Language;
 		public string this[string key] => key switch {
-			"virtual" => "{0} {0#file}, {0#.n} {{braces}}",
+			"virtual" => "{0} {0#file}, {0#.n} {{braces}",
 			"named" => "{Count} {Count#file}",
 			"loop" => "{0} {0#loop}",
 			"looped" => "{Count} {Count#looped}",
@@ -240,11 +240,11 @@ public class RenderScopeTests {
 		var words = new Virtual(WordsBuilder.Create().LoadString("[file]\nvalue=file\nvalue#other=files\n\n[virtual.n]\nvalue=item\nvalue#other=items\n").ToWords("en"));
 
 		//1.5.0's first cut handed string.Format the selectors, which threw
-		Assert.Equal("2 files, items {braces}", words.Format("virtual", 2)); //a {{ pair is string.Format's
+		Assert.Equal("2 files, items {braces}", words.Format("virtual", 2)); //a {{ is one brace there too
 		Assert.Equal("1 file, item {braces}", words.Format("virtual", 1));
 		Assert.Equal("2 files, items {braces}", words.FormatParams("virtual", new object[] { 2 }));
 		Assert.Equal("3 files", words.FormatByName("named", new { Count = 3 }));
-		Assert.Equal("{0} {0#file}, {0#.n} {{braces}}", words["virtual"]); //no arguments: as it is
+		Assert.Equal("{0} {0#file}, {0#.n} {{braces}", words["virtual"]); //no arguments: as it is
 	}
 
 	//the key an indexer of one's own answers is being rendered, as the provider's

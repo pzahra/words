@@ -53,12 +53,13 @@ public class ParameterUseTests {
 			value={{0} {{{{1}} {{2#word}
 			""");
 
-		//{{0} renders {0}, which string.Format fills; {{{{1}} renders {{1}}, a brace pair;
+		//{{0} renders {0}, which string.Format filled; {{{{1}} renders {{1}}, a brace pair;
 		//{{2#word} renders {2#word}, no selector and no item
 		Assert.Equal(["0"], InDefault(keys, "k").Names);
-		//as the runtime reads them, a bug the finder follows (runtime SPEC: One escape for a brace)
+		//the runtime as it was: it reads each brace once now, and the finder follows when it
+		//reads the same pieces (runtime SPEC: One pass for every brace)
 		IWords words = WordsBuilder.Create().LoadString("[k]\nvalue={{0} {{{{1}}\n").ToWords("en");
-		Assert.Equal("zero {1}", words.Format("k", "zero", "one"));
+		Assert.Equal("{0} {{1}}", words.Format("k", "zero", "one"));
 	}
 
 	[Fact]

@@ -75,7 +75,7 @@ public class PluralFormsTests {
 		"value#other={0} outer {0#word}\n" +
 		"\n" +
 		"[braces]\n" +
-		"value={{{{0#word}}\n";
+		"value={{0#word}\n";
 
 	private static readonly string DefaultBrand = char.ConvertFromUtf32(0x1F4DA); // 📚
 	private static readonly string StandInMark = char.ConvertFromUtf32(0x1F3B2);  // 🎲
@@ -451,7 +451,7 @@ public class PluralFormsTests {
 		Assert.Equal("3 files in the box", en.Format("report", 3));      //a form's {>key} and {0}
 		Assert.Equal("one file", en.Format("report", 1));
 		Assert.Equal("2 outer words", en.Format("nested", 2));           //a spliced form selects too
-		Assert.Equal("{0#word}", en.Format("braces", 2));                //a {{ pair stays for string.Format
+		Assert.Equal("{0#word}", en.Format("braces", 2));                //a {{ is one brace, formatted too
 	}
 
 	[Fact]
@@ -468,7 +468,7 @@ public class PluralFormsTests {
 	}
 
 	[Fact]
-	public void ANonNumericArgumentPicksOtherAndWarns_AMissingOneThrowsAsStringFormatWould() {
+	public void ANonNumericArgumentPicksOtherAndWarns_AMissingOneToo() {
 		using var globals = new WordsGlobals();
 		var logger = new CaptureLogger();
 		Words.Logger = logger;
@@ -476,6 +476,8 @@ public class PluralFormsTests {
 
 		Assert.Equal("lots words", en.Format("files", "lots"));
 		Assert.Contains(logger.Messages, message => message.StartsWith("WORDS:COUNT:`lots`"));
-		Assert.Throws<FormatException>(() => en.Format("files"));
+		logger.Messages.Clear();
+		Assert.Equal("#{0}# words", en.Format("files")); //string.Format threw on both
+		Assert.Equal(["WORDS:FIELD:`0`", "WORDS:FIELD:`0`"], logger.Messages);
 	}
 }

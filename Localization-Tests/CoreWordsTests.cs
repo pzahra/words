@@ -24,10 +24,10 @@ public class CoreWordsTests {
 	}
 
 	[Fact]
-	public void FormatByName_MissingMember_RendersHashName() {
+	public void FormatByName_MissingMember_RendersItsItemMarked() {
 		var result = Words.FormatByName("{Nope}", new { Name = "Pat" });
 
-		Assert.Equal("#Nope#", result);
+		Assert.Equal("#{Nope}#", result);
 	}
 
 	[Fact]
@@ -38,7 +38,7 @@ public class CoreWordsTests {
 		var result = Words.FormatByName(System.Globalization.CultureInfo.InvariantCulture,
 			"{Name} met {0}; N{Top:g2}; {Name} again; {Nope}", values, "Sam");
 
-		Assert.Equal("Pat met Sam; N1.2; Pat again; #Nope#", result);
+		Assert.Equal("Pat met Sam; N1.2; Pat again; #{Nope}#", result);
 	}
 
 	/// <summary>

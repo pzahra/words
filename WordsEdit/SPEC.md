@@ -1269,10 +1269,11 @@ references and selected forms expanded as the runtime expands them, through
 every loaded file as the previews resolve them, so a `{>files}` whose words
 print `{0}` uses `{0}`. Numbered ones come first, by number, `{01}` being
 `{1}` as string.Format reads it, then named ones as they first appear. The
-words are read as the runtime reads them today: rendering collapses Words'
-escapes before string.Format sees them, so `{{0}` renders to `{0}` and is a
-use, and only `{{{{0}}` is a brace. That is a runtime bug (the runtime spec's
-*One pass for every brace*), and the finder follows its fix. A parameter found and not
+words are read as the runtime read them before it read each brace once (the
+runtime spec's *One pass for every brace*): rendering collapsed Words' escapes
+before string.Format saw them, so `{{0}` rendered to `{0}` and was a use, and
+only `{{{{0}}` was a brace. The runtime now shows `{{0}` as `{0}`, formatted or
+not, and the finder follows when it reads the same pieces. A parameter found and not
 defined shows faintly under the definitions, `+ {0}`, and a click makes it
 one, its type guessed: `int` for a selector's count, `str` otherwise. The
 + adds the first of those, or else the lowest number no definition has, so
@@ -1302,8 +1303,7 @@ over its plain value and every form, its references expanded in its own
 language. One the default uses and the translation never does is dropped:
 the app's value never shows. One the translation uses that the default does
 not and no definition names is extra: an app passing what the default needs
-throws on a numbered one and shows `#Name#` for a named one, with a
-`WORDS:FIELD` warning. So the default's use is what a translation must keep,
+shows it marked, `#{1}#` or `#{Name}#`, with a `WORDS:FIELD` warning. So the default's use is what a translation must keep,
 and the definitions widen what it may use: Maltese counting with a `{0}`
 English never prints is fine where `param-0` says the code passes it. Only
 use is compared, so a translation may print where the default counts (a
@@ -1599,8 +1599,8 @@ that no definition names; keep every reference, constant and selector the
 default holds and hold no `{…}` token the default does not, since services
 translate inside braces (`{>menu.file}` comes back `{>menu.archivio}`); keep
 each format item's alignment and format as the default writes them, since
-`string.Format` throws on a format its argument does not take (`{0:Q}` for a
-count), though a parameter the default does not use, which a definition
+a format its argument does not take (`{0:Q}` for a count) fails in the app,
+though a parameter the default does not use, which a definition
 allows, may come bare; and keep the default's code spans as they are. Code
 spans and links are read as the app reads them, by the runtime's
 `MarkdownParser`, so a span fenced by two backticks holds one, a link may carry

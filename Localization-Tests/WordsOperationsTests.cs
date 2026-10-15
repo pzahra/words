@@ -277,7 +277,7 @@ public class WordsOperationsTests {
 
 		var text = WordsOperations.FormatSample("{0:N1} {1} N{Top:g2} {Nope}", values, System.Globalization.CultureInfo.InvariantCulture);
 
-		Assert.Equal("22.0 one N1.2 #Nope#", text);
+		Assert.Equal("22.0 one N1.2 #{Nope}#", text);
 	}
 
 	[Fact]
