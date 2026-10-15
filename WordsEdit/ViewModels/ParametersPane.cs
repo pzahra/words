@@ -49,7 +49,7 @@ public sealed class ParametersPane : ViewModelBase {
 		key = selected;
 		language = defaultLanguage;
 		IsShown = key is not null;
-		Slots = key is null ? [] : ParameterUse.Slots(key, ParameterUse.InDefault(key, vm.Session.Provider(vm.Tree.FileLabels), vm.Tree.DefaultForms.Language));
+		Slots = key is null ? [] : ParameterUse.Slots(key, ParameterUse.InDefault(key, vm.Session.Provider(vm.Tree.Files), vm.Tree.DefaultForms.Language));
 		HasThread = Slots.Count != 0;
 
 		List<ParameterSlot> defined = [.. Slots.Where(slot => slot.Definition is not null)];
@@ -92,7 +92,7 @@ public sealed class ParametersPane : ViewModelBase {
 		}
 	}
 
-	internal IReadOnlyList<string> MembersUnder(string prefix) => WordsOperations.MembersUnder(vm.Session.FilesOf(vm.Tree.FileLabels).Select(file => file.Keys), prefix);
+	internal IReadOnlyList<string> MembersUnder(string prefix) => WordsOperations.MembersUnder(vm.Tree.Files.Select(file => file.Keys), prefix);
 
 	internal static string NothingUnder(string name, string prefix) => Words.Known.Format("parameters.nothing-under", FoundParameters.Placeholder(name), prefix);
 
@@ -106,7 +106,7 @@ public sealed class ParametersPane : ViewModelBase {
 	//one entry per change to the definitions, the key's parameters before and after; the
 	//definitions widen what a translation may use, so the key's badge follows
 	private void Change(Action<WordsKey> change) {
-		if (key is not { } changed) {
+		if (key is not { } changed || vm.Tree.SelectedFile is not { } file) {
 			return;
 		}
 		vm.Perform(() => {
@@ -116,7 +116,7 @@ public sealed class ParametersPane : ViewModelBase {
 			if (vm.Tree.SelectedKeyNode is { } node) {
 				vm.Tree.RefreshBadges(node);
 			}
-			return WordsParameter.Same(before, after) ? null : new ParametersEdit(vm.Session.LabelOf(changed), before, after);
+			return WordsParameter.Same(before, after) ? null : new ParametersEdit(file, changed.BlockKey, before, after);
 		});
 		vm.RenderPreviews();
 	}

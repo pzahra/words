@@ -3,8 +3,8 @@ namespace PatTech.Localization.Authoring {
 	///     One loaded <c>words.ini</c>: its keys (<see cref="Keys"/>), by the names
 	///     the file writes, and everything else of the file's. The file is
 	///     identified by its <see cref="Path"/>, so two <c>strings.ini</c> in
-	///     different folders are two files, each holding its own keys (the second
-	///     gets a disambiguated label).
+	///     different folders are two files, each holding its own keys, which the
+	///     editor tells apart by the folder (<see cref="WordsSession.ShownName"/>).
 	/// </summary>
 	public sealed class WordsFile {
 		/// <summary>
@@ -15,13 +15,19 @@ namespace PatTech.Localization.Authoring {
 		/// </summary>
 		public string? Path { get; internal set; }
 		/// <summary>
-		///     The name its root shows: the file name without extension, dots
-		///     replaced and a <c>-2</c>, <c>-3</c>… suffix when another loaded file
-		///     already took it, or the name a file not saved yet was given. It follows
-		///     the file (<see cref="WordsSession.Rename"/>, <see cref="WordsSession.MoveTo"/>)
-		///     and no key carries it. Until the editor names keys by file, it also
-		///     prefixes the labels the session's shim reads (<see cref="WordsSession.Keys"/>),
-		///     so it is dot-free and unique.
+		///     The file's true name: its file name without the extension, dots and all
+		///     (<c>Strings.Designer</c>), or the name a file not saved yet was given,
+		///     which its first Save proposes. It follows the file
+		///     (<see cref="WordsSession.Rename"/>, <see cref="WordsSession.MoveTo"/>), is
+		///     never numbered, and no key carries it; two loaded files may share it, and
+		///     <see cref="WordsSession.ShownName"/> tells them apart.
+		/// </summary>
+		public string Name { get; internal set; }
+		/// <summary>
+		///     The prefix of the labels the session's shim reads (<see cref="WordsSession.Keys"/>):
+		///     the name with dots replaced and a <c>-2</c>, <c>-3</c>… suffix when another
+		///     loaded file already took it, so it is dot-free and unique. It follows the
+		///     name, and goes with the shim.
 		/// </summary>
 		public string Label { get; internal set; }
 		/// <summary>
@@ -104,8 +110,9 @@ namespace PatTech.Localization.Authoring {
 		/// </summary>
 		public System.Text.Encoding Encoding { get; }
 
-		internal WordsFile(string? path, string label, ILoadedWords loaded, string newLine, System.Text.Encoding encoding) {
+		internal WordsFile(string? path, string name, string label, ILoadedWords loaded, string newLine, System.Text.Encoding encoding) {
 			Path = path;
+			Name = name;
 			Label = label;
 			NewLine = newLine;
 			Encoding = encoding;
@@ -129,9 +136,9 @@ namespace PatTech.Localization.Authoring {
 			}
 			//a brace that opens nothing, which an app shows as written with a warning, is
 			//said here; the editor badges it and saves it, since a file it loaded must save
-			foreach (var (name, key) in loaded.WordKeys) {
+			foreach (var (keyName, key) in loaded.WordKeys) {
 				foreach (var (field, braces) in ParameterUse.Malformed(key)) {
-					errors.Add($"{name}: {field} holds {ParameterUse.Named(braces)}, shown as written in the app; {{{{ writes a brace");
+					errors.Add($"{keyName}: {field} holds {ParameterUse.Named(braces)}, shown as written in the app; {{{{ writes a brace");
 				}
 			}
 			Errors = errors;
@@ -151,8 +158,8 @@ namespace PatTech.Localization.Authoring {
 		private string? Resolve(string relative)
 			=> relative == "" ? null : System.IO.Path.GetFullPath(System.IO.Path.Combine(Directory, relative));
 
-		/// <summary>The label, for the debugger and for tests that print one.</summary>
-		public override string ToString() => Label;
+		/// <summary>The name, for the debugger and for tests that print one.</summary>
+		public override string ToString() => Name;
 	}
 
 	/// <summary>

@@ -155,8 +155,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		//what the parser griped about loading a file, from the badge on its node
 		ShowFileGripesCommand = new DelegateCommand<KeyNode>(
 			node => {
-				if (Session.FileOf(node.FullLabel) is { } file) {
-					Dialogs.Show(new GripesViewModel(Words.Known.Format("gripes.file", file.Label), file.Errors));
+				if (node.File is { } file) {
+					Dialogs.Show(new GripesViewModel(Words.Known.Format("gripes.file", node.Label), file.Errors));
 				}
 			},
 			static node => node is { IsFile: true, GripeCount: > 0 });
@@ -197,9 +197,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		KeyDrag = new KeyDrag { Vm = this };
 	}
 
-	//the window title names the loaded files; TitleMarked stars it while dirty
+	//the window title names the loaded files, as their roots show them; TitleMarked stars it while dirty
 	private void UpdateTitle()
-		=> Title = Tree.KeyNodes.Count == 0 ? Words.Known["app.title"] : Words.Known.Format("app.title-files", string.Join(", ", Tree.FileLabels));
+		=> Title = Tree.KeyNodes.Count == 0 ? Words.Known["app.title"] : Words.Known.Format("app.title-files", string.Join(", ", Tree.KeyNodes.Select(root => root.Label)));
 
 	//New (SPEC: New): asks nothing, the name open for renaming at once
 	private void DoNewFile() {
@@ -207,7 +207,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		DoRenameNode();
 	}
 
-	/// <summary>The name a new file starts with, numbered past one the session has (SPEC: New).</summary>
+	/// <summary>The name a new file starts with, never numbered: two read alike until one is renamed or saved (SPEC: New).</summary>
 	public const string NewFileName = "anonymous-words";
 
 	/// <summary>
@@ -345,11 +345,11 @@ public class MainWindowViewModel : ViewModelSaveBase {
 				saved += TryWrite(file, node, path) ? 1 : 0;
 				continue;
 			}
-			if (AskWhere(file, Words.Known.Format("file.save-title", file.Label), file.Label + ".ini") is not { } chosen) {
+			if (AskWhere(file, Words.Known.Format("file.save-title", node.Label), file.Name + ".ini") is not { } chosen) {
 				break;
 			}
 			if (TryWrite(file, node, chosen)) {
-				Locate(file, node, chosen);
+				Locate(file, chosen);
 				saved++;
 			}
 		}
@@ -380,7 +380,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	private string? AskWhere(WordsFile file, [Localized] string title, string proposed) {
 		while (Dialogs.TrySaveFile(title, Words.Known["file.filter"], proposed, out string? path)) {
 			if (Session.FileAt(path) is { } other && other != file) {
-				Dialogs.Tell(Words.Known.Format("tell.path-taken", path, other.Label));
+				Dialogs.Tell(Words.Known.Format("tell.path-taken", path, Session.ShownName(other)));
 				proposed = path;
 				continue;
 			}
@@ -390,20 +390,15 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	//the file saves to path from now on, and its root follows the name
-	private void Locate(WordsFile file, KeyNode node, string path) {
+	private void Locate(WordsFile file, string path) {
 		Session.MoveTo(file, path);
-		FollowRoot(node, file);
+		FollowNames();
 	}
 
-	//the root takes its file's label, its keys renamed with it: a file out and in
-	//again to the history (SPEC: Undo), whose steps name the keys by the old label
-	private void FollowRoot(KeyNode node, WordsFile file) {
-		if (node.FullLabel == file.Label) {
-			return;
-		}
-		node.Label = file.Label;
-		node.Relabel(file.Label);
-		UndoStack.Clear();
+	//the roots show their files' names, a twin's brackets coming or going with them; no
+	//key changes, so the undo history and Back's keep all they hold
+	private void FollowNames() {
+		Tree.FollowNames();
 		UpdateTitle();
 	}
 
@@ -413,10 +408,10 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	///     following. A cancelled dialog, or the path it has, changes nothing.
 	/// </summary>
 	private void MoveFile(WordsFile file, KeyNode node, string from) {
-		if (AskWhere(file, Words.Known.Format("file.move-title", file.Label), from) is not { } to || SamePath(to, from) || !TryWrite(file, node, to)) {
+		if (AskWhere(file, Words.Known.Format("file.move-title", node.Label), from) is not { } to || SamePath(to, from) || !TryWrite(file, node, to)) {
 			return;
 		}
-		Locate(file, node, to);
+		Locate(file, to);
 		try {
 			File.Delete(from);
 		}
@@ -505,7 +500,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			var before = SettingsSlots.Of(file);
 			Dialogs.Show(new SettingsViewModel(this, file));
 			var after = SettingsSlots.Of(file);
-			return after.Matches(before) ? null : new FileSettingsEdit(file.Label, before, after);
+			return after.Matches(before) ? null : new FileSettingsEdit(file, before, after);
 		});
 		//the slots or the tables may have changed under the previews
 		RenderPreviews();
@@ -533,20 +528,21 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			return;
 		}
 		//an empty node goes quietly; one carrying keys asks, since Delete is a keypress away
-		int keys = Session.KeysUnder(node.FullLabel).Count();
+		WordsFile file = Tree.FileOf(node);
+		int keys = Session.KeysUnder(file, node.FullLabel).Count();
 		if (keys > 0 && !Dialogs.Confirm(keys == 1 ? Words.Known.Format("ask.remove-node-one", node.Label) : Words.Known.Format("ask.remove-node-many", node.Label, keys))) {
 			return;
 		}
 		Perform(() => {
 			var removed = new NodeRemoved(Session, node);
-			Session.RemoveKeysUnder(node.FullLabel);
+			Session.RemoveKeysUnder(file, node.FullLabel);
 			Tree.Remove(node);
 			return removed;
 		});
 	}
 
 	public void RemoveFileNodeCore(KeyNode fileNode) {
-		if (Session.FileOf(fileNode.FullLabel) is { } file) {
+		if (fileNode.File is { } file) {
 			Session.Unload(file);
 		}
 		Tree.RemoveFile(fileNode);
@@ -574,20 +570,20 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (node.Parent is not { } parent) {
 			if (Tree.FileOf(node) is { Path: null } file) {
 				Session.Rename(file, newName);
-				FollowRoot(node, file);
+				FollowNames();
 			}
 			return;
 		}
 		if (parent.Children.Any(sibling => sibling != node && sibling.Label == newName)) {
-			Dialogs.Tell(Words.Known.Format("tell.node-exists", parent.FullLabel, newName));
+			Dialogs.Tell(Words.Known.Format("tell.node-exists", parent.Path, newName));
 			return;
 		}
 		//the marker is part of the key, not the name
 		string marker = WordsOperations.LastSegment(node.FullLabel).StartsWith('$') ? "$" : "";
-		string newFullLabel = $"{parent.FullLabel}.{marker}{newName}";
+		string newFullLabel = KeyNode.Join(parent.FullLabel, marker + newName);
 		Perform(() => {
 			Place from = Place.Of(node);
-			if (!Session.TryRename(node.FullLabel, newFullLabel, out var collisions)) {
+			if (!Session.TryRename(from.File, node.FullLabel, newFullLabel, out var collisions)) {
 				Dialogs.Tell(Words.Known.Format("tell.rename-collides", string.Join(", ", collisions)));
 				return null;
 			}
@@ -610,7 +606,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 		KeyNode parent = Tree.SelectedKeyNode;
 		if (parent.Children.Any(child => child.Label == newName)) {
-			Dialogs.Tell(Words.Known.Format("tell.node-exists", parent.FullLabel, newName));
+			Dialogs.Tell(Words.Known.Format("tell.node-exists", parent.Path, newName));
 			return;
 		}
 		Perform(() => new NodeAdded(Session, Tree.Add(parent, newName)));
@@ -622,11 +618,12 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			return;
 		}
 		KeyNode node = Tree.SelectedKeyNode;
+		WordsFile file = Tree.FileOf(node);
 		Perform(() => {
-			Session.AddKey(node.FullLabel);
+			Session.AddKey(file, node.FullLabel);
 			Tree.FollowSelectedKey();
 			Tree.RefreshBadges(node);
-			return new KeyAdded(node.FullLabel);
+			return new KeyAdded(file, node.FullLabel);
 		});
 	}
 
@@ -646,12 +643,13 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (!Dialogs.Confirm(Words.Known.Format("ask.remove-key", node.Label))) {
 			return;
 		}
+		WordsFile file = Tree.FileOf(node);
 		Perform(() => {
-			if (!Session.Keys.TryGetValue(node.FullLabel, out WordsKey? key)) {
+			if (!file.Keys.TryGetValue(node.FullLabel, out WordsKey? key)) {
 				return null;
 			}
-			var removed = new KeyRemoved(node.FullLabel, key);
-			Session.RemoveKey(node.FullLabel);
+			var removed = new KeyRemoved(file, key);
+			Session.RemoveKey(file, node.FullLabel);
 			Tree.FollowSelectedKey();
 			Tree.RefreshBadges(node);
 			return removed;
@@ -665,7 +663,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 		Perform(() => {
 			string stamp = DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture);
-			var edit = new StaleAllEdit(node.FullLabel, key.Entries.ToDictionary(pair => pair.Key, pair => pair.Value.Stale), stamp);
+			var edit = new StaleAllEdit(Tree.FileOf(node), node.FullLabel, key.Entries.ToDictionary(pair => pair.Key, pair => pair.Value.Stale), stamp);
 			foreach (WordsEntry entry in key.Entries.Values) {
 				entry.Stale = stamp;
 			}
@@ -683,7 +681,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			string? before = entry.Stale;
 			entry.Stale = before is null ? DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture) : null;
 			Tree.RefreshBadges(node);
-			return new StaleEdit(node.FullLabel, languageCode, before, entry.Stale);
+			return new StaleEdit(Tree.FileOf(node), node.FullLabel, languageCode, before, entry.Stale);
 		});
 	}
 
@@ -694,7 +692,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Perform(() => {
 			key.NeedsReview = !key.NeedsReview;
 			Tree.RefreshBadges(node);
-			return new ReviewEdit(node.FullLabel, key.NeedsReview);
+			return new ReviewEdit(Tree.FileOf(node), node.FullLabel, key.NeedsReview);
 		});
 	}
 
@@ -713,17 +711,18 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			clearEntries = true;
 		}
 		Perform(() => {
-			string label = node.FullLabel;
+			WordsFile file = Tree.FileOf(node);
+			string name = node.FullLabel;
 			IReadOnlyDictionary<string, WordsEntry>? cleared = clearEntries ? key.CopyEntries() : null;
-			string? newKey = Session.SetConstant(label, makeConstant, clearEntries);
+			string? newKey = Session.SetConstant(file, name, makeConstant, clearEntries);
 			if (newKey is null) {
-				Dialogs.Tell(Words.Known.Format("tell.constant-exists", WordsOperations.SetConstantMarker(label, makeConstant)));
+				Dialogs.Tell(Words.Known.Format("tell.constant-exists", WordsOperations.SetConstantMarker(name, makeConstant)));
 				return null;
 			}
 			node.Relabel(newKey);
 			Tree.FollowSelectedKey();
 			Tree.RefreshBadges(node);
-			return new ConstantEdit(label, newKey, makeConstant, cleared);
+			return new ConstantEdit(file, name, newKey, makeConstant, cleared);
 		});
 	}
 
@@ -900,7 +899,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		string text;
 		using (Gripes.Listen(gripes)) {
 			IWordsProvider provider = PaneProvider(key, languageCode, forms);
-			text = Words.RenderKey(provider, Session.LabelOf(key));
+			text = Words.RenderKey(provider, key.BlockKey);
 			List<string> complaints = [];
 			try {
 				text = Fill(key, provider, forms, WordsOperations.CultureFor(cultureCode), complaints) ?? text;
@@ -913,10 +912,11 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		pane.Show(text, settings, gripes.Concat(settings.Errors), Gripes);
 	}
 
-	//the words a pane reads: every loaded file in tree order, the pane's form read as the key
+	//the words a pane reads: every loaded file in tree order, the key itself above them, so
+	//a later file's key of its name never stands in for it, and the pane's form read as the key
 	private IWordsProvider PaneProvider(WordsKey key, string? languageCode, FormPane forms) {
-		IWordsProvider provider = Session.Provider(Tree.FileLabels, languageCode);
-		return forms.IsPlain ? provider : new FormAsKey(provider, Session.LabelOf(key), Words.FormKey(provider, forms.Language, Session.LabelOf(key), forms.Form));
+		IWordsProvider provider = Session.Provider(Tree.Files, key, languageCode);
+		return forms.IsPlain ? provider : new FormAsKey(provider, key.BlockKey, Words.FormKey(provider, forms.Language, key.BlockKey, forms.Form));
 	}
 
 	//the key's words in a pane filled with its inputs, as an app's Format fills them, an
@@ -937,7 +937,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		List<string> heard = [];
 		try {
 			using (Gripes.Listen(heard)) {
-				return WordsOperations.FormatSample(words, Session.LabelOf(key), values, culture);
+				return WordsOperations.FormatSample(words, key.BlockKey, values, culture);
 			}
 		}
 		finally {

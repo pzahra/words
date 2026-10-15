@@ -107,7 +107,7 @@ public class TreeViewModel : ViewModelBase {
 	}
 
 	/// <summary>The file the selected node belongs to, if any.</summary>
-	public WordsFile? SelectedFile => SelectedKeyNode is null ? null : session.FileOf(SelectedKeyNode.Root.FullLabel);
+	public WordsFile? SelectedFile => SelectedKeyNode?.Root.File;
 
 	/// <summary>The language the selected node's file writes its default in, if it says: the default and the developer's notes spell-check in it.</summary>
 	public string? DefaultLanguage => SelectedFile?.DefaultLanguage;
@@ -221,10 +221,11 @@ public class TreeViewModel : ViewModelBase {
 		}
 	}
 
-	//the raw text a count in the form reads, as the runtime picks it (Words.FormKey)
+	//the raw text a count in the form reads, as the runtime picks it (Words.FormKey): the
+	//key's own, though a later file holds a key of its name
 	private string? Reads(string? languageCode, string rules, WordsKey key, string form) {
-		IWordsProvider provider = session.Provider(FileLabels, languageCode);
-		return provider.TryGetValue(Words.FormKey(provider, rules, session.LabelOf(key), form), out string? text) && text != "" ? text : null;
+		IWordsProvider provider = session.Provider(Files, key, languageCode);
+		return provider.TryGetValue(Words.FormKey(provider, rules, key.BlockKey, form), out string? text) && text != "" ? text : null;
 	}
 
 	/// <summary>Picks the baseline's form.</summary>
@@ -306,8 +307,8 @@ public class TreeViewModel : ViewModelBase {
 		FollowFlags();
 		//no selection is a passing state (the tree drops one row before it takes the next) or a reset
 		if (SelectedKeyNode is { } node) {
-			if (!navigating) {
-				History.Visit(node.FullLabel);
+			if (!navigating && node.Root.File is { } file) {
+				History.Visit(new NodeRef(file, node.FullLabel));
 			}
 			if (exempt is not null && exempt != node) {
 				//moving on from where Back or Forward arrived: the filters have it again
@@ -318,8 +319,8 @@ public class TreeViewModel : ViewModelBase {
 	}
 
 	//Navigation (SPEC: Navigation)
-	/// <summary>Where the selection has been.</summary>
-	public SelectionHistory History { get; } = new();
+	/// <summary>Where the selection has been: each node by its file and its path.</summary>
+	public SelectionHistory<NodeRef> History { get; } = new();
 	public ICommand BackCommand { get; }
 	public ICommand ForwardCommand { get; }
 	//set while Back or Forward moves the selection: the history's own step, not a visit
@@ -327,13 +328,18 @@ public class TreeViewModel : ViewModelBase {
 	//where Back or Forward arrived: shown through the filters for as long as it is the selection
 	private KeyNode? exempt;
 
-	private bool Resolves(string label) => NodeAt(label) is not null;
+	private bool Resolves(NodeRef place) => place.Resolve(this) is not null;
 
-	/// <summary>The first node carrying <paramref name="label"/>: a key's node, since comments share theirs.</summary>
-	public KeyNode? NodeAt(string label) => AllNodes.FirstOrDefault(node => node.FullLabel == label);
+	/// <summary>
+	///     The first node at <paramref name="path"/> in <paramref name="file"/>'s tree, the
+	///     root at an empty one: a key's node, since comments share theirs. None while
+	///     the file is out of the tree.
+	/// </summary>
+	public KeyNode? NodeAt(WordsFile file, string path)
+		=> KeyNodes.FirstOrDefault(root => root.File == file)?.SelfAndDescendants().FirstOrDefault(node => node.FullLabel == path);
 
-	private void Navigate(string? label) {
-		if (label is not null && NodeAt(label) is { } node) {
+	private void Navigate(NodeRef? place) {
+		if (place?.Resolve(this) is { } node) {
 			Arrive(node, visit: false);
 		}
 	}
@@ -388,7 +394,7 @@ public class TreeViewModel : ViewModelBase {
 	/// <summary>Re-reads the selected node's key and entry from the document.</summary>
 	public void FollowSelectedKey() {
 		(WordsKey? key, WordsEntry? entry) before = (SelectedKey, SelectedEntry);
-		if (SelectedKeyNode is not null && session.Keys.TryGetValue(SelectedKeyNode.FullLabel, out var key)) {
+		if (SelectedKeyNode is not null && KeyOf(SelectedKeyNode) is { } key) {
 			SelectedKey = key;
 			SelectedEntry = key.IsConstant ? null : key.Entries[SelectedLanguage.Code];
 		}
@@ -588,10 +594,10 @@ public class TreeViewModel : ViewModelBase {
 		if (node is OrganizerNode organizer) {
 			return organizer.Text.Contains(text, ignoreCase);
 		}
-		if (node.FullLabel.Contains(text, ignoreCase)) {
+		if (node.Path.Contains(text, ignoreCase)) {
 			return true;
 		}
-		if (!session.Keys.TryGetValue(node.FullLabel, out var key)) {
+		if (KeyOf(node) is not { } key) {
 			return false;
 		}
 		WordsEntry? entry = key.Entries.GetValueOrDefault(SelectedLanguage.Code);
@@ -631,9 +637,9 @@ public class TreeViewModel : ViewModelBase {
 
 	//Badges: computed from the document, for the selected language, in one pass
 	public void RefreshBadges() {
-		var check = new ParameterCheck(session, FileLabels, SelectedLanguage.Code);
+		var check = new ParameterCheck(session, Files, SelectedLanguage.Code);
 		foreach (KeyNode root in KeyNodes) {
-			WordsFile? file = session.FileOf(root.FullLabel);
+			WordsFile? file = root.File;
 			RefreshFileBadges(root, file);
 			foreach (KeyNode node in root.SelfAndDescendants()) {
 				RefreshBadges(node, file, check);
@@ -652,11 +658,11 @@ public class TreeViewModel : ViewModelBase {
 	///     arrives is, so the row being edited stays until the selection moves on.
 	/// </summary>
 	public void RefreshBadges(KeyNode node) {
-		var check = new ParameterCheck(session, FileLabels, SelectedLanguage.Code);
-		RefreshBadges(node, session.FileOf(node.Root.FullLabel), check);
+		var check = new ParameterCheck(session, Files, SelectedLanguage.Code);
+		RefreshBadges(node, node.Root.File, check);
 		foreach (KeyNode other in AllNodes) {
-			if (other != node && other is not OrganizerNode && session.Keys.TryGetValue(other.FullLabel, out var key) && check.Follows(key)) {
-				other.Mismatch = check.Note(key, session.FileOf(other.Root.FullLabel));
+			if (other != node && KeyOf(other) is { } key && check.Follows(key)) {
+				other.Mismatch = check.Note(key, other.Root.File);
 			}
 		}
 		//a follower whose mismatch went leaves Mismatch View, one that gained one joins it
@@ -688,7 +694,7 @@ public class TreeViewModel : ViewModelBase {
 		if (node is OrganizerNode) {
 			return;
 		}
-		if (!session.Keys.TryGetValue(node.FullLabel, out var key)) {
+		if (KeyOf(node) is not { } key) {
 			node.IsConstant = false;
 			node.NeedsReview = false;
 			node.IsStale = false;
@@ -745,9 +751,9 @@ public class TreeViewModel : ViewModelBase {
 	//the translation check in one language, its words read once for a pass, and the braces
 	//that open nothing, which an app shows as written, in the default and the language
 	//(SPEC: Parameters → Translation check)
-	private sealed class ParameterCheck(WordsSession session, IEnumerable<string> fileLabels, string code) {
-		private readonly IWordsProvider defaults = session.Provider(fileLabels);
-		private readonly IWordsProvider translations = session.Provider(fileLabels, code);
+	private sealed class ParameterCheck(WordsSession session, IEnumerable<WordsFile> files, string code) {
+		private readonly IWordsProvider defaults = session.Provider(files);
+		private readonly IWordsProvider translations = session.Provider(files, code);
 
 		public string Note(WordsKey key, WordsFile? file) {
 			var malformed = ParameterUse.Malformed(key).ToList();
@@ -773,19 +779,26 @@ public class TreeViewModel : ViewModelBase {
 	}
 
 	//Files
-	/// <summary>Puts a loaded file in the tree; a reload takes the old node's place.</summary>
+	/// <summary>
+	///     Puts a loaded file in the tree; a reload takes the old node's place, the one
+	///     whose file the session let go for it.
+	/// </summary>
 	public void Present(WordsFile file) {
-		KeyNode node = KeyNode.From(KeyTree.Build(session, file));
+		KeyNode node = KeyNode.From(KeyTree.Build(file));
+		node.File = file;
+		node.Label = session.ShownName(file);
 		node.IsLibraryFile = file.IsLibrary;
 		node.GripeCount = file.Errors.Count;
 		if (file.Preamble != "") {
 			//the preamble shows as an organizer pinned to the file's start; its text
 			//is the file's own, which Save writes above the language table
-			node.Children.Insert(0, new OrganizerNode($"{file.Label}.;preamble",
+			node.Children.Insert(0, new OrganizerNode(";preamble",
 				() => file.Preamble,
 				text => file.Preamble = text));
 		}
-		int existing = KeyNodes.FindIndex(root => root.FullLabel == file.Label);
+		int existing = KeyNodes.FindIndex(root => root.File is { } shown && (shown == file || !session.Files.Contains(shown)));
+		//the names first, a twin's brackets with them: whatever follows the roots reads them
+		FollowNames();
 		if (existing >= 0) {
 			KeyNodes[existing] = node;
 		}
@@ -803,10 +816,24 @@ public class TreeViewModel : ViewModelBase {
 
 	/// <summary>Takes a file's node out of the tree, after the session let the file go.</summary>
 	public void RemoveFile(KeyNode fileNode) {
+		FollowNames();
 		KeyNodes.Remove(fileNode);
 		SelectedKeyNode = KeyNodes.FirstOrDefault();
 		FollowLanguage();
 		RefreshBadges();
+	}
+
+	/// <summary>
+	///     Each root shows the name its file shows by (<see cref="WordsSession.ShownName"/>),
+	///     after a file came, went, was renamed or moved: a twin's brackets come and go. A
+	///     root whose file the session let go keeps the name it had.
+	/// </summary>
+	public void FollowNames() {
+		foreach (KeyNode root in KeyNodes) {
+			if (root.File is { } file && session.Files.Contains(file)) {
+				root.Label = session.ShownName(file);
+			}
+		}
 	}
 
 	/// <summary>The empty tree over the reset session.</summary>
@@ -830,22 +857,26 @@ public class TreeViewModel : ViewModelBase {
 
 	/// <summary>The file a tree node belongs to.</summary>
 	public WordsFile FileOf(KeyNode node)
-		=> session.FileOf(node.Root.FullLabel)
+		=> node.Root.File
 			?? throw new InvalidOperationException($"no loaded file for node {node.FullLabel}");
 
 	/// <summary>The file node for a loaded file.</summary>
 	public KeyNode NodeOf(WordsFile file)
-		=> KeyNodes.FirstOrDefault(root => root.FullLabel == file.Label)
-			?? throw new InvalidOperationException($"no tree for loaded file {file.Label}");
+		=> KeyNodes.FirstOrDefault(root => root.File == file)
+			?? throw new InvalidOperationException($"no tree for loaded file {file.Name}");
 
-	//file nodes in tree order; later files win bare-reference lookups, like a
+	//the files in tree order; later files win bare-reference lookups, like a
 	//host app stacking dictionaries
-	public IEnumerable<string> FileLabels => KeyNodes.Select(node => node.FullLabel);
+	public IEnumerable<WordsFile> Files => KeyNodes.Select(root => root.File).OfType<WordsFile>();
+
+	//the key a node stands for: its path in its file, where the file has a key there
+	private static WordsKey? KeyOf(KeyNode node)
+		=> node is OrganizerNode || node.Root.File is not { } file ? null : file.Keys.GetValueOrDefault(node.FullLabel);
 
 	//Structure
 	/// <summary>Adds an empty node under <paramref name="parent"/> and selects it.</summary>
 	public KeyNode Add(KeyNode parent, string label) {
-		KeyNode node = new(label, $"{parent.FullLabel}.{label}") {
+		KeyNode node = new(label, KeyNode.Join(parent.FullLabel, label)) {
 			IsSelected = true,
 		};
 		parent.IsExpanded = true;

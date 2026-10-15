@@ -453,7 +453,9 @@ write one by hand first. It asks nothing: a new root, `anonymous-words`, joins
 the tree with no path, selected, the rename box (F2's, *The tree*) open on its
 name at once, so the first thing typed names it and Escape keeps the name. The root is just the
 file: its name is the file's, and no key carries it. A second New before the
-first is saved makes `anonymous-words-2`, and so on, so the two are told apart.
+first is saved is `anonymous-words` too, never numbered: the two read alike until
+one is renamed or saved, and Save tells them apart where it matters, refusing a
+path another file has.
 It is unsaved work, as an import is: nothing reaches the disk until Save, and
 closing asks.
 
@@ -472,7 +474,7 @@ naming it would be wrong after the first rename, so nothing need rewrite a
 comment that is the user's once it is written.
 
 **Saving it.** The first Save of a file with no path asks where, as Save As
-does, proposing its label with `.ini` (`anonymous-words.ini`, or the name it
+does, proposing its name with `.ini` (`anonymous-words.ini`, or the name it
 was given). The dialog's own overwrite ask covers a file on disk. A path another
 file in the session already has is refused with a message, and the dialog asks
 again: two files never share a path. Cancelling leaves the file unsaved, dirty
@@ -480,10 +482,11 @@ and pathless, and a Save of several files stops there, the ones before it
 saved. The file is written before it takes the path, so a write that fails is
 told and leaves it pathless. Once saved it has a path like any loaded file,
 and later Saves go there. Its root follows the name picked, as a loaded
-file's is its file's, so a first Save under another name renames it.
+file's is its file's, so a first Save under another name renames it, and no key
+changes.
 
-**Renaming a root.** A pathless file's root renames in place, and the name is what
-its first Save proposes. A file that exists on disk renames through the Save As
+**Renaming a root.** A pathless file's root renames in place to any file name,
+dots and all, another file's too, and the name is what its first Save proposes. A file that exists on disk renames through the Save As
 dialog, so it is plain that a file is being written. Renaming moves the file:
 it is saved at the chosen path, the file at the old path is removed, and the root
 follows it. A path it has already is no move, and an old file that will not go
@@ -492,7 +495,8 @@ user's own git repository, which sees the move at its next status (git pairs
 the removal with the new file once both are staged), and from which the old
 file can always be recovered.
 Wordsmith moves it on disk and runs no git command. A root that changes its
-name, whichever way, empties the undo history (*Undo*, Boundaries).
+name, whichever way, changes no key, and the undo history and Back's keep all
+they hold (*Keys without the file's name*).
 
 Why: a location asked up front is a question before there is anything to save,
 and most people expect the one asked at Save. It also removes the hazard of a
@@ -503,21 +507,21 @@ New over a path already loaded, which replaced that file's unsaved work.
 - The new root is `anonymous-words`, selected, in rename, dirty, English by
   default and without gripes. Its preamble names no file, links the Core readme
   and shows as the pinned organizer.
-- A second New is `anonymous-words-2`.
-- The name typed names it; renaming the pathless root changes only its keys'
-  prefix and what Save proposes, and empties the undo history.
+- A second New is `anonymous-words` too.
+- The name typed names it; renaming the pathless root changes no key, only what
+  Save proposes, and the undo history keeps what it holds.
 - Renaming a saved root opens Save As on its path: the file is at the new path
   and gone from the old one, and the root and its keys follow it. A cancelled
   dialog changes nothing.
-- The first Save proposes the label, and writes the starter byte for byte at the
+- The first Save proposes the name, and writes the starter byte for byte at the
   chosen path, the root following its name, leaving the window clean. Later
   Saves ask nothing.
 - A cancelled first Save leaves it dirty and pathless, and stops a Save of
   several files there, the ones before it saved.
 - A path the session already has is refused, and the dialog asks again.
 - In the session: a new file has no path and is at none, cannot save until it
-  has one, renames in place to a key segment no other file has, and moves to
-  a path no other file has, labelled as a file loaded from there; one started
+  has one, renames in place to any file name, another file's too, and moves to
+  a path no other file has, named as a file loaded from there; one started
   with a header and a language writes them, and nothing else.
 
 ## Saving
@@ -829,7 +833,8 @@ and Back takes it where it was.
 
 **A history of selections.** Every change of the selected node, edited or
 merely visited, is a move in a history (`SelectionHistory`, which the tree
-view model keeps as node labels); the same node twice in a row is one entry.
+view model keeps as places, a file and a path in it, `NodeRef`); the same node
+twice in a row is one entry.
 Back and Forward step along it without pushing, like a browser's. A
 selection made by hand is matched against its neighbours first: selecting
 the node Back points to *is* Back — the current entry crosses to the forward
@@ -837,8 +842,8 @@ side — and selecting the node Forward points to is Forward. Walking A, B, A,
 B by hand therefore does not pile up entries, and stepping onto the next
 node by click rather than by the Forward button does not erase what lay
 ahead. Only a selection matching neither neighbour pushes, and a push while
-behind the end drops the forward run. An entry whose label no longer
-resolves — the node removed or renamed, its file unloaded — is dropped when
+behind the end drops the forward run. An entry whose place no longer
+resolves — the node removed or renamed, its file unloaded or reloaded — is dropped when
 it is reached, and so is one left beside its own twin once what stood
 between them went. The history keeps fifty entries, the oldest going first,
 and Reset clears it; a moment with nothing selected is not a move.
@@ -879,9 +884,9 @@ little of it, so the stack (`UndoStack`, on `MainWindowViewModel`) holds
 actions, not copies of the document: each entry (`UndoEntry`) carries
 exactly what its action changed and undoes it in place with the action's
 own inverse, redoing it the same way. Nothing reloads and the tree keeps its
-expansion. An entry finds what it changes by label — entries are undone in
-order, so every label still means what it meant — and a comment, which
-shares its label with its siblings, by its parent and its place. Entries
+expansion. An entry finds what it changes by its file and its path there —
+entries are undone in order, so every path still means what it meant — and a
+comment, which shares its path with its siblings, by its parent and its place. Entries
 stack: undo takes back the latest, redo puts it back, and a new edit drops
 whatever was waiting to be redone.
 
@@ -902,7 +907,7 @@ whatever was waiting to be redone.
 - **Commands.** Each toggle — Needs Review, Stale in the selected language,
   Constant — is a `KeyEdit` of its own (`ReviewEdit`, `StaleEdit`,
   `ConstantEdit`): the key, the flag, its value before and after; Constant
-  also carries its relabel and any translations it cleared. Stale All
+  also carries its new name and any translations it cleared. Stale All
   Languages, on the selected key, is a `KeyEdit` too (`StaleAllEdit`), the
   stamps it replaced kept with it. Adding key information is `KeyAdded`;
   removing it is `KeyRemoved`, which keeps a copy of the key, plural forms
@@ -913,7 +918,7 @@ whatever was waiting to be redone.
   comments and all — copies of the keys beneath it, and a comment's text
   (the preamble's lives in its file, which the removal empties) — one entry,
   however much it takes. A rename and a drag are both a `Move` — the old
-  and new place: parent, position, label and name — since a drag may or may
+  and new place: file, parent, position, path and name — since a drag may or may
   not rename and a rename is a move that changes only the last segment;
   undoing one renames back through the session and the node moves back. A
   drop where the node already stood changes nothing and makes no entry; a
@@ -942,7 +947,7 @@ whatever was waiting to be redone.
   other rules now, and a pick they lack goes back to the plain value.
 
 **Where it lives.** The entries and the stack are the editor's: an entry
-knows where its change shows, a node by its label, and moves the tree's
+knows where its change shows, a node by its file and its path, and moves the tree's
 nodes itself. What it keeps of the document and puts back is Authoring's,
 tested headless: a language commit's tables and entries
 (`LanguageTableChange`), a key copied out and restored (`WordsSession.KeysUnder`,
@@ -1007,10 +1012,9 @@ undone; the title stars again). Reset, Load, Import, Unload, Merge and Split
 do: they change which files the document is, and an entry for other files is
 no help. Each of them puts a file node into the tree or takes one out, and
 that is what clears it; a file dragged among files does not. A Language
-Manager commit that merges codes clears it too, and so does a root that
-changes its name (*New*): renamed in place, moved on disk, or saved first
-under another name, its file is out and in again, and the entries name its
-keys by the old one.
+Manager commit that merges codes clears it too. A root that changes its name
+(*New*), renamed in place, moved on disk or saved first under another name, does
+not: no key changes, and an entry names its file, not the name.
 
 **Text boxes.** The main window's editing boxes undo as any text box does,
 from the document's history. Each is a `WordsBox`: a `TextBox` with WPF's
@@ -1833,7 +1837,7 @@ Whatever names a key names its file beside it:
   take the file and a key of its own. `FileOf(label)` and `FileOfKey` go, and
   so does the labels' uniqueness, which only kept two files' keys apart.
 - **The tree.** A root carries its file, and a node's full label is its path
-  in that file, today's `KeyNode.Path`. The root shows the file's true name,
+  in that file. The root shows the file's true name,
   its file name without the extension, dots and all (`Strings.Designer`),
   never numbered: a name for display, carried by nothing in the document.
   Where two loaded files share a name, each shows in brackets the nearest part
@@ -1846,8 +1850,9 @@ Whatever names a key names its file beside it:
   a rename and a move at once.
 - **Undo and navigation.** An entry names its file and a path in it, and so
   do a `NodeRef`, a `Place` and Back's history. The file is the session's
-  object: a file in or out empties both histories already (*Undo*,
-  Boundaries), so no entry outlives its file.
+  object: a file in or out empties the undo history (*Undo*, Boundaries), so no
+  entry outlives its file, and Back drops an entry whose file went as it
+  reaches it (*Navigation*).
 - **Previews and checks.** The preview provider stacks the files' stores in
   tree order, the later winning, as `WordsBuilder` stacks the files it
   loads. A reference is a key's name as written, and reads as the runtime
@@ -1892,5 +1897,12 @@ calls taking a label, `KeyTree.Build(session, file)`, `Provider(fileLabels)`,
 dozen places; those now read the node's label, or `LabelOf`, and the two
 entries that keep removed keys keep each one's label. Then the editor: the
 roots, the undo entries and the navigation history move to a file and a path,
-*New*'s renames stop emptying the histories, and the tests name keys by file.
-Then the shim goes.
+*New*'s renames stop emptying the histories, and the tests name keys by file
+(built). A root carries its file (`KeyNode.File`) and shows `ShownName`, a
+node's `FullLabel` is its path, and `NodeRef` (a record, the history's entries
+too, `SelectionHistory<T>`) and `Place` name the file; a file's true name is
+`WordsFile.Name`, which Rename sets to any file name and MoveTo to the file's,
+and New gives unnumbered; the previews read the selected key above the files
+(`Provider(files, shown)`), so a later file's key of its name never stands in
+for it. The editor calls none of the shim, whose label (`WordsFile.Label`) stays
+unique and follows the name until it goes. Then the shim goes.

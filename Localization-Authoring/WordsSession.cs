@@ -107,15 +107,16 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>
 		///     Starts a file with no path (the editor's SPEC: New): <paramref name="reader"/>
 		///     read as <see cref="Load(TextReader, string, Encoding?)"/> reads a file, the
-		///     file labelled <paramref name="name"/>, or <c>name-2</c> and so on where
-		///     another file has it, and saved in UTF-8 without a BOM. Nothing is on disk
-		///     until its first Save asks where (<see cref="MoveTo"/>).
+		///     file named <paramref name="name"/>, never numbered, and saved in UTF-8
+		///     without a BOM. Nothing is on disk until its first Save asks where
+		///     (<see cref="MoveTo"/>), which tells two files of one name apart by refusing
+		///     a path another file has.
 		/// </summary>
 		/// <param name="reader">The file's text.</param>
-		/// <param name="name">Its label, and the name its first Save proposes.</param>
+		/// <param name="name">Its <see cref="WordsFile.Name"/>, which its first Save proposes.</param>
 		public WordsFile New(TextReader reader, string name) {
 			var (loaded, newLine) = Read(reader);
-			return Add(loaded, null, UniqueLabel(name), newLine, null, files.Count);
+			return Add(loaded, null, name, newLine, null, files.Count);
 		}
 
 		/// <summary>
@@ -124,7 +125,7 @@ namespace PatTech.Localization.Authoring {
 		///     table, written <c>; line</c>, and its default written in
 		///     <paramref name="language"/>, which it declares, listed.
 		/// </summary>
-		/// <param name="name">Its label, and the name its first Save proposes.</param>
+		/// <param name="name">Its <see cref="WordsFile.Name"/>, which its first Save proposes.</param>
 		/// <param name="preamble">What the file is and where it goes, a line of text to a comment line.</param>
 		/// <param name="language">The default's language, as the table lists it.</param>
 		public WordsFile New(string name, string preamble, LanguageEntry language) {
@@ -133,7 +134,7 @@ namespace PatTech.Localization.Authoring {
 				DefaultLanguage = language.Code,
 			};
 			loaded.Declare(language.Code, language.NativeName, language.EnglishName is "" ? null : language.EnglishName);
-			return Add(loaded, null, UniqueLabel(name), null, null, files.Count);
+			return Add(loaded, null, name, null, null, files.Count);
 		}
 
 		//read whole first: the parser's lines lose their breaks, and saving keeps the file's
@@ -145,40 +146,46 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		/// <summary>
-		///     Renames a file's root: <paramref name="label"/> becomes its label, and no
-		///     key changes (the editor's SPEC: New → Renaming a root). For a file not
-		///     saved yet it is the name its first Save proposes; a file on disk is
-		///     renamed by moving it (<see cref="MoveTo"/>).
+		///     Renames a file's root: <paramref name="name"/> becomes its
+		///     <see cref="WordsFile.Name"/>, and no key changes (the editor's SPEC: New →
+		///     Renaming a root). For a file not saved yet it is the name its first Save
+		///     proposes, and another file may have it too; a file on disk is renamed by
+		///     moving it (<see cref="MoveTo"/>).
 		/// </summary>
-		/// <exception cref="ArgumentException">The label is no segment of a key's name, or another file has it.</exception>
-		public void Rename(WordsFile file, string label) {
-			if (!WordsParser.IsKeySegment(label)) {
-				throw new ArgumentException($"'{label}' is no segment of a key's name", nameof(label));
+		/// <exception cref="ArgumentException">The name is no file name.</exception>
+		public void Rename(WordsFile file, string name) {
+			if (!IsFileName(name)) {
+				throw new ArgumentException($"'{name}' is no file name", nameof(name));
 			}
-			if (FileOf(label) is { } other && other != file) {
-				throw new ArgumentException($"'{label}' is another file's label", nameof(label));
-			}
-			Relabel(file, label);
+			Name(file, name, file.Path);
 		}
+
+		/// <summary>True when <paramref name="name"/> can name a file: something besides spaces and dots, and no character a file name refuses.</summary>
+		public static bool IsFileName(string name)
+			=> name.Trim().Trim('.') != "" && name.IndexOfAny(System.IO.Path.GetInvalidFileNameChars()) < 0;
 
 		/// <summary>
 		///     Gives <paramref name="file"/> the path it saves to from now on, as its
-		///     first Save or a rename through Save As does (the editor's SPEC: New): its
-		///     root follows, labelled as a file loaded from there would be. Writes
+		///     first Save or a rename through Save As does (the editor's SPEC: New): it
+		///     is named as a file loaded from there would be, and no key changes. Writes
 		///     nothing; the caller writes the file there, and removes it from the old
 		///     path when it moved.
 		/// </summary>
 		/// <exception cref="ArgumentException">Another file has the path.</exception>
 		public void MoveTo(WordsFile file, string path) {
 			if (FileAt(path) is { } other && other != file) {
-				throw new ArgumentException($"'{path}' is the path of {other.Label}", nameof(path));
+				throw new ArgumentException($"'{path}' is the path of {other.Name}", nameof(path));
 			}
-			file.Path = path;
-			Relabel(file, UniqueLabel(System.IO.Path.GetFileNameWithoutExtension(path), file));
+			Name(file, System.IO.Path.GetFileNameWithoutExtension(path), path);
 		}
 
-		//the file's keys are its own, by their names: the label is the root's alone
-		private static void Relabel(WordsFile file, string label) => file.Label = label;
+		//the file's keys are its own, by their names: the name, and the shim's label after
+		//it, are the file's alone
+		private void Name(WordsFile file, string name, string? path) {
+			file.Path = path;
+			file.Name = name;
+			file.Label = UniqueLabel(name, file);
+		}
 
 		//the first line break decides; a file with none takes the system's
 		private static string? NewLineOf(string text) {
@@ -221,11 +228,10 @@ namespace PatTech.Localization.Authoring {
 		public WordsFile Load(ILoadedWords loaded, string path, string? newLine = null, Encoding? encoding = null) {
 			WordsFile? previous = FileAt(path);
 			int position = previous is null ? files.Count : files.IndexOf(previous);
-			string label = previous?.Label ?? UniqueLabel(System.IO.Path.GetFileNameWithoutExtension(path));
 			if (previous is not null) {
 				Unload(previous, prune: false);
 			}
-			WordsFile file = Add(loaded, path, label, newLine, encoding, position);
+			WordsFile file = Add(loaded, path, System.IO.Path.GetFileNameWithoutExtension(path), newLine, encoding, position);
 			if (previous is not null) {
 				//languages the file stopped declaring, and nobody else has, go now
 				Languages.Prune();
@@ -233,9 +239,9 @@ namespace PatTech.Localization.Authoring {
 			return file;
 		}
 
-		//the file joins the session at position, labelled label
-		private WordsFile Add(ILoadedWords loaded, string? path, string label, string? newLine, Encoding? encoding, int position) {
-			var file = new WordsFile(path, label, loaded, newLine ?? Environment.NewLine, encoding ?? IniWriter.Utf8);
+		//the file joins the session at position, named name
+		private WordsFile Add(ILoadedWords loaded, string? path, string name, string? newLine, Encoding? encoding, int position) {
+			var file = new WordsFile(path, name, UniqueLabel(name), loaded, newLine ?? Environment.NewLine, encoding ?? IniWriter.Utf8);
 			files.Insert(position, file);
 			foreach (WordsKey read in loaded.WordKeys.Values) {
 				//a copy: the caller's document stays as read, so loading it twice
@@ -249,19 +255,46 @@ namespace PatTech.Localization.Authoring {
 			return file;
 		}
 
-		//the file name, dots replaced (the shim reads a label's first segment as the
-		//file), and suffixed past any label another loaded file already carries; a
-		//file moving may keep its own
-		private string UniqueLabel(string fileName, WordsFile? moving = null) {
+		//the shim's label: the name, dots replaced (the shim reads a label's first segment
+		//as the file), and suffixed past any label another loaded file already carries; a
+		//file renamed may keep its own
+		private string UniqueLabel(string fileName, WordsFile? renamed = null) {
 			string name = fileName.Replace('.', '-');
 			if (name == "") {
 				name = "file";
 			}
 			string label = name;
-			for (int i = 2; FileOf(label) is { } other && other != moving; i++) {
+			for (int i = 2; FileOf(label) is { } other && other != renamed; i++) {
 				label = $"{name}-{i}";
 			}
 			return label;
+		}
+
+		/// <summary>
+		///     The name <paramref name="file"/> shows by (the editor's SPEC: Keys without
+		///     the file's name): its <see cref="WordsFile.Name"/>, and where another loaded
+		///     file has that name too, in brackets the first folder, walking up from its
+		///     own, where its path differs from every other's: <c>strings (ui)</c> beside
+		///     <c>strings (core)</c>. A file not saved yet has no folder, and shows its
+		///     name alone; one whose folders differ at no single step shows its folder whole.
+		/// </summary>
+		public string ShownName(WordsFile file) {
+			List<WordsFile> twins = [.. files.Where(other => other != file && string.Equals(other.Name, file.Name, StringComparison.OrdinalIgnoreCase))];
+			if (twins.Count == 0 || file.Path is not { } path) {
+				return file.Name;
+			}
+			string[] own = Folders(path);
+			List<string[]> others = [.. twins.Select(twin => twin.Path is { } at ? Folders(at) : [])];
+			for (int step = 0; step < own.Length; step++) {
+				if (others.All(folders => step >= folders.Length || !string.Equals(folders[step], own[step], StringComparison.OrdinalIgnoreCase))) {
+					return $"{file.Name} ({own[step]})";
+				}
+			}
+			return $"{file.Name} ({file.Directory})";
+
+			//the folders a path sits in, its own first
+			static string[] Folders(string path)
+				=> [.. (System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(path)) ?? "").Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries).Reverse()];
 		}
 
 		/// <summary>
@@ -300,7 +333,7 @@ namespace PatTech.Localization.Authoring {
 		/// <param name="tree">The file's node: the walk decides block order, comments write themselves in place.</param>
 		/// <exception cref="InvalidOperationException">The file has no path yet: its first Save asks where.</exception>
 		public void Save(WordsFile file, IKeyTreeNode tree)
-			=> Save(file, tree, file.Path ?? throw new InvalidOperationException($"{file.Label} has no path yet: its first Save asks where"));
+			=> Save(file, tree, file.Path ?? throw new InvalidOperationException($"{file.Name} has no path yet: its first Save asks where"));
 
 		/// <summary>
 		///     <see cref="Save(WordsFile, IKeyTreeNode)"/> to <paramref name="path"/>,
@@ -334,7 +367,7 @@ namespace PatTech.Localization.Authoring {
 		//checks the same way
 		internal static void EnsureTreeCovers(WordsFile file, IKeyTreeNode tree) {
 			if (tree.FullLabel != "" && tree.FullLabel != file.Label) {
-				throw new InvalidOperationException($"tree root '{tree.FullLabel}' does not own file '{file.Label}'");
+				throw new InvalidOperationException($"tree root '{tree.FullLabel}' does not own file '{file.Name}'");
 			}
 			var covered = new HashSet<string>();
 			foreach (IKeyTreeNode child in tree.Children) {
@@ -343,7 +376,7 @@ namespace PatTech.Localization.Authoring {
 			var owned = new HashSet<string>(file.Keys.Keys);
 			if (!covered.SetEquals(owned)) {
 				string missing = string.Join(", ", owned.Except(covered));
-				throw new InvalidOperationException($"tree for '{file.Label}' does not match its keys"
+				throw new InvalidOperationException($"tree for '{file.Name}' does not match its keys"
 					+ (missing != "" ? $"; missing: {missing}" : ""));
 			}
 
@@ -521,7 +554,7 @@ namespace PatTech.Localization.Authoring {
 		public WordsFile? Merge(WordsFile baseFile, IReadOnlyDictionary<string, WordsFile> languageSources, IKeyTreeNode baseTree, string outPath, out HashSet<string> conflicts) {
 			foreach (var (code, source) in languageSources) {
 				if (!source.Languages.Contains(code)) {
-					throw new ArgumentException($"'{source.Label}' does not declare '{code}'", nameof(languageSources));
+					throw new ArgumentException($"'{source.Name}' does not declare '{code}'", nameof(languageSources));
 				}
 			}
 			//the writer walks the tree, so one that misses a key would merge without it
@@ -607,6 +640,15 @@ namespace PatTech.Localization.Authoring {
 		/// <param name="languageCode">A language for its values with fallback to the defaults, or <see langword="null"/> for the defaults alone.</param>
 		public IWordsProvider Provider(IEnumerable<WordsFile> files, string? languageCode = null)
 			=> Provider(files.Select(file => file.Keys), languageCode);
+
+		/// <summary>
+		///     <see cref="Provider(IEnumerable{WordsFile}, string?)"/> with
+		///     <paramref name="shown"/> read by its name above every file: the key a
+		///     preview shows renders its own words, though a later file holds a key of
+		///     its name.
+		/// </summary>
+		public IWordsProvider Provider(IEnumerable<WordsFile> files, WordsKey shown, string? languageCode = null)
+			=> Provider([.. files.Select(file => file.Keys), new Dictionary<string, WordsKey> { [shown.BlockKey] = shown }], languageCode);
 
 		/// <summary>
 		///     The shim: <see cref="Provider(IEnumerable{WordsFile}, string?)"/> over

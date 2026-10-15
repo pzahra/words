@@ -74,19 +74,26 @@ public class KeyNameViewModel : DataViewModelBase, IDialogViewModel {
 			if (string.IsNullOrWhiteSpace(KeyName)) {
 				SetError(Words.Known["key-name.required"], nameof(KeyName));
 			}
-			//a rename competes with its siblings; a new node with the children of the
-			//node it goes under. Ordinal, as the runtime compares keys, so a joiner
-			//(U+200C) that a culture's compare skips tells two names apart; a name
-			//differing from a sibling's in case alone is still taken for it
-			IEnumerable<KeyNode> siblings = renaming is not null
-				? renaming.Parent?.Children ?? Parent.Tree.KeyNodes
-				: Parent.Tree.SelectedKeyNode?.Children ?? Parent.Tree.KeyNodes;
-			if (siblings.Any(k => k != renaming && k.Label.Equals(KeyName, StringComparison.OrdinalIgnoreCase))) {
-				SetError(Words.Known["key-name.exists"], nameof(KeyName));
+			if (renaming is { Parent: null }) {
+				//a root not saved yet names its file, which another may share until Save
+				//tells them apart (SPEC: New): any file name will do
+				if (!WordsSession.IsFileName(KeyName)) {
+					SetError(Words.Known["key-name.invalid"], nameof(KeyName));
+				}
 			}
-			//one segment of a key's name, the grammar the runtime reads (runtime SPEC: Key names)
-			if (!WordsParser.IsKeySegment(KeyName)) {
-				SetError(Words.Known["key-name.invalid"], nameof(KeyName));
+			else {
+				//a rename competes with its siblings; a new node with the children of the
+				//node it goes under. Ordinal, as the runtime compares keys, so a joiner
+				//(U+200C) that a culture's compare skips tells two names apart; a name
+				//differing from a sibling's in case alone is still taken for it
+				IEnumerable<KeyNode> siblings = renaming?.Parent?.Children ?? Parent.Tree.SelectedKeyNode?.Children ?? Parent.Tree.KeyNodes;
+				if (siblings.Any(k => k != renaming && k.Label.Equals(KeyName, StringComparison.OrdinalIgnoreCase))) {
+					SetError(Words.Known["key-name.exists"], nameof(KeyName));
+				}
+				//one segment of a key's name, the grammar the runtime reads (runtime SPEC: Key names)
+				if (!WordsParser.IsKeySegment(KeyName)) {
+					SetError(Words.Known["key-name.invalid"], nameof(KeyName));
+				}
 			}
 		}
 

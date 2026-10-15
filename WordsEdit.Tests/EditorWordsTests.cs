@@ -134,10 +134,10 @@ public class EditorWordsTests {
 		vm.LoadFile(new StringReader(text), "words");
 
 		var writer = new StringWriter();
-		vm.Session.Save(vm.Session.FileOf("words")!, vm.Tree.KeyNodes.Single(), writer);
+		vm.Session.Save(FileNamed(vm, "words"), vm.Tree.KeyNodes.Single(), writer);
 
 		Assert.Equal(text, writer.ToString());
-		Assert.Empty(vm.Session.FileOf("words")!.Errors);
+		Assert.Empty(FileNamed(vm, "words").Errors);
 	}
 
 	//the command line's edits keep the file the editor's (command line SPEC:
@@ -164,7 +164,7 @@ public class EditorWordsTests {
 		vm.LoadFile(new StringReader(text), "words");
 
 		var writer = new StringWriter();
-		vm.Session.Save(vm.Session.FileOf("words")!, vm.Tree.KeyNodes.Single(), writer);
+		vm.Session.Save(FileNamed(vm, "words"), vm.Tree.KeyNodes.Single(), writer);
 
 		Assert.Equal(text, writer.ToString());
 	}
@@ -181,11 +181,11 @@ public class EditorWordsTests {
 		languages.Selected.NativeName = "Deutsch";
 		languages.Selected.EnglishName = "German";
 		languages.OkCommand.Execute(null);
-		vm.Session.Keys["words.languages.title"].Entries["de"].Value = "Sprachen";
+		Key(vm, "words", "languages.title").Entries["de"].Value = "Sprachen";
 		Assert.True(vm.IsDirty);
 
 		var writer = new StringWriter();
-		vm.Session.Save(vm.Session.FileOf("words")!, vm.Tree.KeyNodes.Single(), writer);
+		vm.Session.Save(FileNamed(vm, "words"), vm.Tree.KeyNodes.Single(), writer);
 
 		var builder = WordsBuilder.Create().Load(new StringReader(writer.ToString()));
 		Assert.Contains(builder.GetLanguages(), language => language.Key == "de" && language.Value == "Deutsch");
@@ -222,10 +222,10 @@ public class EditorWordsTests {
 		}
 		Assert.NotEmpty(attributed);
 
-		//the keys as the editor reads them, the file label stripped
+		//the keys as the editor reads them, by their names in the file
 		var vm = new MainWindowViewModel(new FakeDialogs());
 		vm.LoadFile(new StringReader(EditorWords.Text()), "words");
-		var declared = vm.Session.Keys.Keys.Select(key => key["words.".Length..]).ToHashSet();
+		var declared = FileNamed(vm, "words").Keys.Keys.ToHashSet();
 		var missing = named.Where(pair => !declared.Contains(pair.Key)).Select(pair => $"{pair.Key} ({pair.Value})").Order().ToList();
 		Assert.True(missing.Count == 0, "named in the source, not in words.ini: " + string.Join(", ", missing));
 		var unused = declared.Where(key => !named.ContainsKey(key) && !attributed.Any(basis => key.StartsWith(basis + '.'))).Order().ToList();

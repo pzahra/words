@@ -26,7 +26,7 @@ public class MergeFileRow : ViewModelBase {
 	internal MergeControlViewModel Owner { get; }
 	public KeyNode Node { get; }
 	public WordsFile File { get; }
-	public string Label => Node.FullLabel;
+	public string Label => Node.Label;
 	public IReadOnlyList<MergeLanguageRow> Languages { get; }
 
 	internal MergeFileRow(MergeControlViewModel owner, KeyNode node, WordsFile file, IEnumerable<LanguageEntry> languages) {

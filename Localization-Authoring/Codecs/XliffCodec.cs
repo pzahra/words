@@ -385,7 +385,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 				new XAttribute(XNamespace.Xmlns + "w", Ext.NamespaceName),
 				new XElement(Xliff + "file",
 					//a file not saved yet is the one its first Save proposes
-					new XAttribute("original", source.File.Path is { } path ? Path.GetFileName(path) : source.File.Label + ".ini"),
+					new XAttribute("original", source.File.Path is { } path ? Path.GetFileName(path) : source.File.Name + ".ini"),
 					new XAttribute("source-language", sourceLanguage),
 					new XAttribute("target-language", code),
 					new XAttribute("datatype", "plaintext"),

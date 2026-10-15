@@ -144,11 +144,12 @@ public class SettingsDocument : ViewModelBase {
 ///     every table that was touched to its settings file; Cancel leaves both.
 /// </summary>
 public class SettingsViewModel : DialogViewModel {
-	public override string Title => Words.Known.Format("settings.title", File.Label);
+	public override string Title => Words.Known.Format("settings.title", FileName);
 	public MainWindowViewModel Parent { get; }
 	/// <summary>The dictionary whose settings these are.</summary>
 	public WordsFile File { get; }
-	public string FileLabel => File.Label;
+	/// <summary>The name the dictionary shows by in the tree.</summary>
+	public string FileName => Parent.Session.ShownName(File);
 
 	/// <summary>The dictionary's settings file, relative to it, or empty.</summary>
 	public string SettingsFile { get; set => _ = ChangeProperty(ref field, value) && RefreshTargets(); }
@@ -185,7 +186,7 @@ public class SettingsViewModel : DialogViewModel {
 		string? picked = Target?.Path;
 		Targets.Clear();
 		if (Resolve(SettingsFile) is { } path) {
-			Targets.Add(new SettingsTarget(Words.Known.Format("settings.target", File.Label, SettingsFile.Trim()), path));
+			Targets.Add(new SettingsTarget(Words.Known.Format("settings.target", FileName, SettingsFile.Trim()), path));
 		}
 		foreach (LanguageSettingRow language in Languages ?? []) {
 			if (Resolve(language.Path) is { } languagePath) {

@@ -125,7 +125,7 @@ value-de=y
 		Assert.True(closed);
 		Assert.Empty(dialogs.Shown); //nothing opened over the manager
 		Assert.Contains(vm.Tree.KnownLanguages, l => l.Code == "fr");
-		Assert.All(vm.Session.Keys.Values, key => Assert.True(key.Entries.ContainsKey("fr")));
+		Assert.All(vm.Session.AllKeys, key => Assert.True(key.Entries.ContainsKey("fr")));
 		Assert.Equal(["en", "de", "fr"], vm.Session.Files[0].Languages);
 		Assert.True(vm.IsDirty);
 		Assert.Equal("fr", vm.Tree.SelectedLanguage.Code); //the highlighted row became the tree's language
@@ -182,7 +182,7 @@ value-de=y
 		manager.OkCommand.Execute(null); //applied: the re-code shifts the entries
 		Assert.Contains(vm.Tree.KnownLanguages, l => l.Code == "de-DE" && l.NativeName == "Deutsch (DE)");
 		Assert.DoesNotContain(vm.Tree.KnownLanguages, l => l.Code == "de");
-		Assert.Equal("y", vm.Session.Keys["Example.k"].Entries["de-DE"].Value);
+		Assert.Equal("y", Key(vm, "Example", "k").Entries["de-DE"].Value);
 		Assert.True(vm.IsDirty);
 		Assert.Empty(dialogs.Shown);
 	}
@@ -242,7 +242,7 @@ value-de=y
 
 		manager.OkCommand.Execute(null);
 		Assert.DoesNotContain(vm.Tree.KnownLanguages, l => l.Code == "de");
-		Assert.All(vm.Session.Keys.Values, key => Assert.False(key.Entries.ContainsKey("de")));
+		Assert.All(vm.Session.AllKeys, key => Assert.False(key.Entries.ContainsKey("de")));
 		Assert.Equal(["en"], vm.Session.Files[0].Languages);
 		Assert.Equal("en", vm.Tree.SelectedLanguage.Code);
 		Assert.True(vm.IsDirty);
@@ -271,10 +271,10 @@ value-de=y
 
 			Assert.True(closed);
 			Assert.True(File.Exists(outPath));
-			Assert.Equal(["Base", "French", "Merged"], vm.Tree.KeyNodes.Select(n => n.FullLabel));
-			Assert.Equal("un", vm.Session.Keys["Merged.a"].Entries["fr"].Value);
-			Assert.Equal("one", vm.Session.Keys["Merged.a"].Entries["en"].Value);
-			Assert.Equal(["en", "fr"], vm.Session.FileOf("Merged")!.Languages);
+			Assert.Equal(["Base", "French", "Merged"], vm.Tree.KeyNodes.Select(n => n.Label));
+			Assert.Equal("un", Key(vm, "Merged", "a").Entries["fr"].Value);
+			Assert.Equal("one", Key(vm, "Merged", "a").Entries["en"].Value);
+			Assert.Equal(["en", "fr"], FileNamed(vm, "Merged").Languages);
 		}
 		finally {
 			Directory.Delete(folder, recursive: true);
@@ -362,7 +362,7 @@ value-de=y
 		var (vm, _) = Load();
 		vm.LoadFile(new StringReader("value=!en\nvalue-de=Deutsch\n\n[a]\nvalue=1\n"), "One");
 		vm.LoadFile(new StringReader("value=!de\nvalue-en=English\nvalue-de=Deutsch\n\n[b]\nvalue=2\n"), "Two");
-		WordsFile one = vm.Session.FileOf("One")!, two = vm.Session.FileOf("Two")!;
+		WordsFile one = FileNamed(vm, "One"), two = FileNamed(vm, "Two");
 		var manager = new LanguageManagerViewModel(vm, two);
 		Assert.Equal("de", manager.DefaultRow!.Code); //its own, not the first file's
 		manager.Rows.Single(row => row.Code == "en").IsDefault = true;
@@ -371,7 +371,7 @@ value-de=y
 
 		Assert.Equal("en", two.DefaultLanguage);
 		Assert.Equal("en", one.DefaultLanguage);
-		Assert.Null(vm.Session.FileOf("Example")!.DefaultLanguage);
+		Assert.Null(FileNamed(vm, "Example").DefaultLanguage);
 		vm.UndoCommand.Execute(null);
 		Assert.Equal("de", two.DefaultLanguage);
 
@@ -391,12 +391,12 @@ value-de=y
 		var vm = new MainWindowViewModel(new FakeDialogs());
 		vm.LoadFile(new StringReader("value-en=!English\nvalue-de=!Deutsch\n\n[j]\nvalue=y\n"), "Lib");
 		vm.LoadFile(new StringReader("value-en=English\nvalue-de=Deutsch\n\n[k]\nvalue=x\n"), "Host");
-		WordsFile library = vm.Session.FileOf("Lib")!, host = vm.Session.FileOf("Host")!;
+		WordsFile library = FileNamed(vm, "Lib"), host = FileNamed(vm, "Host");
 		vm.Tree.SelectedKeyNode = null;
 		Assert.Null(vm.LanguagesFile); //two files and no selection: no table to edit
 		Assert.False(vm.ManageLanguagesCommand.CanExecute(null));
 
-		vm.Tree.Select(Find(vm, "Host.k"));
+		vm.Tree.Select(Node(vm, "Host", "k"));
 		Assert.Same(host, vm.LanguagesFile);
 		var manager = new LanguageManagerViewModel(vm);
 		Assert.Equal(Words.Known.Format("languages.title", "Host"), manager.Title);
@@ -407,7 +407,7 @@ value-de=y
 		Assert.Equal("Deutsch (DE)", host.Labels["de"].NativeName);
 		Assert.Equal("!Deutsch", library.Labels["de"].NativeName);
 
-		vm.Tree.Select(Find(vm, "Lib.j"));
+		vm.Tree.Select(Node(vm, "Lib", "j"));
 		manager = new LanguageManagerViewModel(vm);
 		german = manager.Rows.Single(row => row.Code == "de");
 		Assert.Equal("!Deutsch", german.NativeName); //the library's own, ! and all
@@ -427,22 +427,22 @@ value-de=y
 		var vm = new MainWindowViewModel(new FakeDialogs());
 		vm.LoadFile(new StringReader("value-en=English\n\n[k]\nvalue=x\n"), "Host");
 		vm.LoadFile(new StringReader("value-en=!English\n\n[j]\nvalue=y\n"), "Lib");
-		KeyNode lib = vm.Tree.KeyNodes.Single(node => node.FullLabel == "Lib");
+		KeyNode lib = Node(vm, "Lib", "");
 		Assert.True(lib.IsLibraryFile);
 		Assert.False(lib.HasLacks);
 
-		vm.Tree.Select(Find(vm, "Host.k"));
+		vm.Tree.Select(Node(vm, "Host", "k"));
 		var manager = new LanguageManagerViewModel(vm);
 		manager.AddCommand.Execute(null);
 		manager.Selected!.Code = "fr";
 		manager.Selected.NativeName = "Français";
 		manager.Selected.EnglishName = "French";
 		manager.OkCommand.Execute(null);
-		Assert.DoesNotContain("fr", vm.Session.FileOf("Lib")!.Languages); //the host's addition is the host's
+		Assert.DoesNotContain("fr", FileNamed(vm, "Lib").Languages); //the host's addition is the host's
 		Assert.True(lib.HasLacks);
 		Assert.Equal(Words.Known.Format("main.library-lacks", "French (Host)"), lib.LacksLanguages);
 
-		vm.Tree.Select(Find(vm, "Lib.j"));
+		vm.Tree.Select(Node(vm, "Lib", "j"));
 		manager = new LanguageManagerViewModel(vm);
 		manager.AddCommand.Execute(null);
 		manager.Selected!.Code = "fr";
@@ -473,12 +473,12 @@ value-de=y
 		Assert.Empty(dialogs.Notices);
 		Assert.Equal(["en"], vm.Session.Languages.Known.Select(language => language.Code));
 		Assert.Equal("English (new)", vm.Session.Languages.Find("en")!.NativeName);
-		Assert.Equal("", vm.Session.Keys["Example.k"].Entries["en"].Value); //the removed language's words went with it
+		Assert.Equal("", Key(vm, "Example", "k").Entries["en"].Value); //the removed language's words went with it
 		Assert.True(vm.IsDirty);
 		Assert.Contains("value-en=English (new)", Saved(vm));
 		vm.UndoCommand.Execute(null);
 		Assert.Equal("English", vm.Session.Languages.Find("en")!.NativeName);
-		Assert.Equal("ex", vm.Session.Keys["Example.k"].Entries["en"].Value);
+		Assert.Equal("ex", Key(vm, "Example", "k").Entries["en"].Value);
 		Assert.Contains("value-en=English\n", Saved(vm).ReplaceLineEndings("\n"));
 	}
 
@@ -756,7 +756,7 @@ value-de=y
 		var dialogs = new FakeDialogs { ConfirmAnswer = false };
 		var vm = new MainWindowViewModel(dialogs);
 		vm.LoadFile(new StringReader("value-en=English\n\n[a]\nvalue=A\n"), "T");
-		vm.Tree.SelectedKeyNode = Find(vm, "T.a");
+		vm.Tree.SelectedKeyNode = Node(vm, "T", "a");
 
 		vm.RemoveKeyCommand.Execute(null);
 		Assert.Contains("key information", dialogs.Confirmations.Single());
@@ -767,7 +767,7 @@ value-de=y
 		vm.RemoveKeyCommand.Execute(null);
 		Assert.Null(vm.Tree.SelectedKey);
 		Assert.True(vm.IsDirty);
-		Assert.NotNull(Find(vm, "T.a")); //the node stays
+		Assert.NotNull(Node(vm, "T", "a")); //the node stays
 	}
 
 	[Fact]
@@ -775,26 +775,23 @@ value-de=y
 		var dialogs = new FakeDialogs { ConfirmAnswer = false };
 		var vm = new MainWindowViewModel(dialogs);
 		vm.LoadFile(new StringReader("value-en=English\n\n[a.b]\nvalue=B\n\n[a.c]\nvalue=C\n"), "T");
-		vm.Tree.SelectedKeyNode = Find(vm, "T.a");
+		vm.Tree.SelectedKeyNode = Node(vm, "T", "a");
 
 		vm.RemoveNodeCommand.Execute(null);
 		Assert.Contains("2 keys", dialogs.Confirmations.Single());
-		Assert.Equal(2, vm.Session.Keys.Count);
+		Assert.Equal(2, vm.Session.AllKeys.Count());
 
 		//a node carrying nothing goes quietly
-		vm.Tree.Add(Find(vm, "T"), "empty");
+		vm.Tree.Add(Node(vm, "T", ""), "empty");
 		vm.RemoveNodeCommand.Execute(null);
 		Assert.Single(dialogs.Confirmations);
-		Assert.DoesNotContain(MainWindowViewModelTests.GetAllKeyNodes(vm.Tree.KeyNodes), node => node.FullLabel == "T.empty");
+		Assert.DoesNotContain(MainWindowViewModelTests.GetAllKeyNodes(vm.Tree.KeyNodes), node => node.FullLabel == "empty");
 
 		dialogs.ConfirmAnswer = true;
-		vm.Tree.SelectedKeyNode = Find(vm, "T.a");
+		vm.Tree.SelectedKeyNode = Node(vm, "T", "a");
 		vm.RemoveNodeCommand.Execute(null);
-		Assert.Empty(vm.Session.Keys);
+		Assert.Empty(vm.Session.AllKeys);
 	}
-
-	private static KeyNode Find(MainWindowViewModel vm, string fullLabel)
-		=> MainWindowViewModelTests.GetAllKeyNodes(vm.Tree.KeyNodes).First(node => node.FullLabel == fullLabel);
 
 	[Fact]
 	public void LanguageManager_CommitsItsSelectionOnOk() {
@@ -838,10 +835,10 @@ value-de=y
 
 			Assert.True(closed);
 			Assert.True(File.Exists(outPath));
-			Assert.Equal(["Main", "German"], vm.Tree.KeyNodes.Select(n => n.FullLabel));
-			Assert.Equal(["de"], vm.Session.FileOf("German")!.Languages);
-			Assert.Equal("eins", vm.Session.Keys["German.a"].Entries["de"].Value);
-			Assert.Equal("1", vm.Session.Keys["German.a"].DefaultValue); //the reference the translator reads
+			Assert.Equal(["Main", "German"], vm.Tree.KeyNodes.Select(n => n.Label));
+			Assert.Equal(["de"], FileNamed(vm, "German").Languages);
+			Assert.Equal("eins", Key(vm, "German", "a").Entries["de"].Value);
+			Assert.Equal("1", Key(vm, "German", "a").DefaultValue); //the reference the translator reads
 		}
 		finally {
 			Directory.Delete(folder, recursive: true);

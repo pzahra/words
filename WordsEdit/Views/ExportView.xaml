@@ -29,7 +29,7 @@
             </Grid.RowDefinitions>
 
             <TextBlock Grid.Row="0" Text="{l:Words export.file}" VerticalAlignment="Center" Margin="0 0 10 0"/>
-            <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding Files}" SelectedItem="{Binding FileNode}" DisplayMemberPath="FullLabel" Margin="0 2.5px"/>
+            <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding Files}" SelectedItem="{Binding FileNode}" DisplayMemberPath="Label" Margin="0 2.5px"/>
 
             <TextBlock Grid.Row="1" Text="{l:Words export.format}" VerticalAlignment="Center" Margin="0 0 10 0"/>
             <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Formats}" SelectedItem="{Binding Format}" DisplayMemberPath="Label" Margin="0 2.5px"/>

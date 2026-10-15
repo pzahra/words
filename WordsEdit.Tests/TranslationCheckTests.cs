@@ -72,22 +72,22 @@ public class TranslationCheckTests {
 		var vm = Load();
 		Speak(vm, "it");
 
-		Assert.Equal(Dropped("{1}"), Node(vm, "T.drop").Mismatch);
-		Assert.Equal(Extra("{2}"), Node(vm, "T.extra").Mismatch);
-		Assert.True(Node(vm, "T.extra").HasMismatch);
+		Assert.Equal(Dropped("{1}"), Node(vm, "T", "drop").Mismatch);
+		Assert.Equal(Extra("{2}"), Node(vm, "T", "extra").Mismatch);
+		Assert.True(Node(vm, "T", "extra").HasMismatch);
 		//printing where the default counts, and a definition the default never uses, are fine
-		Assert.False(Node(vm, "T.counted").HasMismatch);
-		Assert.False(Node(vm, "T.defined").HasMismatch);
-		Assert.False(Node(vm, "T.word").HasMismatch);
+		Assert.False(Node(vm, "T", "counted").HasMismatch);
+		Assert.False(Node(vm, "T", "defined").HasMismatch);
+		Assert.False(Node(vm, "T", "word").HasMismatch);
 
 		Speak(vm, "mt");
-		Assert.False(Node(vm, "T.drop").HasMismatch);
-		Assert.Equal(Extra("{Name}"), Node(vm, "T.extra").Mismatch);
-		Assert.False(Node(vm, "T.counted").HasMismatch); //counting where the default prints too
-		Assert.False(Node(vm, "T.defined").HasMismatch); //no words: missing, not mismatched
+		Assert.False(Node(vm, "T", "drop").HasMismatch);
+		Assert.Equal(Extra("{Name}"), Node(vm, "T", "extra").Mismatch);
+		Assert.False(Node(vm, "T", "counted").HasMismatch); //counting where the default prints too
+		Assert.False(Node(vm, "T", "defined").HasMismatch); //no words: missing, not mismatched
 
 		//both at once, joined
-		vm.Tree.Select(Node(vm, "T.drop"));
+		vm.Tree.Select(Node(vm, "T", "drop"));
 		vm.Tree.SelectedEntry!.Value = "{0} fajls {2}";
 		Assert.Equal($"{Dropped("{1}")} · {Extra("{2}")}", vm.Tree.SelectedKeyNode!.Mismatch);
 	}
@@ -99,38 +99,38 @@ public class TranslationCheckTests {
 		vm.Tree.MismatchFilter = true;
 		Assert.True(vm.Tree.IsFiltering);
 
-		Assert.True(Node(vm, "T.drop").IsVisible);
-		Assert.True(Node(vm, "T.extra").IsVisible);
-		Assert.False(Node(vm, "T.counted").IsVisible);
-		Assert.False(Node(vm, "T.target").IsVisible);
+		Assert.True(Node(vm, "T", "drop").IsVisible);
+		Assert.True(Node(vm, "T", "extra").IsVisible);
+		Assert.False(Node(vm, "T", "counted").IsVisible);
+		Assert.False(Node(vm, "T", "target").IsVisible);
 
 		Speak(vm, "mt");
-		Assert.False(Node(vm, "T.drop").IsVisible);
-		Assert.True(Node(vm, "T.extra").IsVisible);
+		Assert.False(Node(vm, "T", "drop").IsVisible);
+		Assert.True(Node(vm, "T", "extra").IsVisible);
 
 		vm.Tree.ClearFilters();
-		Assert.True(Node(vm, "T.drop").IsVisible);
+		Assert.True(Node(vm, "T", "drop").IsVisible);
 	}
 
 	[Fact]
 	public void AnEdit_ChecksItsKeyAgain_AndEveryKeyFollowingItsWords() {
 		var vm = Load();
 		Speak(vm, "it");
-		Assert.False(Node(vm, "T.follower").HasMismatch);
+		Assert.False(Node(vm, "T", "follower").HasMismatch);
 
 		//the target's Italian drops {0}, and so does the follower's, whose words bring it in
-		vm.Tree.Select(Node(vm, "T.target"));
+		vm.Tree.Select(Node(vm, "T", "target"));
 		vm.Tree.SelectedEntry!.Value = "ne restano";
-		Assert.Equal(Dropped("{0}"), Node(vm, "T.target").Mismatch);
-		Assert.Equal(Dropped("{0}"), Node(vm, "T.follower").Mismatch);
+		Assert.Equal(Dropped("{0}"), Node(vm, "T", "target").Mismatch);
+		Assert.Equal(Dropped("{0}"), Node(vm, "T", "follower").Mismatch);
 		vm.Tree.SelectedEntry!.Value = "ne restano {0}";
-		Assert.False(Node(vm, "T.target").HasMismatch);
-		Assert.False(Node(vm, "T.follower").HasMismatch);
+		Assert.False(Node(vm, "T", "target").HasMismatch);
+		Assert.False(Node(vm, "T", "follower").HasMismatch);
 
 		//the default, typed: what a translation must keep follows it
 		vm.Tree.SelectedKey!.DefaultValue = "left";
-		Assert.Equal(Extra("{0}"), Node(vm, "T.target").Mismatch);
-		Assert.Equal(Extra("{0}"), Node(vm, "T.follower").Mismatch);
+		Assert.Equal(Extra("{0}"), Node(vm, "T", "target").Mismatch);
+		Assert.Equal(Extra("{0}"), Node(vm, "T", "follower").Mismatch);
 	}
 
 	//the filters follow the badges an edit changes, a follower's too; the row being
@@ -139,29 +139,29 @@ public class TranslationCheckTests {
 	public void TheMismatchView_FollowsAnEdit_TheEditedRowStayingTillTheSelectionMovesOn() {
 		var vm = Load();
 		Speak(vm, "it");
-		vm.Tree.Select(Node(vm, "T.target"));
+		vm.Tree.Select(Node(vm, "T", "target"));
 		vm.Tree.SelectedEntry!.Value = "ne restano";
 		vm.Tree.MismatchFilter = true;
-		Assert.True(Node(vm, "T.follower").IsVisible);
+		Assert.True(Node(vm, "T", "follower").IsVisible);
 
 		vm.Tree.SelectedEntry!.Value = "ne restano {0}"; //the {0} restored
-		Assert.False(Node(vm, "T.follower").IsVisible);
-		Assert.True(Node(vm, "T.target").IsVisible);
-		Assert.Same(Node(vm, "T.target"), vm.Tree.SelectedKeyNode);
+		Assert.False(Node(vm, "T", "follower").IsVisible);
+		Assert.True(Node(vm, "T", "target").IsVisible);
+		Assert.Same(Node(vm, "T", "target"), vm.Tree.SelectedKeyNode);
 		vm.Tree.SelectedEntry!.Value = "ne restano"; //and dropped again: the follower is back
-		Assert.True(Node(vm, "T.follower").IsVisible);
+		Assert.True(Node(vm, "T", "follower").IsVisible);
 		vm.Tree.SelectedEntry!.Value = "ne restano {0}";
 
-		vm.Tree.Select(Node(vm, "T.drop"));
-		Assert.False(Node(vm, "T.target").IsVisible);
-		Assert.False(Node(vm, "T.follower").IsVisible);
+		vm.Tree.Select(Node(vm, "T", "drop"));
+		Assert.False(Node(vm, "T", "target").IsVisible);
+		Assert.False(Node(vm, "T", "follower").IsVisible);
 	}
 
 	[Fact]
 	public void ADefinition_WidensWhatATranslationMayUse_AndAnUndoTakesItBack() {
 		var vm = Load();
 		Speak(vm, "it");
-		KeyNode extra = Node(vm, "T.extra");
+		KeyNode extra = Node(vm, "T", "extra");
 		vm.Tree.Select(extra);
 
 		vm.ParametersPane.AddCommand.Execute(null); //{0}, which the Italian does not use
@@ -189,19 +189,19 @@ public class TranslationCheckTests {
 	public void ABraceThatOpensNothing_BadgesItsKey_TheDefaultsInEveryLanguage_AndSavesAsWritten() {
 		var vm = Load();
 		Speak(vm, "it");
-		vm.Tree.Select(Node(vm, "T.word"));
+		vm.Tree.Select(Node(vm, "T", "word"));
 		vm.Tree.SelectedEntry!.Value = "file {";
-		Assert.Equal(Malformed("{"), Node(vm, "T.word").Mismatch);
+		Assert.Equal(Malformed("{"), Node(vm, "T", "word").Mismatch);
 		vm.Tree.MismatchFilter = true;
-		Assert.True(Node(vm, "T.word").IsVisible);
+		Assert.True(Node(vm, "T", "word").IsVisible);
 		vm.Tree.ClearFilters();
 
 		Speak(vm, "mt");
-		Assert.False(Node(vm, "T.word").HasMismatch); //the Italian's is Italian
+		Assert.False(Node(vm, "T", "word").HasMismatch); //the Italian's is Italian
 		vm.Tree.SelectedKey!.DefaultValue = "file {0:{>fmt}}";
-		Assert.Equal(MalformedDefault("{0:{>fmt}}"), Node(vm, "T.word").Mismatch);
+		Assert.Equal(MalformedDefault("{0:{>fmt}}"), Node(vm, "T", "word").Mismatch);
 		Speak(vm, "it");
-		Assert.Equal($"{Malformed("{")} · {MalformedDefault("{0:{>fmt}}")}", Node(vm, "T.word").Mismatch);
+		Assert.Equal($"{Malformed("{")} · {MalformedDefault("{0:{>fmt}}")}", Node(vm, "T", "word").Mismatch);
 
 		vm.ShowDefaultPreview = true;
 		Assert.Equal("file {0:{>fmt}}", vm.DefaultPreview.Text);
@@ -212,15 +212,15 @@ public class TranslationCheckTests {
 		Assert.Contains("value=file {0:{>fmt}}\n", saved.ToString());
 		Assert.Contains("value-it=file {\n", saved.ToString());
 		vm.LoadFile(new StringReader(saved.ToString()), "Again");
-		Assert.Equal(2, vm.Session.FileOf("Again")!.Errors.Count(error => error.StartsWith("word: value")));
-		Assert.Equal(vm.Session.FileOf("Again")!.Errors.Count, Node(vm, "Again").GripeCount);
+		Assert.Equal(2, FileNamed(vm, "Again").Errors.Count(error => error.StartsWith("word: value")));
+		Assert.Equal(FileNamed(vm, "Again").Errors.Count, Node(vm, "Again", "").GripeCount);
 	}
 
 	[Fact]
 	public void TheNote_IsTheSelectedKeysMismatch_ForTheTranslationBesideIt() {
 		var vm = Load();
 		Speak(vm, "it");
-		vm.Tree.Select(Node(vm, "T.drop"));
+		vm.Tree.Select(Node(vm, "T", "drop"));
 		Assert.Equal(Dropped("{1}"), vm.Tree.SelectedKeyNode!.Mismatch);
 		Assert.Equal(Dropped("{1}"), TreeViewModel.MismatchNote(new ParameterMismatch(["1"], [])));
 		Assert.Equal("", TreeViewModel.MismatchNote(ParameterMismatch.None));

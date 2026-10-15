@@ -72,32 +72,31 @@ public class DragTests {
 		return (vm, dialogs, vm.KeyDrag);
 	}
 
-	private static KeyNode Node(MainWindowViewModel vm, string fullLabel) => MainWindowViewModelTests.Node(vm, fullLabel);
 
 	private static string Save(MainWindowViewModel vm) {
 		var writer = new StringWriter();
-		vm.Session.Save(vm.Session.FileOf("Example")!, vm.Tree.KeyNodes[0], writer);
+		vm.Session.Save(FileNamed(vm, "Example"), vm.Tree.KeyNodes[0], writer);
 		return writer.ToString();
 	}
 
 	[Fact]
 	public void Drop_ReparentsASubtreeAndItsKeys() {
 		var (vm, dialogs, drag) = Load();
-		KeyNode two = Node(vm, "Example.enum.two");
-		KeyNode main = Node(vm, "Example.main");
-		KeyNode enumNode = Node(vm, "Example.enum");
+		KeyNode two = Node(vm, "Example", "enum.two");
+		KeyNode main = Node(vm, "Example", "main");
+		KeyNode enumNode = Node(vm, "Example", "enum");
 
 		drag.Drop(new FakeDropInfo(two, main, RelativeInsertPosition.TargetItemCenter));
 
 		Assert.Same(main, two.Parent);
 		Assert.Same(two, main.Children[^1]); //onto the center: last child
 		Assert.DoesNotContain(two, enumNode.Children);
-		Assert.Equal("Example.main.two", two.FullLabel);
-		Assert.Equal(["Example.main.two.tooltip", "Example.main.two.desc"], two.Children.Select(child => child.FullLabel));
-		Assert.True(vm.Session.Keys.ContainsKey("Example.main.two"));
-		Assert.True(vm.Session.Keys.ContainsKey("Example.main.two.tooltip"));
-		Assert.False(vm.Session.Keys.ContainsKey("Example.enum.two"));
-		Assert.Equal("ZH:With Tooltip", vm.Session.Keys["Example.main.two.tooltip"].Entries["zh"].Value);
+		Assert.Equal("main.two", two.FullLabel);
+		Assert.Equal(["main.two.tooltip", "main.two.desc"], two.Children.Select(child => child.FullLabel));
+		Assert.True(FileNamed(vm, "Example").Keys.ContainsKey("main.two"));
+		Assert.True(FileNamed(vm, "Example").Keys.ContainsKey("main.two.tooltip"));
+		Assert.False(FileNamed(vm, "Example").Keys.ContainsKey("enum.two"));
+		Assert.Equal("ZH:With Tooltip", Key(vm, "Example", "main.two.tooltip").Entries["zh"].Value);
 		Assert.True(vm.IsDirty);
 		Assert.Empty(dialogs.Notices);
 	}
@@ -105,10 +104,10 @@ public class DragTests {
 	[Fact]
 	public void Drop_BeforeOrAfterASiblingReordersWithoutTouchingTheKeys() {
 		var (vm, _, drag) = Load();
-		KeyNode enumNode = Node(vm, "Example.enum");
-		KeyNode none = Node(vm, "Example.enum.none");
-		KeyNode two = Node(vm, "Example.enum.two");
-		int keys = vm.Session.Keys.Count;
+		KeyNode enumNode = Node(vm, "Example", "enum");
+		KeyNode none = Node(vm, "Example", "enum.none");
+		KeyNode two = Node(vm, "Example", "enum.two");
+		int keys = vm.Session.AllKeys.Count();
 		Assert.Equal([none, two], enumNode.Children);
 
 		drag.Drop(new FakeDropInfo(none, two, RelativeInsertPosition.AfterTargetItem));
@@ -117,9 +116,9 @@ public class DragTests {
 		drag.Drop(new FakeDropInfo(none, two, RelativeInsertPosition.BeforeTargetItem));
 		Assert.Equal([none, two], enumNode.Children);
 
-		Assert.Equal("Example.enum.none", none.FullLabel);
-		Assert.Equal(keys, vm.Session.Keys.Count);
-		Assert.Equal("No Selection", vm.Session.Keys["Example.enum.none"].DefaultValue);
+		Assert.Equal("enum.none", none.FullLabel);
+		Assert.Equal(keys, vm.Session.AllKeys.Count());
+		Assert.Equal("No Selection", Key(vm, "Example", "enum.none").DefaultValue);
 		Assert.True(vm.IsDirty); //the order is written
 	}
 
@@ -131,30 +130,30 @@ public class DragTests {
 		KeyNode lib = vm.Tree.KeyNodes[1];
 
 		drag.Drop(new FakeDropInfo(lib, example, RelativeInsertPosition.BeforeTargetItem));
-		Assert.Equal(["Lib", "Example"], vm.Tree.FileLabels); //lookup precedence, not document content
+		Assert.Equal(["Lib", "Example"], vm.Tree.KeyNodes.Select(root => root.Label)); //lookup precedence, not document content
 
 		drag.Drop(new FakeDropInfo(lib, example, RelativeInsertPosition.AfterTargetItem));
-		Assert.Equal(["Example", "Lib"], vm.Tree.FileLabels);
+		Assert.Equal(["Example", "Lib"], vm.Tree.KeyNodes.Select(root => root.Label));
 
 		//a file lands nowhere but among files
-		drag.Drop(new FakeDropInfo(lib, Node(vm, "Example.main"), RelativeInsertPosition.TargetItemCenter));
-		Assert.Equal(["Example", "Lib"], vm.Tree.FileLabels);
+		drag.Drop(new FakeDropInfo(lib, Node(vm, "Example", "main"), RelativeInsertPosition.TargetItemCenter));
+		Assert.Equal(["Example", "Lib"], vm.Tree.KeyNodes.Select(root => root.Label));
 		Assert.Null(lib.Parent);
-		Assert.True(vm.Session.Keys.ContainsKey("Lib.b"));
+		Assert.True(FileNamed(vm, "Lib").Keys.ContainsKey("b"));
 	}
 
 	[Fact]
 	public void Drop_MovesACommentWithoutAskingTheDocument() {
 		var (vm, _, drag) = Load();
-		KeyNode main = Node(vm, "Example.main");
+		KeyNode main = Node(vm, "Example", "main");
 		var banner = Assert.IsType<CommentNode>(main.Children[0]);
-		KeyNode singleLine = Node(vm, "Example.main.single-line");
-		int keys = vm.Session.Keys.Count;
+		KeyNode singleLine = Node(vm, "Example", "main.single-line");
+		int keys = vm.Session.AllKeys.Count();
 
 		drag.Drop(new FakeDropInfo(banner, singleLine, RelativeInsertPosition.AfterTargetItem));
 
 		Assert.Same(banner, main.Children[^1]);
-		Assert.Equal(keys, vm.Session.Keys.Count);
+		Assert.Equal(keys, vm.Session.AllKeys.Count());
 		Assert.True(vm.IsDirty);
 		string saved = Save(vm);
 		Assert.True(saved.IndexOf("[.single-line]", StringComparison.Ordinal) < saved.IndexOf("; a banner", StringComparison.Ordinal),
@@ -164,8 +163,8 @@ public class DragTests {
 	[Fact]
 	public void Drop_OntoOwnDescendantChangesNothing() {
 		var (vm, _, drag) = Load();
-		KeyNode main = Node(vm, "Example.main");
-		KeyNode title = Node(vm, "Example.main.title");
+		KeyNode main = Node(vm, "Example", "main");
+		KeyNode title = Node(vm, "Example", "main.title");
 		KeyNode file = vm.Tree.KeyNodes[0];
 
 		var over = new FakeDropInfo(main, title, RelativeInsertPosition.TargetItemCenter);
@@ -175,15 +174,15 @@ public class DragTests {
 		drag.Drop(over);
 		Assert.Same(file, main.Parent);
 		Assert.Same(main, title.Parent);
-		Assert.True(vm.Session.Keys.ContainsKey("Example.main.title"));
+		Assert.True(FileNamed(vm, "Example").Keys.ContainsKey("main.title"));
 		Assert.False(vm.IsDirty);
 	}
 
 	[Fact]
 	public void Drop_WithNothingUnderItChangesNothing() {
 		var (vm, _, drag) = Load();
-		KeyNode none = Node(vm, "Example.enum.none");
-		KeyNode enumNode = Node(vm, "Example.enum");
+		KeyNode none = Node(vm, "Example", "enum.none");
+		KeyNode enumNode = Node(vm, "Example", "enum");
 
 		var over = new FakeDropInfo(none, null, RelativeInsertPosition.None);
 		drag.DragOver(over);
@@ -199,25 +198,25 @@ public class DragTests {
 	[Fact]
 	public void Drop_OntoASameNamedSiblingIsRefusedAndReported() {
 		var (vm, dialogs, drag) = Load();
-		KeyNode tooltip = Node(vm, "Example.enum.two.tooltip");
-		KeyNode key = Node(vm, "Example.view.section-name.key"); //already has a tooltip
-		KeyNode two = Node(vm, "Example.enum.two");
+		KeyNode tooltip = Node(vm, "Example", "enum.two.tooltip");
+		KeyNode key = Node(vm, "Example", "view.section-name.key"); //already has a tooltip
+		KeyNode two = Node(vm, "Example", "enum.two");
 
 		drag.Drop(new FakeDropInfo(tooltip, key, RelativeInsertPosition.TargetItemCenter));
 
 		Assert.Contains("tooltip", Assert.Single(dialogs.Notices));
 		Assert.Same(two, tooltip.Parent);
-		Assert.Equal("Example.enum.two.tooltip", tooltip.FullLabel);
-		Assert.Equal("With Tooltip", vm.Session.Keys["Example.enum.two.tooltip"].DefaultValue);
-		Assert.Equal("Base", vm.Session.Keys["Example.view.section-name.key.tooltip"].DefaultValue); //nothing overwritten
+		Assert.Equal("enum.two.tooltip", tooltip.FullLabel);
+		Assert.Equal("With Tooltip", Key(vm, "Example", "enum.two.tooltip").DefaultValue);
+		Assert.Equal("Base", Key(vm, "Example", "view.section-name.key.tooltip").DefaultValue); //nothing overwritten
 		Assert.False(vm.IsDirty);
 	}
 
 	[Fact]
 	public void Drop_KeepsAConstantDirectlyUnderItsFile() {
 		var (vm, _, drag) = Load();
-		KeyNode constant = Node(vm, "Example.$rsi-unit");
-		KeyNode main = Node(vm, "Example.main");
+		KeyNode constant = Node(vm, "Example", "$rsi-unit");
+		KeyNode main = Node(vm, "Example", "main");
 		KeyNode file = vm.Tree.KeyNodes[0];
 
 		//dropped onto a group, it lands beside the group instead
@@ -226,16 +225,16 @@ public class DragTests {
 		Assert.Same(file, constant.Parent);
 		Assert.Equal(file.Children.IndexOf(main) - 1, file.Children.IndexOf(constant));
 		Assert.True(constant.IsConstant);
-		Assert.True(vm.Session.Keys.ContainsKey("Example.$rsi-unit"));
+		Assert.True(FileNamed(vm, "Example").Keys.ContainsKey("$rsi-unit"));
 		Assert.Contains("[$rsi-unit]", Save(vm));
 	}
 
 	[Fact]
 	public void DragOver_ShowsWhatADropWouldDo() {
 		var (vm, _, drag) = Load();
-		KeyNode none = Node(vm, "Example.enum.none");
-		KeyNode two = Node(vm, "Example.enum.two");
-		KeyNode banner = Node(vm, "Example.main").Children[0];
+		KeyNode none = Node(vm, "Example", "enum.none");
+		KeyNode two = Node(vm, "Example", "enum.two");
+		KeyNode banner = Node(vm, "Example", "main").Children[0];
 		KeyNode preamble = vm.Tree.KeyNodes[0].Children[0];
 
 		var center = new FakeDropInfo(none, two, RelativeInsertPosition.TargetItemCenter);

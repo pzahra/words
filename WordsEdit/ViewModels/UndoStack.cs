@@ -16,22 +16,32 @@ public enum DocumentField {
 }
 
 /// <summary>
-///     Where a node stands, as an entry remembers it: a key's node by its label,
-///     which is unique, and a comment by its parent's label and its place there,
-///     since comments share labels. Entries are undone in order, so the tree a
-///     reference meets is the tree it was taken from.
+///     Where a node stands, as an entry or Back's history remembers it: its file and
+///     its path there, which is a key's node's alone, or for a comment its parent's
+///     path and its place there, since comments share paths. The file is the
+///     session's: a file in or out empties the undo history, and Back drops an entry
+///     whose file went. Entries are undone in order, so the tree a reference meets
+///     is the tree it was taken from.
 /// </summary>
-/// <param name="Label">The node's label, or its parent's when <paramref name="Index"/> places it.</param>
-/// <param name="Index">The node's place among its parent's children; -1 for a node found by its label.</param>
-public readonly record struct NodeRef(string Label, int Index = -1) {
-	public static NodeRef Of(KeyNode node)
-		=> node is OrganizerNode && node.Parent is { } parent ? new(parent.FullLabel, parent.Children.IndexOf(node)) : new(node.FullLabel);
+/// <param name="File">The file the node is in.</param>
+/// <param name="Label">The node's path in it, or its parent's when <paramref name="Index"/> places it; empty for the root.</param>
+/// <param name="Index">The node's place among its parent's children; -1 for a node found by its path.</param>
+public sealed record NodeRef(WordsFile File, string Label, int Index = -1) {
+	/// <summary>Where <paramref name="node"/> stands in the tree.</summary>
+	/// <exception cref="ArgumentException">The node is out of the tree.</exception>
+	public static NodeRef Of(KeyNode node) {
+		WordsFile file = node.Root.File ?? throw new ArgumentException($"'{node.FullLabel}' is in no file's tree", nameof(node));
+		return node is OrganizerNode && node.Parent is { } parent ? new(file, parent.FullLabel, parent.Children.IndexOf(node)) : new(file, node.FullLabel);
+	}
 
 	/// <summary>The node in <paramref name="tree"/>, if it stands there.</summary>
 	public KeyNode? Resolve(TreeViewModel tree) {
-		KeyNode? node = tree.NodeAt(Label);
+		KeyNode? node = tree.NodeAt(File, Label);
 		return Index < 0 ? node : node?.Children.ElementAtOrDefault(Index);
 	}
+
+	/// <summary>The key at <see cref="Label"/> in the file, if it has one.</summary>
+	public WordsKey? Key => File.Keys.GetValueOrDefault(Label);
 }
 
 /// <summary>

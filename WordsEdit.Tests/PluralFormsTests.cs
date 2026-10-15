@@ -42,7 +42,7 @@ public class PluralFormsTests {
 	}
 
 	private static void Select(MainWindowViewModel vm, string label, string? language = null) {
-		vm.Tree.Select(MainWindowViewModelTests.Node(vm, $"Example.{label}"));
+		vm.Tree.Select(Node(vm, "Example", label));
 		if (language is not null) {
 			vm.Tree.SelectedLanguage = vm.Session.Languages.Find(language)!;
 		}
@@ -52,7 +52,7 @@ public class PluralFormsTests {
 
 	private static string Save(MainWindowViewModel vm) {
 		var writer = new StringWriter();
-		vm.Session.Save(vm.Session.FileOf("Example")!, vm.Tree.NodeOf(vm.Session.FileOf("Example")!), writer);
+		vm.Session.Save(FileNamed(vm, "Example"), vm.Tree.NodeOf(FileNamed(vm, "Example")), writer);
 		return writer.ToString();
 	}
 
@@ -248,7 +248,7 @@ public class PluralFormsTests {
 			value#few=stray
 
 			""");
-		Assert.NotEmpty(vm.Session.FileOf("Example")!.Errors); //griped on load
+		Assert.NotEmpty(FileNamed(vm, "Example").Errors); //griped on load
 		Select(vm, "stray");
 		ChoiceItem baseline = ChoiceOf(vm, "menu.default-form");
 		Choice few = baseline.Options.Single(option => (string)option.Value == "few");
@@ -325,10 +325,10 @@ public class PluralFormsTests {
 		var vm = Load();
 		vm.Tree.SelectedLanguage = vm.Session.Languages.Find("mt")!;
 		vm.Tree.SearchFilterText = "fajls";
-		Assert.True(MainWindowViewModelTests.Node(vm, "Example.word").IsVisible);
-		Assert.False(MainWindowViewModelTests.Node(vm, "Example.plain").IsVisible);
+		Assert.True(Node(vm, "Example", "word").IsVisible);
+		Assert.False(Node(vm, "Example", "plain").IsVisible);
 		vm.Tree.SearchFilterText = "files";
-		Assert.True(MainWindowViewModelTests.Node(vm, "Example.word").IsVisible);
+		Assert.True(Node(vm, "Example", "word").IsVisible);
 	}
 
 	[Fact]
@@ -343,7 +343,7 @@ public class PluralFormsTests {
 		vm.Tree.PickTranslationForm("few");
 		Assert.Equal("fajls", vm.TranslationPreview.Text); //an empty few reads other
 		//a value that selects previews with the inputs typed for it
-		vm.Inputs.Of(vm.Session.Keys["Example.count"])["0"] = "4";
+		vm.Inputs.Of(Key(vm, "Example", "count"))["0"] = "4";
 		Select(vm, "count");
 		Assert.Equal("4 files", vm.DefaultPreview.Text);
 		Assert.Equal("4 fajls", vm.TranslationPreview.Text);
@@ -372,7 +372,7 @@ public class PluralFormsTests {
 			param-0=int:the files
 
 			""");
-		vm.Inputs.Of(vm.Session.Keys["Example.count"])["0"] = "5";
+		vm.Inputs.Of(Key(vm, "Example", "count"))["0"] = "5";
 		vm.ShowDefaultPreview = true;
 		vm.ShowLocalizationPreview = true;
 		Select(vm, "count", "ceb");

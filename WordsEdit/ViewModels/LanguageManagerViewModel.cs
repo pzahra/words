@@ -17,7 +17,7 @@ namespace WordsEdit.ViewModels;
 ///     language; Cancel or Escape forgets it all.
 /// </summary>
 public class LanguageManagerViewModel : DialogViewModel {
-	public override string Title => Words.Known.Format("languages.title", File.Label);
+	public override string Title => Words.Known.Format("languages.title", Parent.Session.ShownName(File));
 	public LanguageDrag LanguageDrag { get; }
 	public MainWindowViewModel Parent { get; }
 	/// <summary>The file whose table the manager edits.</summary>

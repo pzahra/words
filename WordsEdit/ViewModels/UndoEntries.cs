@@ -3,8 +3,8 @@ using WordsEdit.Utils;
 namespace WordsEdit.ViewModels;
 
 //The kinds of entry (SPEC: Undo → One entry per action). Each holds what its action
-//changed and nothing more, and finds what it changes by label: entries are undone in
-//order, so every label means what it meant when the entry was made.
+//changed and nothing more, and finds what it changes by its file and its path there:
+//entries are undone in order, so every path means what it meant when the entry was made.
 
 /// <summary>
 ///     Typing into one text field: the node, the language for an entry's field,
@@ -198,7 +198,7 @@ public sealed class FieldEdit : UndoEntry {
 			}
 			return Node;
 		}
-		if (!session.Keys.TryGetValue(Node.Label, out WordsKey? key)) {
+		if (Node.Key is not { } key) {
 			return Node;
 		}
 		WordsEntry? entry = Language is null ? null : key.Entries.GetValueOrDefault(Language);
@@ -251,17 +251,19 @@ public sealed class FieldEdit : UndoEntry {
 }
 
 /// <summary>A command on one key, its flag before and after; the selection stays on the key.</summary>
-public abstract class KeyEdit(string label) : UndoEntry {
-	/// <summary>The key's label.</summary>
-	protected string Label { get; } = label;
+public abstract class KeyEdit(WordsFile file, string name) : UndoEntry {
+	/// <summary>The key's file.</summary>
+	protected WordsFile File { get; } = file;
+	/// <summary>The key's name in it.</summary>
+	protected string Name { get; } = name;
 
-	public override NodeRef? Site(bool undoing) => new NodeRef(Label);
+	public override NodeRef? Site(bool undoing) => new NodeRef(File, Name);
 
 	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) {
-		if (session.Keys.TryGetValue(Label, out WordsKey? key)) {
+		if (File.Keys.TryGetValue(Name, out WordsKey? key)) {
 			Change(key, undoing);
 		}
-		return new NodeRef(Label);
+		return new NodeRef(File, Name);
 	}
 
 	protected virtual void Change(WordsKey key, bool undoing) {
@@ -269,12 +271,12 @@ public abstract class KeyEdit(string label) : UndoEntry {
 }
 
 /// <summary>Needs Review toggled.</summary>
-public sealed class ReviewEdit(string label, bool raised) : KeyEdit(label) {
+public sealed class ReviewEdit(WordsFile file, string name, bool raised) : KeyEdit(file, name) {
 	protected override void Change(WordsKey key, bool undoing) => key.NeedsReview = raised != undoing;
 }
 
 /// <summary>Stale toggled in one language.</summary>
-public sealed class StaleEdit(string label, string language, string? before, string? after) : KeyEdit(label) {
+public sealed class StaleEdit(WordsFile file, string name, string language, string? before, string? after) : KeyEdit(file, name) {
 	public override string? Language => language;
 
 	protected override void Change(WordsKey key, bool undoing) {
@@ -285,7 +287,7 @@ public sealed class StaleEdit(string label, string language, string? before, str
 }
 
 /// <summary>Stale All Languages: one stamp on every entry, the stamps it replaced kept.</summary>
-public sealed class StaleAllEdit(string label, IReadOnlyDictionary<string, string?> before, string after) : KeyEdit(label) {
+public sealed class StaleAllEdit(WordsFile file, string name, IReadOnlyDictionary<string, string?> before, string after) : KeyEdit(file, name) {
 	protected override void Change(WordsKey key, bool undoing) {
 		foreach (var (code, stamp) in before) {
 			if (key.Entries.TryGetValue(code, out WordsEntry? entry)) {
@@ -295,23 +297,24 @@ public sealed class StaleAllEdit(string label, IReadOnlyDictionary<string, strin
 	}
 }
 
-/// <summary>Constant toggled: the key relabelled with its marker, and the translations making it constant cleared.</summary>
-/// <param name="before">The key's label before the toggle.</param>
-/// <param name="after">Its label after, the marker added or dropped.</param>
-public sealed class ConstantEdit(string before, string after, bool madeConstant, IReadOnlyDictionary<string, WordsEntry>? cleared) : KeyEdit(before) {
-	public override NodeRef? Site(bool undoing) => new NodeRef(undoing ? after : Label);
+/// <summary>Constant toggled: the key renamed with its marker, and the translations making it constant cleared.</summary>
+/// <param name="file">The key's file.</param>
+/// <param name="before">The key's name before the toggle.</param>
+/// <param name="after">Its name after, the marker added or dropped.</param>
+public sealed class ConstantEdit(WordsFile file, string before, string after, bool madeConstant, IReadOnlyDictionary<string, WordsEntry>? cleared) : KeyEdit(file, before) {
+	public override NodeRef? Site(bool undoing) => new NodeRef(File, undoing ? after : Name);
 
 	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) {
-		(string from, string to) = undoing ? (after, Label) : (Label, after);
-		KeyNode? node = tree.NodeAt(from);
-		if (session.SetConstant(from, madeConstant != undoing, clearEntries: !undoing && cleared is not null) is null) {
-			return new NodeRef(from);
+		(string from, string to) = undoing ? (after, Name) : (Name, after);
+		KeyNode? node = tree.NodeAt(File, from);
+		if (session.SetConstant(File, from, madeConstant != undoing, clearEntries: !undoing && cleared is not null) is null) {
+			return new NodeRef(File, from);
 		}
-		if (undoing && cleared is not null && session.Keys.TryGetValue(to, out WordsKey? key)) {
+		if (undoing && cleared is not null && File.Keys.TryGetValue(to, out WordsKey? key)) {
 			key.PutBackEntries(cleared);
 		}
 		node?.Relabel(to);
-		return new NodeRef(to);
+		return new NodeRef(File, to);
 	}
 }
 
@@ -319,7 +322,7 @@ public sealed class ConstantEdit(string before, string after, bool madeConstant,
 ///     A definition added, adopted, renamed, retyped or taken away (SPEC: Parameters →
 ///     Undo): the key's parameters before and after.
 /// </summary>
-public sealed class ParametersEdit(string label, IReadOnlyList<WordsParameter> before, IReadOnlyList<WordsParameter> after) : KeyEdit(label) {
+public sealed class ParametersEdit(WordsFile file, string name, IReadOnlyList<WordsParameter> before, IReadOnlyList<WordsParameter> after) : KeyEdit(file, name) {
 	protected override void Change(WordsKey key, bool undoing) => key.PutBackParameters(undoing ? before : after);
 
 	/// <summary>
@@ -330,7 +333,7 @@ public sealed class ParametersEdit(string label, IReadOnlyList<WordsParameter> b
 	///     place by place are the ones renamed.
 	/// </summary>
 	public void Carry(WordsSession session, ParameterInputs inputs, bool undoing) {
-		if (before.Count != after.Count || !session.Keys.TryGetValue(Label, out WordsKey? key)) {
+		if (before.Count != after.Count || !File.Keys.TryGetValue(Name, out WordsKey? key)) {
 			return;
 		}
 		Dictionary<string, string> typed = inputs.Of(key);
@@ -344,34 +347,34 @@ public sealed class ParametersEdit(string label, IReadOnlyList<WordsParameter> b
 }
 
 /// <summary>Key information added to a node.</summary>
-public sealed class KeyAdded(string label) : UndoEntry {
-	public override NodeRef? Site(bool undoing) => new NodeRef(label);
+public sealed class KeyAdded(WordsFile file, string name) : UndoEntry {
+	public override NodeRef? Site(bool undoing) => new NodeRef(file, name);
 
 	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) {
 		if (undoing) {
-			session.RemoveKey(label);
+			session.RemoveKey(file, name);
 		}
 		else {
-			session.AddKey(label);
+			session.AddKey(file, name);
 		}
-		return new NodeRef(label);
+		return new NodeRef(file, name);
 	}
 }
 
 /// <summary>Key information removed from a node, a copy of the key kept.</summary>
-public sealed class KeyRemoved(string label, WordsKey key) : UndoEntry {
+public sealed class KeyRemoved(WordsFile file, WordsKey key) : UndoEntry {
 	private readonly WordsKey kept = new(key);
 
-	public override NodeRef? Site(bool undoing) => new NodeRef(label);
+	public override NodeRef? Site(bool undoing) => new NodeRef(file, kept.BlockKey);
 
 	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) {
 		if (undoing) {
-			session.Restore(label, kept);
+			session.Restore(file, kept);
 		}
 		else {
-			session.RemoveKey(label);
+			session.RemoveKey(file, kept.BlockKey);
 		}
-		return new NodeRef(label);
+		return new NodeRef(file, kept.BlockKey);
 	}
 }
 
@@ -381,32 +384,32 @@ public sealed class KeyRemoved(string label, WordsKey key) : UndoEntry {
 ///     comment's text — the preamble's lives in its file.
 /// </summary>
 public abstract class NodeEdit : UndoEntry {
-	private readonly string parent;
+	private readonly NodeRef parent;
 	private readonly int index;
 	private readonly KeyNode node;
-	private readonly IReadOnlyList<(string Label, WordsKey Key)> keys;
+	private readonly IReadOnlyList<WordsKey> keys;
 	private readonly string text;
 
 	protected NodeEdit(WordsSession session, KeyNode node) {
 		KeyNode at = node.Parent ?? throw new ArgumentException("a file node is not added or removed this way", nameof(node));
-		parent = at.FullLabel;
+		parent = NodeRef.Of(at);
 		index = at.Children.IndexOf(node);
 		this.node = node;
-		keys = node is OrganizerNode ? [] : [.. session.KeysUnder(node.FullLabel).Select(key => (session.LabelOf(key), new WordsKey(key)))];
+		keys = node is OrganizerNode ? [] : [.. session.KeysUnder(parent.File, node.FullLabel).Select(key => new WordsKey(key))];
 		text = (node as OrganizerNode)?.Text ?? "";
 	}
 
 	/// <summary>The node, where it stands in the tree.</summary>
-	protected NodeRef Here => node is OrganizerNode ? new NodeRef(parent, index) : new NodeRef(node.FullLabel);
-	protected NodeRef Parent => new(parent);
+	protected NodeRef Here => node is OrganizerNode ? parent with { Index = index } : new NodeRef(parent.File, node.FullLabel);
+	protected NodeRef Parent => parent;
 
 	protected NodeRef? Restore(WordsSession session, TreeViewModel tree) {
-		if (tree.NodeAt(parent) is not { } at) {
+		if (parent.Resolve(tree) is not { } at) {
 			return null;
 		}
 		at.Children.Insert(index, node);
-		foreach (var (label, key) in keys) {
-			session.Restore(label, key);
+		foreach (WordsKey key in keys) {
+			session.Restore(parent.File, key);
 		}
 		if (node is OrganizerNode organizer) {
 			organizer.Text = text;
@@ -415,14 +418,14 @@ public abstract class NodeEdit : UndoEntry {
 	}
 
 	protected NodeRef? Take(WordsSession session, TreeViewModel tree) {
-		if (tree.NodeAt(parent) is not { } at) {
+		if (parent.Resolve(tree) is not { } at) {
 			return null;
 		}
 		if (node is OrganizerNode organizer) {
 			organizer.Text = "";
 		}
 		else {
-			session.RemoveKeysUnder(node.FullLabel);
+			session.RemoveKeysUnder(parent.File, node.FullLabel);
 		}
 		node.IsSelected = false;
 		at.Children.Remove(node);
@@ -442,30 +445,30 @@ public sealed class NodeRemoved(WordsSession session, KeyNode node) : NodeEdit(s
 	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) => undoing ? Restore(session, tree) : Take(session, tree);
 }
 
-/// <summary>Where a node stood, for a move: its parent, its place there, its label and its name.</summary>
-public readonly record struct Place(string Parent, int Index, string Label, string Name) {
+/// <summary>Where a node stood, for a move: its file, its parent's path, its place there, its path and its name.</summary>
+public readonly record struct Place(WordsFile File, string Parent, int Index, string Label, string Name) {
 	public static Place Of(KeyNode node) {
 		KeyNode parent = node.Parent ?? throw new ArgumentException("a file node has no place to move from", nameof(node));
-		return new(parent.FullLabel, parent.Children.IndexOf(node), node.FullLabel, node.Label);
+		return new(NodeRef.Of(parent).File, parent.FullLabel, parent.Children.IndexOf(node), node.FullLabel, node.Label);
 	}
 }
 
 /// <summary>
 ///     A rename or a drag: the node from one place to another, its keys renamed
-///     in the session when its label changes. A comment's label is nobody's key.
+///     in the session when its file or its path changes. A comment's path is nobody's key.
 /// </summary>
 public sealed class Move(Place from, Place to, bool comment) : UndoEntry {
 	public override NodeRef? Site(bool undoing) => At(undoing ? to : from);
 
-	private NodeRef At(Place place) => comment ? new NodeRef(place.Parent, place.Index) : new NodeRef(place.Label);
+	private NodeRef At(Place place) => comment ? new NodeRef(place.File, place.Parent, place.Index) : new NodeRef(place.File, place.Label);
 
 	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) {
 		(Place a, Place b) = undoing ? (to, from) : (from, to);
-		if (tree.NodeAt(a.Parent) is not { } oldParent || oldParent.Children.ElementAtOrDefault(a.Index) is not { } node
-				|| tree.NodeAt(b.Parent) is not { } newParent) {
+		if (tree.NodeAt(a.File, a.Parent) is not { } oldParent || oldParent.Children.ElementAtOrDefault(a.Index) is not { } node
+				|| tree.NodeAt(b.File, b.Parent) is not { } newParent) {
 			return null;
 		}
-		if (!comment && a.Label != b.Label && !session.TryRename(a.Label, b.Label, out _)) {
+		if (!comment && (a.File, a.Label) != (b.File, b.Label) && !Rename(session, a, b)) {
 			return At(a);
 		}
 		if (oldParent != newParent || a.Index != b.Index) {
@@ -476,16 +479,18 @@ public sealed class Move(Place from, Place to, bool comment) : UndoEntry {
 		node.Relabel(b.Label);
 		return At(b);
 	}
+
+	//a rename stays in its file; a drag into another keeps its last segment
+	private static bool Rename(WordsSession session, Place a, Place b)
+		=> a.File == b.File ? session.TryRename(a.File, a.Label, b.Label, out _) : session.TryMove(a.File, a.Label, b.File, b.Parent, out _);
 }
 
 /// <summary>A Settings Okay that changed a file's <c>param=</c> and <c>param-xx=</c> slots. It shows nowhere in the tree.</summary>
-public sealed class FileSettingsEdit(string file, SettingsSlots before, SettingsSlots after) : UndoEntry {
+public sealed class FileSettingsEdit(WordsFile file, SettingsSlots before, SettingsSlots after) : UndoEntry {
 	public override NodeRef? Site(bool undoing) => null;
 
 	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) {
-		if (session.FileOf(file) is { } target) {
-			(undoing ? before : after).PutBack(target);
-		}
+		(undoing ? before : after).PutBack(file);
 		return null;
 	}
 }

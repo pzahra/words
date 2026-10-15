@@ -123,15 +123,16 @@ public class KeyDrag : IDragSource, IDropTarget {
 	}
 
 	private Move? Land(KeyNode dragged, KeyNode oldParent, KeyNode newParent, int index) {
-		string newFullLabel = $"{newParent.FullLabel}.{WordsOperations.LastSegment(dragged.FullLabel)}";
+		string newFullLabel = KeyNode.Join(newParent.FullLabel, WordsOperations.LastSegment(dragged.FullLabel));
 		if (newParent != oldParent && dragged is not CommentNode) {
 			//the document goes first and may refuse: a same-named sibling, or keys
-			//already at the destination. Nothing is overwritten to make room
+			//already at the destination, in its own file or another. Nothing is
+			//overwritten to make room
 			if (newParent.Children.Any(sibling => sibling.Label == dragged.Label)) {
-				Vm!.Dialogs.Tell(Words.Known.Format("tell.node-exists", newParent.FullLabel, dragged.Label));
+				Vm!.Dialogs.Tell(Words.Known.Format("tell.node-exists", newParent.Path, dragged.Label));
 				return null;
 			}
-			if (!Vm!.Session.TryMove(dragged.FullLabel, newParent.FullLabel, out var collisions)) {
+			if (!Vm!.Session.TryMove(Vm.Tree.FileOf(oldParent), dragged.FullLabel, Vm.Tree.FileOf(newParent), newParent.FullLabel, out var collisions)) {
 				Vm.Dialogs.Tell(Words.Known.Format("tell.move-collides", string.Join(", ", collisions)));
 				return null;
 			}

@@ -177,7 +177,7 @@ namespace PatTech.Localization.Authoring {
 		public LanguageEntry Rename(WordsFile file, string code, LanguageEntry replacement) {
 			int i = file.Languages.IndexOf(code);
 			if (i < 0) {
-				throw new ArgumentException($"{file.Label} declares no language '{code}'", nameof(code));
+				throw new ArgumentException($"{file.Name} declares no language '{code}'", nameof(code));
 			}
 			if (replacement.Code == code) {
 				file.Labels[code] = new LanguageEntry(replacement);
@@ -308,7 +308,7 @@ namespace PatTech.Localization.Authoring {
 		///     file that is no library lists (no <c>!</c>) which the library neither
 		///     declares, nor falls back to (<see cref="LanguageCode.Chain"/>: a library's
 		///     <c>en</c> covers a host's <c>en-AU</c>), nor writes its default in, with
-		///     the labels of the files that list it. An app offering the language reads
+		///     the files that list it, by the names they show (<see cref="WordsSession.ShownName"/>). An app offering the language reads
 		///     the library's default there. Empty for a file that is no library.
 		/// </summary>
 		public IReadOnlyList<(string Code, IReadOnlyList<string> Hosts)> Lacks(WordsFile library) {
@@ -327,7 +327,7 @@ namespace PatTech.Localization.Authoring {
 				.SelectMany(host => host.Languages.Where(code => Lists(host, code)))
 				.Distinct()
 				.Where(code => !Covers(code))
-				.Select(code => (code, (IReadOnlyList<string>)[.. hosts.Where(host => Lists(host, code)).Select(host => host.Label)]))];
+				.Select(code => (code, (IReadOnlyList<string>)[.. hosts.Where(host => Lists(host, code)).Select(session.ShownName)]))];
 		}
 
 		private static bool Unlisted(LanguageEntry label) => label.NativeName.StartsWith('!');

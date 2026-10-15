@@ -23,7 +23,10 @@ public class NavigationTests {
 		return vm;
 	}
 
-	private static KeyNode Node(MainWindowViewModel vm, string label) => MainWindowViewModelTests.Node(vm, $"N.{label}");
+	private static KeyNode Node(MainWindowViewModel vm, string path) => TestTree.Node(vm, "N", path);
+
+	//the history's entries by their paths in N, the one file
+	private static IReadOnlyList<string> Paths(MainWindowViewModel vm) => [.. vm.Tree.History.Entries.Select(entry => entry.Label)];
 
 	private static void Visit(MainWindowViewModel vm, params string[] labels) {
 		foreach (string label in labels) {
@@ -66,14 +69,14 @@ public class NavigationTests {
 		Back(vm); //on b
 
 		Visit(vm, "a"); //what Back points to: a Back
-		Assert.Equal(["N.a", "N.b", "N.c"], vm.Tree.History.Entries);
+		Assert.Equal(["a", "b", "c"], Paths(vm));
 		Visit(vm, "b"); //what Forward points to: a Forward
 		Forward(vm);
 		Assert.Same(Node(vm, "c"), vm.Tree.SelectedKeyNode);
 
 		//walking two nodes by hand piles nothing up
 		Visit(vm, "b", "c", "b", "c");
-		Assert.Equal(["N.a", "N.b", "N.c"], vm.Tree.History.Entries);
+		Assert.Equal(["a", "b", "c"], Paths(vm));
 		//and the same node twice is one entry
 		Visit(vm, "c");
 		Assert.Equal(3, vm.Tree.History.Entries.Count);
@@ -87,7 +90,7 @@ public class NavigationTests {
 		Back(vm); //on a, b and c ahead
 
 		Visit(vm, "c.deep");
-		Assert.Equal(["N.a", "N.c.deep"], vm.Tree.History.Entries);
+		Assert.Equal(["a", "c.deep"], Paths(vm));
 		Assert.False(vm.Tree.ForwardCommand.CanExecute(null));
 	}
 
@@ -99,7 +102,7 @@ public class NavigationTests {
 
 		Back(vm); //past b, which no longer resolves
 		Assert.Same(Node(vm, "c"), vm.Tree.SelectedKeyNode);
-		Assert.DoesNotContain("N.b", vm.Tree.History.Entries);
+		Assert.DoesNotContain("b", Paths(vm));
 		Back(vm);
 		Assert.Same(Node(vm, "a"), vm.Tree.SelectedKeyNode);
 	}
@@ -149,14 +152,14 @@ public class NavigationTests {
 
 	[Fact]
 	public void TheHistoryIsBounded_AndAGoneEntryTakesItsTwinWithIt() {
-		var history = new SelectionHistory(capacity: 3);
+		var history = new SelectionHistory<string>(capacity: 3);
 		foreach (string label in new[] { "a", "b", "c", "d" }) {
 			history.Visit(label);
 		}
 		Assert.Equal(["b", "c", "d"], history.Entries);
 
 		//a, x, y, a with x and y gone: stepping back drops them, and the a before them is the same node
-		history = new SelectionHistory();
+		history = new SelectionHistory<string>();
 		foreach (string label in new[] { "a", "x", "y", "a" }) {
 			history.Visit(label);
 		}

@@ -73,11 +73,11 @@ value-fr=Bonjour
 			vm.ImportCommand.Execute(null);
 
 			KeyNode node = Assert.Single(vm.Tree.KeyNodes);
-			Assert.Equal("Strings", node.FullLabel);
-			WordsFile file = vm.Session.FileOf("Strings")!;
+			Assert.Equal("Strings", node.Label);
+			WordsFile file = FileNamed(vm, "Strings");
 			Assert.Equal(Path.Combine(folder, "Strings.ini"), file.Path);
 			Assert.Contains("fr", file.Languages);
-			WordsKey key = vm.Session.Keys["Strings.greeting"];
+			WordsKey key = Key(vm, "Strings", "greeting");
 			Assert.Equal("Hello", key.DefaultValue);
 			Assert.Equal("Said on arrival", key.Context);
 			Assert.Equal("Bonjour", key.Entries["fr"].Value);

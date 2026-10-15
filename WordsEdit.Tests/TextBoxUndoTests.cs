@@ -68,10 +68,10 @@ public class TextBoxUndoTests {
 		public Selection? Restored;
 		public int Focused;
 
-		public Harness(string file = "value-en=English\n\n[k]\nvalue=v\n", string label = "Ex.k", DocumentField field = DocumentField.KeyContext) {
+		public Harness(string file = "value-en=English\n\n[k]\nvalue=v\n", string path = "k", DocumentField field = DocumentField.KeyContext) {
 			Vm = new MainWindowViewModel(new FakeDialogs(), time: Time);
 			Vm.LoadFile(new StringReader(file), "Ex");
-			Vm.Tree.Select(MainWindowViewModelTests.Node(Vm, label));
+			Vm.Tree.Select(Node(Vm, "Ex", path));
 			Key = Vm.Tree.SelectedKey!;
 			Box = new WordsBox { History = Vm.TextHistory };
 			Box.SetBinding(TextBox.TextProperty, new Binding(field switch {
@@ -280,7 +280,7 @@ public class TextBoxUndoTests {
 				var h = new Harness();
 				h.Vm.ResetCore();
 				h.Vm.LoadFile(path);
-				h.Vm.Tree.Select(MainWindowViewModelTests.Node(h.Vm, "Ex.k"));
+				h.Vm.Tree.Select(Node(h.Vm, "Ex", "k"));
 				WordsKey key = h.Vm.Tree.SelectedKey!;
 				h.Box.SetBinding(TextBox.TextProperty, new Binding(nameof(WordsKey.Context)) { Source = key, UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged });
 
@@ -355,7 +355,7 @@ public class TextBoxUndoTests {
 	[Fact]
 	public void OnlyTheKeystrokesOwnBoxTellsWhereItLeftTheSelection() {
 		var stack = new UndoStack(new FakeTime());
-		stack.Type(new FieldEdit(new NodeRef("Ex.k"), null, DocumentField.KeyContext, "", "a"), wasDirty: false);
+		stack.Type(new FieldEdit(new NodeRef(new WordsSession().New(new StringReader(""), "Ex"), "k"), null, DocumentField.KeyContext, "", "a"), wasDirty: false);
 		stack.Typed("another box", new Selection(5, 0), new Selection(6, 0)); //not this keystroke's text
 		stack.Typed("a", new Selection(0, 0), new Selection(1, 0));
 		stack.Typed("a", new Selection(3, 0), new Selection(3, 0)); //a text handed to the box after it

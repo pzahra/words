@@ -798,12 +798,16 @@ value-fr=Bonjour
 		Assert.Equal("premier", session.Provider(["Main"], "fr").GetValue("k"));
 		Assert.Equal("first", session.Provider(["Main"], "de").GetValue("k")); //falls back to the default
 
-		//by the files themselves, as the editor will hand them: a key is its name, read as
+		//by the files themselves, as the editor hands them: a key is its name, read as
 		//the runtime reads it, the later file winning, with no prefix to probe for
 		WordsFile main = session.Files[0], over = session.Files[1];
 		Assert.Equal("second", session.Provider([main, over]).GetValue("k"));
 		Assert.Equal("first", session.Provider([over, main]).GetValue("k"));
 		Assert.False(session.Provider([main, over]).ContainsKey("Main.k"));
+
+		//the key a preview shows reads its own words, though a later file has its name
+		Assert.Equal("first", session.Provider([main, over], main.Keys["k"]).GetValue("k"));
+		Assert.Equal("premier", session.Provider([main, over], main.Keys["k"], "fr").GetValue("k"));
 	}
 
 	//the editor's SPEC (Keys without the file's name): each file holds its own keys, so
@@ -834,43 +838,72 @@ value-fr=Bonjour
 		Assert.Equal(["k"], basis.Keys.Keys);
 	}
 
-	//the editor's SPEC (New): a file started with no path, labelled by the name it
-	//was given, renamed in place, and given a path at its first Save
+	//the editor's SPEC (New): a file started with no path, named as it was given and
+	//never numbered, renamed in place, and given a path at its first Save
 	[Fact]
-	public void ANewFile_HasNoPath_UntilMovedTo_ItsKeysUntouchedByItsLabel() {
+	public void ANewFile_HasNoPath_UntilMovedTo_ItsKeysUntouchedByItsName() {
 		var session = new WordsSession();
 		WordsFile first = session.New(new StringReader("value-en=English\n\n[k]\nvalue=x\n"), "anonymous-words");
 		WordsFile second = session.New(new StringReader(""), "anonymous-words");
 
 		Assert.Null(first.Path);
-		Assert.Equal("anonymous-words", first.Label);
-		Assert.Equal("anonymous-words-2", second.Label);
+		Assert.Equal("anonymous-words", first.Name);
+		Assert.Equal("anonymous-words", session.ShownName(second)); //never numbered: Save tells them apart
 		WordsKey k = Assert.Single(session.KeysOf(first));
 		Assert.Equal("k", k.BlockKey);
 		Assert.Null(session.FileAt("anonymous-words.ini")); //a file not saved is at no path
-		Assert.Throws<InvalidOperationException>(() => session.Save(first, KeyTree.Build(session, first)));
+		Assert.Throws<InvalidOperationException>(() => session.Save(first, KeyTree.Build(first)));
 
 		//a root's name is its file's alone: the key stays as it was, the shim's label follows
-		session.Rename(first, "strings");
-		Assert.Equal("strings", first.Label);
+		session.Rename(first, "Strings.Designer");
+		Assert.Equal("Strings.Designer", first.Name); //dots and all
 		Assert.Same(k, Assert.Single(session.KeysOf(first)));
 		Assert.Equal("k", k.BlockKey);
-		Assert.Equal(["strings.k"], session.Keys.Keys);
-		Assert.Throws<ArgumentException>(() => session.Rename(first, "anonymous-words-2")); //another's
-		Assert.Throws<ArgumentException>(() => session.Rename(first, "a.b"));               //no segment
+		Assert.Equal(["Strings-Designer.k"], session.Keys.Keys);
+		session.Rename(second, "Strings.Designer"); //another's name too
+		Assert.Equal("Strings.Designer", session.ShownName(second));
+		Assert.Throws<ArgumentException>(() => session.Rename(first, "a/b")); //no file name
+		Assert.Throws<ArgumentException>(() => session.Rename(first, " "));
 
 		string folder = Path.Combine(Path.GetTempPath(), "WordsSessionMove");
 		session.MoveTo(first, Path.Combine(folder, "Words.ini"));
 		Assert.Equal(Path.Combine(folder, "Words.ini"), first.Path);
-		Assert.Equal("Words", first.Label); //labelled as a file loaded from there
+		Assert.Equal("Words", first.Name); //named as a file loaded from there
 		Assert.Equal(["Words.k"], session.Keys.Keys);
 		Assert.Same(first, session.FileAt(Path.Combine(folder, "Words.ini")));
 		Assert.Throws<ArgumentException>(() => session.MoveTo(second, Path.Combine(folder, "Words.ini"))); //another's path
 
 		session.MoveTo(second, Path.Combine(folder, "sub", "Words.ini"));
+		Assert.Equal("Words", second.Name);
 		Assert.Equal("Words-2", second.Label);
+		Assert.Equal("Words (sub)", session.ShownName(second));
+		Assert.Equal("Words (WordsSessionMove)", session.ShownName(first));
 		session.MoveTo(first, Path.Combine(folder, "other", "Words.ini"));
 		Assert.Equal("Words", first.Label); //its own label is no other's
+		Assert.Equal("Words (other)", session.ShownName(first));
+	}
+
+	//the editor's SPEC (Keys without the file's name): a root shows its file's true name,
+	//and where another has it too, the first folder, walking up, where their paths differ
+	[Fact]
+	public void AFile_ShowsItsTrueName_AndATwinTheFolderTellingItApart() {
+		var session = new WordsSession();
+		WordsFile ui = session.Load(new StringReader(""), @"C:\app\ui\strings.ini");
+		Assert.Equal("strings", session.ShownName(ui)); //a name no other has shows alone
+
+		WordsFile core = session.Load(new StringReader(""), @"C:\app\core\strings.ini");
+		Assert.Equal("strings (ui)", session.ShownName(ui));
+		Assert.Equal("strings (core)", session.ShownName(core));
+
+		//folders of one name: the nearest that differs
+		WordsFile a = session.Load(new StringReader(""), @"C:\a\ui\Strings.Designer.ini");
+		WordsFile b = session.Load(new StringReader(""), @"C:\b\ui\Strings.Designer.ini");
+		Assert.Equal("Strings.Designer (a)", session.ShownName(a)); //dots and all
+		Assert.Equal("Strings.Designer (b)", session.ShownName(b));
+
+		//unloading one takes the brackets off the other
+		session.Unload(core);
+		Assert.Equal("strings", session.ShownName(ui));
 	}
 
 	//the editor's starter: a header above the table, the default's language declared

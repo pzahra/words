@@ -22,7 +22,6 @@ public class UndoTests {
 		return (vm, dialogs);
 	}
 
-	private static KeyNode Node(MainWindowViewModel vm, string fullLabel) => MainWindowViewModelTests.Node(vm, fullLabel);
 
 	//what the document is: every file's saved text, then every row of the tree (an
 	//empty node or a blank comment writes nothing, but is there to undo)
@@ -76,7 +75,7 @@ public class UndoTests {
 
 		LanguageManagerViewModel Manager() => new(vm);
 
-		Twin("add node", () => { vm.Tree.Select(Node(vm, "Example.main")); vm.AddNode("fresh"); });
+		Twin("add node", () => { vm.Tree.Select(Node(vm, "Example", "main")); vm.AddNode("fresh"); });
 		Twin("add key", () => vm.AddKeyCommand.Execute(null));
 		Twin("typing the default", () => { vm.Tree.SelectedKey!.DefaultValue = "w"; vm.Tree.SelectedKey!.DefaultValue = "words"; });
 		Twin("typing a translation", () => vm.Tree.SelectedEntry!.Value = "words too");
@@ -85,15 +84,15 @@ public class UndoTests {
 		Twin("needs review", () => vm.ToggleNeedsReviewCommand.Execute(null));
 		Twin("stale", () => vm.ToggleStaleLanguageCommand.Execute(null));
 		Twin("stale all", () => vm.StaleAllLanguagesCommand.Execute(null));
-		Twin("typing a translation of a constant-to-be", () => { vm.Tree.Select(Node(vm, "Example.prefix-whitespace")); vm.Tree.SelectedEntry!.Value = "translated"; });
+		Twin("typing a translation of a constant-to-be", () => { vm.Tree.Select(Node(vm, "Example", "prefix-whitespace")); vm.Tree.SelectedEntry!.Value = "translated"; });
 		Twin("constant, clearing the translation", () => vm.ToggleConstantCommand.Execute(null));
-		Twin("typing a comment", () => { vm.Tree.Select(Node(vm, "Example.main").Children.OfType<OrganizerNode>().First()); vm.Tree.SelectedOrganizer!.Text = " edited"; });
-		Twin("add comment", () => { vm.Tree.Select(Node(vm, "Example.main.circle-1")); vm.AddOrganizerCommand.Execute(null); });
+		Twin("typing a comment", () => { vm.Tree.Select(Node(vm, "Example", "main").Children.OfType<OrganizerNode>().First()); vm.Tree.SelectedOrganizer!.Text = " edited"; });
+		Twin("add comment", () => { vm.Tree.Select(Node(vm, "Example", "main.circle-1")); vm.AddOrganizerCommand.Execute(null); });
 		Twin("typing the new comment", () => vm.Tree.SelectedOrganizer!.Text = " fresh note");
 		Twin("remove the preamble", () => { vm.Tree.Select(vm.Tree.KeyNodes[0].Children[0]); vm.RemoveNodeCommand.Execute(null); });
-		Twin("remove key", () => { vm.Tree.Select(Node(vm, "Example.enum.none")); vm.RemoveKeyCommand.Execute(null); });
+		Twin("remove key", () => { vm.Tree.Select(Node(vm, "Example", "enum.none")); vm.RemoveKeyCommand.Execute(null); });
 		Twin("describing a parameter", () => {
-			vm.Tree.Select(Node(vm, "Example.view.section-name.key"));
+			vm.Tree.Select(Node(vm, "Example", "view.section-name.key"));
 			vm.ParametersPane.Definitions[0].Parameter.Description = "the";
 			vm.ParametersPane.Definitions[0].Parameter.Description = "the cut";
 			vm.ParametersPane.Definitions[0].Input = "1"; //the session's: no part of the entry
@@ -105,11 +104,11 @@ public class UndoTests {
 		Twin("removing a parameter", () => vm.ParametersPane.Definitions[^1].RemoveCommand.Execute(null));
 		vm.Tree.SelectedKey!.DefaultValue = "{Count}"; //an entry of its own, before the twin
 		Twin("adopting a parameter", () => vm.ParametersPane.Found[0].AdoptCommand.Execute(null));
-		Twin("drag under another parent", () => vm.KeyDrag.Drop(new FakeDropInfo(Node(vm, "Example.enum.two"), Node(vm, "Example.format"), RelativeInsertPosition.TargetItemCenter)));
-		Twin("drag among siblings", () => vm.KeyDrag.Drop(new FakeDropInfo(Node(vm, "Example.format.named"), Node(vm, "Example.format.object"), RelativeInsertPosition.BeforeTargetItem)));
-		Twin("drag a comment", () => vm.KeyDrag.Drop(new FakeDropInfo(Node(vm, "Example.main").Children.OfType<CommentNode>().First(), Node(vm, "Example.enum.none"), RelativeInsertPosition.AfterTargetItem)));
+		Twin("drag under another parent", () => vm.KeyDrag.Drop(new FakeDropInfo(Node(vm, "Example", "enum.two"), Node(vm, "Example", "format"), RelativeInsertPosition.TargetItemCenter)));
+		Twin("drag among siblings", () => vm.KeyDrag.Drop(new FakeDropInfo(Node(vm, "Example", "format.named"), Node(vm, "Example", "format.object"), RelativeInsertPosition.BeforeTargetItem)));
+		Twin("drag a comment", () => vm.KeyDrag.Drop(new FakeDropInfo(Node(vm, "Example", "main").Children.OfType<CommentNode>().First(), Node(vm, "Example", "enum.none"), RelativeInsertPosition.AfterTargetItem)));
 		Twin("settings slots", () => {
-			vm.Tree.Select(Node(vm, "Example.enum"));
+			vm.Tree.Select(Node(vm, "Example", "enum"));
 			dialogs.OnShow = shown => {
 				var settings = (SettingsViewModel)shown;
 				settings.SettingsFile = "wordsmith.ini";
@@ -118,7 +117,7 @@ public class UndoTests {
 			vm.SettingsCommand.Execute(null);
 			dialogs.OnShow = null;
 		});
-		Twin("remove a node with keys and comments", () => { vm.Tree.Select(Node(vm, "Example.main")); vm.RemoveNodeCommand.Execute(null); });
+		Twin("remove a node with keys and comments", () => { vm.Tree.Select(Node(vm, "Example", "main")); vm.RemoveNodeCommand.Execute(null); });
 		Twin("add a language", () => {
 			var manager = Manager();
 			manager.AddCommand.Execute(null);
@@ -188,7 +187,7 @@ public class UndoTests {
 	[Fact]
 	public void ARunOfTypingIsOneEntryUntilSomethingEndsIt() {
 		var (vm, _) = Load();
-		KeyNode title = Node(vm, "Example.main.title");
+		KeyNode title = Node(vm, "Example", "main.title");
 		vm.Tree.Select(title);
 		WordsKey key = vm.Tree.SelectedKey!;
 		string value = key.DefaultValue, context = key.Context;
@@ -201,7 +200,7 @@ public class UndoTests {
 		Assert.Equal(2, vm.UndoStack.DoneCount);
 		key.DefaultValue = value + "abcd"; //back in the first: a run of its own
 		Assert.Equal(3, vm.UndoStack.DoneCount);
-		vm.Tree.Select(Node(vm, "Example.main.circle-1"));
+		vm.Tree.Select(Node(vm, "Example", "main.circle-1"));
 		vm.Tree.Select(title);
 		key.DefaultValue = value + "abcde"; //another node came between
 		Assert.Equal(4, vm.UndoStack.DoneCount);
@@ -223,7 +222,7 @@ public class UndoTests {
 	[Fact]
 	public void ANoteThatRaisedTheHandUndoesBoth() {
 		var (vm, _) = Load();
-		vm.Tree.Select(Node(vm, "Example.main.circle-1"));
+		vm.Tree.Select(Node(vm, "Example", "main.circle-1"));
 		WordsKey key = vm.Tree.SelectedKey!;
 		Assert.False(key.NeedsReview);
 		Assert.Equal("", key.Comment);
@@ -251,7 +250,7 @@ public class UndoTests {
 	[Fact]
 	public void AnUndoOutOfViewGoesThereFirst() {
 		var (vm, _) = Load();
-		KeyNode target = Node(vm, "Example.format.object"), elsewhere = Node(vm, "Example.enum.none");
+		KeyNode target = Node(vm, "Example", "format.object"), elsewhere = Node(vm, "Example", "enum.none");
 		LanguageEntry chinese = vm.Tree.KnownLanguages.Single(language => language.Code == "zh");
 		vm.Tree.Select(target);
 		vm.Tree.SelectedLanguage = chinese;
@@ -263,7 +262,7 @@ public class UndoTests {
 		vm.FieldFocusRequested += (field, _, _) => focused = field;
 
 		//away: another node, the default language, and a search that hides the change
-		vm.Tree.Select(Node(vm, "Example.main.title"));
+		vm.Tree.Select(Node(vm, "Example", "main.title"));
 		vm.Tree.Select(elsewhere);
 		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages[0];
 		vm.Tree.SearchFilterText = "Selection";
@@ -292,7 +291,7 @@ public class UndoTests {
 	[Fact]
 	public void AnUndoInViewAppliesAtOnceAndFocusesTheField() {
 		var (vm, _) = Load();
-		vm.Tree.Select(Node(vm, "Example.format.object"));
+		vm.Tree.Select(Node(vm, "Example", "format.object"));
 		WordsKey key = vm.Tree.SelectedKey!;
 		string context = key.Context;
 		DocumentField? focused = null;
@@ -311,7 +310,7 @@ public class UndoTests {
 	[Fact]
 	public void ADescriptionUndoesAsAFieldDoes_ItsBoxNamedByItsParameter() {
 		var (vm, _) = Load();
-		KeyNode site = Node(vm, "Example.view.section-name.key");
+		KeyNode site = Node(vm, "Example", "view.section-name.key");
 		vm.Tree.Select(site);
 		WordsParameter parameter = vm.ParametersPane.Definitions[1].Parameter;
 		string description = parameter.Description;
@@ -320,7 +319,7 @@ public class UndoTests {
 		parameter.Description = "typed";
 
 		//away, it is gone to first
-		vm.Tree.Select(Node(vm, "Example.main.title"));
+		vm.Tree.Select(Node(vm, "Example", "main.title"));
 		vm.UndoCommand.Execute(null);
 		Assert.Same(site, vm.Tree.SelectedKeyNode);
 		Assert.Equal("typed", parameter.Description);
@@ -352,7 +351,7 @@ public class UndoTests {
 			vm.LoadFile(example);
 
 			void Edit() {
-				vm.Tree.Select(vm.Tree.NodeAt("Example.enum.none")!);
+				vm.Tree.Select(Node(vm, "Example", "enum.none"));
 				vm.ToggleNeedsReviewCommand.Execute(null);
 				Assert.True(vm.UndoStack.DoneCount > 0);
 			}
@@ -382,7 +381,7 @@ public class UndoTests {
 			Assert.Equal(0, vm.UndoStack.DoneCount);
 
 			Edit();
-			vm.RemoveFileNodeCore(vm.Tree.NodeAt("Other")!);
+			vm.RemoveFileNodeCore(Node(vm, "Other", ""));
 			Assert.Equal(0, vm.UndoStack.DoneCount);
 
 			Edit();
@@ -420,22 +419,22 @@ public class UndoTests {
 		vm.LoadFile(new StringReader("value-en=English\n\n[group]\nvalue=group\nvalue#other=groups\n\n[group.item]\nvalue=item\nvalue#other=items\nvalue-en=thing\nvalue-en#other=things\n"), "Ex");
 		string loaded = State(vm);
 
-		vm.Tree.Select(Node(vm, "Ex.group.item"));
+		vm.Tree.Select(Node(vm, "Ex", "group.item"));
 		vm.RemoveKeyCommand.Execute(null);
 		Undo(vm);
 		Assert.Equal(loaded, State(vm));
 
-		vm.Tree.Select(Node(vm, "Ex.group"));
+		vm.Tree.Select(Node(vm, "Ex", "group"));
 		vm.RemoveNodeCommand.Execute(null);
 		Undo(vm);
 		Assert.Equal(loaded, State(vm));
-		Assert.Equal("items", vm.Session.Keys["Ex.group.item"].Forms["other"]);
+		Assert.Equal("items", Key(vm, "Ex", "group.item").Forms["other"]);
 	}
 
 	[Fact]
 	public void TypingBackToWhereTheRunStartedLeavesNothingAndNoStar() {
 		var (vm, _) = Load();
-		vm.Tree.Select(Node(vm, "Example.main.title"));
+		vm.Tree.Select(Node(vm, "Example", "main.title"));
 		WordsKey key = vm.Tree.SelectedKey!;
 		string value = key.DefaultValue;
 
@@ -454,7 +453,7 @@ public class UndoTests {
 
 		//so with a parameter's description; an input typed is no change at all
 		(vm, _) = Load();
-		vm.Tree.Select(Node(vm, "Example.view.section-name.key"));
+		vm.Tree.Select(Node(vm, "Example", "view.section-name.key"));
 		WordsParameter parameter = vm.ParametersPane.Definitions[0].Parameter;
 		string description = parameter.Description;
 		parameter.Description = description + "x";
@@ -479,7 +478,7 @@ public class UndoTests {
 			vm.LoadFile(b);
 
 			//type, save, type on: undoing the second keystroke and redoing it is unsaved work
-			vm.Tree.Select(Node(vm, "A.k"));
+			vm.Tree.Select(Node(vm, "A", "k"));
 			WordsKey key = vm.Tree.SelectedKey!;
 			key.DefaultValue = "a1";
 			vm.Save();
@@ -494,7 +493,7 @@ public class UndoTests {
 			Assert.False(vm.TryClose()); //it asks, and the test stays
 
 			//A saves and B is locked: undoing both edits is not what either file holds
-			vm.Tree.Select(Node(vm, "B.k"));
+			vm.Tree.Select(Node(vm, "B", "k"));
 			vm.ToggleNeedsReviewCommand.Execute(null);
 			using (new FileStream(b, FileMode.Open, FileAccess.Read, FileShare.None)) {
 				vm.Save();
@@ -527,7 +526,7 @@ public class UndoTests {
 		var manager = new LanguageManagerViewModel(vm);
 		manager.Rows.Single(row => row.Code == "ru").IsDefault = true;
 		manager.OkCommand.Execute(null);
-		vm.Tree.Select(Node(vm, "Ex.word"));
+		vm.Tree.Select(Node(vm, "Ex", "word"));
 		Assert.True(vm.Tree.DefaultForms.CanPick("few")); //Russian counts by it
 		vm.Tree.PickDefaultForm("few");
 
@@ -536,27 +535,27 @@ public class UndoTests {
 		Assert.False(vm.Tree.DefaultForms.CanPick("few")); //English does not
 		Assert.Equal(FormPane.Plain, vm.Tree.DefaultForms.Form);
 		vm.Tree.DefaultText = "files!";
-		Assert.Equal("files!", vm.Session.Keys["Ex.word"].DefaultValue);
-		Assert.DoesNotContain("few", vm.Session.Keys["Ex.word"].Forms.Keys);
+		Assert.Equal("files!", Key(vm, "Ex", "word").DefaultValue);
+		Assert.DoesNotContain("few", Key(vm, "Ex", "word").Forms.Keys);
 	}
 
 	[Fact]
 	public void ADropWhoseNodeARedoTookAwayDoesNothing() {
 		var (vm, _) = Load();
-		vm.Tree.Select(Node(vm, "Example.enum"));
+		vm.Tree.Select(Node(vm, "Example", "enum"));
 		vm.RemoveNodeCommand.Execute(null);
 		Undo(vm);
-		KeyNode child = Node(vm, "Example.enum.two"); //picked up…
+		KeyNode child = Node(vm, "Example", "enum.two"); //picked up…
 		Redo(vm); //…and its group goes again
 		string removed = State(vm);
 		int depth = vm.UndoStack.DoneCount;
 
-		vm.KeyDrag.Drop(new FakeDropInfo(child, Node(vm, "Example.format"), RelativeInsertPosition.TargetItemCenter));
+		vm.KeyDrag.Drop(new FakeDropInfo(child, Node(vm, "Example", "format"), RelativeInsertPosition.TargetItemCenter));
 
 		Assert.Equal(removed, State(vm)); //and it still saves
 		Assert.Equal(depth, vm.UndoStack.DoneCount);
 		Undo(vm);
-		Assert.NotNull(vm.Tree.NodeAt("Example.enum.two"));
+		Assert.NotNull(vm.Tree.NodeAt(FileNamed(vm, "Example"), "enum.two"));
 	}
 
 	private sealed class Failing : UndoEntry {
@@ -567,7 +566,7 @@ public class UndoTests {
 	[Fact]
 	public void AnEntryThatFailsToApplyClearsTheHistory() {
 		var (vm, _) = Load();
-		vm.Tree.Select(Node(vm, "Example.enum.none"));
+		vm.Tree.Select(Node(vm, "Example", "enum.none"));
 		vm.ToggleNeedsReviewCommand.Execute(null);
 		vm.Perform(() => new Failing());
 		vm.MarkClean();
@@ -583,7 +582,7 @@ public class UndoTests {
 	[Fact]
 	public void AMergingRecodeIsABoundary() {
 		var (vm, _) = Load();
-		vm.Tree.Select(Node(vm, "Example.enum.none"));
+		vm.Tree.Select(Node(vm, "Example", "enum.none"));
 		vm.ToggleNeedsReviewCommand.Execute(null);
 		Assert.Equal(1, vm.UndoStack.DoneCount);
 
@@ -604,7 +603,7 @@ public class UndoTests {
 		var time = new FakeTime();
 		var vm = new MainWindowViewModel(new FakeDialogs(), time: time);
 		vm.LoadFile(new StringReader(Translated), "Ex");
-		vm.Tree.Select(Node(vm, "Ex.k"));
+		vm.Tree.Select(Node(vm, "Ex", "k"));
 		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.Single(language => language.Code == "it");
 		return (vm, vm.Tree.SelectedKey!, time);
 	}
@@ -617,7 +616,7 @@ public class UndoTests {
 
 		key.DefaultValue = "Hello!";
 		Assert.Equal(stamp, key.Entries["it"].Stale); //words of its own: stale from the first keystroke
-		Assert.True(Node(vm, "Ex.k").IsStale);
+		Assert.True(Node(vm, "Ex", "k").IsStale);
 		Assert.Null(key.Entries["fr"].Stale); //no words: missing, not stale
 		Assert.Equal("machine translated", key.Entries["de"].Stale); //a mark already there stays
 		time.Now += TimeSpan.FromMinutes(1);
@@ -627,7 +626,7 @@ public class UndoTests {
 
 		Undo(vm);
 		Assert.Equal(loaded, State(vm));
-		Assert.False(Node(vm, "Ex.k").IsStale);
+		Assert.False(Node(vm, "Ex", "k").IsStale);
 		Redo(vm);
 		Assert.Equal("Hello!!", key.DefaultValue);
 		Assert.Equal(stamp, key.Entries["it"].Stale);

@@ -36,21 +36,34 @@ public sealed class KeyNodeCollection(KeyNode? owner) : ObservableCollection<Key
 ///     A tree row: the structural node (<see cref="IKeyTreeNode"/>, which the
 ///     writer walks) plus the UI state the tree binds — selection, expansion,
 ///     visibility and the badges, which are computed from the document by the
-///     main view model and never edited here.
+///     main view model and never edited here. A node is its file's and a path
+///     in it: the root carries the file (<see cref="File"/>), and every node's
+///     <see cref="FullLabel"/> is its path there.
 /// </summary>
 public class KeyNode : ViewModelBase, IKeyTreeNode {
-	public string Label { get; set => ChangeProperty(ref field, value); }
+	/// <summary>The last segment as shown, without its <c>$</c> marker; on a root, the name its file shows by (<see cref="WordsSession.ShownName"/>).</summary>
+	public string Label {
+		get;
+		set {
+			if (ChangeProperty(ref field, value)) {
+				AffectProperty(nameof(Path));
+			}
+		}
+	}
+	/// <summary>The node's path in its file, the name its key has there; empty on a root.</summary>
 	public string FullLabel {
 		get;
 		set {
 			if (ChangeProperty(ref field, value)) {
-				Path = value[(value.IndexOf('.') + 1)..];
+				AffectProperty(nameof(Path));
 			}
 		}
 	}
 
-	/// <summary>The key without its file prefix, for the header.</summary>
-	public string Path { get; set => ChangeProperty(ref field, value); }
+	/// <summary>What the header shows: the node's path, or a root's name.</summary>
+	public string Path => IsFile ? Label : FullLabel;
+	/// <summary>On a root, the file it presents; null below one, and on a node out of the tree.</summary>
+	public WordsFile? File { get; set; }
 	public bool IsConstant { get; set => ChangeProperty(ref field, value); }
 	public bool IsStale { get; set => ChangeProperty(ref field, value); }
 	public bool IsOverwritten { get; set => ChangeProperty(ref field, value); }
@@ -69,7 +82,14 @@ public class KeyNode : ViewModelBase, IKeyTreeNode {
 	//load or a newly added node must show without waiting for a filter pass
 	public bool IsVisible { get; set => ChangeProperty(ref field, value); } = true;
 	public bool IsSelected { get; set => ChangeProperty(ref field, value); }
-	public bool IsFile { get; set => ChangeProperty(ref field, value); }
+	public bool IsFile {
+		get;
+		set {
+			if (ChangeProperty(ref field, value)) {
+				AffectProperty(nameof(Path));
+			}
+		}
+	}
 	public bool IsLibraryFile { get; set => ChangeProperty(ref field, value); }
 	/// <summary>On a library's file node: the languages a host lists that it has no words for, as its flag's tooltip says them; empty when none (SPEC: Badges).</summary>
 	public string LacksLanguages {
@@ -99,10 +119,10 @@ public class KeyNode : ViewModelBase, IKeyTreeNode {
 		Children = new KeyNodeCollection(this);
 		Label = label;
 		FullLabel = fullLabel;
-		Path = fullLabel[(fullLabel.IndexOf('.') + 1)..];
 	}
 
 	public KeyNode(KeyNode original) : this(original.Label, original.FullLabel) {
+		File = original.File;
 		IsConstant = original.IsConstant;
 		IsStale = original.IsStale;
 		IsOverwritten = original.IsOverwritten;
@@ -141,9 +161,12 @@ public class KeyNode : ViewModelBase, IKeyTreeNode {
 	public void Relabel(string fullLabel) {
 		FullLabel = fullLabel;
 		foreach (KeyNode child in Children) {
-			child.Relabel($"{fullLabel}.{WordsOperations.LastSegment(child.FullLabel)}");
+			child.Relabel(Join(fullLabel, WordsOperations.LastSegment(child.FullLabel)));
 		}
 	}
+
+	/// <summary>The path of <paramref name="name"/> under the node at <paramref name="path"/>: the name alone under a root.</summary>
+	public static string Join(string path, string name) => path == "" ? name : $"{path}.{name}";
 
 	/// <summary>Every node below this one, depth first.</summary>
 	public IEnumerable<KeyNode> Descendants() {
