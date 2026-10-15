@@ -1833,10 +1833,17 @@ Whatever names a key names its file beside it:
   take the file and a key of its own. `FileOf(label)` and `FileOfKey` go, and
   so does the labels' uniqueness, which only kept two files' keys apart.
 - **The tree.** A root carries its file, and a node's full label is its path
-  in that file, today's `KeyNode.Path`. The root shows the file's name,
-  numbered past another file's of the same name to tell them apart
-  (`strings`, `strings-2`): a name for display, carried by nothing in the
-  document.
+  in that file, today's `KeyNode.Path`. The root shows the file's true name,
+  its file name without the extension, dots and all (`Strings.Designer`),
+  never numbered: a name for display, carried by nothing in the document.
+  Where two loaded files share a name, each shows in brackets the nearest part
+  of its path that tells it from the others, the first folder, walking up from
+  its own, where their paths differ: `strings (ui)` beside `strings (core)`,
+  and `C:\a\ui\strings.ini` beside `C:\b\ui\strings.ini` shows `strings (a)`
+  and `strings (b)`. A name no other file has shows none. The session works it
+  out (`ShownName`), so the tree and every list naming a file, the merge and
+  export dialogs and the messages, read alike, and it follows a load, an unload,
+  a rename and a move at once.
 - **Undo and navigation.** An entry names its file and a path in it, and so
   do a `NodeRef`, a `Place` and Back's history. The file is the session's
   object: a file in or out empties both histories already (*Undo*,
@@ -1856,15 +1863,23 @@ file or first saving it under another name changes no key and keeps the
 undo history and Back's, so *New*'s renames stop emptying them, and two
 files of one name differ in the tree and nowhere else.
 
-Undecided: whether two files of one name keep the `-2`, or show their folder
-beside the name, now that the number keeps nothing apart.
+A file not saved yet has no path to tell it by, so *New* stops numbering: a
+second New is `anonymous-words` too, and two unsaved roots of one name read
+alike until one is renamed or saved. That is no harm, since nothing tells files
+apart by name: Save does where it matters, refusing a path another file has
+(*New*, Saving it), and once saved each shows the folder that tells it apart.
 
 **Tests.** Two files holding the same key stay apart, each saving its own; a
 root renamed in place, moved or first saved under another name keeps every
-key, the undo history and Back's; a preview reads a bare reference through
-the files in tree order, the later winning; a split, a merge, an export and
-every round trip write as before, byte for byte; and the tests name a key by
-its file and its own name.
+key, the undo history and Back's; two `strings.ini` in sibling folders show
+`strings (ui)` and `strings (core)`, two whose folders share a name show the
+nearest one that differs, a lone one shows its name alone, a name with dots
+shows them, and unloading one takes the brackets off the other; a second New
+before the first is saved is `anonymous-words` as well, and saving it to the
+first's path is refused; a preview
+reads a bare reference through the files in tree order, the later winning; a
+split, a merge, an export and every round trip write as before, byte for
+byte; and the tests name a key by its file and its own name.
 
 **Order.** Authoring first: the files' stores, the session's calls taking a
 file, the stacked provider, the writer, the codecs, merge and split, with a
