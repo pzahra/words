@@ -44,8 +44,11 @@ words list   strings.ini --stale it                  # the keys whose Italian is
   has marks nothing.
 - **A translation that loses a placeholder** gets a word on stderr: one that
   drops a `{0}` the default uses (the app's value would never show), or uses
-  a `{1}` the default doesn't and no `param-` defines (the app would throw).
-  It is written all the same, since you may be halfway through.
+  a `{1}` the default doesn't and no `param-` defines (the app would show
+  `#{1}#`). It is written all the same, since you may be halfway through.
+- **A brace that opens nothing**, `{0:{>fmt}}` or a lone `{`, is another
+  story: the app would show it as written, so `set` refuses the value, exit 2,
+  and the file stays as it was. A brace you mean is written `{{`.
 - **`--missing xx`** asks Wordsmith's badge rule about one language: keys with
   no words in `xx`, or a plural key missing a form `xx` counts by. A language
   the default speaks misses nothing, since its empty entries fall back. (The

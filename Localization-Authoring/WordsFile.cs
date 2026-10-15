@@ -62,7 +62,11 @@ namespace PatTech.Localization.Authoring {
 		///     as written; <see cref="SettingsPath(string)"/> resolves one.
 		/// </summary>
 		public Dictionary<string, string> LanguageSettings { get; }
-		/// <summary>What the parser griped about while loading; the file loaded regardless.</summary>
+		/// <summary>
+		///     What the parser griped about while loading, and each value holding a brace
+		///     that opens nothing (<see cref="ParameterUse.Malformed(WordsKey)"/>); the
+		///     file loaded regardless.
+		/// </summary>
 		public IReadOnlyList<string> Errors { get; }
 		/// <summary>
 		///     A library file lists nothing: every label it declares is a <c>!Label</c>
@@ -111,6 +115,13 @@ namespace PatTech.Localization.Authoring {
 			foreach (string code in loaded.LanguageSettings.Keys) {
 				if (!loaded.DeclaredLanguages.Contains(code)) {
 					errors.Add($"param-{code} names a settings file for a language the file does not declare");
+				}
+			}
+			//a brace that opens nothing, which an app shows as written with a warning, is
+			//said here; the editor badges it and saves it, since a file it loaded must save
+			foreach (var (name, key) in loaded.WordKeys) {
+				foreach (var (field, braces) in ParameterUse.Malformed(key)) {
+					errors.Add($"{name}: {field} holds {ParameterUse.Named(braces)}, shown as written in the app; {{{{ writes a brace");
 				}
 			}
 			Errors = errors;

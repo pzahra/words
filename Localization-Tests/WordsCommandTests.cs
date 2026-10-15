@@ -301,6 +301,23 @@ public sealed class WordsCommandTests : IDisposable {
 		Assert.Equal("", Run("set", "FILE", "files", "value-fr", "{>elsewhere.files}").Error); //its one file: a reference out of it may carry {0}
 	}
 
+	//a brace that opens nothing shows as written in the app, so set never writes one; a
+	//constant's words are text, and the other fields are not words the app shows
+	[Fact]
+	public void Set_AValueWithABraceThatOpensNothing_IsRefused_AndLeavesTheFile() {
+		File.WriteAllText(path, Sample);
+
+		var (code, _, error) = Run("set", "FILE", "files", "value-it#other", "{0:{>fmt}} file {");
+
+		Assert.Equal(2, code);
+		Assert.Equal("words: files: value-it#other would hold `{0:{>fmt}}`, `{`, braces that open nothing, shown as written in the app; {{ writes a brace, and the file is left as it was\n", error);
+		Assert.Equal(Sample, File.ReadAllText(path));
+		Assert.StartsWith("words: menu.edit: value would hold `{`, a brace that opens nothing", Run("set", "FILE", "menu.edit", "value", "Edit {").Error);
+		Assert.Equal(0, Run("set", "FILE", "menu.edit", "value-it", "Modifica {{").Code); //an escaped brace
+		Assert.Equal(0, Run("set", "FILE", "menu.edit", "context-it", "a { b").Code);
+		Assert.Equal(0, Run("set", "FILE", "$brand", "value", "{ \"name\": \"Words\" }").Code);
+	}
+
 	[Fact]
 	public void ARefusedEdit_ExitsTwo_AndLeavesTheFile() {
 		string text = "[a]\nvalue=A\\";

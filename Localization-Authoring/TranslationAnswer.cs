@@ -131,7 +131,8 @@ namespace PatTech.Localization.Authoring {
 		///     names (<see cref="ParameterUse"/>), keeps every reference and constant
 		///     the default holds and holds no reference, constant or selector the
 		///     default does not, keeps each format item's alignment and format as the
-		///     default writes them (<see cref="ParameterUse.Items"/>), keeps the
+		///     default writes them (<see cref="ParameterUse.Items"/>), writes no brace
+		///     that opens nothing (<see cref="ParameterUse.Malformed(string)"/>), keeps the
 		///     default's code spans, and gives each slot as many links as its default's,
 		///     read as the app's markdown reads them. A changed link target is written,
 		///     and raises the key's hand (<see cref="TranslationVerdict.Raised"/>). A slot the key has no use for in
@@ -205,6 +206,12 @@ namespace PatTech.Localization.Authoring {
 			}
 			if (mismatch.Extra.Count != 0) {
 				flags.Add($"the {code} words use {Joined(mismatch.Extra.Select(FoundParameters.Placeholder))}, which the default does not and no param- defines");
+			}
+			//a brace that opens nothing shows as written in the app, as set refuses to write one
+			foreach (var (slot, text) in filled) {
+				if (ParameterUse.Malformed(text) is { Count: > 0 } braces) {
+					flags.Add($"the {code} {slot} holds {ParameterUse.Named(braces)}");
+				}
 			}
 			var said = TranslationRequest.Held(key).Values.ToList();
 			var answered = TranslationRequest.Held(translated).Values.ToList();

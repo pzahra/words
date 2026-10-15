@@ -179,6 +179,43 @@ public class TranslationCheckTests {
 		Assert.Equal(Extra("{2}"), extra.Mismatch);
 	}
 
+	private static string Malformed(string braces) => Words.Known.Format("parameters.malformed", braces);
+	private static string MalformedDefault(string braces) => Words.Known.Format("parameters.malformed-default", braces);
+
+	//a brace that opens nothing (the runtime spec's One pass for every brace) badges its
+	//key as a mismatch does, the default's in every language; the preview's gripes name
+	//it, it saves as written, and a file loaded with one gripes
+	[Fact]
+	public void ABraceThatOpensNothing_BadgesItsKey_TheDefaultsInEveryLanguage_AndSavesAsWritten() {
+		var vm = Load();
+		Speak(vm, "it");
+		vm.Tree.Select(Node(vm, "T.word"));
+		vm.Tree.SelectedEntry!.Value = "file {";
+		Assert.Equal(Malformed("{"), Node(vm, "T.word").Mismatch);
+		vm.Tree.MismatchFilter = true;
+		Assert.True(Node(vm, "T.word").IsVisible);
+		vm.Tree.ClearFilters();
+
+		Speak(vm, "mt");
+		Assert.False(Node(vm, "T.word").HasMismatch); //the Italian's is Italian
+		vm.Tree.SelectedKey!.DefaultValue = "file {0:{>fmt}}";
+		Assert.Equal(MalformedDefault("{0:{>fmt}}"), Node(vm, "T.word").Mismatch);
+		Speak(vm, "it");
+		Assert.Equal($"{Malformed("{")} · {MalformedDefault("{0:{>fmt}}")}", Node(vm, "T.word").Mismatch);
+
+		vm.ShowDefaultPreview = true;
+		Assert.Equal("file {0:{>fmt}}", vm.DefaultPreview.Text);
+		Assert.Contains("WORDS:FORMAT:`{0:{>fmt}}`", vm.DefaultPreview.Gripes);
+
+		var saved = new StringWriter { NewLine = "\n" };
+		vm.Session.Save(vm.Session.Files[0], vm.Tree.NodeOf(vm.Session.Files[0]), saved);
+		Assert.Contains("value=file {0:{>fmt}}\n", saved.ToString());
+		Assert.Contains("value-it=file {\n", saved.ToString());
+		vm.LoadFile(new StringReader(saved.ToString()), "Again");
+		Assert.Equal(2, vm.Session.FileOf("Again")!.Errors.Count(error => error.StartsWith("word: value")));
+		Assert.Equal(vm.Session.FileOf("Again")!.Errors.Count, Node(vm, "Again").GripeCount);
+	}
+
 	[Fact]
 	public void TheNote_IsTheSelectedKeysMismatch_ForTheTranslationBesideIt() {
 		var vm = Load();
@@ -188,5 +225,6 @@ public class TranslationCheckTests {
 		Assert.Equal(Dropped("{1}"), TreeViewModel.MismatchNote(new ParameterMismatch(["1"], [])));
 		Assert.Equal("", TreeViewModel.MismatchNote(ParameterMismatch.None));
 		Assert.Equal($"{Dropped("{0}, {Count}")} · {Extra("{3}")}", TreeViewModel.MismatchNote(new ParameterMismatch(["0", "Count"], ["3"])));
+		Assert.Equal($"{Extra("{3}")} · {Malformed("{, {}")} · {MalformedDefault("{0,x}")}", TreeViewModel.MismatchNote(new ParameterMismatch([], ["3"]), ["{", "{}"], ["{0,x}"]));
 	}
 }

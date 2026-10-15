@@ -48,7 +48,8 @@ namespace PatTech.Localization.Cli {
 			Exit codes: 0 done, 1 the key or field is not there, request found nothing
 			to ask or apply skipped a key, 2 a bad call, a file that is missing, can't be
 			read or written or does not parse, an answer that is no translation
-			document, or an edit refused because it would change more than asked.
+			document, or an edit refused because it would change more than asked or
+			write a value with a brace that opens nothing ({{ writes a brace).
 			""";
 
 		/// <summary>
@@ -143,6 +144,12 @@ namespace PatTech.Localization.Cli {
 				if (text.StartsWith('﻿')) {
 					gripes.Add("the value from stdin starts with U+FEFF, kept as its own; a tool that writes a BOM may have put it there");
 				}
+			}
+			//a brace that opens nothing, which an app shows as written with a warning, is
+			//never written; a constant's words are text
+			if (field.Type == "value" && !key.StartsWith('$') && ParameterUse.Malformed(text) is { Count: > 0 } braces) {
+				error.WriteLine($"words: {key}: {field} would hold {ParameterUse.Named(braces)}, shown as written in the app; {{{{ writes a brace, and the file is left as it was");
+				return BadCall;
 			}
 			//a default that changes leaves its translations stale, as Wordsmith's typing does;
 			//its line breaks as the file keeps them, so \r\n for \n changes nothing

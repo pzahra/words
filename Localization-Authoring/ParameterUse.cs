@@ -53,7 +53,8 @@ namespace PatTech.Localization.Authoring {
 	///     <c>{{0}</c> is a brace and text, no use; a malformed brace holds none; and a
 	///     constant is text, which brings in no parameter. A reference's words are its own
 	///     and their uses are the key's; a selector may pick any form of its key the
-	///     language counts by, so the uses of every one of them are.
+	///     language counts by, so the uses of every one of them are. A malformed brace is
+	///     caught where words are written (<see cref="Malformed(WordsKey)"/>).
 	/// </summary>
 	public static class ParameterUse {
 		/// <summary>
@@ -169,6 +170,33 @@ namespace PatTech.Localization.Authoring {
 			string format = item.Format is { } spec ? $":{spec}" : "";
 			return $"{{{item.Argument}{alignment}{format}}}";
 		}
+
+		/// <summary>
+		///     The braces <paramref name="text"/> writes that open nothing, each once as
+		///     written: <c>{0:{&gt;fmt}}</c>, <c>{0,x}</c>, <c>{}</c>, a <c>{</c> never closed.
+		///     An app shows each as it stands and warns (the runtime spec's <i>One pass for
+		///     every brace</i>); <c>{{</c> writes a brace.
+		/// </summary>
+		public static IReadOnlyList<string> Malformed(string text)
+			=> [.. WordsTemplate.Parse(text).OfType<WordsPiece.Malformed>().Select(piece => piece.In(text)).Distinct()];
+
+		/// <summary>
+		///     Each value of <paramref name="key"/> that writes a brace opening nothing
+		///     (<see cref="Malformed(string)"/>), the default's and its forms' first, then
+		///     each language's; none for a constant, whose words are text.
+		/// </summary>
+		public static IEnumerable<(WordsField Field, IReadOnlyList<string> Braces)> Malformed(WordsKey key)
+			=> key.IsConstant ? [] : WordsField.All(key)
+				.Where(written => written.Field.Type == "value")
+				.Select(written => (written.Field, Braces: Malformed(written.Text)))
+				.Where(found => found.Braces.Count != 0);
+
+		/// <summary>
+		///     <paramref name="braces"/> named as a gripe names them: <c>`{`, a brace that
+		///     opens nothing</c>, or <c>`{`, `{0,x}`, braces that open nothing</c>.
+		/// </summary>
+		public static string Named(IReadOnlyList<string> braces)
+			=> $"{string.Join(", ", braces.Select(brace => $"`{brace}`"))}, {(braces.Count == 1 ? "a brace that opens" : "braces that open")} nothing";
 
 		/// <summary>
 		///     Whether <paramref name="name"/> names a parameter a text can use: a number,

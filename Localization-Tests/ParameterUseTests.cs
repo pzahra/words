@@ -58,6 +58,38 @@ public class ParameterUseTests {
 		Assert.Equal("{0} {{1}} {2#word} {3:{>fmt}}", words.Format("k", "zero", "one", "two", 3));
 	}
 
+	//caught where words are written (runtime SPEC: One pass for every brace): a file
+	//that loads with one gripes, naming the key and the field, and still loads
+	[Fact]
+	public void ABraceThatOpensNothing_IsFoundValueByValue_AndGripedOnLoad() {
+		var session = new WordsSession();
+		WordsFile file = session.Load(new StringReader("""
+			value=!en
+			value-it=Italiano
+			value-mt=Malti
+
+			[$json]
+			value={ "a": 1 }
+
+			[k]
+			value={0:{>fmt}} {{0} and {{
+			value#other={0,x}
+			context-it=a { b
+			value-it={ e { e {}
+			value-mt=tajjeb {0}
+
+			"""), "T");
+
+		Assert.Equal([
+			"k: value holds `{0:{>fmt}}`, a brace that opens nothing, shown as written in the app; {{ writes a brace",
+			"k: value#other holds `{0,x}`, a brace that opens nothing, shown as written in the app; {{ writes a brace",
+			"k: value-it holds `{`, `{}`, braces that open nothing, shown as written in the app; {{ writes a brace"], file.Errors);
+		Assert.Equal("{0:{>fmt}} {{0} and {{", session.Keys["T.k"].DefaultValue); //loaded all the same
+		Assert.Empty(ParameterUse.Malformed(session.Keys["T.$json"])); //a constant's words are text
+		Assert.Empty(ParameterUse.Malformed("a } b {{ c { Name }")); //a closing brace is itself, {{ one, and a name may stand in spaces
+		Assert.Equal(["{"], ParameterUse.Malformed("{0 and {"));     //each once
+	}
+
 	[Fact]
 	public void ANamedCount_ARelativeReference_AndACircle_AreFollowedAsWordsFollowsThem_AndAConstantIsText() {
 		var keys = Keys("""

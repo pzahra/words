@@ -149,7 +149,8 @@ One tree presents every loaded file:
   declaring it, `!` and all, clears the flag), the file's load gripes as a count that opens
   the list, constant, needs-review, stale (in the selected language),
   overwritten-by-later-file, a parameter mismatch (in the selected language:
-  the translation drops or adds a parameter beside its default's, Parameters
+  the translation drops or adds a parameter beside its default's, or writes a
+  brace that opens nothing, as the default may in any language, Parameters
   → Translation check); keys whose default or selected-language value is
   empty render emphasized. The selected-language half applies only
   when the key's file **registers** that language — declares it in its
@@ -175,7 +176,7 @@ One tree presents every loaded file:
   and means stale, nothing more: this is the translator's work queue. The
   missing filter takes the empty values (file by file — see Badges), and the
   mismatch filter the keys whose translation in the selected language drops
-  or adds a parameter. The needs-review filter is the programmer's work queue in reverse — the
+  or adds a parameter, or that write a brace opening nothing. The needs-review filter is the programmer's work queue in reverse — the
   translator raises a hand by setting the unlocalised `stale=` flag
   (recycled as the "raise hand" action), and the programmer filters for it.
 - **Structure edits**: add/rename/remove nodes and keys; renames rewrite every
@@ -328,8 +329,9 @@ from a **project settings file** instead of the pre-loaded set:
 - Field names are `\w+`, so a scheme with a dash in its name cannot be
   written; none of the built-ins has one.
 - **Gripes.** Rendering a preview collects everything Words complains about
-  along the way — a missing `{>reference}`, a circular one, an image that did
-  not resolve, a link that would not parse, a sample that would not format —
+  along the way — a missing `{>reference}`, a circular one, a brace that opens
+  nothing (`WORDS:FORMAT`), an image that did not resolve, a link that would not
+  parse, a sample that would not format —
   behind a tool button beside the preview toggle: a count when there is
   something, the list on click. The editor installs one collecting logger as
   `Words.Logger` and gives the preview parser the same one, so both channels
@@ -1316,6 +1318,15 @@ plain value it falls back to, as the runtime does; a translation without
 words is missing rather than mismatched, and a constant is checked for
 nothing.
 
+A brace that opens nothing, `{0:{>fmt}}` or a lone `{`, shows as written in the
+app, with a warning (the runtime spec's *One pass for every brace*), so it is
+caught where it is written. A translation's badges its key in the selected
+language, as a mismatch does, and the default's in every language; the note names
+each, the default's apart, and the preview's gripes name it. Wordsmith saves it
+all the same, since a file it loaded must save, and a file that loads with one
+says so among its load gripes, naming the key and the field. A constant's words
+are text, and hold none.
+
 A mismatch badges the key's node for the selected language, as missing words
 do: orange braces, whose tooltip says what is dropped and what is extra.
 Mismatch View, beside Missing View, filters for it, and a note under the
@@ -1330,7 +1341,8 @@ the row being edited is shown through them, as where Back arrives is
 (Navigation), until the selection moves on. The rule is Authoring's, as `MissingWords` is: the badges read
 it, `words set` notes on stderr a translation it writes that drops or adds
 one (and writes it, as its other notes do; it sees its one file, so a
-reference into another is one it cannot follow), and machine translation's
+reference into another is one it cannot follow) and refuses a value with a
+brace that opens nothing, and machine translation's
 "nothing is written unchecked" and the agent macro will go through it,
 widening it there to references, code spans and links.
 
@@ -1385,6 +1397,10 @@ words name no type, since the reader keeps such a text whole.
   `{2}` is extra; a reference whose translation prints `{0}` is a use of it;
   a side with a reference it cannot follow is not held to the other; `words
   set` notes a mismatch and writes it.
+- A brace that opens nothing badges its key and joins Mismatch View, a
+  translation's in its language and the default's in every one, the note
+  naming the default's apart; the preview's gripes name it, the file saves it
+  as written, and the file loaded again gripes, naming the key and the field.
 - An edit to a key checks the keys whose words follow it again; a definition
   added or renamed clears an extra, and its undo brings it back.
 - In Mismatch View, a `{0}` restored takes a follower out at once and dropped
@@ -1598,9 +1614,11 @@ that no definition names; keep every reference, constant and selector the
 default holds and hold no `{…}` token the default does not, since services
 translate inside braces (`{>menu.file}` comes back `{>menu.archivio}`); keep
 each format item's alignment and format as the default writes them, since
-a format its argument does not take (`{0:Q}` for a count) fails in the app,
-though a parameter the default does not use, which a definition
-allows, may come bare; and keep the default's code spans as they are. Code
+a format its argument does not take (`{0:Q}` for a count) shows marked in the
+app, though a parameter the default does not use, which a definition
+allows, may come bare; write no brace that opens nothing, which the app shows
+as written (*Parameters*, Translation check); and keep the default's code spans
+as they are. Code
 spans and links are read as the app reads them, by the runtime's
 `MarkdownParser`, so a span fenced by two backticks holds one, a link may carry
 a title, and a target that is no absolute URL is no link, since the app leaves

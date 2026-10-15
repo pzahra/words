@@ -646,8 +646,8 @@ public class TreeViewModel : ViewModelBase {
 
 	/// <summary>
 	///     One node's badges, after an edit to its key; and the parameter check of
-	///     every key whose words follow another's, a reference, a constant or a
-	///     selector, since the edit may have changed what they bring in. The filters
+	///     every key whose words follow another's, a reference or a selector, since
+	///     the edit may have changed what they bring in. The filters
 	///     follow the badges at once, the selection shown through them as where Back
 	///     arrives is, so the row being edited stays until the selection moves on.
 	/// </summary>
@@ -713,13 +713,17 @@ public class TreeViewModel : ViewModelBase {
 		node.EmptyValue = MissingWords.InDefault(key, file?.DefaultLanguage)
 			|| (Wants(file, code) && MissingWords.InLanguage(key, code));
 		//what the translation drops or adds beside the default's parameters, which the
-		//definitions widen; the command line's set notes the same (SPEC: Parameters →
+		//definitions widen, and a brace either writes that opens nothing; the command
+		//line's set notes the same, and refuses the brace (SPEC: Parameters →
 		//Translation check)
 		node.Mismatch = check.Note(key, file);
 	}
 
-	/// <summary>What a translation drops and adds, as its badge and its note say it; empty when nothing.</summary>
-	public static string MismatchNote(ParameterMismatch mismatch) {
+	/// <summary>
+	///     What a translation drops and adds, and the braces that open nothing in it and
+	///     in its default, as its badge and its note say them; empty when nothing.
+	/// </summary>
+	public static string MismatchNote(ParameterMismatch mismatch, IReadOnlyList<string>? braces = null, IReadOnlyList<string>? defaultBraces = null) {
 		List<string> parts = [];
 		if (mismatch.Dropped.Count != 0) {
 			parts.Add(Words.Known.Format("parameters.dropped", Placeholders(mismatch.Dropped)));
@@ -727,17 +731,30 @@ public class TreeViewModel : ViewModelBase {
 		if (mismatch.Extra.Count != 0) {
 			parts.Add(Words.Known.Format("parameters.extra", Placeholders(mismatch.Extra)));
 		}
+		if (braces is { Count: > 0 }) {
+			parts.Add(Words.Known.Format("parameters.malformed", string.Join(", ", braces)));
+		}
+		if (defaultBraces is { Count: > 0 }) {
+			parts.Add(Words.Known.Format("parameters.malformed-default", string.Join(", ", defaultBraces)));
+		}
 		return string.Join(" · ", parts);
 
 		static string Placeholders(IEnumerable<string> names) => string.Join(", ", names.Select(FoundParameters.Placeholder));
 	}
 
-	//the translation check in one language, its words read once for a pass
+	//the translation check in one language, its words read once for a pass, and the braces
+	//that open nothing, which an app shows as written, in the default and the language
+	//(SPEC: Parameters → Translation check)
 	private sealed class ParameterCheck(WordsSession session, IEnumerable<string> fileLabels, string code) {
 		private readonly IWordsProvider defaults = session.Provider(fileLabels);
 		private readonly IWordsProvider translations = session.Provider(fileLabels, code);
 
-		public string Note(WordsKey key, WordsFile? file) => MismatchNote(ParameterUse.Check(key, code, defaults, file?.DefaultLanguage, translations));
+		public string Note(WordsKey key, WordsFile? file) {
+			var malformed = ParameterUse.Malformed(key).ToList();
+			return MismatchNote(ParameterUse.Check(key, code, defaults, file?.DefaultLanguage, translations), In(code), In(""));
+
+			IReadOnlyList<string> In(string language) => [.. malformed.Where(found => found.Field.Language == language).SelectMany(found => found.Braces).Distinct()];
+		}
 
 		//whether the key's default or translation brings in another key's words, whose edit may change its check
 		public bool Follows(WordsKey key)

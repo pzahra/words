@@ -138,7 +138,8 @@ name, whatever `[.child]` header the file wrote it under. Exit codes: 0 done,
 1 the key or field is not there (or `request` found nothing to ask, or `apply`
 skipped a key), 2 a bad call, a file that is missing, can't be read or written
 or does not parse, an answer that is no translation document, or an edit
-refused because it would change more than asked; the file is left as it was.
+refused because it would change more than asked or write a value with a brace
+that opens nothing (write `{{` for a brace); the file is left as it was.
 Read stderr: a field in a language the file does not declare, or a form the
 language never reads, is griped about as it is written, and so is a
 translation that drops a placeholder the default uses, or uses one it does not
@@ -189,7 +190,10 @@ Formatting: `Words.Known.Format("key", args)` works like `string.Format`;
 its values by name when `obj` is a dictionary;
 `Words.Known.FormatParams("key", x)` picks by what `x` is — an array is
 positional, any other object is named, `null` is the text as is (the rule the
-XAML inlines and converters use).
+XAML inlines and converters use). Each brace is read once: `{{` writes one,
+formatted or not, and a `}` is always itself; a brace that opens nothing
+(`{0:{>fmt}}`, a lone `{`) shows as written, and an item with nothing to fill
+shows marked, `#{3}#` or `#{Name}#`, each with a warning and never a throw.
 Counts pick plural forms: a `{0#key}` selector resolves in every formatting call
 (`Format`, `FormatByName`, `FormatParams`, the XAML inlines and converters), and
 `Words.Known["file", n]` returns the key's own form for `n`. A missing form

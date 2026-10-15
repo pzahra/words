@@ -592,7 +592,7 @@ any other value that is no number picks `other` and warns (`WORDS:COUNT`).
 **Where it resolves.** The selector resolves in the `Format` family, which holds
 the arguments — `Format`, `FormatByName`, `FormatParams`, `ConvertValue`,
 `FormatKnown`, and the `IWords` overloads of `RenderKey` and `RenderText` given
-arguments — before `string.Format` sees the template: each `{n#key}` is replaced
+arguments — in the pass that fills the format items: each `{n#key}` is replaced
 by the form its argument selects, rendered, so a form may itself carry a
 `{>key}` or a `{0}`, and selected through in turn, so a form may select too.
 
@@ -915,6 +915,117 @@ alone formats as an enum does; the raw template describes what needs no
 words; one of Enum's letters that is no slot is stray, and warns. The
 samples' Enums page formats the picked brew into a template.
 
+## One pass for every brace
+
+One parser reads a value once, in the order it was written, into its pieces, and
+everything that reads a value, the runtime and the authoring tools alike, reads
+those. Words fills its format items itself: no regular expression and no
+string.Format reads a value.
+- **The pieces.** `WordsTemplate.Parse(value)`, public in Core, returns the value's
+  `WordsPiece`s in order, each with its place in the value, a start and a length,
+  as records nested in `WordsPiece` to match on:
+  - `Text`, shown as it stands, an escaped brace collapsed into it;
+  - `Reference`, `{>key}`, and `Constant`, `{$name}`;
+  - `Selector`, `{0#word}` or `{Count#word}`;
+  - `Item`, a format item, `{0}` or `{Name}`, with its alignment, `,5` or `,-5`, and
+    its spec, `:N2`. A number and its spec read as string.Format reads them, `{01}`
+    being `{1}`; a name as `FormatByName` reads it, spaces around it and its spec
+    trimmed, and a name takes an alignment too;
+  - `Malformed`, a brace that opens none of them: `{0:{>fmt}}`, `{0,x}`, `{}`, a `{`
+    never closed.
+
+  `WordsTemplate.ParseFormat(text)` reads a format string, which refers to nothing:
+  a `{>key}` or a `{$name}` there is malformed. It reads the template `FormatByName`
+  is handed raw, and what an `IWords` of one's own answers.
+- **Escapes.** `{{` is one `{`, formatted or not, and a `}` that closes nothing is
+  always itself, so only a brace that would open something is escaped: a code span
+  showing a template, or JSON, escapes its `{`s and nothing else. `{{0}}` reads
+  `{0}}`, where string.Format's habit wanted `{0}`. Rendering collapses nothing else:
+  a file's escapes are its reader's, and each collapses once.
+- **Rendering** walks the pieces. Text goes as it stands. A reference's words are
+  rendered in turn, against their own key, as pieces of their own, never re-read
+  with the text around them, so a `{0}` written there is still filled by the outer
+  call, as *Where it resolves* says. A constant's value is text, and adds no format
+  item. Given arguments, a selector is the form its count picks, rendered in turn;
+  with none, as the indexer reads a value, a selector and a format item stay as
+  written.
+- **Filling.** The `Format` family fills each item itself, as string.Format does:
+  the argument by number, or on the named path by name, in the same pass; the
+  provider's `ICustomFormatter` first, then the argument's `IFormattable` with the
+  spec, else its `ToString()`, `null` printing nothing; padded to the alignment. An
+  enum or an `IDescribable` is described in the dictionary, the spec being
+  Describe's letters. An item that cannot be filled collapses to its argument,
+  marked, `#{3}#` or `#{Name}#`, its alignment and spec dropped, and warns: the
+  braces keep it from reading as a missing key's `#key#`. That is a number past the
+  arguments, a name in a positional call or one no member answers (`WORDS:FIELD`),
+  and a spec its argument rejects, `{0:Q}` for a count (`WORDS:FORMAT`). A selector
+  past the arguments picks `other` and warns, as a name no member answers does.
+  `RenderKey` and `RenderText` given arguments fill the same way, and the
+  provider-level ones, with no language, leave a selector as written.
+- **Malformed** pieces show as written and warn `WORDS:FORMAT`, formatted or not, so
+  nothing a value says makes `Format` throw. They are caught where words are
+  written, by one rule, `ParameterUse.Malformed`: the authoring reader gripes on
+  load, naming the key and the field (``k: value-it holds `{`, a brace that opens
+  nothing…``); Wordsmith badges the value as it badges a mismatch, the default's in
+  every language (the editor spec's *Parameters*, Translation check), its preview's
+  gripes name it, and it saves the value, since a file it loaded must save; the
+  command line's `set` refuses to write one, exit 2; and a translation answer that
+  holds one is flagged. A constant's words are text, and hold none.
+- **An `IWords` of one's own.** For a key its provider lacks, what its indexer
+  answers is rendered already, so it is read with `ParseFormat`: its braces,
+  selectors and items read as a value's, and a selector reaching back to the key is
+  cut.
+- **`PreFormatByName`** stays, for callers who fill with string.Format themselves.
+  It reads the template with `ParseFormat` and writes it back numbered, each brace
+  escaped as string.Format wants.
+- **Authoring.** The parameter finder (`ParameterUse`'s `Tokens`, `Items` and its
+  walk, and `IsName`), the translation check and the editor's followers
+  (`TreeViewModel`'s) read the same pieces, so they agree with the runtime by
+  construction, and so do the samples' source cards. A constant brings in no
+  parameter.
+
+**Why.** A formatted value was read twice: rendering expanded its escapes,
+references, constants and selectors with regular expressions, and string.Format
+then parsed what came out for format items. Two parsers over the same braces made three bugs.
+- *Double escaping.* A brace is escaped once in words, `{{`, and rendering
+  collapsed it, so string.Format, which wants an escape of its own, filled `{{0}`
+  and threw on `{{>key}`, and a literal brace in a formatted value took `{{{{`.
+  Whoever writes a value should not have to know whether the code formats it, and
+  a translator cannot.
+- *Format injection.* A spec was parsed after the words rendered, so a `{>key}` or
+  `{$constant}` written inside one was pasted in first: `{0:{>fmt}}` with
+  `[fmt] value=N2` formatted `7.00`, and another key, or a translation of it, could
+  rewrite how a parameter formats. A constant `N2}{1`, pasted unrendered, made
+  `{0:N2}{1}`. And no checker saw it: the parameter finder, scanning each piece of
+  text, found no `{0}`.
+- *A third escape.* The ini reader collapses a file's own escapes, `\\`, `__` and
+  `''`, and rendering collapsed `\\`, `''` and `""` again, a leftover from before
+  the reader did, so a value holding `\\server` rendered `\server`.
+
+An item string.Format could not fill threw, and took the whole value with it;
+filling each item itself is what lets one be marked alone.
+
+**Tests.** The parser: each piece and its place, `{{`, a `}` always itself, numbers as
+string.Format reads them, names with spaces and alignments, and every malformed
+shape, `{0:{>fmt}}` and `{0:N{>digits}}` among them, with `ParseFormat`'s references
+malformed. The runtime: `{{0}` shows `{0}`, formatted or not; a reference in a spec,
+or a constant holding `N2}{1`, adds no item, the reference warning; a reference's
+`{0}` is filled by the outer call and a constant's is not; a form's items fill as
+the plain value's; an `IWords` of one's own answering `{{` shows a brace and its
+selectors still pick; an item with nothing to read is marked, its alignment and spec
+dropped, and a selector past the arguments picks `other`, each warning;
+`PreFormatByName`'s output formats through string.Format as before; and a template
+with no Words syntax formats as string.Format formats it, character for character,
+across alignments, specs, cultures, a custom formatter and nulls, while an enum is
+described as before; a format its argument rejects is marked. Authoring: the finder
+reads an item spanning a reference as malformed, a constant brings in no parameter,
+and the translation check reads items as the runtime does; a malformed brace is
+found value by value, each once, and gripes on load naming the key and the field, a
+constant's holding none; Wordsmith badges it, the default's in every language,
+names it in the preview's gripes and saves it as written; `set` refuses it and
+leaves the file, an escaped brace and a constant written; and an answer holding one
+is flagged.
+
 # Planned upgrades
 
 Not built. Each section here is the shape the feature takes when it is, or the
@@ -958,140 +1069,3 @@ with that thread's `Watch()`. The shape: a trigger per synchronization context,
 each multi-binding taking its own thread's, and a swap pulsing each on its
 own context. The context-less half is built: a `Watch()` from a thread with no
 context leaves the trigger where it was.
-
-## One pass for every brace
-
-A formatted value is read twice: rendering expands its escapes, references,
-constants and selectors, and string.Format then parses what came out for format
-items. Two parsers over the same braces cause two bugs.
-
-**Double escaping.** A brace is escaped once in words, `{{`, and rendering collapses
-it, so `{{>key}` shows as `{>key}`. string.Format wants an escape of its own, so
-`{{0}` renders to `{0}` and is filled, `{{>key}` renders to `{>key}` and throws, and a
-literal brace in a formatted value takes `{{{{`. Whoever writes a value should not
-have to know whether the code formats it, and a translator cannot.
-
-**Format injection.** A format item's spec, what follows the `:` in `{0:…}`, is
-parsed after the words render, so a `{>key}` or `{$constant}` written inside one is
-pasted into the spec first: `{0:{>fmt}}` with `[fmt] value=N2` formats `7.00`. Another
-key, or a translation of it, can then rewrite how a parameter formats. A value
-holding a brace adds format items of its own: a constant `N2}{1`, pasted unrendered,
-makes `{0:N2}{1}`. And no checker sees it: the parameter finder, scanning each piece
-of text, finds no `{0}`.
-
-**A third escape.** The ini reader collapses a file's own escapes, `\\`, `__` and
-`''`, and rendering collapses `\\`, `''` and `""` again, a leftover from before the
-reader did: a value holding `\\server`, which a file writes `\\\\server`, renders
-`\server`, and one holding `""` renders `"`.
-
-**The shape.** A format engine of Words' own replaces the regular expressions and
-string.Format. One parser reads a value once, in the order it was written, into its
-pieces, and everything that reads a value, the runtime and the authoring tools
-alike, reads those.
-- **The pieces.** `WordsTemplate.Parse(value)`, public in Core, returns the value's
-  `WordsPiece`s in order, each with its place in the value, a start and a length,
-  as records nested in `WordsPiece` to match on:
-  - `Text`, shown as it stands, an escaped brace collapsed into it;
-  - `Reference`, `{>key}`, and `Constant`, `{$name}`;
-  - `Selector`, `{0#word}` or `{Count#word}`;
-  - `Item`, a format item, `{0}` or `{Name}`, with its alignment, `,5` or `,-5`, and
-    its spec, `:N2`. A number and its spec read as string.Format reads them, `{01}`
-    being `{1}`; a name as `FormatByName` reads it, spaces around it and its spec
-    trimmed, and a name takes an alignment too;
-  - `Malformed`, a brace that opens none of them: `{0:{>fmt}}`, `{0,x}`, `{}`, a `{`
-    never closed.
-
-  `WordsTemplate.ParseFormat(text)` reads a format string, which refers to nothing:
-  a `{>key}` or a `{$name}` there is malformed. It reads the template `FormatByName`
-  is handed raw, and what an `IWords` of one's own answers.
-- **Escapes.** `{{` is one `{`, formatted or not, and a `}` that closes nothing is
-  always itself, so only a brace that would open something is escaped: a code span
-  showing a template, or JSON, escapes its `{`s and nothing else. `{{0}}` reads
-  `{0}}`, where string.Format's habit wanted `{0}`. Rendering collapses nothing else:
-  a file's escapes are its reader's, and each collapses once.
-- **Rendering** walks the pieces. Text goes as it stands. A reference's words are
-  rendered in turn, against their own key, as pieces of their own, never re-read
-  with the text around them, so a `{0}` written there is still filled by the outer
-  call, as *Where it resolves* says. A constant's value is text, and adds no format
-  item. Given arguments, a selector is the form its count picks, rendered in turn;
-  with none, as the indexer reads a value, a selector and a format item stay as
-  written.
-- **Filling.** The `Format` family fills each item itself, as string.Format does:
-  the argument by number, or on the named path by name in the same pass, so
-  `PreFormatByName`'s rewrite to numbers goes; the provider's `ICustomFormatter`
-  first, then the argument's `IFormattable` with the spec, else its `ToString()`,
-  `null` printing nothing; padded to the alignment. An enum or an `IDescribable` is
-  described in the dictionary, the spec being Describe's letters, as now. An item
-  that cannot be filled collapses to its argument, marked, `#{3}#` or `#{Name}#`, its
-  alignment and spec dropped, and warns: the braces keep it from reading as a missing
-  key's `#key#`. That is a number past the arguments, a name in a positional call or
-  one no member answers (`WORDS:FIELD`), and a spec its argument rejects, `{0:Q}`
-  for a count (`WORDS:FORMAT`). A selector past the arguments picks `other` and
-  warns, as a name no member answers does. `RenderKey` and `RenderText` given
-  arguments fill the same way, and the provider-level ones, with no language, leave
-  a selector as written.
-- **Malformed** pieces show as written and warn `WORDS:FORMAT`, formatted or not, so
-  nothing a value says makes `Format` throw. The authoring reader
-  gripes on load, naming the key and the language; Wordsmith badges the value as it
-  badges a mismatch, its preview's gripes name it, and it saves the value, since a
-  file it loaded must save; the command line's `set` refuses to write one; and a
-  translation answer that brings one is flagged.
-- **An `IWords` of one's own.** For a key its provider lacks, what its indexer
-  answers is rendered already, so it is read with `ParseFormat`: its braces,
-  selectors and items read as a value's, and a selector reaching back to the key is
-  cut, as now.
-- **`PreFormatByName`** stays, for callers who fill with string.Format themselves.
-  It reads the template with `ParseFormat` and writes it back numbered, each brace
-  escaped as string.Format wants.
-- **Authoring.** The parameter finder (`ParameterUse`'s `Tokens`, `Items` and its
-  walk, and `IsName`), the translation check and the editor's followers
-  (`TreeViewModel`'s) read the same pieces, so they agree with the runtime by
-  construction, and so do the samples' source cards. A constant brings in no
-  parameter.
-
-**What changes for a file**, for the release notes. A formatted brace written
-`{{{{` reads two braces, and `{{0}` in a formatted value shows `{0}` rather than the
-argument. `}}` in a formatted value reads two braces, as it always has in one that
-is not, and so it does in a template handed to `FormatByName` or `PreFormatByName`. A
-constant's `{0}` shows as written, and its `{{` as two braces. `\\`, `''` and `""` in
-a value read as written. A reference in a format item and a lone `{` show as
-written, with a warning, where `Format` threw. An item with nothing to read, a
-number past the arguments or a name in a positional `Format`, shows marked, `#{3}#`,
-with a warning, where `Format` threw, and a name no member answers shows `#{Name}#`
-where it showed `#Name#`; a selector past the arguments picks `other` and warns. A
-format its argument rejects, `{0:Q}` for a count, shows `#{0}#`, with a warning,
-where `Format` threw. No
-file in the repository writes any of them, and its `{{>key}`s keep their meaning.
-
-**Tests.** The parser: each piece and its place, `{{`, a `}` always itself, numbers as
-string.Format reads them, names with spaces and alignments, and every malformed
-shape, `{0:{>fmt}}` and `{0:N{>digits}}` among them, with `ParseFormat`'s references
-malformed. The runtime: `{{0}` shows `{0}`, formatted or not; a reference in a spec,
-or a constant holding `N2}{1`, adds no item, the reference warning; a reference's
-`{0}` is filled by the outer call and a constant's is not; a form's items fill as
-the plain value's; an `IWords` of one's own answering `{{` shows a brace and its
-selectors still pick; an item with nothing to read is marked, its alignment and spec
-dropped, and a selector past the arguments picks `other`, each warning;
-`PreFormatByName`'s output formats through string.Format as before; and a template with no Words syntax formats as string.Format formats it,
-character for character, across alignments, specs, cultures, a custom formatter
-and nulls, while an enum is described as before; a format its argument rejects is
-marked. Authoring: the finder reads an item spanning a reference as
-malformed and gripes, a constant brings in no parameter, and the translation check
-reads items as the runtime does.
-
-**Order.**
-1. The parser and its pieces, tested alone. Built.
-2. Rendering walks the pieces into text and format items, and the regular
-   expressions leave the runtime. Formatting writes the items back as a numbered
-   template, its text escaped, for string.Format to fill, which closes the three
-   bugs above; *Where it resolves* and *Code spans* say so. Built: an item with
-   nothing to read is marked, a selector past the arguments picks `other`, and a
-   name takes an alignment, already.
-3. The engine fills the items itself, so a spec its argument rejects is marked
-   too, and string.Format leaves the runtime, `PreFormatByName` still writing a
-   template for it. Built.
-4. Authoring reads the pieces: the finder, the translation check, the followers and
-   the samples' cards. The editor spec's *Parameters* stops reading the runtime as
-   it was. Built: a constant, being text, is no follower either.
-5. Malformed pieces are caught where words are written: the gripe on load, the
-   badge, `set` and the answer check. This section moves up.

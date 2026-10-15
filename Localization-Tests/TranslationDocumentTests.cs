@@ -209,11 +209,14 @@ public class TranslationDocumentTests {
 	[InlineData("note", "value", "Vedi `words.ini` e [i <https://example.com> documenti](https://example.com/docs) per {>menu.file}", "the it value holds markdown the app cannot read")]
 	[InlineData("files", "value#few", "{0} file", "value#few is no slot it has in it")]
 	[InlineData("menu.file", "value#other", "_File", "value#other is no slot it has in it")]
-	//a format string.Format would throw on, or one the default does not give
+	//a format the app marks, its argument not taking it, or one the default does not give
 	[InlineData("files", "value", "{0:Q} file salvato", "hold {0:Q}, which the default does not")]
 	[InlineData("size", "value", "{0} MB", "drop {0:N1}, which the default holds")]
 	[InlineData("size", "value", "{0:N2} MB", "hold {0:N2}, which the default does not")]
 	[InlineData("size", "value", "{0,8:N1} MB", "hold {0,8:N1}, which the default does not")]
+	//a brace that opens nothing, which the app shows as written
+	[InlineData("size", "value", "{0:N1} MB {", "the it value holds `{`, a brace that opens nothing")]
+	[InlineData("files", "value#other", "{0} file {0:{>fmt}}", "the it value#other holds `{0:{>fmt}}`, a brace that opens nothing")]
 	public void AnAnswerThatBreaksATokenOrASlot_IsFlagged_AndWritesNothing(string key, string slot, string text, string flag) {
 		var verdict = Check(key, "it", new() { [slot] = text });
 

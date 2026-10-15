@@ -44,7 +44,11 @@ before the first `:` are a type only where they name one (the editor spec's
   Translation check): one that drops a parameter the default uses, or uses
   one the default does not and no `param-` defines, is written all the same,
   with a note naming them. The file is all it sees, so a side with a
-  reference out of it may carry anything, and is not held to the other.
+  reference out of it may carry anything, and is not held to the other. A
+  value with a brace that opens nothing, `{0:{>fmt}}` or a lone `{`, which the
+  app shows as written (the runtime spec's *One pass for every brace*), is
+  refused, exit 2, the file left as it was, and the braces named; `{{` writes a
+  brace, and a constant's words are text.
 - `remove <file> <key> [field]` drops one field, every declaration of it, or
   the whole key. A field is there to drop when the file declares it, with
   words or empty, though `get` reads an empty one as none, exit 1.
@@ -84,7 +88,8 @@ field declared twice is made one, or a translation drops or adds a parameter.
 The exit code is 0 for done, 1 when the key or field is not there, `request`
 finds nothing to ask or `apply` skips a key, 2 for a bad call, a file that is
 missing, can't be read or written, does not parse or is no text the patcher
-reads, an answer that is no translation document, or a refused edit; a file's failure names the file, which the system's own message may not,
+reads, an answer that is no translation document, or a refused edit, one
+that would change more than asked or write a brace that opens nothing; a file's failure names the file, which the system's own message may not,
 and a missing one is no misuse, so the calls are not shown. Redirected streams
 speak UTF-8 with `\n`; a console keeps its own.
 
@@ -218,7 +223,9 @@ reader the program puts on a pipe; `--stale` with words, without and before
 the value, a changed default staling its translations with words and keeping
 a mark there, a multi-line default set to its own text with `\r\n`, a lone
 `\r` or through stdin staling none, a translation that drops or adds a parameter written with a
-note and none for one that keeps them or refers out of the file, gripes
+note and none for one that keeps them or refers out of the file, a value with
+a brace that opens nothing refused and the file left, its braces named, while
+an escaped brace, a context and a constant are written, gripes
 passed on, a refused edit leaving the file, BOM-less UTF-16
 left alone, a missing or read-only file named without the calls, an empty
 field removed though `get` calls it none, a `[.child]` header before any base
