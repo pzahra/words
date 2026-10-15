@@ -96,8 +96,7 @@ namespace PatTech.Localization.Authoring {
 		/// <param name="provider">The language's words, every loaded file's.</param>
 		public static FoundParameters InLanguage(WordsKey key, string code, IWordsProvider provider) {
 			WordsEntry? entry = key.Entries.GetValueOrDefault(code);
-			string plain = entry?.Value is { Length: > 0 } value ? value : provider.TryGetValue(key.BlockKey, out string? fallback) ? fallback : "";
-			return Find(key, provider, code, plain, entry?.Forms ?? []);
+			return Find(key, provider, code, Plain(key, entry, provider), entry?.Forms ?? []);
 		}
 
 		/// <summary>
@@ -129,11 +128,43 @@ namespace PatTech.Localization.Authoring {
 		/// <param name="defaultLanguage">The language the default is written in; English when the file declares none.</param>
 		/// <param name="translations">The language's words, every loaded file's.</param>
 		public static ParameterMismatch Check(WordsKey key, string code, IWordsProvider defaults, string? defaultLanguage, IWordsProvider translations) {
-			if (key.IsConstant || key.Entries.GetValueOrDefault(code) is not { } entry || (entry.Value == "" && !entry.Forms.HasWords())) {
+			if (Checked(key, code) is null) {
 				return ParameterMismatch.None;
 			}
 			return Compare(InDefault(key, defaults, defaultLanguage), InLanguage(key, code, translations), key.Parameters.Select(parameter => parameter.Key));
 		}
+
+		/// <summary>
+		///     Whether the check for the translation in <paramref name="code"/>
+		///     (<see cref="Check"/>) reads another key's words, so that an edit to that
+		///     key may change it: the words it reads, the default's and the
+		///     translation's, the plain value it falls back to among them, bring in a
+		///     reference or a selector. A constant brings in text alone, and a check
+		///     that reads nothing, for a constant key or a translation without words,
+		///     follows nothing.
+		/// </summary>
+		/// <param name="key">The key asked about.</param>
+		/// <param name="code">The translation's language.</param>
+		/// <param name="translations">The language's words, every loaded file's, as <see cref="Check"/> reads them.</param>
+		public static bool Follows(WordsKey key, string code, IWordsProvider translations) {
+			if (Checked(key, code) is not { } entry) {
+				return false;
+			}
+			return Brings(key.DefaultValue) || key.Forms.Values.Any(Brings)
+				|| Brings(Plain(key, entry, translations)) || entry.Forms.Values.Any(Brings);
+		}
+
+		//the translation a check reads: none for a constant, or one without words,
+		//which is missing rather than mismatched
+		private static WordsEntry? Checked(WordsKey key, string code)
+			=> key.IsConstant || key.Entries.GetValueOrDefault(code) is not { } entry || (entry.Value == "" && !entry.Forms.HasWords()) ? null : entry;
+
+		//a translation's plain value, or the one it falls back to, as the runtime reads it
+		private static string Plain(WordsKey key, WordsEntry? entry, IWordsProvider provider)
+			=> entry?.Value is { Length: > 0 } value ? value : provider.TryGetValue(key.BlockKey, out string? fallback) ? fallback : "";
+
+		//a reference or a selector, read as the runtime reads them; a constant brings in text alone
+		private static bool Brings(string text) => WordsTemplate.Parse(text).Any(piece => piece is WordsPiece.Reference or WordsPiece.Selector);
 
 		//the plain value, then each form in CLDR's order, each rendered as the entry it is
 		private static FoundParameters Find(WordsKey key, IWordsProvider provider, string language, string plain, IReadOnlyDictionary<string, string> forms) {

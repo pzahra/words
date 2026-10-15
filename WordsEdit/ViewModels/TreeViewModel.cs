@@ -756,13 +756,8 @@ public class TreeViewModel : ViewModelBase {
 			IReadOnlyList<string> In(string language) => [.. malformed.Where(found => found.Field.Language == language).SelectMany(found => found.Braces).Distinct()];
 		}
 
-		//whether the key's default or translation brings in another key's words, whose edit may change its check
-		public bool Follows(WordsKey key)
-			=> Brings(key.DefaultValue) || key.Forms.Values.Any(Brings)
-				|| (key.Entries.GetValueOrDefault(code) is { } entry && (Brings(entry.Value) || entry.Forms.Values.Any(Brings)));
-
-		//a reference or a selector, read as the runtime reads them; a constant brings in text alone
-		private static bool Brings(string text) => WordsTemplate.Parse(text).Any(piece => piece is WordsPiece.Reference or WordsPiece.Selector);
+		//whether the key's check reads another key's words, whose edit may change it
+		public bool Follows(WordsKey key) => ParameterUse.Follows(key, code, translations);
 	}
 
 	//a language the file registers (listed or !-hidden) wants words; one the file never

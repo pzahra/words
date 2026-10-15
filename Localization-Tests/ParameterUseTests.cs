@@ -24,6 +24,9 @@ public class ParameterUseTests {
 	private static ParameterMismatch Check(Dictionary<string, WordsKey> keys, string key, string code, string? defaultLanguage = null)
 		=> ParameterUse.Check(keys[key], code, new DefaultWordsProvider(keys, []), defaultLanguage, new LanguageWordsProvider(keys, code, []));
 
+	private static bool Follows(Dictionary<string, WordsKey> keys, string key, string code)
+		=> ParameterUse.Follows(keys[key], code, new LanguageWordsProvider(keys, code, []));
+
 	[Fact]
 	public void TheDefault_FindsWhatItPrintsAndCounts_ReferencesAndFormsExpanded() {
 		var keys = Keys("""
@@ -283,6 +286,52 @@ public class ParameterUseTests {
 		Assert.Same(ParameterMismatch.None, Check(keys, "$brand", "fr"));
 		Assert.Same(ParameterMismatch.None, Check(keys, "missing", "fr"));
 		Assert.Same(ParameterMismatch.None, Check(keys, "missing", "de"));
+	}
+
+	//which keys an edit to another checks again (editor SPEC: Parameters → Translation
+	//check): those whose check reads another key's words, read as the check reads them
+	[Fact]
+	public void ACheck_FollowsAnotherKey_WhenTheWordsItReadsBringOneIn() {
+		var keys = Keys("""
+			[target]
+			value={0} left
+			value-fr=il reste {0}
+
+			[default]
+			value=Note: {>target}
+			value-fr=Note
+
+			[form]
+			value=file
+			value#other={0#target}
+			value-fr=fichier
+
+			[translation]
+			value=Note
+			value-fr#other={>target}
+
+			[fallback]
+			value=Note
+			value-fr=Note : {>target}
+			value-fr-CA#other=Notes
+
+			[text]
+			value={{>target}} {$unit}
+			value-fr=texte
+
+			[missing]
+			value=Note: {>target}
+			value-fr=
+			comment-fr=to do
+			""");
+
+		Assert.True(Follows(keys, "default", "fr"));
+		Assert.True(Follows(keys, "form", "fr"));
+		Assert.True(Follows(keys, "translation", "fr"));
+		Assert.True(Follows(keys, "fallback", "fr-CA")); //its forms read the plain value French gives it
+		Assert.False(Follows(keys, "target", "fr"));
+		Assert.False(Follows(keys, "text", "fr"));       //an escaped brace and a constant bring in text
+		Assert.False(Follows(keys, "missing", "fr"));    //no words, so nothing to check again
 	}
 
 	[Fact]

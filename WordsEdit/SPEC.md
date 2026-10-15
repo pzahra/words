@@ -1360,14 +1360,17 @@ A mismatch badges the key's node for the selected language, as missing words
 do: orange braces, whose tooltip says what is dropped and what is extra.
 Mismatch View, beside Missing View, filters for it, and a note under the
 translation's title says the same, with what each costs as its tooltip. An
-edit checks its own key again, and every key whose words bring in another's,
-a reference or a selector, since what they bring in may have changed (a
-constant brings in text alone); a definition added, renamed, retyped or taken away checks its key
+edit checks its own key again, and every key whose check reads another's
+words, a reference or a selector in its default or its translation, the
+plain value a translation's forms fall back to among them, since what they
+bring in may have changed (a constant brings in text alone, and a key with
+no words to check follows none); a definition added, renamed, retyped or taken away checks its key
 again too. A full pass, as a language picked or an undo makes one, checks
 every key. The filters follow the badges an edit changes at once: a follower
 whose mismatch went leaves Mismatch View, one that gained one joins it, while
 the row being edited is shown through them, as where Back arrives is
-(Navigation), until the selection moves on. The rule is Authoring's, as `MissingWords` is: the badges read
+(Navigation), until the selection moves on. The rule is Authoring's, as `MissingWords` is, and so is
+which keys an edit checks again (`ParameterUse.Follows`): the badges read
 it, `words set` notes on stderr a translation it writes that drops or adds
 one (and writes it, as its other notes do; it sees its one file, so a
 reference into another is one it cannot follow) and refuses a value with a
@@ -1431,7 +1434,10 @@ words name no type, since the reader keeps such a text whole.
   naming the default's apart; the preview's gripes name it, the file saves it
   as written, and the file loaded again gripes, naming the key and the field.
 - An edit to a key checks the keys whose words follow it again; a definition
-  added or renamed clears an extra, and its undo brings it back.
+  added or renamed clears an extra, and its undo brings it back. Headless, a
+  key follows another through its default, a default's form, a translation's
+  form, or the plain value a regional translation's forms fall back to, and
+  not through an escaped brace or a constant, nor with no words to check.
 - In Mismatch View, a `{0}` restored takes a follower out at once and dropped
   again brings it back, while the edited row stays until the selection moves
   on, and then goes.
