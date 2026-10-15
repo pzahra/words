@@ -110,13 +110,13 @@ public sealed class ParametersPane : ViewModelBase {
 			return;
 		}
 		vm.Perform(() => {
-			IReadOnlyList<WordsParameter> before = ParametersEdit.Copy(changed);
+			IReadOnlyList<WordsParameter> before = changed.CopyParameters();
 			change(changed);
-			IReadOnlyList<WordsParameter> after = ParametersEdit.Copy(changed);
+			IReadOnlyList<WordsParameter> after = changed.CopyParameters();
 			if (vm.Tree.SelectedKeyNode is { } node) {
 				vm.Tree.RefreshBadges(node);
 			}
-			return ParametersEdit.Same(before, after) ? null : new ParametersEdit(changed.BlockKey, before, after);
+			return WordsParameter.Same(before, after) ? null : new ParametersEdit(changed.BlockKey, before, after);
 		});
 		vm.RenderPreviews();
 	}

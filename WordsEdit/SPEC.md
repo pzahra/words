@@ -925,8 +925,8 @@ whatever was waiting to be redone.
   and after, made only when they differ. The tables themselves are written
   to their own files when the dialog closes, and stay outside undo.
 - **Languages.** A Language Manager commit is one `LanguagesEdit`: the
-  manager makes its table operations on its file through it
-  (`ChangeLanguages`, on the main view model), which keeps what they can
+  manager makes its table operations on its file through a
+  `LanguageTableChange` (`ChangeLanguages`, on the main view model), which keeps what they can
   change as it stood before the commit and after it, and puts it back whole
   either way, never by replaying inverses, which can write a key's fields
   back in another order: every file's table — its codes,
@@ -940,6 +940,16 @@ whatever was waiting to be redone.
   reversible state. Undone or redone, a commit checks the panes' form picks
   again as the commit did: the same key in the same language may count by
   other rules now, and a pick they lack goes back to the plain value.
+
+**Where it lives.** The entries and the stack are the editor's: an entry
+knows where its change shows, a node by its label, and moves the tree's
+nodes itself. What it keeps of the document and puts back is Authoring's,
+tested headless: a language commit's tables and entries
+(`LanguageTableChange`), a key copied out and restored (`WordsSession.KeysUnder`,
+`WordsSession.Restore`), a file's settings references (`SettingsSlots`), a key's
+parameters and entries (`WordsKey.CopyParameters`, `PutBackParameters`,
+`CopyEntries`, `PutBackEntries`), and a form written, an empty one being none
+(`Write` on a key's or an entry's forms).
 
 **Recording.** Fields report themselves; every other entry is made by its
 command through one door (`Perform`, on the main view model): the command
@@ -1072,7 +1082,12 @@ returns from the navigation; an undo in view applies at once and focuses
 the field, and so does its redo. Save keeps the stack, undoing past it
 stars the title and coming back clears it; Load, Import, Unload, Split,
 Merge and Reset clear it and a file reorder does not; a commit that changes
-nothing records nothing, and a merging recode clears the stack. In laid-out
+nothing records nothing, and a merging recode clears the stack. Headless, in
+Authoring: a language change put back before and after gives the file's saved
+text byte for byte, says when it changed nothing and when it merged, and has no
+after until it is closed; a key copied out comes back as it was, the copy its
+own; a key's parameters and entries, and a file's settings references, are
+copied and put back; a form written empty is none. In laid-out
 boxes (`TextBoxUndoTests`), an editing box answers Undo and Redo from its
 history and tells it each keystroke's selections, and a plain box beside it
 keeps its own; typed into one bound to a key, Ctrl+Z steps back a word at a

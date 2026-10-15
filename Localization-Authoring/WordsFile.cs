@@ -144,4 +144,27 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>The label, for the debugger and for tests that print one.</summary>
 		public override string ToString() => Label;
 	}
+
+	/// <summary>
+	///     A file's settings references as written, <c>param=</c> and its
+	///     <c>param-xx=</c> (<see cref="WordsFile.Settings"/>,
+	///     <see cref="WordsFile.LanguageSettings"/>), copied: what a change to them is
+	///     made against, and put back.
+	/// </summary>
+	public sealed record SettingsSlots(string Settings, IReadOnlyList<KeyValuePair<string, string>> Languages) {
+		/// <summary>The file's slots as they stand.</summary>
+		public static SettingsSlots Of(WordsFile file) => new(file.Settings, [.. file.LanguageSettings]);
+
+		/// <summary>Whether the two name the same files, in the same order.</summary>
+		public bool Matches(SettingsSlots other) => Settings == other.Settings && Languages.SequenceEqual(other.Languages);
+
+		/// <summary>Puts the slots back in <paramref name="file"/>, in place of its own.</summary>
+		public void PutBack(WordsFile file) {
+			file.Settings = Settings;
+			file.LanguageSettings.Clear();
+			foreach (var (code, path) in Languages) {
+				file.LanguageSettings[code] = path;
+			}
+		}
+	}
 }

@@ -65,6 +65,27 @@ namespace PatTech.Localization.Authoring {
 		public bool HasStaleValue(string languageCode)
 			=> Entries.TryGetValue(languageCode, out var entry) && entry.Stale is not null;
 
+		/// <summary>A copy of each language's entry, by code: what a change about to clear them keeps.</summary>
+		public IReadOnlyDictionary<string, WordsEntry> CopyEntries() => Entries.ToDictionary(pair => pair.Key, pair => new WordsEntry(pair.Value));
+
+		/// <summary>Puts kept entries (<see cref="CopyEntries"/>) back, each a copy, so the kept ones stay as they were.</summary>
+		public void PutBackEntries(IReadOnlyDictionary<string, WordsEntry> kept) {
+			foreach (var (code, entry) in kept) {
+				Entries[code] = new WordsEntry(entry);
+			}
+		}
+
+		/// <summary>A copy of the parameters as they stand: what a change to them is made against.</summary>
+		public IReadOnlyList<WordsParameter> CopyParameters() => [.. Parameters.Select(parameter => new WordsParameter(parameter))];
+
+		/// <summary>Puts kept parameters (<see cref="CopyParameters"/>) back in place of the key's, each a copy.</summary>
+		public void PutBackParameters(IEnumerable<WordsParameter> kept) {
+			Parameters.Clear();
+			foreach (WordsParameter parameter in kept) {
+				Parameters.Add(new WordsParameter(parameter));
+			}
+		}
+
 		/// <summary>
 		///     The translations a change to the default leaves stale: every language
 		///     with words of its own and no stale mark yet. A mark already there
@@ -140,6 +161,18 @@ namespace PatTech.Localization.Authoring {
 					yield return new(form, text);
 				}
 			}
+		}
+
+		/// <summary>Writes a form's text; an empty one is removed, as a form with no words is none. True when it changed.</summary>
+		public static bool Write(this Dictionary<string, string> forms, string category, string text) {
+			if (text == "") {
+				return forms.Remove(category);
+			}
+			if (forms.GetValueOrDefault(category) == text) {
+				return false;
+			}
+			forms[category] = text;
+			return true;
 		}
 	}
 
@@ -221,6 +254,12 @@ namespace PatTech.Localization.Authoring {
 
 		/// <summary>The field's text as the writer writes it (<see cref="WordsParameterType.Join"/>).</summary>
 		public string FieldText => WordsParameterType.Join(DataType, Description);
+
+		/// <summary>Whether two lists define the same parameters in the same order: name, type and description alike.</summary>
+		public static bool Same(IReadOnlyList<WordsParameter> a, IReadOnlyList<WordsParameter> b)
+			=> a.Count == b.Count && a.Zip(b).All(pair => pair.First.Key == pair.Second.Key
+				&& pair.First.Description == pair.Second.Description
+				&& Equals(pair.First.DataType, pair.Second.DataType));
 	}
 
 	/// <summary>

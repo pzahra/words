@@ -374,6 +374,35 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>Removes the key at <paramref name="blockKey"/> alone; descendants stay.</summary>
 		public bool RemoveKey(string blockKey) => keys.Remove(blockKey);
 
+		/// <summary>The key at <paramref name="blockKey"/> and every key below it, as <see cref="RemoveKeysUnder"/> takes them.</summary>
+		public IEnumerable<WordsKey> KeysUnder(string blockKey) {
+			string prefix = blockKey + ".";
+			return keys.Values.Where(key => key.BlockKey == blockKey || key.BlockKey.StartsWith(prefix, StringComparison.Ordinal));
+		}
+
+		/// <summary>
+		///     Puts a kept copy of a key (<c>new WordsKey(key)</c>) back as it was: the
+		///     session makes the key, as <see cref="AddKey"/> does, and the copy fills
+		///     it, plural forms, parameters, entries and all, so the copy stays as it
+		///     was kept and can go back again.
+		/// </summary>
+		public WordsKey Restore(WordsKey kept) {
+			WordsKey key = AddKey(kept.BlockKey);
+			key.IsConstant = kept.IsConstant;
+			key.DefaultValue = kept.DefaultValue;
+			key.Context = kept.Context;
+			key.Comment = kept.Comment;
+			key.NeedsReview = kept.NeedsReview;
+			key.Forms.Clear();
+			foreach (var (form, text) in kept.Forms) {
+				key.Forms[form] = text;
+			}
+			key.PutBackParameters(kept.Parameters);
+			key.Entries.Clear();
+			key.PutBackEntries(kept.Entries);
+			return key;
+		}
+
 		/// <summary>
 		///     Removes the key at <paramref name="blockKey"/> and every key below it —
 		///     exact-or-prefix, so <c>view</c> never catches <c>viewer</c>. Returns how

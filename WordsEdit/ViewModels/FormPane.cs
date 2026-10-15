@@ -72,16 +72,4 @@ public sealed class FormPane(Func<string> language, Func<IReadOnlyDictionary<str
 		AffectProperty(nameof(Badge));
 		AffectProperty(nameof(Language));
 	}
-
-	/// <summary>Writes a form's text; an empty one is removed, as a form with no words is none. True when it changed.</summary>
-	public static bool Write(Dictionary<string, string> forms, string category, string text) {
-		if (text == "") {
-			return forms.Remove(category);
-		}
-		if (forms.GetValueOrDefault(category) == text) {
-			return false;
-		}
-		forms[category] = text;
-		return true;
-	}
 }

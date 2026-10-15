@@ -468,12 +468,13 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	/// <summary>
 	///     Changes the language table as one action (SPEC: Undo → Languages):
-	///     <paramref name="change"/> works through the edit, which keeps each
-	///     operation's inverse. A commit that merged two languages has none, and
-	///     clears the stack instead.
+	///     <paramref name="change"/> makes its operations through a
+	///     <see cref="LanguageTableChange"/>, which keeps the tables as they stood
+	///     before and after. A commit that merged two languages has no way back,
+	///     and clears the stack instead.
 	/// </summary>
-	public void ChangeLanguages(Action<LanguagesEdit> change) => Perform(() => {
-		var edit = new LanguagesEdit(Session);
+	public void ChangeLanguages(Action<ILanguageEdits> change) => Perform(() => {
+		var edit = new LanguageTableChange(Session);
 		change(edit);
 		if (!edit.Changed) {
 			return null;
@@ -486,7 +487,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Tree.RevalidateForms();
 		RenderPreviews();
 		if (!edit.Merged) {
-			return edit;
+			return new LanguagesEdit(edit);
 		}
 		UndoStack.Clear();
 		MarkDirty();
@@ -501,9 +502,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			return;
 		}
 		Perform(() => {
-			var before = FileSettingsEdit.Slots.Of(file);
+			var before = SettingsSlots.Of(file);
 			Dialogs.Show(new SettingsViewModel(this, file));
-			var after = FileSettingsEdit.Slots.Of(file);
+			var after = SettingsSlots.Of(file);
 			return after.Matches(before) ? null : new FileSettingsEdit(file.Label, before, after);
 		});
 		//the slots or the tables may have changed under the previews
@@ -532,7 +533,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			return;
 		}
 		//an empty node goes quietly; one carrying keys asks, since Delete is a keypress away
-		int keys = Session.Keys.Keys.Count(label => label == node.FullLabel || label.StartsWith(node.FullLabel + ".", StringComparison.Ordinal));
+		int keys = Session.KeysUnder(node.FullLabel).Count();
 		if (keys > 0 && !Dialogs.Confirm(keys == 1 ? Words.Known.Format("ask.remove-node-one", node.Label) : Words.Known.Format("ask.remove-node-many", node.Label, keys))) {
 			return;
 		}
@@ -713,9 +714,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 		Perform(() => {
 			string label = key.BlockKey;
-			IReadOnlyDictionary<string, WordsEntry>? cleared = clearEntries
-				? key.Entries.ToDictionary(pair => pair.Key, pair => new WordsEntry(pair.Value))
-				: null;
+			IReadOnlyDictionary<string, WordsEntry>? cleared = clearEntries ? key.CopyEntries() : null;
 			string? newKey = Session.SetConstant(label, makeConstant, clearEntries);
 			if (newKey is null) {
 				Dialogs.Tell(Words.Known.Format("tell.constant-exists", WordsOperations.SetConstantMarker(label, makeConstant)));

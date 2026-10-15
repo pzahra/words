@@ -166,7 +166,7 @@ public class TreeViewModel : ViewModelBase {
 			if (DefaultForms.IsPlain) {
 				key.DefaultValue = value; //the key says it changed
 			}
-			else if (FormPane.Write(key.Forms, DefaultForms.Form, value)) {
+			else if (key.Forms.Write(DefaultForms.Form, value)) {
 				FormEdited(DocumentField.DefaultValue);
 			}
 		}
@@ -182,7 +182,7 @@ public class TreeViewModel : ViewModelBase {
 			if (TranslationForms.IsPlain) {
 				entry.Value = value;
 			}
-			else if (FormPane.Write(entry.Forms, TranslationForms.Form, value)) {
+			else if (entry.Forms.Write(TranslationForms.Form, value)) {
 				FormEdited(DocumentField.EntryValue);
 			}
 		}
