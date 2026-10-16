@@ -336,12 +336,9 @@ public sealed class ParametersEdit(WordsFile file, string name, IReadOnlyList<Wo
 		if (before.Count != after.Count || !File.Keys.TryGetValue(Name, out WordsKey? key)) {
 			return;
 		}
-		Dictionary<string, string> typed = inputs.Of(key);
 		foreach (var (was, now) in before.Zip(after)) {
 			var (from, to) = undoing ? (now.Key, was.Key) : (was.Key, now.Key);
-			if (from != to && typed.Remove(from, out string? input)) {
-				typed.TryAdd(to, input);
-			}
+			inputs.Carry(key, from, to);
 		}
 	}
 }

@@ -183,7 +183,10 @@ One tree presents every loaded file:
   translator raises a hand by setting the unlocalised `stale=` flag
   (recycled as the "raise hand" action), and the programmer filters for it.
 - **Structure edits**: add/rename/remove nodes and keys; renames rewrite every
-  descendant key; drag-and-drop moves subtrees. A new or renamed node's name
+  descendant key; drag-and-drop moves subtrees. A file dragged among files
+  changes which wins a reference, a later file over an earlier, so what reads
+  through them reads again at once: the badges and the filters on them, the
+  parameters found and the previews. A new or renamed node's name
   is one segment of a key's name (`WordsParser.IsKeySegment`), the check the
   runtime skips a block by, so nothing Wordsmith writes is skipped; nor is it a
   sibling's, compared ordinally as the runtime tells keys apart, so a joiner
@@ -1384,7 +1387,9 @@ reads "a file"), and a format may differ (`{0:d}` for `{0:D}`). A reference
 that cannot be followed, into a file not loaded, may carry anything, so
 nothing is dropped from a translation with one, and nothing is extra beside
 a default with one. A translation with forms and no plain value reads the
-plain value it falls back to, as the runtime does; a translation without
+plain value it falls back to, as the runtime does, the key's own words read
+above every file as its previews read them, so a later file's key of its name
+is not what it checks; a translation without
 words is missing rather than mismatched, and a constant is checked for
 nothing.
 
@@ -1426,7 +1431,10 @@ the key's definitions before and after. The inputs are no part of the
 history, but they follow the names: a rename carries its input to the new
 name, its undo carries it back and its redo on again, whatever it holds by
 then, since the renamed definition keeps its place and the names that differ
-place by place are the ones renamed.
+place by place are the ones renamed. An input goes only to a name without
+one: a definition renamed onto a parameter found with an input leaves each
+name its own, the old name now found and keeping its input, and the undo
+finds both where they were.
 
 **Elsewhere.** `WordsParameter` holds a `Description` and a
 `WordsParameterType`, one of the six; the inputs are the editor's session's,
@@ -1451,7 +1459,9 @@ words name no type, since the reader keeps such a text whole.
 - Typing a description writes `param-0=` with the type it has and undoes; a
   definition added, adopted, renamed, retyped or taken away is one entry; a
   rename's undo takes its input back to the old name (`42` on `0`, renamed
-  `Count`), its redo on again, and an input typed meanwhile goes with it.
+  `Count`), its redo on again, and an input typed meanwhile goes with it; a
+  rename of `0` onto a found `Count`, each with an input, keeps both, undone
+  and redone.
 - A rename to another definition's name, `02` for `2`, `two words` or
   `Name:` is refused, and changes nothing; an XLIFF `Name:`, `two words` or
   nameless parameter is skipped with a gripe, and what saves loads back the
@@ -1474,8 +1484,9 @@ words name no type, since the reader keeps such a text whole.
   leaving out what another keeps, is no mismatch; a translation counting
   with a defined `{0}` the default never uses is fine, and an undefined
   `{2}` is extra; a reference whose translation prints `{0}` is a use of it;
-  a side with a reference it cannot follow is not held to the other; `words
-  set` notes a mismatch and writes it.
+  a side with a reference it cannot follow is not held to the other; a key
+  whose forms fall back to its plain value reads its own, not a later file's
+  key of its name; `words set` notes a mismatch and writes it.
 - A brace that opens nothing badges its key and joins Mismatch View, a
   translation's in its language and the default's in every one, the note
   naming the default's apart; the preview's gripes name it, the file saves it

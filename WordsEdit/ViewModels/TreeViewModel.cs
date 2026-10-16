@@ -748,22 +748,22 @@ public class TreeViewModel : ViewModelBase {
 		static string Placeholders(IEnumerable<string> names) => string.Join(", ", names.Select(FoundParameters.Placeholder));
 	}
 
-	//the translation check in one language, its words read once for a pass, and the braces
+	//the translation check in one language, the files read once for a pass, and the braces
 	//that open nothing, which an app shows as written, in the default and the language
-	//(SPEC: Parameters → Translation check)
+	//(SPEC: Parameters → Translation check). A key is checked with its own words above
+	//the files, as its previews read it, though a later file holds a key of its name
 	private sealed class ParameterCheck(WordsSession session, IEnumerable<WordsFile> files, string code) {
-		private readonly IWordsProvider defaults = session.Provider(files);
-		private readonly IWordsProvider translations = session.Provider(files, code);
+		private readonly WordsFile[] stack = [.. files];
 
 		public string Note(WordsKey key, WordsFile? file) {
 			var malformed = ParameterUse.Malformed(key).ToList();
-			return MismatchNote(ParameterUse.Check(key, code, defaults, file?.DefaultLanguage, translations), In(code), In(""));
+			return MismatchNote(ParameterUse.Check(key, code, session.Provider(stack, key), file?.DefaultLanguage, session.Provider(stack, key, code)), In(code), In(""));
 
 			IReadOnlyList<string> In(string language) => [.. malformed.Where(found => found.Field.Language == language).SelectMany(found => found.Braces).Distinct()];
 		}
 
 		//whether the key's check reads another key's words, whose edit may change it
-		public bool Follows(WordsKey key) => ParameterUse.Follows(key, code, translations);
+		public bool Follows(WordsKey key) => ParameterUse.Follows(key, code, session.Provider(stack, key, code));
 	}
 
 	//a language the file registers (listed or !-hidden) wants words; one the file never

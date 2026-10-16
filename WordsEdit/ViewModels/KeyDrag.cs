@@ -96,9 +96,7 @@ public class KeyDrag : IDragSource, IDropTarget {
 			if (to > from) {
 				to--;
 			}
-			if (to != from) {
-				roots.Move(from, to);
-			}
+			Vm.ReorderFile(from, to);
 			return;
 		}
 		//where does it land?

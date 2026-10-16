@@ -1435,6 +1435,35 @@ value=x
 	}
 
 	[Fact]
+	public void ParametersPane_ARenameOntoAFoundParameterWithAnInput_LeavesEachNameItsOwn() {
+		// the rename took 0's input and found Count's stood, so 42 was gone, and the
+		// undo then gave 0 the 99; the inputs are samples, so neither is dropped
+		var vm = LoadExample();
+		vm.Tree.SelectedKeyNode = Node(vm, "Example", "view.section-name.key");
+		WordsKey key = vm.Tree.SelectedKey!;
+		key.DefaultValue = "{0} {Count}";
+		ParametersPane pane = vm.ParametersPane;
+		pane.Definitions[0].Input = "42";
+		Assert.Single(pane.Found).Input = "99";
+		var both = new Dictionary<string, string> { ["0"] = "42", ["Count"] = "99" };
+
+		pane.Definitions[0].NameText = "Count";
+		Assert.Equal("Count", key.Parameters[0].Key);
+		Assert.Equal(both, vm.Inputs.Of(key));
+		Assert.Equal("99", pane.Definitions[0].Input);
+		Assert.Equal(("0", "42"), (Assert.Single(pane.Found).Name, pane.Found[0].Input));
+
+		vm.UndoCommand.Execute(null);
+		Assert.Equal("0", key.Parameters[0].Key);
+		Assert.Equal(both, vm.Inputs.Of(key));
+		Assert.Equal("42", pane.Definitions[0].Input);
+		Assert.Equal(("Count", "99"), (Assert.Single(pane.Found).Name, pane.Found[0].Input));
+
+		vm.RedoCommand.Execute(null);
+		Assert.Equal(both, vm.Inputs.Of(key));
+	}
+
+	[Fact]
 	public void ParametersPane_ANameMustBeAParametersAndNoOtherDefinitions() {
 		var vm = LoadExample();
 		vm.Tree.SelectedKeyNode = Node(vm, "Example", "view.section-name.key");

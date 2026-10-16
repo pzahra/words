@@ -403,6 +403,22 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	/// <summary>
+	///     Moves a file's root among the files (SPEC: Structure edits): no document
+	///     changes, so nothing dirties or enters the history, but the order is which
+	///     file wins a reference, so what reads through the files reads again: the
+	///     badges and the filters on them, the parameters found and the previews.
+	/// </summary>
+	public void ReorderFile(int from, int to) {
+		if (from == to) {
+			return;
+		}
+		Tree.KeyNodes.Move(from, to);
+		Tree.RefreshBadges();
+		Tree.ApplyFilters();
+		RenderPreviews();
+	}
+
+	/// <summary>
 	///     Renames a file on disk through the save dialog (SPEC: New → Renaming a
 	///     root): written at the path picked, removed from the old one, its root
 	///     following. A cancelled dialog, or the path it has, changes nothing.

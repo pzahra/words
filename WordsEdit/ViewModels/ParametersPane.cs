@@ -144,7 +144,7 @@ public sealed class ParametersPane : ViewModelBase {
 
 	internal void Retype(DefinitionRow row, WordsParameterType type) => Change(_ => row.Parameter.DataType = type);
 
-	/// <summary>Renames a definition, its input going with it; the complaint when the name is no parameter's or another's.</summary>
+	/// <summary>Renames a definition, its input going with it where the new name has none (<see cref="ParameterInputs.Carry"/>); the complaint when the name is no parameter's or another's.</summary>
 	internal string? Rename(DefinitionRow row, string name) {
 		if (key is null) {
 			return null;
@@ -152,10 +152,7 @@ public sealed class ParametersPane : ViewModelBase {
 		if (!ParameterUse.IsName(name) || key.Parameters.Any(parameter => parameter != row.Parameter && ParameterUse.SameName(parameter.Key, name))) {
 			return Words.Known["parameters.name"];
 		}
-		Dictionary<string, string> typed = vm.Inputs.Of(key);
-		if (typed.Remove(row.Parameter.Key, out string? input)) {
-			typed.TryAdd(name, input);
-		}
+		vm.Inputs.Carry(key, row.Parameter.Key, name);
 		Change(_ => row.Parameter.Key = name);
 		return null;
 	}

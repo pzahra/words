@@ -92,6 +92,28 @@ public class TranslationCheckTests {
 		Assert.Equal($"{Dropped("{1}")} · {Extra("{2}")}", vm.Tree.SelectedKeyNode!.Mismatch);
 	}
 
+	//the earlier file's French has a form and no plain value, which falls back to its
+	//own default, as its preview reads it; the check read the later file's key of its
+	//name instead, and badged it "Adds {1}"
+	[Fact]
+	public void AKeyIsChecked_WithItsOwnWords_ThoughALaterFileHoldsAKeyOfItsName() {
+		const string languages = "value=!en\nvalue-en=English\nvalue-fr=Français\n\n";
+		var vm = new MainWindowViewModel(new FakeDialogs());
+		vm.LoadFile(new StringReader(languages + "[k]\nvalue={0} file\nvalue#other={0} files\nvalue-fr#other={0} fichiers\n"), "Early");
+		vm.LoadFile(new StringReader(languages + "[k]\nvalue={1} things\nvalue-fr={1} choses\n"), "Late");
+		Speak(vm, "fr");
+
+		Assert.False(Node(vm, "Early", "k").HasMismatch);
+		Assert.False(Node(vm, "Late", "k").HasMismatch);
+
+		//an edit checks it again the same way
+		vm.Tree.Select(Node(vm, "Early", "k"));
+		vm.Tree.SelectedKey!.DefaultValue = "{0} file!";
+		Assert.False(Node(vm, "Early", "k").HasMismatch);
+		vm.Tree.SelectedEntry!.Value = "{2} fichier";
+		Assert.Equal(Extra("{2}"), Node(vm, "Early", "k").Mismatch); //its own French, read
+	}
+
 	[Fact]
 	public void TheMismatchView_ShowsTheKeysThatDropOrAdd_InTheSelectedLanguage() {
 		var vm = Load();

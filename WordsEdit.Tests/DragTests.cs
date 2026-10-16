@@ -1,4 +1,5 @@
 using GongSolutions.Wpf.DragDrop;
+using PatTech.Localization;
 using PatTech.Localization.Authoring;
 using System.Collections;
 using System.Windows;
@@ -140,6 +141,42 @@ public class DragTests {
 		Assert.Equal(["Example", "Lib"], vm.Tree.KeyNodes.Select(root => root.Label));
 		Assert.Null(lib.Parent);
 		Assert.True(FileNamed(vm, "Lib").Keys.ContainsKey("b"));
+	}
+
+	//the files' order is which wins a reference: a reorder once waited for a reselect
+	//before the badges, the filters, the parameters found or the previews followed
+	[Fact]
+	public void Drop_ReorderingFiles_ReadsAgainWhatTheirOrderDecides() {
+		const string languages = "value=!en\nvalue-en=English\nvalue-it=Italiano\n\n";
+		var vm = new MainWindowViewModel(new FakeDialogs());
+		vm.LoadFile(new StringReader(languages + "[note]\nvalue=Note: {>word}\nvalue-it=Nota: {>word}\n\n[word]\nvalue=word\nvalue-it=parola\n"), "Early");
+		vm.LoadFile(new StringReader(languages + "[word]\nvalue={0} words\nvalue-it=parole\n"), "Late");
+		vm.MarkClean();
+		vm.ShowDefaultPreview = true;
+		vm.ShowLocalizationPreview = true;
+		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.Single(language => language.Code == "it");
+		KeyNode note = Node(vm, "Early", "note");
+		vm.Tree.Select(note);
+		//the later file's word: a {0} the Italian drops
+		Assert.Equal(Words.Known.Format("parameters.dropped", "{0}"), note.Mismatch);
+		Assert.Equal("0", Assert.Single(vm.ParametersPane.Found).Name);
+		Assert.NotEqual("Note: word", vm.DefaultPreview.Text);
+
+		vm.KeyDrag.Drop(new FakeDropInfo(vm.Tree.KeyNodes[1], vm.Tree.KeyNodes[0], RelativeInsertPosition.BeforeTargetItem));
+
+		Assert.Equal(["Late", "Early"], vm.Tree.KeyNodes.Select(root => root.Label));
+		Assert.False(note.HasMismatch);
+		Assert.Empty(vm.ParametersPane.Found);
+		Assert.Equal("Note: word", vm.DefaultPreview.Text);
+		Assert.Equal("Nota: parola", vm.TranslationPreview.Text);
+		Assert.False(vm.IsDirty); //precedence, not content
+
+		//the filter follows at once: back, and the note mismatches again
+		vm.Tree.MismatchFilter = true;
+		Assert.False(note.IsVisible);
+		vm.KeyDrag.Drop(new FakeDropInfo(vm.Tree.KeyNodes[0], vm.Tree.KeyNodes[1], RelativeInsertPosition.AfterTargetItem));
+		Assert.Equal(["Early", "Late"], vm.Tree.KeyNodes.Select(root => root.Label));
+		Assert.True(note.IsVisible);
 	}
 
 	[Fact]
