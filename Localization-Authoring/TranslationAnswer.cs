@@ -69,6 +69,75 @@ namespace PatTech.Localization.Authoring {
 			return new(code.GetString()!, read);
 		}
 
+		/// <summary>
+		///     Checks the whole answer against <paramref name="keys"/>, one file's keys by
+		///     name, as the batch would leave them (editor SPEC: Machine translation →
+		///     Nothing is written unchecked). Each item is checked as
+		///     <see cref="TranslationItem.Check"/> checks it: against the keys as they are,
+		///     for what changed since the request, and against the words the batch leaves
+		///     for the references it follows, so a key referring to another the answer
+		///     translates reads that translation. A key skipped writes nothing, so the rest
+		///     are checked again without it, until no more are skipped. A key answered
+		///     twice keeps its first answer. A key the batch does not write whose
+		///     translation it leaves at odds with its default, where it was not, is named
+		///     too (<see cref="TranslationBatch.Broken"/>).
+		/// </summary>
+		/// <param name="keys">The file's keys by name, as they are now.</param>
+		/// <param name="code">The answer's language.</param>
+		/// <param name="defaultLanguage">The language the default is written in; English when the file declares none.</param>
+		public TranslationBatch Check(IReadOnlyDictionary<string, WordsKey> keys, string code, string? defaultLanguage) {
+			var defaults = new DefaultWordsProvider(keys);
+			//the keys the batch writes, as it leaves them, over the file's
+			Dictionary<string, WordsKey> written = [];
+			var after = new LanguageWordsProvider([keys, written], code);
+			var verdicts = new TranslationVerdict[Items.Count];
+			List<int> standing = [];
+			HashSet<string> answered = [];
+			for (int i = 0; i < Items.Count; i++) {
+				if (answered.Add(Items[i].Key)) {
+					standing.Add(i);
+					if (Items[i].Trial(keys.GetValueOrDefault(Items[i].Key), code) is { } trial) {
+						written[Items[i].Key] = trial;
+					}
+				}
+			}
+			//each answer against what the others write, until none more is skipped:
+			//a key skipped goes out of what the batch leaves, so it only ever shrinks
+			for (bool skipped = true; skipped;) {
+				skipped = false;
+				foreach (int i in standing.ToList()) {
+					TranslationItem item = Items[i];
+					verdicts[i] = item.Check(keys.GetValueOrDefault(item.Key), code, defaults, defaultLanguage, after);
+					if (verdicts[i].Writes.Count == 0) {
+						standing.Remove(i);
+						skipped |= written.Remove(item.Key);
+					}
+				}
+			}
+			//a second answer for a key stands only where it says nothing
+			for (int i = 0; i < Items.Count; i++) {
+				if (verdicts[i] is null) {
+					var again = Items[i].Check(keys.GetValueOrDefault(Items[i].Key), code, defaults, defaultLanguage, after);
+					verdicts[i] = again.Writes.Count != 0 || again.Flags.Count != 0 ? new([], ["answered twice, and the first answer stands"], again.Left, []) : again;
+				}
+			}
+
+			//a key not written that reads one written, its translation at odds now where it was not
+			var before = new LanguageWordsProvider(keys, code);
+			List<string> broken = [];
+			foreach (var (name, key) in keys) {
+				if (written.ContainsKey(name) || !ParameterUse.Follows(key, code, after)) {
+					continue;
+				}
+				var now = ParameterUse.Check(key, code, defaults, defaultLanguage, after);
+				var was = ParameterUse.Check(key, code, defaults, defaultLanguage, before);
+				if (now.Any && !(now.Dropped.SequenceEqual(was.Dropped) && now.Extra.SequenceEqual(was.Extra))) {
+					broken.Add($"{name}: through the words written, {string.Join("; ", TranslationItem.Mismatched(now, code))}");
+				}
+			}
+			return new(verdicts, broken);
+		}
+
 		private static TranslationItem Item(JsonElement item, int index) {
 			if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("key", out var key) || key.ValueKind != JsonValueKind.String) {
 				throw new InvalidDataException($"the answer's item {index} names no key");
@@ -118,6 +187,15 @@ namespace PatTech.Localization.Authoring {
 	/// </param>
 	public sealed record TranslationVerdict(IReadOnlyList<(WordsField Field, string Text)> Writes, IReadOnlyList<string> Flags, int Left, IReadOnlyList<string> Raised);
 
+	/// <summary>What a whole answer may write (<see cref="TranslationAnswer.Check(IReadOnlyDictionary{string, WordsKey}, string, string?)"/>).</summary>
+	/// <param name="Verdicts">Each item's verdict, in the answer's order.</param>
+	/// <param name="Broken">
+	///     The keys the batch does not write whose translation it leaves at odds with
+	///     their default, where it was not: a key whose words read one written, each
+	///     named and why. Nothing is skipped for them; a person looks.
+	/// </param>
+	public sealed record TranslationBatch(IReadOnlyList<TranslationVerdict> Verdicts, IReadOnlyList<string> Broken);
+
 	/// <summary>One key of an answer.</summary>
 	/// <param name="Key">The key, by the file's own name.</param>
 	/// <param name="Default">The default's slots as the request carried them; null when the answer dropped them.</param>
@@ -146,9 +224,12 @@ namespace PatTech.Localization.Authoring {
 		/// <param name="code">The answer's language.</param>
 		/// <param name="defaults">The default's words, for the references.</param>
 		/// <param name="defaultLanguage">The language the default is written in; English when the file declares none.</param>
-		/// <param name="translations">The language's words, for the references.</param>
+		/// <param name="translations">
+		///     The language's words, for the references: as the batch leaves them, where
+		///     the answer is checked whole (<see cref="TranslationAnswer.Check(IReadOnlyDictionary{string, WordsKey}, string, string?)"/>).
+		/// </param>
 		public TranslationVerdict Check(WordsKey? key, string code, IWordsProvider defaults, string? defaultLanguage, IWordsProvider translations) {
-			var filled = Translation.Where(slot => !string.IsNullOrWhiteSpace(slot.Value)).Select(slot => (Slot: slot.Key, Text: slot.Value!)).ToList();
+			var filled = Filled();
 			int left = Translation.Count - filled.Count;
 			if (filled.Count == 0) {
 				return new([], [], left, []);
@@ -189,24 +270,9 @@ namespace PatTech.Localization.Authoring {
 			}
 
 			//the key as the answer would leave it, checked as the editor checks a translation
-			var trial = new WordsKey(key);
-			if (!trial.Entries.TryGetValue(code, out var translated)) {
-				trial.Entries[code] = translated = new WordsEntry();
-			}
-			List<(WordsField Field, string Text)> writes = [];
-			foreach (var (slot, text) in filled) {
-				string form = slot == TranslationRequest.Plain ? "" : slot[(TranslationRequest.Plain.Length + 1)..];
-				var field = new WordsField("value", code, form);
-				field.Write(trial, text);
-				writes.Add((field, text));
-			}
-			var mismatch = ParameterUse.Check(trial, code, defaults, defaultLanguage, translations);
-			if (mismatch.Dropped.Count != 0) {
-				flags.Add($"the {code} words drop {Joined(mismatch.Dropped.Select(FoundParameters.Placeholder))}, which the default uses");
-			}
-			if (mismatch.Extra.Count != 0) {
-				flags.Add($"the {code} words use {Joined(mismatch.Extra.Select(FoundParameters.Placeholder))}, which the default does not and no param- defines");
-			}
+			var (trial, writes) = Written(key, code, filled);
+			var translated = trial.Entries[code];
+			flags.AddRange(Mismatched(ParameterUse.Check(trial, code, defaults, defaultLanguage, translations), code));
 			//a brace that opens nothing shows as written in the app, as set refuses to write one
 			foreach (var (slot, text) in filled) {
 				if (ParameterUse.Malformed(text) is { Count: > 0 } braces) {
@@ -282,6 +348,40 @@ namespace PatTech.Localization.Authoring {
 				if (answer.Except(may).ToList() is { Count: > 0 } added) {
 					flags.Add($"the {code} words hold {what}{Joined(added)}, which the default does not");
 				}
+			}
+		}
+
+		//the slots the answer filled, in its order; blank text is none
+		private List<(string Slot, string Text)> Filled()
+			=> [.. Translation.Where(slot => !string.IsNullOrWhiteSpace(slot.Value)).Select(slot => (slot.Key, slot.Value!))];
+
+		//the key as the answer leaves it, its filled slots written in code; null where it
+		//fills none, or the key is gone or a constant, which it never writes
+		internal WordsKey? Trial(WordsKey? key, string code)
+			=> key is null || key.IsConstant || Filled() is not { Count: > 0 } filled ? null : Written(key, code, filled).Trial;
+
+		private static (WordsKey Trial, List<(WordsField Field, string Text)> Writes) Written(WordsKey key, string code, List<(string Slot, string Text)> filled) {
+			var trial = new WordsKey(key);
+			if (!trial.Entries.ContainsKey(code)) {
+				trial.Entries[code] = new WordsEntry();
+			}
+			List<(WordsField Field, string Text)> writes = [];
+			foreach (var (slot, text) in filled) {
+				string form = slot == TranslationRequest.Plain ? "" : slot[(TranslationRequest.Plain.Length + 1)..];
+				var field = new WordsField("value", code, form);
+				field.Write(trial, text);
+				writes.Add((field, text));
+			}
+			return (trial, writes);
+		}
+
+		//a parameter check's findings, as a flag and a gripe name them
+		internal static IEnumerable<string> Mismatched(ParameterMismatch mismatch, string code) {
+			if (mismatch.Dropped.Count != 0) {
+				yield return $"the {code} words drop {Joined(mismatch.Dropped.Select(FoundParameters.Placeholder))}, which the default uses";
+			}
+			if (mismatch.Extra.Count != 0) {
+				yield return $"the {code} words use {Joined(mismatch.Extra.Select(FoundParameters.Placeholder))}, which the default does not and no param- defines";
 			}
 		}
 

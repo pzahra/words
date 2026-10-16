@@ -96,6 +96,13 @@ own words with `--stale`), so it turns up in Wordsmith's review filter. A
 `null` left is fine: that slot just stays missing. It exits 1 when it skipped
 anything, and writes nothing at all if the file would refuse one of the edits.
 
+The answer is checked as a whole, too. If `result` says `{>saved}` and the
+same batch translates `saved` with a `{0}` that `result` never passes,
+`result` is skipped, because it would print `#{0}#`. If `saved` was skipped
+for its own reasons, `result` is checked again against the `saved` that
+stays. And a key the batch didn't touch that reads `saved`, and now prints
+that `{0}`, gets named on stderr so somebody looks.
+
 ## Where things go
 
 - A changed field keeps its place; its lines are replaced with exactly what

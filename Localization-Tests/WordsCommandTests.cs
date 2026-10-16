@@ -520,6 +520,25 @@ public sealed class WordsCommandTests : IDisposable {
 		Assert.DoesNotContain("Modifica", File.ReadAllText(path));
 	}
 
+	//a's {0} is its own to use, but b reads a's words as the batch writes them, and
+	//would print a {0} nothing passes: Risultato: Salvati #{0}#
+	[Fact]
+	public void Apply_ChecksEachKey_AgainstTheWordsTheBatchWrites() {
+		File.WriteAllText(path, Ini("value=!en", "value-it=Italiano", "", "[a]", "value=Saved", "param-0=int:the files", "", "[b]", "value=Result: {>a}"));
+		var answer = Requested("--missing", "it");
+		answer["items"]![0]!["translation"]!["value"] = "Salvati {0}";
+		answer["items"]![1]!["translation"]!["value"] = "Risultato: {>a}";
+
+		var (code, _, error) = RunWith(answer.ToJsonString(), "apply", "FILE", "-");
+
+		Assert.Equal(1, code);
+		Assert.Equal("words: b: skipped: the it words use {0}, which the default does not and no param- defines\n"
+			+ "words: 1 written, 0 left, 1 skipped\n", error);
+		string text = File.ReadAllText(path);
+		Assert.Contains("value-it=Salvati {0}\n", text);
+		Assert.DoesNotContain("Risultato", text);
+	}
+
 	[Fact]
 	public void Apply_WhatIsNoTranslationDocument_OrARefusedEdit_ExitsTwo_AndLeavesTheFile() {
 		//the last line continues, so a field added after it would become its text

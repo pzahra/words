@@ -1781,7 +1781,15 @@ request would now, its words being as they were), a key whose default or current
 since the request, a key that is gone and a constant are flagged too, but
 only where the answer filled something: a key it left alone is no error. A flagged key is not
 written, none of its slots: stricter than `set`, which writes a person's
-translation with a note.
+translation with a note. A batch is checked whole (`TranslationAnswer.Check`):
+a key's references read the words the batch writes, so `result`, holding
+`{>saved}`, is flagged when the answer gives `saved` a `{0}` its own
+definition allows and `result` never passes. A key flagged writes nothing, so
+the keys reading it are checked again without it, until none more is flagged.
+A key the batch does not write, whose translation reads one it does and now
+drops or adds a parameter where it did not, is named, not flagged: its words
+are a person's, and the answer that changed them passed. A key answered twice
+keeps its first answer.
 
 **In Wordsmith.** Tools > Machine Translation… opens a dialog: the target
 (the selected language), the selection (Missing, Stale, under the selected
@@ -1847,7 +1855,10 @@ asked for (Maltese's translated plain value beside its asked `few`), a default c
 since and a key gone each skip their key and are named; broken Unicode is
 refused, naming the item; a changed link target is
 written, named and raises the hand, while a translated title and a span's
-padding change nothing; a refused edit writes
+padding change nothing; a key reading another's words as the batch writes
+them is flagged for the `{0}` they bring, a key flagged sends the keys
+reading it back to be checked without it, a key the batch leaves at odds is
+named and not skipped, and a key answered twice keeps its first; a refused edit writes
 nothing; the request sent back untouched writes nothing and exits 0; an answer
 in a code fence reads, and what is no document says why. To build, the
 editor's, with a fake translator: a batch's answer fills the grid, a flagged

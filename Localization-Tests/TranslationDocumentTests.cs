@@ -272,4 +272,81 @@ public class TranslationDocumentTests {
 		var untouched = Check("done", "it", new() { ["value"] = null }, patcher => patcher.Remove("done"));
 		Assert.Equal((0, 0, 1), (untouched.Writes.Count, untouched.Flags.Count, untouched.Left));
 	}
+
+	//a file whose keys refer to one another: saved defines a parameter its default
+	//leaves out, which a translation may use, and the keys referring to it do not
+	private static readonly string Referring = Ini(
+		"value=!en",
+		"value-en=English",
+		"value-it=Italiano",
+		"",
+		"[saved]",
+		"value=Saved",
+		"param-0=int:the files saved",
+		"",
+		"[result]",
+		"value=Result: {>saved}",
+		"",
+		"[other]",
+		"value=Other: {>saved}",
+		"value-it=Altro: {>saved}",
+		"",
+		"[kept]",
+		"value=Kept",
+		"param-0=int:the files kept",
+		"value-it=Tenuti {0}",
+		"stale-it=2026-10-01",
+		"",
+		"[shown]",
+		"value=Shown: {>kept}");
+
+	//the whole answer for these keys as the request carried them, checked against the file
+	private static TranslationBatch Batch(string ini, string code, params (string Key, string? Text)[] answers) {
+		var patcher = IniPatcher.FromBytes(Encoding.UTF8.GetBytes(ini));
+		var items = answers.Select(answer => {
+			var sent = patcher.Find(answer.Key)!;
+			return new TranslationItem(answer.Key, TranslationRequest.Held(sent), TranslationRequest.Held(sent.Entries.GetValueOrDefault(code)),
+				new Dictionary<string, string?> { ["value"] = answer.Text });
+		});
+		return new TranslationAnswer(code, [.. items]).Check(patcher.Keys.ToDictionary(found => found.BlockKey), code, patcher.DefaultLanguage);
+	}
+
+	//one key's translation is seen by the keys that refer to it: saved may use its
+	//{0}, but result, reading it, would print one nothing passes
+	[Fact]
+	public void AKey_ReadsTheTranslationTheBatchWrites_ForAKeyItRefersTo() {
+		var batch = Batch(Referring, "it", ("saved", "Salvati {0}"), ("result", "Risultato: {>saved}"));
+
+		Assert.Single(batch.Verdicts[0].Writes);
+		Assert.Empty(batch.Verdicts[1].Writes);
+		Assert.Equal(["the it words use {0}, which the default does not and no param- defines"], batch.Verdicts[1].Flags);
+		//other is in no answer, and its words now read saved's: named, and not skipped
+		Assert.Equal(["other: through the words written, the it words use {0}, which the default does not and no param- defines"], batch.Broken);
+
+		//each alone passes, as the file stands
+		Assert.Empty(Batch(Referring, "it", ("result", "Risultato: {>saved}")).Verdicts[0].Flags);
+	}
+
+	//kept's stale Italian uses its {0}, so shown, reading it, prints one: an answer
+	//taking the {0} out lets shown through, unless it is skipped itself
+	[Fact]
+	public void AKey_SkippedLeavesTheBatch_AndTheKeysReadingItAreCheckedWithoutIt() {
+		var mended = Batch(Referring, "it", ("kept", "Tenuti"), ("shown", "Mostrati: {>kept}"));
+		var broken = Batch(Referring, "it", ("kept", "Tenuti {"), ("shown", "Mostrati: {>kept}"));
+
+		Assert.Equal([1, 1], mended.Verdicts.Select(verdict => verdict.Writes.Count));
+		Assert.Empty(mended.Broken);
+		Assert.Equal(["the it value holds `{`, a brace that opens nothing"], broken.Verdicts[0].Flags);
+		Assert.Equal(["the it words use {0}, which the default does not and no param- defines"], broken.Verdicts[1].Flags);
+		Assert.Empty(broken.Verdicts[1].Writes);
+	}
+
+	[Fact]
+	public void AKeyAnsweredTwice_KeepsItsFirstAnswer() {
+		var batch = Batch(Referring, "it", ("result", "Risultato: {>saved}"), ("result", "Esito: {>saved}"), ("result", null));
+
+		Assert.Equal((new WordsField("value", "it", ""), "Risultato: {>saved}"), Assert.Single(batch.Verdicts[0].Writes));
+		Assert.Equal(["answered twice, and the first answer stands"], batch.Verdicts[1].Flags);
+		Assert.Equal((0, 0, 1), (batch.Verdicts[2].Writes.Count, batch.Verdicts[2].Flags.Count, batch.Verdicts[2].Left)); //saying nothing, it is no error
+	}
 }

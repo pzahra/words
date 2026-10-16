@@ -293,24 +293,17 @@ namespace PatTech.Localization.Cli {
 			if (!patcher.Languages.Contains(code)) {
 				throw new InvalidDataException($"{call.File} does not declare {code}, so it takes no {code} words");
 			}
-			var keys = patcher.Keys.ToDictionary(key => key.BlockKey);
-			var defaults = new DefaultWordsProvider(keys);
-			var translations = new LanguageWordsProvider(keys, code);
+			//checked whole: a key reads the words the batch writes for the keys it refers to
+			var batch = answer.Check(patcher.Keys.ToDictionary(key => key.BlockKey), code, patcher.DefaultLanguage);
 			var mark = new WordsField("stale", code, "");
 			var hand = new WordsField("stale", "", "");
 			List<string> gripes = [];
-			HashSet<string> answered = [];
 			int written = 0, left = 0, skipped = 0, raised = 0;
-			foreach (var item in answer.Items) {
-				var verdict = item.Check(keys.GetValueOrDefault(item.Key), code, defaults, patcher.DefaultLanguage, translations);
+			foreach (var (item, verdict) in answer.Items.Zip(batch.Verdicts)) {
 				left += verdict.Left;
-				var flags = verdict.Flags;
-				if (!answered.Add(item.Key) && (verdict.Writes.Count != 0 || flags.Count != 0)) {
-					flags = ["answered twice, and the first answer stands"];
-				}
-				if (flags.Count != 0) {
+				if (verdict.Flags.Count != 0) {
 					skipped += item.Translation.Count - verdict.Left;
-					gripes.Add($"{item.Key}: skipped: {string.Join("; ", flags)}");
+					gripes.Add($"{item.Key}: skipped: {string.Join("; ", verdict.Flags)}");
 					continue;
 				}
 				foreach (var (field, text) in verdict.Writes) {
@@ -327,6 +320,7 @@ namespace PatTech.Localization.Cli {
 					raised++;
 				}
 			}
+			gripes.AddRange(batch.Broken);
 			if (written != 0) {
 				Save(patcher, call.File);
 			}

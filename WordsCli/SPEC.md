@@ -70,13 +70,16 @@ before the first `:` are a type only where they name one (the editor spec's
   is written unchecked*): its filled slots as `set` writes them, and its
   entry's stale mark, `machine translated` or the words `--stale` gives. A
   key skipped is named on stderr with why, and a last line counts the slots
-  written, left and skipped; any skipped exits 1. A key answered twice keeps
-  its first answer. The writes are one patch, saved once: an edit the
+  written, left and skipped; any skipped exits 1. The batch is checked whole:
+  a key reads the words it writes for the keys it refers to, a key skipped is
+  checked out of it again, and a key it does not write whose translation it
+  leaves at odds with its default is named, not skipped. A key answered twice
+  keeps its first answer. The writes are one patch, saved once: an edit the
   patcher refuses writes nothing. The answer's language must be one the file
   declares.
 - `--version` and `--help`.
 
-A key is the file's own, without the session's file-label prefix, and a key's
+A key is the file's own, by the name the file writes, and a key's
 name (the runtime spec's *Key names*): `set` writes no other, exit 2, though
 `get` and `remove` reach a block the file already names otherwise, so it can
 be read and cleared. `remove` refuses a constant whose header bases
