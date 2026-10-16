@@ -789,8 +789,9 @@ properties and all, and never as its base, whose reading may not fit it: a
 subclass may hold something else in its base's property, as another system's
 key in `[Description]`'s text, which would otherwise show as the description;
 so registered for one slot, it gives that slot alone. An
-attribute the registry does not know is passed over, and one it knows
-is never probed for on a member that lacks it. An app registers an attribute
+attribute the registry does not know is passed over, never even made, its type
+read off the metadata, so one that throws as it is made breaks no describe of
+its enum; and one it knows is never probed for on a member that lacks it. An app registers an attribute
 it already has, `describe.Fill<HintAttribute>('T', hint => hint.Text)`, so
 `Describe` reads it while moving to `[Words]` is not an option yet, and its
 enums are not touched at all. `Fill` takes `G`, `d`, `S`, `T` or a slot the
@@ -853,8 +854,8 @@ its `.tooltip` alone, each once, and `s` and `D` none; `D` reads the number
 as Enum's `D` does, and `i` and `n` as stray letters; a member is read once
 however often it is described, by every dictionary of one registry; a
 registered attribute fills its slot, one
-attribute can fill two, an unregistered one is passed over, and the first
-registered wins; a subclass of `[Words]`, `[Description]` or `[Tooltip]` reads
+attribute can fill two, an unregistered one is passed over, unmade, so one that
+throws as it is made breaks nothing, and the first registered wins; a subclass of `[Words]`, `[Description]` or `[Tooltip]` reads
 as its base, an override included, and a registered subclass as itself alone,
 though its base came first; another system's key held in `[Description]`'s
 text, registered with `FillKey` and mapped, reads that key's words and never
@@ -960,8 +961,9 @@ string.Format reads a value.
   - `Selector`, `{0#word}` or `{Count#word}`;
   - `Item`, a format item, `{0}` or `{Name}`, with its alignment, `,5` or `,-5`, and
     its spec, `:N2`. A number and its spec read as string.Format reads them, `{01}`
-    being `{1}`; a name as `FormatByName` reads it, spaces around it and its spec
-    trimmed, and a name takes an alignment too;
+    being `{1}`, and an index or an alignment as far as it reads one, under ten
+    million, any zeros before it aside; a name as `FormatByName` reads it, spaces
+    around it and its spec trimmed, and a name takes an alignment too;
   - `Malformed`, a brace that opens none of them: `{0:{>fmt}}`, `{0,x}`, `{}`, a `{`
     never closed.
 
@@ -990,6 +992,8 @@ string.Format reads a value.
   marked, `#{3}#` or `#{Name}#`, its alignment and spec dropped, and warns: the
   braces keep it from reading as a missing key's `#key#`. That is a number past the
   arguments, a name in a positional call or one no member answers (`WORDS:FIELD`),
+  a member being a public field or a property with a public getter and no index,
+  so `{Chars}` on a string is none, where reading the indexer threw,
   and a spec its argument rejects, `{0:Q}` for a count (`WORDS:FORMAT`). A selector
   past the arguments picks `other` and warns, as a name no member answers does.
   `RenderKey` and `RenderText` given arguments fill the same way, and the
@@ -1009,7 +1013,9 @@ string.Format reads a value.
   cut.
 - **`PreFormatByName`** stays, for callers who fill with string.Format themselves.
   It reads the template with `ParseFormat` and writes it back numbered, each brace
-  escaped as string.Format wants.
+  escaped as string.Format wants. A spec its argument rejects goes through as
+  written, since nothing is formatted yet: `{Name:Q}` on a count becomes `{1:Q}`,
+  which string.Format then throws on, as in 1.5.0, where `FormatByName` marks it.
 - **Authoring.** The parameter finder (`ParameterUse`'s `Tokens`, `Items` and its
   walk, and `IsName`), the translation check and the editor's followers
   (`TreeViewModel`'s) read the same pieces, so they agree with the runtime by

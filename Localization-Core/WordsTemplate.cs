@@ -70,8 +70,9 @@ namespace PatTech.Localization {
 	/// </summary>
 	public static class WordsTemplate {
 		private static readonly char[] Braces = ['{', '}'];
-		//a number or an alignment from here on is none, about where string.Format stops
-		private const int Limit = 1_000_000;
+		//a number or an alignment from here on is none, where string.Format stops: it reads
+		//digits while what it has read is under a million, so seven at most, after any zeros
+		private const int Limit = 10_000_000;
 
 		/// <summary>The pieces of <paramref name="value"/>, a key's words as a file holds them.</summary>
 		/// <param name="value">The words to read.</param>

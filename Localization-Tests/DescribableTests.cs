@@ -32,6 +32,18 @@ public sealed class IgnoredAttribute(string text) : Attribute {
 	public string Text { get; } = text;
 }
 
+/// <summary>An attribute nobody registers, which throws as it is made.</summary>
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class UnmakeableAttribute : Attribute {
+	public UnmakeableAttribute() => throw new InvalidOperationException("this attribute cannot be made");
+}
+
+/// <summary>Fragile: one member carries an attribute that cannot be made, beside one Words reads.</summary>
+public enum Fragile {
+	[Words("coffee.espresso")] Fine,
+	[Unmakeable, Description("Described all the same")] Odd,
+}
+
 /// <summary>An attribute registered by a lower-case letter, <c>d</c>.</summary>
 [AttributeUsage(AttributeTargets.Field)]
 public sealed class NoteAttribute(string text) : Attribute {
@@ -607,6 +619,17 @@ public class DescribableTests {
 
 		Assert.Equal("A long black", Coffee.Americano.Describe("d", echo));
 		Assert.Equal("", Hinted.Hint.Describe("T", echo));
+	}
+
+	//only the attributes the registry knows are made, so one that throws as it is made,
+	//and that nothing reads, breaks no describe of its enum, its own member's included
+	[Fact]
+	public void AnAttributeNoOneReads_IsNeverMade_SoOneThatThrowsBreaksNothing() {
+		IWords words = Words();
+
+		Assert.Equal("Espresso shot", Fragile.Fine.Describe("G", words)); //1.5.0 threw for the whole enum
+		Assert.Equal("Described all the same", Fragile.Odd.Describe("d", words));
+		Assert.Equal("Odd", Fragile.Odd.Describe("s", words));
 	}
 
 	[Fact]

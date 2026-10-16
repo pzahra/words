@@ -328,7 +328,7 @@ namespace PatTech.Localization {
 
 			//each value's member is its first name that is not obsolete, as Enum.GetNames
 			//orders them, or its first; each member's attributes are asked for once, and
-			//only those the registry knows give it anything
+			//only those the registry knows are made and give it anything
 			public Dictionary<Enum, Member> Build(Type type) {
 				var chosen = new Dictionary<Enum, (string Name, FieldInfo Field, bool Obsolete)>();
 				foreach (string name in Enum.GetNames(type)) {
@@ -347,21 +347,26 @@ namespace PatTech.Localization {
 				string? key = null;
 				int keyOrder = int.MaxValue;
 				Dictionary<char, (int Order, string Text)>? texts = null;
-				foreach (object attribute in field.GetCustomAttributes(false)) {
-					if (GiversOf(attribute.GetType()) is not { } givers) {
+				//the attributes' types read off the metadata, which makes none: one the
+				//registry does not know is never made, so one that throws as it is made
+				//breaks nothing it has no part in
+				foreach (Type kind in field.GetCustomAttributesData().Select(data => data.AttributeType).Distinct()) {
+					if (GiversOf(kind) is not { } givers) {
 						continue;
 					}
-					foreach (var (order, giver) in givers) {
-						if (giver.Read((Attribute)attribute) is not { } text) {
-							continue;
-						}
-						if (giver.Slot is not { } slot) {
-							if (order < keyOrder) {
-								(key, keyOrder) = (text, order);
+					foreach (Attribute attribute in field.GetCustomAttributes(kind, false).Cast<Attribute>().Where(made => made.GetType() == kind)) {
+						foreach (var (order, giver) in givers) {
+							if (giver.Read(attribute) is not { } text) {
+								continue;
 							}
-						}
-						else if (texts is null || !texts.TryGetValue(slot, out var held) || order < held.Order) {
-							(texts ??= [])[slot] = (order, text);
+							if (giver.Slot is not { } slot) {
+								if (order < keyOrder) {
+									(key, keyOrder) = (text, order);
+								}
+							}
+							else if (texts is null || !texts.TryGetValue(slot, out var held) || order < held.Order) {
+								(texts ??= [])[slot] = (order, text);
+							}
 						}
 					}
 				}

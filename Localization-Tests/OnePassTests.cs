@@ -110,6 +110,31 @@ public class OnePassTests {
 		Assert.Equal("a #{2}#", Words.FormatByName("{0} {2}", "v", "a"));
 	}
 
+	//a member with an index, two of them, no getter or a span: reflection would throw reading one
+	private sealed class Awkward {
+		public string this[int index] => "by number";
+		public string this[string name] => "by name";
+		public string Secret { set { } }
+		public ReadOnlySpan<char> Span => "span";
+		public string Name => "Pat";
+	}
+
+	//a name reads a public field or a property with a getter, and nothing else: an
+	//indexer is none, so string's Chars no longer throws, and shows as a name none answers
+	[Fact]
+	public void AName_ReachingAnIndexerOrNoGetter_IsNoMember_AndWarns() {
+		using var globals = new WordsGlobals();
+		var logger = new CaptureLogger();
+		Words.Logger = logger;
+		var en = Load("[k]\nvalue={Chars} {Length}\n");
+
+		Assert.Equal("#{Chars}# 3", Words.FormatByName("{Chars} {Length}", "abc")); //1.5.0 threw
+		Assert.Equal("#{Chars}# 3", en.FormatByName("k", "abc"));
+		Assert.Equal("#{Chars}# 3", en.FormatParams("k", "abc"));
+		Assert.Equal("#{Item}# #{Secret}# #{Span}# Pat", Words.FormatByName("{Item} {Secret} {Span} {Name}", new Awkward()));
+		Assert.Equal(["Chars", "Chars", "Chars", "Item", "Secret", "Span"], logger.Messages.Select(message => message["WORDS:FIELD:`".Length..^1]));
+	}
+
 	[Fact]
 	public void ASelectorPastTheArguments_PicksOther_AndWarns() {
 		using var globals = new WordsGlobals();

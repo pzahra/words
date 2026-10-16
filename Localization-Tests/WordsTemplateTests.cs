@@ -55,6 +55,9 @@ public class WordsTemplateTests {
 	[InlineData("{\tName,-3}", "Name", -3, null)]
 	[InlineData("{_x1:g2}", "_x1", null, "g2")]
 	[InlineData("{Größe}", "Größe", null, null)]
+	[InlineData("{0,9999999}", "0", 9999999, null)] //as wide as string.Format pads
+	[InlineData("{0,-0009999999}", "0", -9999999, null)]
+	[InlineData("{0000000000001}", "1", null, null)]
 	public void AFormatItem_ReadsItsArgumentAlignmentAndSpec(string value, string argument, int? alignment, string? format)
 		=> Assert.Equal([new Item(0, value.Length, argument, alignment, format)], WordsTemplate.Parse(value));
 
@@ -78,7 +81,8 @@ public class WordsTemplateTests {
 	[InlineData("{x-y}")]
 	[InlineData("{Name:a\nb}")]
 	[InlineData("{99999999999}")]
-	[InlineData("{0,1000000}")]
+	[InlineData("{10000000}")]
+	[InlineData("{0,10000000}")]
 	[InlineData("{ hello {0} }")]
 	public void ABraceThatOpensNothing_IsMalformed_ThroughTheBraceClosingIt(string value)
 		=> Assert.Equal([new Malformed(0, value.Length)], WordsTemplate.Parse(value));
@@ -136,6 +140,16 @@ public class WordsTemplateTests {
 	[InlineData("{0:N2")]
 	[InlineData("{0\t}")]
 	[InlineData("{0 :d}")]
+	//its bounds: seven digits, after any zeros, for an alignment and an index alike
+	[InlineData("{0,1000000}")]
+	[InlineData("{0,9999999}")]
+	[InlineData("{0,-9999999}")]
+	[InlineData("{0,10000000}")]
+	[InlineData("{0,-10000000}")]
+	[InlineData("{0,00000000009}")]
+	[InlineData("{0,000000010000000}")]
+	[InlineData("{000000000000}")]
+	[InlineData("{10000000}")]
 	public void ANumberedTemplate_IsMalformed_WhereStringFormatThrows(string template) {
 		bool throws;
 		try {

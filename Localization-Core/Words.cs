@@ -372,16 +372,27 @@ namespace PatTech.Localization {
 				found = has ? call[1] : null;
 				return has;
 			}
-			if (type.GetField(name) is FieldInfo field) {
-				found = field.GetValue(item);
-				return true;
+			switch (Member(type, name)) {
+				case FieldInfo field:
+					found = field.GetValue(item);
+					return true;
+				case PropertyInfo property:
+					found = property.GetValue(item);
+					return true;
+				default:
+					return false;
 			}
-			if (type.GetProperty(name) is PropertyInfo property) {
-				found = property.GetValue(item);
-				return true;
-			}
-			return false;
 		}
+
+		//the public field or property a name reads, kept per type and name: a property only
+		//with a public getter and no index, of a type a boxed value can hold. An indexer
+		//(string's Chars, a list's Item, two of them at once), a property with no getter and
+		//a span are no member, so a name reaching one shows marked and nothing throws
+		private static readonly ConcurrentDictionary<(Type Type, string Name), MemberInfo?> members = new();
+		private static MemberInfo? Member(Type type, string name) => members.GetOrAdd((type, name), static key =>
+			(MemberInfo?)key.Type.GetFields().FirstOrDefault(field => field.Name == key.Name && !field.FieldType.IsByRefLike)
+				?? key.Type.GetProperties().FirstOrDefault(property => property.Name == key.Name && property.GetIndexParameters().Length == 0
+					&& property.GetMethod is { IsPublic: true } && !property.PropertyType.IsByRef && !property.PropertyType.IsByRefLike));
 
 		//a type's TryGetValue as a dictionary by name of any other value type, if it is one:
 		//its IReadOnlyDictionary<string, T>, else its IDictionary<string, T>. Kept per type
