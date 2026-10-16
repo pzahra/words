@@ -192,15 +192,15 @@ namespace PatTech.Localization {
 			protected static string Marked(string argument) => $"#{{{argument}}}#";
 		}
 
-		//items filled as string.Format fills them: the provider's ICustomFormatter first,
-		//then the argument's IFormattable with the spec, else its ToString(), null printing
-		//nothing, padded to the alignment. An enum or a describable is described in the
-		//dictionary, the spec being Describe's letters; a spec the argument rejects marks
-		//the item, as an argument there is none of does
+		//items filled as string.Format fills them, padded to the alignment: the provider's
+		//ICustomFormatter first, handed the argument as it is, then, where it returns null,
+		//the describer, which describes an enum or a describable in the dictionary, the
+		//spec being Describe's letters, and formats anything else by the provider. A spec
+		//the argument rejects marks the item, as an argument there is none of does
 		private sealed class Filling(Arguments arguments, IFormatProvider? provider, IWords? dictionary) : Items {
 			private readonly ICustomFormatter? custom = provider?.GetFormat(typeof(ICustomFormatter)) as ICustomFormatter;
 			//no dictionary describes in Known, read once for every argument
-			private readonly IWords words = dictionary ?? Known;
+			private readonly Describer describer = new(dictionary ?? Known, provider);
 
 			public override void Write(StringBuilder written, WordsPiece.Item item, string asWritten) {
 				if (!arguments.TryRead(item.Argument, out object? value)) {
@@ -209,7 +209,7 @@ namespace PatTech.Localization {
 				}
 				string text;
 				try {
-					text = Formatted(Describing(value, words), item.Format);
+					text = custom?.Format(item.Format, value, provider) ?? describer.Format(item.Format, value, provider);
 				}
 				catch (FormatException) {
 					Logger.Warn($"WORDS:FORMAT:`{asWritten}`");
@@ -225,11 +225,6 @@ namespace PatTech.Localization {
 					written.Append(' ', padding);
 				}
 			}
-
-			private string Formatted(object? value, string? format)
-				=> custom?.Format(format, value, provider)
-					?? (value is IFormattable formattable ? formattable.ToString(format, provider) : value?.ToString())
-					?? "";
 		}
 
 		//items written for string.Format, numbered, and the arguments they read, as

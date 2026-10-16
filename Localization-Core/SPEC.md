@@ -845,8 +845,10 @@ shared with whatever anyone registered, and which a description under way
 could see change; it never shipped.
 
 **Tests.** Every built-in letter reads as before, quoting and punctuation
-included, for a `[Words]` member, a `[Description]` one, a bare one and one
-sharing its value with an obsolete name; `G` looks up the key alone and `T`
+included, for a `[Words]` member, a `[Description]` one and a bare one; one
+sharing its value with an obsolete name reads its first name that is not
+obsolete, `s` and an untranslated `N` too, where 1.5.0 read the name
+`Enum.ToString()` gives, a fix; `G` looks up the key alone and `T`
 its `.tooltip` alone, each once, and `s` and `D` none; `D` reads the number
 as Enum's `D` does, and `i` and `n` as stray letters; a member is read once
 however often it is described, by every dictionary of one registry; a

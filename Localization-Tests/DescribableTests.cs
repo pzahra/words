@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using PatTech.Utils;
 using Sample_Shared;
 using Xunit;
@@ -230,6 +231,7 @@ public class DescribableTests {
 		Assert.Equal("A small cup", Coffee.Espresso.Describe("S", words));
 		Assert.Equal("Short and strong", Coffee.Espresso.Describe("T", words));
 		Assert.Equal("Espresso", Coffee.Espresso.Describe("s", words)); //not the obsolete name sharing its value
+		Assert.Equal("Espresso", Coffee.Espresso.Describe("N", Words("[other]\nvalue=x\n"))); //untranslated, nor here
 		Assert.Equal("0", Coffee.Espresso.Describe("D", words));          //the number, as Enum reads D
 		Assert.Equal(Coffee.Plain.ToString("D"), Coffee.Plain.Describe("D", words));
 		Assert.Equal("Espresso shot", Coffee.Espresso.Describe(null, words));
@@ -673,5 +675,71 @@ public class DescribableTests {
 
 		Assert.Equal("Espresso shot#!X#", Words(Templates).Format("order.stray", Coffee.Espresso));
 		Assert.Contains("WORDS:SLOT:`X`", logger.Messages);
+	}
+
+	//an IFormatProvider whose formatter answers as it is told, keeping what it is handed
+	private sealed class Handing(Func<string?, object?, string?> answer) : IFormatProvider, ICustomFormatter {
+		public List<object?> Handed { get; } = [];
+		public object? GetFormat(Type? formatType) => formatType == typeof(ICustomFormatter) ? this : CultureInfo.InvariantCulture.GetFormat(formatType);
+		public string Format(string? format, object? arg, IFormatProvider? formatProvider) {
+			Handed.Add(arg);
+			return answer(format, arg)!;
+		}
+	}
+
+	[Fact]
+	public void AnAppsOwnFormatter_IsHandedTheEnumAsItIs_AndWhereItSaysNothing_TheEnumIsDescribed() {
+		// runtime SPEC: Describe in a template. Nothing converts the argument: the
+		// app's formatter sees its own enum, as string.Format would hand it over
+		using var globals = new WordsGlobals();
+		var logger = new CaptureLogger();
+		PatTech.Localization.Words.Logger = logger;
+		IWords words = Words(Templates);
+		var naming = new Handing((format, arg) => arg is Coffee coffee ? $"{coffee}/{format}" : null);
+		var silent = new Handing((_, _) => null);
+		//one formatting every IFormattable itself takes the enum too, and Enum rejects T
+		var formatting = new Handing((format, arg) => (arg as IFormattable)?.ToString(format, CultureInfo.InvariantCulture));
+
+		Assert.Equal("Espresso/: Espresso/T (Espresso/D)", words.Format(naming, "order", Coffee.Espresso));
+		Assert.Equal("Espresso shot: Short and strong (0)", words.Format(silent, "order", Coffee.Espresso));
+		Assert.Equal([Coffee.Espresso, Coffee.Espresso, Coffee.Espresso], silent.Handed.Cast<Coffee>());
+		Assert.Equal("Espresso: #{0}# (0)", words.Format(formatting, "order", Coffee.Espresso));
+		Assert.Equal(["WORDS:FORMAT:`{0:T}`"], logger.Messages);
+	}
+
+	[Fact]
+	public void ToDescribe_DescribesInStringFormat_AndInAnInterpolatedString_InKnownAsItStands() {
+		using var globals = new WordsGlobals();
+		PatTech.Localization.Words.Known = Words(Templates);
+		CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("it-IT");
+		var brew = Coffee.Espresso;
+
+		Assert.Equal("Espresso shot: Short and strong", string.Format(PatTech.Localization.Words.ToDescribe, "{0}: {0:T}", brew));
+		Assert.Equal("Short and strong (0)", string.Create(PatTech.Localization.Words.ToDescribe, $"{brew:T} ({brew:D})"));
+		Assert.Equal("1,5", string.Format(PatTech.Localization.Words.ToDescribe, "{0:N1}", 1.5)); //by the current culture
+
+		PatTech.Localization.Words.Known = Words("[coffee.espresso]\nvalue=Caffè\n");
+		Assert.Equal("Caffè", string.Create(PatTech.Localization.Words.ToDescribe, $"{brew}")); //Known as it stands now
+	}
+
+	//an interpolated string prints nothing for a custom formatter's null, where
+	//string.Format falls through, so the describer formats every argument itself
+	[Fact]
+	public void ToDescribe_AnInterpolatedStringMixingArguments_ReadsAsStringFormatThroughIt_AndAsFormat() {
+		using var globals = new WordsGlobals();
+		IWords words = Words(Templates + "\n[mixed]\nvalue={0} {1,8:N2}|{2:yyyy-MM-dd} {3} [{4}] {0:T}\n");
+		PatTech.Localization.Words.Known = words;
+		CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+		var brew = Coffee.Espresso;
+		double size = 12.5;
+		var day = new DateTime(2026, 10, 16);
+		string name = "Pat";
+		string? nothing = null;
+
+		string interpolated = string.Create(PatTech.Localization.Words.ToDescribe, $"{brew} {size,8:N2}|{day:yyyy-MM-dd} {name} [{nothing}] {brew:T}");
+
+		Assert.Equal("Espresso shot    12.50|2026-10-16 Pat [] Short and strong", interpolated);
+		Assert.Equal(interpolated, string.Format(PatTech.Localization.Words.ToDescribe, "{0} {1,8:N2}|{2:yyyy-MM-dd} {3} [{4}] {0:T}", brew, size, day, name, nothing));
+		Assert.Equal(interpolated, words.Format("mixed", brew, size, day, name, nothing));
 	}
 }

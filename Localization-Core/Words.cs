@@ -449,19 +449,38 @@ namespace PatTech.Localization {
 			return rendering.ToString();
 		}
 
-		//an enum or describable argument, described in words where an item prints it
-		//(runtime SPEC: Describe in a template); a selector has read its count before
-		private static object? Describing(object? value, IWords words) => value switch {
-			Enum member => new Described(Describable.Of(member, words), words),
-			IDescribable describable => new Described(describable, words),
-			_ => value,
-		};
+		/// <summary>
+		///     The describer, for string.Format and an interpolated string outside a
+		///     template (runtime SPEC: Describe in a template → Outside a template): an
+		///     enum or an <see cref="IDescribable"/> argument prints described in
+		///     <see cref="Known"/> as it stands when it formats, its format the letters of
+		///     <see cref="Extensions.Describe(IDescribable, string?, IWords?)"/>, and every
+		///     other argument formats by the current culture, as string.Format would. So
+		///     <c>string.Format(Words.ToDescribe, "{0}: {0:T}", brew)</c> reads as
+		///     <see cref="Format(IWords, string, object?[])"/> would, and so does
+		///     <c>string.Create(Words.ToDescribe, $"{brew:T}")</c>.
+		/// </summary>
+		public static IFormatProvider ToDescribe { get; } = new Describer(null, null);
 
-		//a describable as an item formats one, a custom formatter seeing it as before: the
-		//format is Describe's letters
-		private sealed class Described(IDescribable value, IWords? words) : IFormattable {
-			public string ToString(string? format, IFormatProvider? provider) => value.Describe(format, words);
-			public override string ToString() => value.Describe(null, words);
+		//the describer (runtime SPEC: Describe in a template): an enum or a describable
+		//described in words, Known as it stands where there are none, its format Describe's
+		//letters; anything else formatted as string.Format would, by inner: its IFormattable
+		//with the format, else its ToString(), null printing nothing. It never declines an
+		//argument, since an interpolated string prints nothing for a custom formatter's null.
+		//It converts no argument: an app's own formatter, asked first, sees the enum itself
+		private sealed class Describer(IWords? words, IFormatProvider? inner) : IFormatProvider, ICustomFormatter {
+			public object? GetFormat(Type? formatType)
+				=> formatType == typeof(ICustomFormatter) ? this : (inner ?? CultureInfo.CurrentCulture).GetFormat(formatType);
+
+			public string Format(string? format, object? arg, IFormatProvider? formatProvider) {
+				IWords dictionary = words ?? Known;
+				return arg switch {
+					Enum member => Describable.Of(member, dictionary).Describe(format, dictionary),
+					IDescribable describable => describable.Describe(format, dictionary),
+					IFormattable formattable => formattable.ToString(format, inner),
+					_ => arg?.ToString() ?? "",
+				};
+			}
 		}
 
 		/// <inheritdoc cref="FormatByName(IWords, IFormatProvider?, string, object?, object?[])"/>
