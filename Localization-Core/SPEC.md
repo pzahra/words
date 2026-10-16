@@ -943,7 +943,8 @@ string.Format and in an interpolated string as `Format` does, in `Known` as it
 stands, and formats a number by the current culture; an interpolated string
 through it mixing an enum, a number with a spec and an alignment, a date, a
 string and a `null` reads as string.Format through it, and as `Format`. The samples' Enums page
-formats the picked brew into a template.
+formats the picked brew into a template, and describes it in code through
+`Words.ToDescribe`, again on a language switch.
 
 ## One pass for every brace
 

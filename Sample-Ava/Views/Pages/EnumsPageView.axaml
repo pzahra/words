@@ -46,10 +46,17 @@
     <!-- /card -->
 
     <!-- card: enums.template -->
-    <c:DemoCard Key="enums.template" MoreKeys="enums.brew" Uses="{}{0:T}, WordsInline">
-      <!-- the brew is the template's argument as it is: {0} reads its words, {0:S} and
-           {0:T} its subtitle and tooltip, as the converter's parameter would -->
-      <TextBlock TextWrapping="Wrap"><l:WordsInline Key="enums.template.demo"><Binding Path="SelectedBrew"/></l:WordsInline></TextBlock>
+    <c:DemoCard Key="enums.template" MoreKeys="enums.brew" Uses="{}{0:T}, WordsInline, Words.ToDescribe">
+      <StackPanel>
+        <!-- the brew is the template's argument as it is: {0} reads its words, {0:S} and
+             {0:T} its subtitle and tooltip, as the converter's parameter would -->
+        <TextBlock TextWrapping="Wrap"><l:WordsInline Key="enums.template.demo"><Binding Path="SelectedBrew"/></l:WordsInline></TextBlock>
+        <!-- and in code, outside any template: an interpolated string through Words.ToDescribe -->
+        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+          <TextBlock Opacity="0.8" Text="{l:Words enums.template.in-code}"/>
+          <TextBlock Margin="4,0,0,0" TextWrapping="Wrap" Text="{Binding InCode}"/>
+        </StackPanel>
+      </StackPanel>
     </c:DemoCard>
     <!-- /card -->
 
