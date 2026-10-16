@@ -593,41 +593,102 @@ value=w
 		Assert.True(vm.IsDirty);
 	}
 
+	//SPEC (New → Renaming a root): a saved root's name is its file's, so Rename greys
+	//on it, and F2, which runs the same command, does nothing there
 	[Fact]
-	public void RenamingASavedRoot_MovesItsFile_ThroughTheSaveDialog() {
+	public void ASavedRoot_OffersNoRename() {
 		using var folder = new TempFolder();
-		const string text = "value-en=English\n\n[k]\nvalue=x\n";
-		File.WriteAllText(folder["Strings.ini"], text);
+		File.WriteAllText(folder["Strings.ini"], "value-en=English\n\n[k]\nvalue=x\n");
 		var dialogs = new FakeDialogs();
 		var vm = new MainWindowViewModel(dialogs);
 		vm.LoadFile(folder["Strings.ini"]);
 		KeyNode root = vm.Tree.KeyNodes.Single();
 		vm.Tree.SelectedKeyNode = root;
 
-		vm.RenameNodeCommand.Execute(null); //cancelled: nothing changes
-		Assert.Equal([folder["Strings.ini"]], dialogs.SaveProposals); //the dialog opens on the file
-		Assert.Empty(dialogs.Shown); //no rename box: a file is being written
-		Assert.True(File.Exists(folder["Strings.ini"]));
-		Assert.Equal("Strings", root.Label);
-
-		dialogs.FileToSave = folder["Words.ini"];
+		Assert.False(vm.RenameNodeCommand.CanExecute(null));
 		vm.RenameNodeCommand.Execute(null);
+		Assert.Empty(dialogs.Shown);
+		Assert.Empty(dialogs.SaveProposals);
+		Assert.Equal("Strings", root.Label);
+		vm.Tree.SelectedKeyNode = root.Children.Single();
+		Assert.True(vm.RenameNodeCommand.CanExecute(null)); //its keys rename as ever
+	}
 
-		Assert.False(File.Exists(folder["Strings.ini"]));
-		Assert.Contains("[k]\nvalue=x\n", File.ReadAllText(folder["Words.ini"])); //its words, as Save writes them
-		WordsFile file = vm.Session.Files.Single();
-		Assert.Equal(folder["Words.ini"], file.Path);
-		Assert.Equal("Words", file.Name);
+	//SPEC (Saving, Save As): every file saved as Save saves them, the selected one at
+	//the path picked; the file at the old path is left as it was on disk, since
+	//Wordsmith deletes no words file of the user's
+	[Fact]
+	public void SaveAs_WritesTheSelectedFileElsewhere_TheOthersWhereTheyAre_AndLeavesTheOldFile() {
+		using var folder = new TempFolder();
+		const string strings = "value-en=English\n\n[k]\nvalue=x\n";
+		File.WriteAllText(folder["Strings.ini"], strings);
+		File.WriteAllText(folder["Other.ini"], "value-en=English\n\n[o]\nvalue=y\n");
+		var dialogs = new FakeDialogs();
+		var vm = new MainWindowViewModel(dialogs);
+		vm.LoadFile(folder["Strings.ini"]);
+		vm.LoadFile(folder["Other.ini"]);
+		Key(vm, "Strings", "k").DefaultValue = "changed";
+		Key(vm, "Other", "o").DefaultValue = "too";
+		vm.MarkDirty(); //edited behind the editor's back
+		KeyNode root = vm.Tree.NodeOf(FileNamed(vm, "Strings"));
+		vm.Tree.SelectedKeyNode = root.Children.Single(); //any node of the file
+		Assert.True(vm.SaveAsCommand.CanExecute(null));
+
+		vm.SaveAsCommand.Execute(null); //cancelled: nothing changes
+		Assert.Equal([folder["Strings.ini"]], dialogs.SaveProposals); //its own path proposed
+		Assert.Equal(strings, File.ReadAllText(folder["Strings.ini"]));
+		Assert.True(vm.IsDirty);
+
+		//another file's path is refused, and the dialog asks again
+		dialogs.FilesToSave.Enqueue(folder["Other.ini"]);
+		dialogs.FileToSave = folder["Words.ini"];
+		vm.SaveAsCommand.Execute(null);
+
+		Assert.Single(dialogs.Notices); //the path taken
+		Assert.Contains("[k]\nvalue=changed\n", File.ReadAllText(folder["Words.ini"]));
+		Assert.Contains("[o]\nvalue=too\n", File.ReadAllText(folder["Other.ini"])); //written where it is
+		Assert.Equal(strings, File.ReadAllText(folder["Strings.ini"])); //left as it was on disk
+		Assert.Equal(folder["Words.ini"], FileNamed(vm, "Words").Path);
 		Assert.Equal("Words", root.Label);
-		Assert.Equal(["k"], file.Keys.Keys);
 		Assert.Equal("k", root.Children.Single().FullLabel);
+		Assert.False(vm.IsDirty);
+
+		//later Saves go to the new path, and leave the old file out of it
+		Key(vm, "Words", "k").DefaultValue = "again";
+		vm.Save();
+		Assert.Contains("[k]\nvalue=again\n", File.ReadAllText(folder["Words.ini"]));
+		Assert.Equal(strings, File.ReadAllText(folder["Strings.ini"]));
+	}
+
+	[Fact]
+	public void SaveAs_AWriteThatFails_LeavesTheFileWhereItWas_AndItsOwnPathIsASave() {
+		using var folder = new TempFolder();
+		File.WriteAllText(folder["Strings.ini"], "value-en=English\n\n[k]\nvalue=x\n");
+		var dialogs = new FakeDialogs();
+		var vm = new MainWindowViewModel(dialogs);
+		vm.LoadFile(folder["Strings.ini"]);
+		vm.Tree.SelectedKeyNode = vm.Tree.KeyNodes.Single();
+		Key(vm, "Strings", "k").DefaultValue = "changed";
+		vm.MarkDirty();
+
+		dialogs.FileToSave = Path.Combine(folder.Path, "missing", "Words.ini"); //no such folder
+		vm.SaveAsCommand.Execute(null);
+		Assert.Single(dialogs.Notices); //told as Save tells it
+		Assert.Equal(folder["Strings.ini"], vm.Session.Files.Single().Path);
+		Assert.Equal("Strings", vm.Tree.KeyNodes.Single().Label);
+		Assert.True(vm.IsDirty);
+
+		dialogs.FileToSave = folder["Strings.ini"];
+		vm.SaveAsCommand.Execute(null);
+		Assert.Contains("[k]\nvalue=changed\n", File.ReadAllText(folder["Strings.ini"]));
+		Assert.False(vm.IsDirty);
 	}
 
 	//SPEC (Keys without the file's name): a root's name is its file's alone, so renaming
-	//it in place, saving it first under another name or moving it changes no key, and
-	//the undo history and Back's keep all they hold
+	//it in place, saving it first under another name or saving it elsewhere changes no
+	//key, and the undo history and Back's keep all they hold
 	[Fact]
-	public void ARootRenamed_FirstSavedElsewhere_OrMoved_KeepsItsKeysAndBothHistories() {
+	public void ARootRenamed_FirstSavedElsewhere_OrSavedAs_KeepsItsKeysAndBothHistories() {
 		using var folder = new TempFolder();
 		var dialogs = new FakeDialogs { OnShow = Typing("strings") };
 		var vm = new MainWindowViewModel(dialogs);
@@ -648,7 +709,7 @@ value=w
 		Kept("Saved");
 
 		dialogs.FileToSave = folder["Moved.ini"];
-		vm.RenameNodeCommand.Execute(null); //moved through the save dialog
+		vm.SaveAsCommand.Execute(null); //saved elsewhere
 		Kept("Moved");
 
 		vm.Tree.ForwardCommand.Execute(null);

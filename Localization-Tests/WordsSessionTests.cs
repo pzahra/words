@@ -929,6 +929,9 @@ value-fr=Bonjour
 		session.MoveTo(first, Path.Combine(folder, "Words.ini"));
 		Assert.Equal(Path.Combine(folder, "Words.ini"), first.Path);
 		Assert.Equal("Words", first.Name); //named as a file loaded from there
+		//saved, its name is its file's: it changes as the file is saved elsewhere
+		Assert.Throws<InvalidOperationException>(() => session.Rename(first, "Strings"));
+		Assert.Equal(("Words", Path.Combine(folder, "Words.ini")), (first.Name, first.Path));
 		Assert.Same(k, Assert.Single(session.KeysOf(first)));
 		Assert.Same(first, session.FileAt(Path.Combine(folder, "Words.ini")));
 		Assert.Throws<ArgumentException>(() => session.MoveTo(second, Path.Combine(folder, "Words.ini"))); //another's path

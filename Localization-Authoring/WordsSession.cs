@@ -121,18 +121,22 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		/// <summary>
-		///     Renames a file's root: <paramref name="name"/> becomes its
-		///     <see cref="WordsFile.Name"/>, and no key changes (the editor's SPEC: New →
-		///     Renaming a root). For a file not saved yet it is the name its first Save
-		///     proposes, and another file may have it too; a file on disk is renamed by
-		///     moving it (<see cref="MoveTo"/>).
+		///     Renames a file not saved yet: <paramref name="name"/> becomes its
+		///     <see cref="WordsFile.Name"/>, the name its first Save proposes, another
+		///     file's too, and no key changes (the editor's SPEC: New → Renaming a root).
+		///     A saved file's name is its file's, and changes only as the file is saved
+		///     elsewhere (<see cref="MoveTo"/>, the editor's Save As).
 		/// </summary>
 		/// <exception cref="ArgumentException">The name is no file name.</exception>
+		/// <exception cref="InvalidOperationException">The file is saved.</exception>
 		public void Rename(WordsFile file, string name) {
+			if (file.Path is { } path) {
+				throw new InvalidOperationException($"{file.Name} is saved at {path}, so its name is its file's: it changes as the file is saved elsewhere");
+			}
 			if (!IsFileName(name)) {
 				throw new ArgumentException($"'{name}' is no file name", nameof(name));
 			}
-			Name(file, name, file.Path);
+			Name(file, name, null);
 		}
 
 		/// <summary>True when <paramref name="name"/> can name a file: something besides spaces and dots, and no character a file name refuses.</summary>
@@ -141,10 +145,10 @@ namespace PatTech.Localization.Authoring {
 
 		/// <summary>
 		///     Gives <paramref name="file"/> the path it saves to from now on, as its
-		///     first Save or a rename through Save As does (the editor's SPEC: New): it
-		///     is named as a file loaded from there would be, and no key changes. Writes
-		///     nothing; the caller writes the file there, and removes it from the old
-		///     path when it moved.
+		///     first Save or a Save As does (the editor's SPEC: New, Saving): it is
+		///     named as a file loaded from there would be, and no key changes. Writes
+		///     nothing; the caller writes the file there first, and the file at the old
+		///     path stays as it is.
 		/// </summary>
 		/// <exception cref="ArgumentException">Another file has the path.</exception>
 		public void MoveTo(WordsFile file, string path) {

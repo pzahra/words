@@ -260,6 +260,8 @@ public sealed class CommandTable {
 		var import = new CommandItem(Words.Known["menu.import"], PackIconKind.FileImport, vm.ImportCommand, Ctrl(Key.I));
 		var merge = new CommandItem(Words.Known["menu.merge"], PackIconKind.Merge, vm.MergeFilesCommand);
 		var save = new CommandItem(Words.Known["menu.save"], PackIconKind.ContentSave, vm.SaveCommand, Ctrl(Key.S));
+		//no gesture: Ctrl+Shift+S is Stale All Languages
+		var saveAs = new CommandItem(Words.Known["menu.save-as"], PackIconKind.ContentSaveMove, vm.SaveAsCommand);
 		var export = new CommandItem(Words.Known["menu.export"], PackIconKind.FileExport, vm.ExportCommand, Ctrl(Key.E));
 		var reset = new CommandItem(Words.Known["menu.reset"], PackIconKind.Reload, vm.ResetCommand);
 		var exit = new CommandItem(Words.Known["menu.exit"], PackIconKind.ExitToApp, vm.ExitCommand, new KeyGesture(Key.F4, ModifierKeys.Alt));
@@ -305,7 +307,7 @@ public sealed class CommandTable {
 
 		MenuGroup edit = new(Words.Known["menu.edit"], [undo, redo, new MenuBreak(), addNode, addKey, addComment, rename, remove, new MenuBreak(), toggleReview, toggleConstant, toggleStale, staleAll, removeKey]);
 		Menu = [
-			new MenuGroup(Words.Known["menu.file"], [create, load, import, merge, new MenuBreak(), save, export, new MenuBreak(), reset, exit]),
+			new MenuGroup(Words.Known["menu.file"], [create, load, import, merge, new MenuBreak(), save, saveAs, export, new MenuBreak(), reset, exit]),
 			edit,
 			new MenuGroup(Words.Known["menu.view"], [staleView, reviewView, missingView, mismatchView, clearFilters, new MenuBreak(), defaultPreview, translationPreview, new MenuBreak(), back, forward, find, new MenuBreak(), defaultForm, translationForm, new MenuBreak(), translationLanguage, uiLanguage]),
 			new MenuGroup(Words.Known["menu.tools"], [languages, settings]),

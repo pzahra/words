@@ -526,7 +526,8 @@ New over a path already loaded, which replaced that file's unsaved work.
   it is, as Save does, the root and its keys following and the window clean,
   and leaves the file at the old path as it was on disk, unsaved changes and
   all left out of it. A cancelled dialog changes nothing, and a path another
-  file in the session has is refused.
+  file in the session has is refused; a write that fails is told and leaves the
+  file where it was; its own path is a plain Save.
 - The first Save proposes the name, and writes the starter byte for byte at the
   chosen path, the root following its name, leaving the window clean. Later
   Saves ask nothing.
@@ -572,7 +573,9 @@ a file that fails is told as Save tells it. Once written, the selected file is
 at the new path, its root follows the name, and later Saves go there. The file
 at the old path is left as it was on disk; Save As deletes no file of the
 user's. It is a saved file's only rename
-(*New*, Renaming a root). Its own path is a plain Save. It has no gesture yet:
+(*New*, Renaming a root). Its own path is a plain Save. The selected file is
+written first, so a file never saved, asking where after it, finds its new
+path taken. It sits in the File menu after Save, with no gesture yet:
 Ctrl+Shift+S is Stale All Languages.
 
 ## Wordsmith's own words
@@ -1971,5 +1974,7 @@ saved point in the undo history, so Save and Save As write every loaded file
 and cleared by writing it, an undo back to its own saved point clearing it, the
 title starring while any file is dirty, and closing naming the files with
 unsaved work. Save would then write only the dirty files, and Save As the
-selected file alone, leaving the others as they are. It is built with Save As
-if that stays small, and otherwise after it.
+selected file alone, leaving the others as they are. Save As was built
+without it: a saved point of each file's own means each undo entry knowing
+the files it touches, a language change or a move between files touching
+several, and the close asking by file, which is no small change beside it.

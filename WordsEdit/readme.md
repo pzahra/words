@@ -12,8 +12,10 @@ the command line that ships beside it.
 - **New** — File > New starts a `words.ini` that already knows English is
   the default, with a header saying what the file is, where it goes and where
   the format is written down. It asks nothing: type a name, or don't, and the
-  first Save asks where it goes. It's yours from then on, header and all. A
-  saved file renames like any node, and Wordsmith moves it on disk for you.
+  first Save asks where it goes. It's yours from then on, header and all. To
+  give a saved file another name, File > Save As writes it there; the old file
+  stays put for you to delete, since Wordsmith never deletes your words (or
+  `git mv` it first).
 - **Edit** — browse the key tree, edit values, contexts, and comments per
   language; add, rename, remove, and drag keys around without breaking their
   children.

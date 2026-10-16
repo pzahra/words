@@ -74,6 +74,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public ICommand ExportCommand { get; }
 	public ICommand ResetCommand { get; }
 	public ICommand SaveCommand { get; }
+	/// <summary>Saves, the selected node's file at a path the dialog picks (SPEC: Saving, Save As).</summary>
+	public ICommand SaveAsCommand { get; }
 	public ICommand MergeFilesCommand { get; }
 	public ICommand ManageLanguagesCommand { get; }
 	public ICommand SettingsCommand { get; }
@@ -146,6 +148,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		ExportCommand = new DelegateCommand(DoExport, () => Tree.KeyNodes.Count > 0);
 		ResetCommand = new DelegateCommand(DoReset);
 		SaveCommand = new DelegateCommand(DoSave);
+		SaveAsCommand = new DelegateCommand(DoSaveAs, () => Tree.SelectedFile is not null);
 		MergeFilesCommand = new DelegateCommand(DoMergeFiles);
 		ManageLanguagesCommand = new DelegateCommand(DoManageLanguages, () => LanguagesFile is not null);
 		SettingsCommand = new DelegateCommand(DoSettings, () => Tree.SelectedFile is not null);
@@ -163,7 +166,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		ClearFiltersCommand = new DelegateCommand(Tree.ClearFilters, () => Tree.IsFiltering);
 		//the structure edits say whether they apply, so a menu or a key can offer them all
 		RemoveNodeCommand = new DelegateCommand(DoRemoveNode, () => Tree.SelectedKeyNode is not null);
-		RenameNodeCommand = new DelegateCommand(DoRenameNode, () => Tree.SelectedKeyNode is not (null or OrganizerNode));
+		RenameNodeCommand = new DelegateCommand(DoRenameNode, () => CanRename(Tree.SelectedKeyNode));
 		AddNodeCommand = new DelegateCommand(DoAddNode, () => Tree.SelectedKeyNode is { IsConstant: false } and not OrganizerNode);
 		AddKeyCommand = new DelegateCommand(DoAddKey, () => Tree.SelectedKeyNode is { IsFile: false } and not OrganizerNode && Tree.SelectedKey is null);
 		AddOrganizerCommand = new DelegateCommand(DoAddOrganizer, () => Tree.SelectedKeyNode is { IsFile: false } and not OrganizerNode);
@@ -337,21 +340,46 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	///     never saved asks where first (SPEC: New), proposing its name; cancelled,
 	///     the Save stops there, the files before it saved and it left pathless.
 	/// </summary>
-	public override void Save() {
+	public override void Save() => Save(null, null);
+
+	//Save As: the selected node's file at a path the dialog picks, proposing its own,
+	//and every other file as Save writes it; its own path is a plain Save, and the file
+	//at the old path stays on disk as it was (SPEC: Saving, Save As)
+	private void DoSaveAs() {
+		if (Tree.SelectedFile is not { } file
+			|| AskWhere(file, Words.Known.Format("file.save-as-title", Tree.NodeOf(file).Label), file.Path ?? file.Name + ".ini") is not { } path) {
+			return;
+		}
+		if (file.Path is { } own && SamePath(path, own)) {
+			Save();
+		}
+		else {
+			Save(file, path);
+		}
+	}
+
+	//every file where it is, but moved at to, which it takes once written there. The
+	//moved file goes first, so a file never saved, asking where after it, finds its
+	//new path taken
+	private void Save(WordsFile? moved, string? to) {
 		int saved = 0;
-		foreach (WordsFile file in Session.Files.ToList()) {
+		IEnumerable<WordsFile> files = moved is null ? Session.Files : [moved, .. Session.Files.Where(file => file != moved)];
+		foreach (WordsFile file in files.ToList()) {
 			KeyNode node = Tree.NodeOf(file);
-			if (file.Path is { } path) {
-				saved += TryWrite(file, node, path) ? 1 : 0;
+			string? path = file == moved ? to : file.Path;
+			if (path is null) {
+				path = AskWhere(file, Words.Known.Format("file.save-title", node.Label), file.Name + ".ini");
+				if (path is null) {
+					break;
+				}
+			}
+			if (!TryWrite(file, node, path)) {
 				continue;
 			}
-			if (AskWhere(file, Words.Known.Format("file.save-title", node.Label), file.Name + ".ini") is not { } chosen) {
-				break;
+			if (path != file.Path) {
+				Locate(file, path);
 			}
-			if (TryWrite(file, node, chosen)) {
-				Locate(file, chosen);
-				saved++;
-			}
+			saved++;
 		}
 		if (saved == Session.Files.Count) {
 			MarkClean();
@@ -416,24 +444,6 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Tree.RefreshBadges();
 		Tree.ApplyFilters();
 		RenderPreviews();
-	}
-
-	/// <summary>
-	///     Renames a file on disk through the save dialog (SPEC: New → Renaming a
-	///     root): written at the path picked, removed from the old one, its root
-	///     following. A cancelled dialog, or the path it has, changes nothing.
-	/// </summary>
-	private void MoveFile(WordsFile file, KeyNode node, string from) {
-		if (AskWhere(file, Words.Known.Format("file.move-title", node.Label), from) is not { } to || SamePath(to, from) || !TryWrite(file, node, to)) {
-			return;
-		}
-		Locate(file, to);
-		try {
-			File.Delete(from);
-		}
-		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-			Dialogs.Tell(Words.Known.Format("file.remove-failed", from, ex.Message));
-		}
 	}
 
 	/// <summary>
@@ -564,17 +574,16 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Tree.RemoveFile(fileNode);
 	}
 
-	//a root on disk renames by moving its file, so it is plain one is written (SPEC: New)
 	private void DoRenameNode() {
-		if (Tree.SelectedKeyNode is not { } node || node is OrganizerNode) {
-			return;
+		if (Tree.SelectedKeyNode is { } node && CanRename(node)) {
+			Dialogs.Show(new KeyNameViewModel(this, node));
 		}
-		if (node.IsFile && Tree.FileOf(node) is { Path: { } path } file) {
-			MoveFile(file, node, path);
-			return;
-		}
-		Dialogs.Show(new KeyNameViewModel(this, node));
 	}
+
+	//a saved root's name is its file's, so it renames only through Save As, which
+	//writes it elsewhere (SPEC: New → Renaming a root); Rename greys and F2 does nothing
+	private static bool CanRename(KeyNode? node)
+		=> node is not (null or OrganizerNode) && node is not { IsFile: true, File.Path: not null };
 
 	//a rename is a move that changes the last segment alone (SPEC: Undo → Structure);
 	//a root not saved yet takes the name its first Save proposes
