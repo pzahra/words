@@ -224,7 +224,10 @@ reads the one it is handed, `Words.Known` by default, and a wrapping `IWords`
 passes its inner one's `DescribeRegistry` on. The `Format` family describes an
 enum or `IDescribable` argument the same way, in its dictionary: `{0}` is
 `G`, `{0:T}` the tooltip, and Enum's own letters are gone (`{0:d}` is the
-description, `{0:X}` no slot).
+description, `{0:X}` no slot). It describes through a custom formatter: a
+provider's own `ICustomFormatter` is offered each argument first, the enum as
+it is, and returns `null` to leave it described. Outside a template,
+`string.Format(Words.ToDescribe, "{0:T}", brew)` describes in `Words.Known`.
 
 ## Logging — silent unless you wire it
 

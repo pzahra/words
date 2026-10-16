@@ -880,11 +880,17 @@ key alone reads its slots. The
 
 ## Describe in a template
 
-The `Format` family hands an enum argument over as its describable, as the
-dictionary's registry reads it (`Describable.Of`), and an `IDescribable` one
-as it is: where string.Format prints the argument, its format is Describe's
-letters, read in the
-dictionary the template came from. So `{0}` is the general text, the key's
+The `Format` family describes an enum or an `IDescribable` argument where
+string.Format prints the argument, its format Describe's letters, read in the
+dictionary the template came from, the enum as that dictionary's registry
+reads it (`Describable.Of`). It describes as a custom formatter, the
+describer, and never converts the argument. Each item is offered first to the
+app's own `ICustomFormatter`, where the provider it passed has one, which is
+handed the enum itself, as string.Format would hand it; where there is none,
+or it returns `null` as string.Format lets it, to the describer, which
+describes an enum or an `IDescribable` and formats anything else as
+string.Format would: its `IFormattable` with the spec and the culture, else its
+`ToString()`, `null` printing nothing. So `{0}` is the general text, the key's
 words in the template's language, `{0:T}` the tooltip and `{0:D}` the
 number, and a template reads an enum as the converters do. This holds for
 `Format`, `FormatByName`, `FormatParams` and their `Known` shorthands, so
@@ -895,6 +901,22 @@ before it is described, so a count stays a count; an enum is none, as
 before. Wordsmith's `enum` input sends the describable it builds off the
 key, so its previews read a template's letters as an app's would (the
 editor spec's *Parameters*).
+
+**Outside a template.** The describer is public as `Words.ToDescribe`, an
+`IFormatProvider` that describes in `Words.Known` as it stands when it
+formats, formats every other argument by the current culture, and answers a
+request for the culture's own formats, numbers and dates, with the current
+culture's. So `string.Format(Words.ToDescribe, "{0}: {0:T}", brew)` reads as
+`Format` would, and so does `string.Create(Words.ToDescribe, $"{brew:T}")`,
+an interpolated string asking a provider's custom formatter too. The
+describer formats every argument itself, never declining one: string.Format
+falls through a custom formatter's `null`, but an interpolated string prints
+nothing for it. A
+`PreFormatByName` caller hands it to string.Format to describe as
+`FormatByName` does. An app's own formatter that formats every `IFormattable`
+itself takes an enum too, and `{0:T}` reaches Enum's own `ToString`, which
+rejects it, so the item is marked; such a formatter returns `null` for an
+`Enum` and an `IDescribable`, and they are described.
 
 The letters are Describe's, not Enum's, and they change what a template
 printed. `{0}` printed the member's name, and now prints its words, or its
@@ -912,8 +934,14 @@ combination its name; `FormatByName` and `FormatParams` describe a named
 enum, and `RenderText` with arguments a positional one; a dictionary in
 another language describes in its words, and a describable built from a key
 alone formats as an enum does; the raw template describes what needs no
-words; one of Enum's letters that is no slot is stray, and warns. The
-samples' Enums page formats the picked brew into a template.
+words; one of Enum's letters that is no slot is stray, and warns; a
+provider's custom formatter is handed an enum argument as it is, and one
+returning `null` leaves it described; `Words.ToDescribe` describes in
+string.Format and in an interpolated string as `Format` does, in `Known` as it
+stands, and formats a number by the current culture; an interpolated string
+through it mixing an enum, a number with a spec and an alignment, a date, a
+string and a `null` reads as string.Format through it, and as `Format`. The samples' Enums page
+formats the picked brew into a template.
 
 ## One pass for every brace
 
@@ -951,10 +979,11 @@ string.Format reads a value.
   written.
 - **Filling.** The `Format` family fills each item itself, as string.Format does:
   the argument by number, or on the named path by name, in the same pass; the
-  provider's `ICustomFormatter` first, then the argument's `IFormattable` with the
-  spec, else its `ToString()`, `null` printing nothing; padded to the alignment. An
-  enum or an `IDescribable` is described in the dictionary, the spec being
-  Describe's letters. An item that cannot be filled collapses to its argument,
+  provider's `ICustomFormatter` first, then the describer, which describes an enum
+  or an `IDescribable` in the dictionary, the spec being Describe's letters
+  (*Describe in a template*), and formats anything else by its `IFormattable` with
+  the spec, else its `ToString()`, `null` printing nothing; padded to the
+  alignment. An item that cannot be filled collapses to its argument,
   marked, `#{3}#` or `#{Name}#`, its alignment and spec dropped, and warns: the
   braces keep it from reading as a missing key's `#key#`. That is a number past the
   arguments, a name in a positional call or one no member answers (`WORDS:FIELD`),
@@ -1017,7 +1046,7 @@ dropped, and a selector past the arguments picks `other`, each warning;
 `PreFormatByName`'s output formats through string.Format as before; and a template
 with no Words syntax formats as string.Format formats it, character for character,
 across alignments, specs, cultures, a custom formatter and nulls, while an enum is
-described as before; a format its argument rejects is marked. Authoring: the finder
+described as before, after a custom formatter has declined it; a format its argument rejects is marked. Authoring: the finder
 reads an item spanning a reference as malformed, a constant brings in no parameter,
 and the translation check reads items as the runtime does; a malformed brace is
 found value by value, each once, and gripes on load naming the key and the field, a

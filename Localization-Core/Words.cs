@@ -430,7 +430,9 @@ namespace PatTech.Localization {
 		/// <c>{0}</c> puts it. An enum or an <see cref="IDescribable"/> argument prints
 		/// described in <paramref name="known"/>, its format the letters of
 		/// <see cref="Extensions.Describe(IDescribable, string?, IWords?)"/>: <c>{0}</c>
-		/// its words, <c>{0:T}</c> its tooltip, <c>{0:D}</c> its number.
+		/// its words, <c>{0:T}</c> its tooltip, <c>{0:D}</c> its number. A custom
+		/// formatter in <paramref name="provider"/> is offered each argument first, an
+		/// enum as it is; the argument is described where it returns <see langword="null"/>.
 		/// </summary>
 		/// <param name="known">The dictionary to read.</param>
 		/// <param name="provider">Culture-specific formatting, or <see langword="null"/> for the current culture.</param>
@@ -621,7 +623,8 @@ namespace PatTech.Localization {
 		/// Formats a raw template string with named placeholders, no dictionary lookup involved.
 		/// See <see cref="PreFormatByName(string, object?, object?[])"/> for the placeholder rules.
 		/// An enum or an <see cref="IDescribable"/> prints described in <see cref="Known"/>,
-		/// as <see cref="Format(IWords, IFormatProvider?, string, object?[])"/> describes one.
+		/// as <see cref="Format(IWords, IFormatProvider?, string, object?[])"/> describes one,
+		/// once a custom formatter in the provider has declined it.
 		/// </summary>
 		/// <param name="provider">Culture-specific formatting, or <see langword="null"/> for the current culture.</param>
 		/// <param name="template">The format template containing <c>{Name}</c> or <c>{Name:format}</c> tags.</param>

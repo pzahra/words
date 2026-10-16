@@ -230,7 +230,11 @@ its words, and the format after the colon is Describe's letters, so
 member's words and its tooltip, in the dictionary's language. The letters
 are Describe's, not Enum's: `{0:D}` is still the number, but `{0:d}` is the
 description and `{0:X}` is no slot. Anything implementing `IDescribable`
-formats the same way.
+formats the same way. Words describes through a custom formatter, so one of
+your own, handed to `Format` through its provider, sees the enum first and
+returns `null` to leave it described; and the describer is yours too, outside
+a template: `string.Format(Words.ToDescribe, "{0}: {0:T}", brew)` describes in
+`Words.Known`.
 
 Use the container `LazyWords` to preload a key for services that statically
 initialise before the dictionary has been loaded. The words will resolve

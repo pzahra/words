@@ -487,17 +487,21 @@ file's is its file's, so a first Save under another name renames it, and no key
 changes.
 
 **Renaming a root.** A pathless file's root renames in place to any file name,
-dots and all, another file's too, and the name is what its first Save proposes. A file that exists on disk renames through the Save As
-dialog, so it is plain that a file is being written. Renaming moves the file:
-it is saved at the chosen path, the file at the old path is removed, and the root
-follows it. A path it has already is no move, and an old file that will not go
-is told, the words saved at both. Words files are expected to live in the
-user's own git repository, which sees the move at its next status (git pairs
-the removal with the new file once both are staged), and from which the old
-file can always be recovered.
-Wordsmith moves it on disk and runs no git command. A root that changes its
+dots and all, another file's too, and the name is what its first Save proposes.
+A saved file's root does not rename: its name is its file's, so Rename is greyed
+on it, and F2 does nothing there. To give it another name, Save As writes it at
+a new path and the root follows (*Saving*, Save As); the file at the old path
+stays on disk as it was last saved, for the user to keep or delete. Wordsmith
+never deletes a words file of the user's. Words files are expected to live in the user's own git
+repository, where the new file shows at its next status and the old one is
+removed by hand, or with `git mv` before the Save As. A root that changes its
 name, whichever way, changes no key, and the undo history and Back's keep all
 they hold (*Keys without the file's name*).
+
+Why Save As and not a move: a move is a write and a delete, and the delete is
+the hazard. A path that reaches the same file another way, a directory junction
+or a symbolic link above it, was read as another path, so the move wrote the file
+and then deleted it, losing both. Save As only writes.
 
 Why: a location asked up front is a question before there is anything to save,
 and most people expect the one asked at Save. It also removes the hazard of a
@@ -511,9 +515,12 @@ New over a path already loaded, which replaced that file's unsaved work.
 - A second New is `anonymous-words` too.
 - The name typed names it; renaming the pathless root changes no key, only what
   Save proposes, and the undo history keeps what it holds.
-- Renaming a saved root opens Save As on its path: the file is at the new path
-  and gone from the old one, and the root and its keys follow it. A cancelled
-  dialog changes nothing.
+- A saved root offers no rename: Rename is greyed and F2 does nothing on it.
+- Save As on a saved file writes it at the new path and every other file where
+  it is, as Save does, the root and its keys following and the window clean,
+  and leaves the file at the old path as it was on disk, unsaved changes and
+  all left out of it. A cancelled dialog changes nothing, and a path another
+  file in the session has is refused.
 - The first Save proposes the name, and writes the starter byte for byte at the
   chosen path, the root following its name, leaving the window clean. Later
   Saves ask nothing.
@@ -521,9 +528,10 @@ New over a path already loaded, which replaced that file's unsaved work.
   several files there, the ones before it saved.
 - A path the session already has is refused, and the dialog asks again.
 - In the session: a new file has no path and is at none, cannot save until it
-  has one, renames in place to any file name, another file's too, and moves to
-  a path no other file has, named as a file loaded from there; one started
-  with a header and a language writes them, and nothing else.
+  has one, renames in place to any file name, another file's too, and takes a
+  path no other file has, named as a file loaded from there; a saved file does
+  not rename; one started with a header and a language writes them, and
+  nothing else.
 
 ## Saving
 
@@ -545,6 +553,21 @@ old text, and a symbolic link is replaced by the file rather than followed (the
 command line follows it). Merge and split check the tree covers the file's keys, as Save does. The editor tracks dirtiness; the window title names the
 loaded files and stars while dirty, and closing with unsaved changes prompts.
 Reset returns to the empty session (one default `en` language).
+
+**Save As** saves as Save does, every loaded file, but writes the selected
+node's file at a path the dialog picks, proposing its own, as the first Save of
+a new file does (*New*, Saving it): the dialog's overwrite ask covers a file on
+disk, a path another file in the session has is refused and the dialog asks
+again, and the file is written before it takes the path, so a write that fails
+is told and leaves it where it was. The other files are written where they are,
+since unsaved work is the session's, as the window's dirty mark and the undo
+history's saved point are, so Save As leaves the window clean as Save does, and
+a file that fails is told as Save tells it. Once written, the selected file is
+at the new path, its root follows the name, and later Saves go there. The file
+at the old path is left as it was on disk; Save As deletes no file of the
+user's. It is a saved file's only rename
+(*New*, Renaming a root). Its own path is a plain Save. It has no gesture yet:
+Ctrl+Shift+S is Stale All Languages.
 
 ## Wordsmith's own words
 
@@ -765,7 +788,7 @@ dirtiness, the plan, the loss and the overwrite confirmation.
 ## Menu and toolbars
 
 A menu bar carries every command the editor has, grouped the usual way —
-File (New, Open, Import, Merge, Save, Export, Reset, Exit), Edit (Undo and Redo,
+File (New, Open, Import, Merge, Save, Save As, Export, Reset, Exit), Edit (Undo and Redo,
 the node and key operations, then the flags), View (the filters, the previews, Find, then each
 pane's plural form, then the translation language and Wordsmith's own, all
 four submenus), Tools (Languages,
@@ -1014,8 +1037,9 @@ do: they change which files the document is, and an entry for other files is
 no help. Each of them puts a file node into the tree or takes one out, and
 that is what clears it; a file dragged among files does not. A Language
 Manager commit that merges codes clears it too. A root that changes its name
-(*New*), renamed in place, moved on disk or saved first under another name, does
-not: no key changes, and an entry names its file, not the name.
+(*New*), renamed in place, saved first under another name or saved as another
+file (*Saving*, Save As, the old file left where it was), does not: no key
+changes, and an entry names its file, not the name.
 
 **Text boxes.** The main window's editing boxes undo as any text box does,
 from the document's history. Each is a `WordsBox`: a `TextBox` with WPF's
@@ -1474,7 +1498,7 @@ is. Whatever names a key names its file beside it:
   file has shows none, nor does a file with no path yet. The session works it
   out (`ShownName`), so the tree and every list naming a file, the merge and
   export dialogs and the messages, read alike, and it follows a load, an
-  unload, a rename and a move at once.
+  unload, a rename and a Save As at once.
 - **Undo and navigation.** An entry names its file and a path in it, and so
   do a `NodeRef` (a record, Back's entries too, `SelectionHistory<T>`) and a
   `Place`. The file is the session's object: a file in or out empties the undo
@@ -1495,11 +1519,12 @@ is. Whatever names a key names its file beside it:
   nothing to strip, and Save refuses a tree that is another file's, or whose
   root is labelled, before a byte lands.
 
-So a root's name is its file's alone. Renaming one in place, moving its file
-or first saving it under another name changes no key and keeps the undo
+So a root's name is its file's alone. Renaming one in place, or saving it
+first or again under another name, changes no key and keeps the undo
 history and Back's (*New*), and two files of one name differ in the tree and
-nowhere else. `Rename` takes any file name, another file's too, and `MoveTo`
-names the file as one loaded from there.
+nowhere else. `Rename` renames a file with no path to any file name, another
+file's too, and refuses a saved one, whose name is its path's; `MoveTo` names
+the file as one loaded from there.
 
 A file not saved yet has no path to tell it by, so *New* never numbers: a
 second New is `anonymous-words` too, and two unsaved roots of one name read
@@ -1508,7 +1533,7 @@ apart by name: Save does where it matters, refusing a path another file has
 (*New*, Saving it), and once saved each shows the folder that tells it apart.
 
 **Tests.** Two files holding the same key stay apart, each saving its own; a
-root renamed in place, moved or first saved under another name keeps every
+root renamed in place, or saved first or again under another name, keeps every
 key, the undo history and Back's; two `strings.ini` in sibling folders show
 `strings (ui)` and `strings (core)`, two whose folders share a name show the
 nearest one that differs, a lone one shows its name alone, a name with dots
@@ -1887,3 +1912,14 @@ to its key in whatever language is showing.
 
 **Order.** With Machine translation's grid, its Apply the first batch, and
 Stale All moved onto it in the same step.
+
+## Dirty by file
+
+Unsaved work is the session's today: one dirty mark for the window, and one
+saved point in the undo history, so Save and Save As write every loaded file
+(*Saving*). Each file should carry its own: a file's mark set by an edit to it
+and cleared by writing it, an undo back to its own saved point clearing it, the
+title starring while any file is dirty, and closing naming the files with
+unsaved work. Save would then write only the dirty files, and Save As the
+selected file alone, leaving the others as they are. It is built with Save As
+if that stays small, and otherwise after it.

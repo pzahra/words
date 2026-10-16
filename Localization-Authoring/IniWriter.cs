@@ -11,9 +11,8 @@ namespace PatTech.Localization.Authoring {
 	public interface IKeyTreeNode {
 		/// <summary>
 		///     The key this node stands for, by its name in its file, <c>group.key</c>;
-		///     the root's is empty. The writer reads a tree labelled so; an editor
-		///     whose tree prefixes its labels hands the session the tree as it is,
-		///     and the session relabels it (<see cref="KeyTree.Relabel"/>).
+		///     the root's is empty. The writer reads a tree labelled so, and the
+		///     session refuses one whose root is labelled.
 		/// </summary>
 		string FullLabel { get; }
 		/// <summary>The nodes below this one, in write order.</summary>
