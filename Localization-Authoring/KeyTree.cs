@@ -11,6 +11,8 @@ namespace PatTech.Localization.Authoring {
 		public string FullLabel { get; }
 		/// <summary>True for the root: the file node, whose <see cref="FullLabel"/> is empty.</summary>
 		public bool IsFile { get; init; }
+		/// <inheritdoc/>
+		public WordsFile? File { get; init; }
 		/// <summary>The nodes below this one, in write order.</summary>
 		public List<KeyTreeNode> Children { get; } = [];
 		IEnumerable<IKeyTreeNode> IKeyTreeNode.Children => Children;
@@ -45,22 +47,29 @@ namespace PatTech.Localization.Authoring {
 	///     (<c>block.;comment</c>, <c>;trailer</c>): the writer ignores them.
 	/// </summary>
 	public static class KeyTree {
-		/// <summary>The tree of <paramref name="file"/> as it holds its keys right after a load, each node labelled with its path in the file.</summary>
-		public static KeyTreeNode Build(WordsFile file) => Build(file.Keys.Values, file.BlockComments, file.Trailer);
+		/// <summary>
+		///     The tree of <paramref name="file"/> as it holds its keys right after a load,
+		///     each node labelled with its path in the file, the root carrying the file.
+		/// </summary>
+		public static KeyTreeNode Build(WordsFile file) => Build(file.Keys.Values, file.BlockComments, file.Trailer, file);
 
 		/// <param name="keysInOrder">The file's keys in document order; the order children take.</param>
 		/// <param name="blockComments">Comment runs by the name of the block they sat above.</param>
 		/// <param name="trailer">The comment run after the last block, or empty.</param>
-		public static KeyTreeNode Build(IEnumerable<WordsKey> keysInOrder, IReadOnlyDictionary<string, string> blockComments, string trailer = "") {
-			var file = new KeyTreeNode("", "") { IsFile = true };
-			var nodes = new Dictionary<string, KeyTreeNode> { [""] = file };
+		public static KeyTreeNode Build(IEnumerable<WordsKey> keysInOrder, IReadOnlyDictionary<string, string> blockComments, string trailer = "")
+			=> Build(keysInOrder, blockComments, trailer, null);
+
+		//the tree, its root carrying the file it is of, where it is one's
+		private static KeyTreeNode Build(IEnumerable<WordsKey> keysInOrder, IReadOnlyDictionary<string, string> blockComments, string trailer, WordsFile? of) {
+			var root = new KeyTreeNode("", "") { IsFile = true, File = of };
+			var nodes = new Dictionary<string, KeyTreeNode> { [""] = root };
 			foreach (string path in keysInOrder.Select(key => key.BlockKey).Concat(blockComments.Keys)) {
 				Ensure(path);
 			}
 			if (trailer != "") {
-				file.Children.Add(new CommentTreeNode(";trailer", trailer));
+				root.Children.Add(new CommentTreeNode(";trailer", trailer));
 			}
-			return file;
+			return root;
 
 			KeyTreeNode Ensure(string path) {
 				if (nodes.TryGetValue(path, out var node)) {

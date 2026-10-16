@@ -117,7 +117,11 @@ namespace PatTech.Localization.Authoring {
 			}
 		}
 
-		private bool Note(bool changed) => Changed |= changed;
+		//an operation's own answer, a refusal kept a refusal however much changed before it
+		private bool Note(bool changed) {
+			Changed |= changed;
+			return changed;
+		}
 
 		//a code's entries as they stand, the first time the change touches it
 		private void Keep(string code) => entriesBefore.TryAdd(code, Entries(code));

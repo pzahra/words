@@ -325,8 +325,17 @@ namespace PatTech.Localization.Authoring {
 						flags.Add($"the {code} {slot} holds {Links(now.Links.Count)} where the default holds {Links(was.Links.Count)}");
 						continue;
 					}
-					changed.AddRange(now.Links.Except(was.Links).Except(changed));
-					replaced.AddRange(was.Links.Except(now.Links).Except(replaced));
+					//each target counted, so /a and /b answered /b twice is a change
+					var left = was.Links.GroupBy(link => link).ToDictionary(same => same.Key, same => same.Count());
+					foreach (string link in now.Links) {
+						if (left.TryGetValue(link, out int count) && count > 0) {
+							left[link] = count - 1;
+						}
+						else if (!changed.Contains(link)) {
+							changed.Add(link);
+						}
+					}
+					replaced.AddRange(left.Where(link => link.Value > 0).Select(link => link.Key).Except(replaced));
 				}
 				if (changed.Count == 0) {
 					return [];

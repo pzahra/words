@@ -95,7 +95,8 @@ namespace PatTech.Localization.Authoring.Codecs {
 			}
 			var names = Names(documents, loaded.Errors);
 			HashSet<(Unit Unit, string Code)> read = [];
-			HashSet<Annotation> notes = [];
+			//each note by the file that gave it first
+			Dictionary<Annotation, string> notes = [];
 			foreach (var (file, root) in documents) {
 				foreach (XElement fileElement in XmlText.Children(root, "file")) {
 					//the source text is the default, so its language is the default's: the
@@ -177,7 +178,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 		//for the same language is a duplicate, and the first stands. Its source is the
 		//default unless the file's source language is not the default's. A target, or
 		//a note on one, in a file with no target language goes where ignored says
-		private static void ReadUnit(LoadedWords loaded, XElement unit, string code, string file, string original, Dictionary<Unit, string> names, HashSet<(Unit, string)> read, HashSet<Annotation> notes, bool sources, List<string> ignored) {
+		private static void ReadUnit(LoadedWords loaded, XElement unit, string code, string file, string original, Dictionary<Unit, string> names, HashSet<(Unit, string)> read, Dictionary<Annotation, string> notes, bool sources, List<string> ignored) {
 			if (UnitOf(unit, original) is not { } which) {
 				loaded.Errors.Add($"{file}: a trans-unit without an id was skipped");
 				return;
@@ -222,23 +223,25 @@ namespace PatTech.Localization.Authoring.Codecs {
 					Ignore(ignored, "notes on targets");
 					continue;
 				}
-				//each language's file of a set repeats the source's notes: one is read once
-				if (!notes.Add(new(which, onTarget ? code : "", translator, note.Value))) {
+				//each language's file of a set repeats the source's notes: a note an earlier
+				//file gave is read once, and one a file repeats itself is its own, kept
+				var said = new Annotation(which, onTarget ? code : "", translator, note.Value);
+				if (!notes.TryAdd(said, file) && notes[said] != file) {
 					continue;
 				}
 				if (onTarget) {
 					if (translator) {
-						entry!.Comment = WordsOperations.Fold(entry.Comment, note.Value);
+						entry!.Comment = Append(entry.Comment, note.Value);
 					}
 					else {
-						entry!.Context = WordsOperations.Fold(entry.Context, note.Value);
+						entry!.Context = Append(entry.Context, note.Value);
 					}
 				}
 				else if (translator) {
-					key.Comment = WordsOperations.Fold(key.Comment, note.Value);
+					key.Comment = Append(key.Comment, note.Value);
 				}
 				else {
-					key.Context = WordsOperations.Fold(key.Context, note.Value);
+					key.Context = Append(key.Context, note.Value);
 				}
 			}
 			//a definition's name is one a text can use, or it is no definition: written
@@ -253,6 +256,11 @@ namespace PatTech.Localization.Authoring.Codecs {
 				}
 			}
 		}
+
+		//a note kept goes on a line of its own, a repeat included, where Fold would drop
+		//one the same as all before it; an empty one adds nothing
+		private static string Append(string existing, string note)
+			=> note == "" ? existing : existing == "" ? note : existing + "\n" + note;
 
 		private static void Ignore(List<string> ignored, string what) {
 			if (!ignored.Contains(what)) {
@@ -389,13 +397,38 @@ namespace PatTech.Localization.Authoring.Codecs {
 				new XAttribute("version", "1.2"),
 				new XAttribute(XNamespace.Xmlns + "w", Ext.NamespaceName),
 				new XElement(Xliff + "file",
-					//a file not saved yet is the one its first Save proposes
-					new XAttribute("original", source.File.Path is { } path ? Path.GetFileName(path) : source.File.Name + ".ini"),
+					new XAttribute("original", OriginalOf(source)),
 					new XAttribute("source-language", sourceLanguage),
 					new XAttribute("target-language", code),
 					new XAttribute("datatype", "plaintext"),
 					body));
 			XmlText.Write(writer, root);
+		}
+
+		//the file a unit is of, which keeps two files' units apart on the way in: its file
+		//name, and where another loaded file has that name, its path from the folder they
+		//all share, so ui/strings.ini and core/strings.ini import side by side. A file not
+		//saved yet is the one its first Save proposes
+		private static string OriginalOf(ExportSource source) {
+			if (source.File.Path is not { } path) {
+				return source.File.Name + ".ini";
+			}
+			string name = Path.GetFileName(path);
+			List<string> twins = [.. source.Session.Files
+				.Select(file => file.Path)
+				.OfType<string>()
+				.Where(other => string.Equals(Path.GetFileName(other), name, StringComparison.OrdinalIgnoreCase))
+				.Select(Path.GetFullPath)];
+			if (twins.Count < 2) {
+				return name;
+			}
+			string[][] folders = [.. twins.Select(twin => (Path.GetDirectoryName(twin) ?? "").Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries))];
+			int shared = 0;
+			while (folders.All(each => shared < each.Length && string.Equals(each[shared], folders[0][shared], StringComparison.OrdinalIgnoreCase))) {
+				shared++;
+			}
+			string[] own = (Path.GetDirectoryName(Path.GetFullPath(path)) ?? "").Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
+			return string.Join('/', [.. own[shared..], name]);
 		}
 
 		private static void Note(XElement unit, string from, string annotates, string text) {

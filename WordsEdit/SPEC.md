@@ -359,8 +359,10 @@ its `!` is its own, so a host's relabel never strips it, a library's never
 hides the host's language, and an addition to one file never lists a
 language in another. The session's list is the union of the files' tables,
 in the files' order, a language named as a file lists it where one does,
-and it follows each change, an unload's too: the languages left read as the
-files left name them. The manager works on a working copy: the list
+and it follows each change, an unload's too: the languages left read as a
+load of the files left would name them, file by file, a real label upgrading
+a `!code` placeholder and a listed one an unlisted, and a language they only
+use reads `!code`. The manager works on a working copy: the list
 shows each of the file's languages by code, labelled as the file labels it,
 `!` and all, with a trash beside it and a + under it; the pane edits the
 highlighted row's code and names live — checked against the rules and the
@@ -418,7 +420,8 @@ library's relabel leaves the host's language listed, in the host's file and
 in the session's list, and the host's addition lists nothing in the library;
 the default's language is declared only when the tick moved, and another
 file's stays; unloading the host leaves the library's names and order in the
-session's list. A host's addition flags the library, the tooltip naming the
+session's list, as a load of the files left gives them, and a refusal is said
+though an operation before it went through. A host's addition flags the library, the tooltip naming the
 language and the host (not one hiding it), until the library declares it hidden, and an undo
 raises the flag again. The table's own operations — add, remove, relabel,
 recode, reorder — round-trip file by file and leave every other file's
@@ -746,10 +749,15 @@ does; a unit named two ways keeps the first name, with a gripe. A unit met
 twice for one language keeps the first, with a gripe, whatever its name the
 second time. A gripe names a unit by its name, id and original, which is for a
 reader only: two units are never told apart by how a gripe would name them.
+On the way out, a file's `original` is its file name, and where another loaded
+file has the same name, its path from the folder they all share
+(`ui/strings.ini` and `core/strings.ini`), so the two export apart and import
+side by side; a file not saved yet is the one its first Save proposes.
 A note's channel is its own `annotates`: one on the target in a file with no
 `target-language` is ignored with the targets, with a gripe, never made the
 default's. Each language's file of a set carries the source's notes again, so
-a note is read once per unit and channel, however many files repeat it.
+a note an earlier file gave is read once per unit and channel, however many
+files repeat it, while one a file says twice itself is said twice.
 Inline codes read as the text they stand for: the native code a
 `ph`, `bpt`, `ept` or `it` holds, else the `equiv-text` it or an `x`, `bx` or
 `ex` carries; a `mrk` keeps the text it marks, and a `g` its text without its
@@ -778,8 +786,9 @@ pinned — a numbered name finding its key in each file of a set, and XLIFF's
 resname over its id, two originals' ids apart, a repeated unit, a unit one
 file names and another doesn't, two units a gripe would name alike, a file in
 another source language kept out of the default, a target's notes in a file
-with no target language ignored, the source's notes read once across a set,
-and the inline codes among them. Every exporter round-trips against itself — import, export, import, and
+with no target language ignored, the source's notes read once across a set
+and a note one file repeats kept, two loaded files of one name exporting
+originals that import apart, and the inline codes among them. Every exporter round-trips against itself — import, export, import, and
 the fields the format holds are unchanged — and the native fixed point is
 re-checked to prove Save still never touches a foreign writer. The editor's
 tests drive Import and Export through `FakeDialogs`: the native path, the ask,
@@ -1503,7 +1512,12 @@ is. Whatever names a key names its file beside it:
   brackets the nearest part of its path that tells it from the others, the
   first folder, walking up from its own, where their paths differ:
   `strings (ui)` beside `strings (core)`, and `C:\a\ui\strings.ini` beside
-  `C:\b\ui\strings.ini` shows `strings (a)` and `strings (b)`. A name no other
+  `C:\b\ui\strings.ini` shows `strings (a)` and `strings (b)`. They are told
+  apart together: two whose folders would read alike each take in the next
+  folder toward their own, then the one above, until none do, so beside
+  `C:\beta\ui\strings.ini`, `C:\alpha\ui\strings.ini` and
+  `C:\other\alpha\strings.ini` show `strings (alpha\ui)` and
+  `strings (other\alpha)`. A name no other
   file has shows none, nor does a file with no path yet. The session works it
   out (`ShownName`), so the tree and every list naming a file, the merge and
   export dialogs and the messages, read alike, and it follows a load, an
@@ -1523,10 +1537,12 @@ is. Whatever names a key names its file beside it:
   reads it, with no prefix to probe for. The parameter and translation checks,
   the `enum` input's prefix and a key's followers look through the same stack.
 - **Writing.** `KeyTree` builds a file's tree from the file alone, its root
-  labelled by nothing and each node by its path. The writer, the exporters,
+  labelled by nothing and carrying the file, as the editor's root does
+  (`IKeyTreeNode.File`), and each node by its path. The writer, the exporters,
   merge and split walk that tree and write each key's name as it is, with
-  nothing to strip, and Save refuses a tree that is another file's, or whose
-  root is labelled, before a byte lands.
+  nothing to strip. Save, an export, a merge and a split refuse a tree that is
+  another file's, its keys the same or not, or whose root is labelled, before a
+  byte lands.
 
 So a root's name is its file's alone. Renaming one in place, or saving it
 first or again under another name, changes no key and keeps the undo
@@ -1770,7 +1786,8 @@ a title, and a target that is no absolute URL is no link, since the app leaves
 its label unlinked; markdown the app cannot read (a link in a link's label) is
 flagged. A link target is different: some pages
 have one per language, so an answer may change one, but no service decides that
-alone. A changed link target is written, named, and raises the key's hand
+alone. A changed link target, each counted, so `/a` and `/b` answered `/b`
+twice is one, is written, named, and raises the key's hand
 (needs-review, the `stale=` flag), so a person checks the URL whatever else they
 review; a link dropped or added is a lost or extra token, and flagged: each
 filled slot holds as many links as its default's, a form's being the default's

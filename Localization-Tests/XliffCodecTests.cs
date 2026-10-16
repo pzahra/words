@@ -374,6 +374,46 @@ context-fr=untranslated, with a note
 		}
 	}
 
+	//a note one file repeats is its own: only an earlier file's is read once, so A, A,
+	//B, A in each file of a set reads all four, once
+	[Fact]
+	public void Read_ANoteAFileRepeats_IsKept_AndOnlyAnEarlierFilesIsReadOnce() {
+		string folder = Folder();
+		try {
+			foreach (string code in (string[])["fr", "it"]) {
+				File.WriteAllText(Path.Combine(folder, $"Strings.{code}.xlf"), $"""
+					<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+					  <file original="a.resx" source-language="en" target-language="{code}">
+					    <body>
+					      <trans-unit id="open">
+					        <source>Open</source>
+					        <target>{code}</target>
+					        <note>A</note>
+					        <note>A</note>
+					        <note>B</note>
+					        <note>A</note>
+					        <note from="translator" annotates="target">X</note>
+					        <note from="translator" annotates="target">Y</note>
+					        <note from="translator" annotates="target">X</note>
+					      </trans-unit>
+					    </body>
+					  </file>
+					</xliff>
+					""");
+			}
+			var codec = new XliffCodec();
+
+			ILoadedWords loaded = codec.Read(codec.Discover(Path.Combine(folder, "Strings.fr.xlf")));
+
+			WordsKey open = loaded.WordKeys["open"];
+			Assert.Equal("A\nA\nB\nA", open.Context); //1.3.0 kept all four; the set rule read A\nB
+			Assert.Equal(("X\nY\nX", "X\nY\nX"), (open.Entries["fr"].Comment, open.Entries["it"].Comment)); //each language's its own
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
 	[Fact]
 	public void Read_TwoUnits_StayTwoKeys_ThoughAGripeWouldNameThemAlike() {
 		string folder = Folder();
@@ -496,6 +536,39 @@ context-fr=untranslated, with a note
 			LanguageEntry de = session.Languages.Find("de")!;
 			Assert.Equal("Deutsch", de.NativeName);
 			Assert.Equal("", de.EnglishName); //"German" is no name in Italian
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	//two strings.ini once exported one original, and imported together the second's
+	//units read as the first's again, griped and dropped
+	[Fact]
+	public void Write_FilesOfOneName_ExportOriginalsTheirPathsTellApart_AndImportSideBySide() {
+		string folder = Folder();
+		try {
+			var session = new WordsSession();
+			WordsFile ui = session.Load(new StringReader("value-en=English\nvalue-fr=Français\n\n[k]\nvalue=UI\nvalue-fr=IU\n"), Path.Combine(folder, "app", "ui", "strings.ini"));
+			WordsFile core = session.Load(new StringReader("value-en=English\nvalue-fr=Français\n\n[k]\nvalue=Core\nvalue-fr=Coeur\n"), Path.Combine(folder, "app", "core", "strings.ini"));
+			var codec = new XliffCodec();
+			string Export(WordsFile file, string to) {
+				var source = new ExportSource(session, file, KeyTree.Build(file));
+				string at = Path.Combine(folder, to);
+				IniWriter.WriteAtomic(at, writer => codec.Write(source, codec.Plan(source, at).Single(unit => unit.Languages.SequenceEqual(["fr"])), writer, []));
+				return (string)XDocument.Load(at).Root!.Element(X + "file")!.Attribute("original")!;
+			}
+
+			Assert.Equal("ui/strings.ini", Export(ui, "Both.fr.xlf"));
+			Assert.Equal("core/strings.ini", Export(core, "Both.de.xlf"));
+			session.Unload(core);
+			Assert.Equal("strings.ini", Export(ui, "Alone.fr.xlf")); //a name no other has: as before
+
+			//the two read as one set, a unit each, the second's key moved off the first's
+			ILoadedWords loaded = codec.Read([Path.Combine(folder, "Both.fr.xlf"), Path.Combine(folder, "Both.de.xlf")]);
+			Assert.Equal(["k", "k-2"], loaded.WordKeys.Keys);
+			Assert.Equal(("IU", "Coeur"), (loaded.WordKeys["k"].Entries["fr"].Value, loaded.WordKeys["k-2"].Entries["fr"].Value));
+			Assert.DoesNotContain(loaded.Errors, error => error.Contains("came twice"));
 		}
 		finally {
 			Directory.Delete(folder, recursive: true);

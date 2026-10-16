@@ -341,6 +341,21 @@ public class TranslationDocumentTests {
 		Assert.Empty(broken.Verdicts[1].Writes);
 	}
 
+	//each target counted: one swapped for another the slot already links to is a change,
+	//where comparing them as sets saw none
+	[Fact]
+	public void ALinkTargetSwappedForAnotherOfTheSlots_RaisesTheHand() {
+		string ini = Ini("value=!en", "value-it=Italiano", "", "[two]", "value=See [one](https://example.com/a) and [two](https://example.com/b)");
+
+		var swapped = Batch(ini, "it", ("two", "Vedi [uno](https://example.com/b) e [due](https://example.com/b)"));
+		var reordered = Batch(ini, "it", ("two", "Vedi [due](https://example.com/b) e [uno](https://example.com/a)"));
+
+		Assert.Single(swapped.Verdicts[0].Writes);
+		Assert.Equal(["the it words link to https://example.com/b in place of https://example.com/a"], swapped.Verdicts[0].Raised);
+		Assert.Single(reordered.Verdicts[0].Writes);
+		Assert.Empty(reordered.Verdicts[0].Raised); //the same targets in another order
+	}
+
 	[Fact]
 	public void AKeyAnsweredTwice_KeepsItsFirstAnswer() {
 		var batch = Batch(Referring, "it", ("result", "Risultato: {>saved}"), ("result", "Esito: {>saved}"), ("result", null));

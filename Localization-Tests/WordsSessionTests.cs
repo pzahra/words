@@ -89,7 +89,9 @@ value-fr=Ouvrir
 		WordsFile other = session.Load(new StringReader("value-en=English\n\n[other]\nvalue=x\n"), "Other");
 
 		var ex = Assert.Throws<InvalidOperationException>(() => session.Save(file, KeyTree.Build(other), new StringWriter()));
-		Assert.Contains("does not match its keys", ex.Message);
+		Assert.Contains("a file is written from its own tree", ex.Message);
+		ex = Assert.Throws<InvalidOperationException>(() => session.Save(file, KeyTree.Build(other.Keys.Values, other.BlockComments), new StringWriter()));
+		Assert.Contains("does not match its keys", ex.Message); //a tree from keys alone, which its keys tell
 		var labelled = new KeyTreeNode("Main", "Main") { IsFile = true };
 		ex = Assert.Throws<InvalidOperationException>(() => session.Save(file, labelled, new StringWriter()));
 		Assert.Contains("is no file's", ex.Message);
@@ -443,6 +445,36 @@ value-fr=Ouvrir
 		Assert.Equal("!English", session.Languages.Find("en")!.NativeName);
 	}
 
+	//the languages left after an unload, each as code=native/english
+	private static string[] Named(WordsSession session) => [.. session.Languages.Known.Select(language => $"{language.Code}={language.NativeName}/{language.EnglishName}")];
+
+	//what a load of these files alone names the languages
+	private static string[] NamedByALoadOf(params string[] inis) {
+		var session = new WordsSession();
+		foreach (string ini in inis) {
+			session.Load(new StringReader(ini), $"F{session.Files.Count}");
+		}
+		return Named(session);
+	}
+
+	//the load's own precedence, file by file: a language the rest only use reads !code,
+	//and a real label upgrades a placeholder, unlisted though both are
+	[Theory]
+	[InlineData("value-en=English\n\n[u]\nvalue=U\nvalue-it=Ui\n", null)]
+	[InlineData("value-it=!it\n\n[a]\nvalue=A\n", "value-it=!Italiano\n\n[b]\nvalue=B\n")]
+	public void Unload_NamesTheLanguagesLeft_AsALoadOfTheRestWould(string first, string? second) {
+		string[] rest = second is null ? [first] : [first, second];
+		var session = new WordsSession();
+		WordsFile host = session.Load(new StringReader("value-it=Italian\ncomment-it=Italian\n\n[h]\nvalue=H\n"), "Host");
+		foreach (string ini in rest) {
+			session.Load(new StringReader(ini), $"F{session.Files.Count}");
+		}
+
+		session.Unload(host);
+
+		Assert.Equal(NamedByALoadOf(rest), Named(session));
+	}
+
 	[Fact]
 	public void Keys_AddRemoveAndRemoveUnderKeepTheInvariantAndSpareSimilarNames() {
 		var session = Load(Main);
@@ -766,6 +798,35 @@ value-fr=Bonjour
 	}
 
 	[Fact]
+	public void AnotherFilesTree_TheSameKeysAndAll_IsRefused_BySaveExportMergeAndSplit() {
+		// its keys match, but it would write one file's words in the other's order,
+		// under the other's comments
+		string folder = Path.Combine(Path.GetTempPath(), $"WordsSessionOwner-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		try {
+			var session = new WordsSession();
+			WordsFile mine = session.Load(new StringReader(Main), Path.Combine(folder, "Mine.ini"));
+			WordsFile theirs = session.Load(new StringReader(Main), Path.Combine(folder, "Theirs.ini"));
+			WordsFile french = session.Load(new StringReader("value-fr=Français\n\n[greeting]\nvalue-fr=Salut\n"), Path.Combine(folder, "French.ini"));
+			IKeyTreeNode their = KeyTree.Build(theirs);
+			string merged = Path.Combine(folder, "Merged.ini"), split = Path.Combine(folder, "Split.ini");
+
+			Assert.Contains("a file is written from its own tree", Assert.Throws<InvalidOperationException>(() => session.Save(mine, their, new StringWriter())).Message);
+			Assert.Throws<InvalidOperationException>(() => new ExportSource(session, mine, their));
+			Assert.Throws<InvalidOperationException>(() => session.Merge(mine, new Dictionary<string, WordsFile> { ["fr"] = french }, their, merged, out _));
+			Assert.Throws<InvalidOperationException>(() => session.Split(mine, "fr", their, split));
+
+			Assert.False(File.Exists(merged));
+			Assert.False(File.Exists(split));
+			Assert.Equal(3, session.Files.Count);
+			session.Save(mine, KeyTree.Build(mine), new StringWriter()); //its own goes
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
 	public void MergeAndSplit_RefuseATreeMissingSomeOfTheFilesKeys() {
 		// as Save does: the writer walks the tree, so a short one would write a
 		// file with fewer keys, over an existing one
@@ -901,6 +962,21 @@ value-fr=Bonjour
 		//unloading one takes the brackets off the other
 		session.Unload(core);
 		Assert.Equal("strings", session.ShownName(ui));
+	}
+
+	//told apart together: two whose first telling folders read alike each take in the
+	//next folder toward their own, then the one above
+	[Fact]
+	public void TwinsWhoseFoldersReadAlike_EachTakeInAFolderMore() {
+		var session = new WordsSession();
+		WordsFile alpha = session.Load(new StringReader(""), @"C:\alpha\ui\strings.ini");
+		WordsFile beta = session.Load(new StringReader(""), @"C:\beta\ui\strings.ini");
+		WordsFile other = session.Load(new StringReader(""), @"C:\other\alpha\strings.ini");
+
+		Assert.Equal(["strings (alpha\\ui)", "strings (beta)", "strings (other\\alpha)"], session.Files.Select(session.ShownName)); //was (alpha) twice
+
+		session.Unload(beta);
+		Assert.Equal(["strings (ui)", "strings (alpha)"], session.Files.Select(session.ShownName)); //nothing alike, one folder each
 	}
 
 	//the editor's starter: a header above the table, the default's language declared

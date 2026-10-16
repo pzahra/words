@@ -233,26 +233,60 @@ namespace PatTech.Localization.Authoring {
 		///     the file's name): its <see cref="WordsFile.Name"/>, and where another loaded
 		///     file has that name too, in brackets the first folder, walking up from its
 		///     own, where its path differs from every other's: <c>strings (ui)</c> beside
-		///     <c>strings (core)</c>. A file not saved yet has no folder, and shows its
-		///     name alone; one whose folders differ at no single step shows its folder whole.
+		///     <c>strings (core)</c>. The files of one name are told apart together: two
+		///     whose folders would read alike each take in the next folder toward its own,
+		///     then the one above, until none do, so <c>C:\alpha\ui</c> beside
+		///     <c>C:\other\alpha</c> shows <c>(alpha\ui)</c> and <c>(other\alpha)</c>. A
+		///     file not saved yet has no folder, and shows its name alone; one whose
+		///     folders differ at no single step shows its folder whole.
 		/// </summary>
 		public string ShownName(WordsFile file) {
-			List<WordsFile> twins = [.. files.Where(other => other != file && string.Equals(other.Name, file.Name, StringComparison.OrdinalIgnoreCase))];
-			if (twins.Count == 0 || file.Path is not { } path) {
+			List<WordsFile> named = [.. files.Where(other => string.Equals(other.Name, file.Name, StringComparison.OrdinalIgnoreCase))];
+			if (named.Count < 2 || file.Path is null) {
 				return file.Name;
 			}
-			string[] own = Folders(path);
-			List<string[]> others = [.. twins.Select(twin => twin.Path is { } at ? Folders(at) : [])];
-			for (int step = 0; step < own.Length; step++) {
-				if (others.All(folders => step >= folders.Length || !string.Equals(folders[step], own[step], StringComparison.OrdinalIgnoreCase))) {
-					return $"{file.Name} ({own[step]})";
+			return $"{file.Name} ({Told(named)[file]})";
+		}
+
+		//what tells each saved file of one name from the rest: a run of its folders, at
+		//first the one where its path differs from every other's, grown where two runs
+		//read alike, toward its own folder, then above, until none do
+		private static Dictionary<WordsFile, string> Told(List<WordsFile> named) {
+			var folders = named.ToDictionary(file => file, file => file.Path is { } path ? Folders(path) : []);
+			var runs = new Dictionary<WordsFile, (int Low, int High)>();
+			foreach (WordsFile file in named.Where(file => file.Path is not null)) {
+				string[] own = folders[file];
+				int step = Enumerable.Range(0, own.Length).FirstOrDefault(step => named.All(other => other == file
+					|| step >= folders[other].Length || !string.Equals(folders[other][step], own[step], StringComparison.OrdinalIgnoreCase)), -1);
+				runs[file] = step < 0 ? (0, Math.Max(own.Length - 1, 0)) : (step, step);
+			}
+			while (true) {
+				var told = runs.ToDictionary(run => run.Key, run => Run(folders[run.Key], run.Value));
+				var alike = told.GroupBy(label => label.Value, StringComparer.OrdinalIgnoreCase).Where(same => same.Count() > 1).SelectMany(same => same.Select(label => label.Key)).ToList();
+				bool grew = false;
+				foreach (WordsFile file in alike) {
+					var (low, high) = runs[file];
+					if (low > 0) {
+						runs[file] = (low - 1, high);
+						grew = true;
+					}
+					else if (high < folders[file].Length - 1) {
+						runs[file] = (low, high + 1);
+						grew = true;
+					}
+				}
+				if (!grew) {
+					return told;
 				}
 			}
-			return $"{file.Name} ({file.Directory})";
 
 			//the folders a path sits in, its own first
 			static string[] Folders(string path)
 				=> [.. (System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(path)) ?? "").Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries).Reverse()];
+
+			//a run of folders as a path writes them, the outermost first
+			static string Run(string[] own, (int Low, int High) run)
+				=> own.Length == 0 ? "" : string.Join(System.IO.Path.DirectorySeparatorChar, own[run.Low..(run.High + 1)].Reverse());
 		}
 
 		/// <summary>
@@ -319,11 +353,15 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		//the writer only emits keys the walk reaches, so a stale or wrong tree would
-		//quietly drop the rest: the tree must be a file's, its root labelled by nothing
-		//and every node by its path, and its keyed nodes must be exactly the file's keys,
-		//no more, no fewer. An exporter walks the same tree, so an ExportSource checks
-		//the same way
+		//quietly drop the rest: the tree must be the file's, its root carrying no other
+		//file and labelled by nothing, every node by its path, and its keyed nodes must
+		//be exactly the file's keys, no more, no fewer; another file's tree with the
+		//same keys would write its comments and order. An exporter walks the same
+		//tree, so an ExportSource checks the same way, and so do merge and split
 		internal static void EnsureTreeCovers(WordsFile file, IKeyTreeNode tree) {
+			if (tree.File is { } owner && owner != file) {
+				throw new InvalidOperationException($"the tree of '{owner.Name}' was given for '{file.Name}': a file is written from its own tree");
+			}
 			if (tree.FullLabel != "") {
 				throw new InvalidOperationException($"tree root '{tree.FullLabel}' is no file's: a file's tree is labelled by its paths alone");
 			}

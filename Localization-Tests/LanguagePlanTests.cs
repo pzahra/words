@@ -88,6 +88,18 @@ public class LanguagePlanTests {
 		Assert.Equal(["en"], only.Languages);
 	}
 
+	//through the editor's recorder too: one removal going through does not make the
+	//next one's refusal read as done
+	[Fact]
+	public void ARefusal_IsSaid_ThoughAnEarlierOperationWentThrough() {
+		var (session, file) = Load("value-en=English\nvalue-de=Deutsch\n\n[k]\nvalue=x\n");
+		var change = new LanguageTableChange(session);
+
+		Assert.Equal(["de"], session.Languages.Apply(file, [], change));
+		Assert.Equal(["de"], file.Languages);
+		Assert.True(change.Changed);
+	}
+
 	//what stands in front of the table makes every change, as the editor's undo records them
 	[Fact]
 	public void EveryOperation_GoesThroughTheEditsGiven() {

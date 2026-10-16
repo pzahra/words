@@ -89,18 +89,11 @@ namespace PatTech.Localization.Authoring {
 				Known.Clear();
 			}
 			foreach (LanguageEntry language in loaded.KnownLanguages.Values) {
-				LanguageEntry? known = Find(language.Code);
-				if (known is null) {
+				if (Find(language.Code) is { } known) {
+					Take(known, language);
+				}
+				else {
 					Known.Add(language);
-				}
-				else if ((known.IsPlaceholder && !language.IsPlaceholder) || (Unlisted(known) && !Unlisted(language))) {
-					known.NativeName = language.NativeName;
-					if (language.EnglishName != "") {
-						known.EnglishName = language.EnglishName;
-					}
-				}
-				else if (known.EnglishName == "") {
-					known.EnglishName = language.EnglishName;
 				}
 			}
 			if (Known.Count == 0) {
@@ -108,6 +101,21 @@ namespace PatTech.Localization.Authoring {
 				Known.Add(Default());
 			}
 			Backfill();
+		}
+
+		//a later file's label for a language the union names already: a real label
+		//upgrades a !code placeholder, and a listed one an unlisted; an exonym fills in
+		//where there was none
+		private static void Take(LanguageEntry known, LanguageEntry language) {
+			if ((known.IsPlaceholder && !language.IsPlaceholder) || (Unlisted(known) && !Unlisted(language))) {
+				known.NativeName = language.NativeName;
+				if (language.EnglishName != "") {
+					known.EnglishName = language.EnglishName;
+				}
+			}
+			else if (known.EnglishName == "") {
+				known.EnglishName = language.EnglishName;
+			}
 		}
 
 		//the invariant: every key, every known language
@@ -362,19 +370,36 @@ namespace PatTech.Localization.Authoring {
 			=> session.Files.Any(file => file.Languages.Contains(code))
 			|| session.AllKeys.Any(key => key.Entries.TryGetValue(code, out WordsEntry? entry) && !entry.IsEmpty());
 
-		//the union's name for a language is a file's label for it, a listed one before
-		//one a library hides, so a dropdown names what a host offers; its exonym is the
-		//first any of them gives
+		//the union's name for a language is what a load of the files there are now would
+		//give it, file by file in their order by Absorb's rule (Take), so a dropdown names
+		//what a host offers, and a language the files only use reads !code, as it loads
 		private void Relist(LanguageEntry known) {
-			List<LanguageEntry> labels = [.. session.Files
-				.Where(file => file.Languages.Contains(known.Code))
-				.Select(file => file.Labels.GetValueOrDefault(known.Code))
-				.OfType<LanguageEntry>()];
-			if ((labels.FirstOrDefault(label => !Unlisted(label)) ?? labels.FirstOrDefault()) is not { } shown) {
-				return;
+			LanguageEntry? shown = null;
+			foreach (LanguageEntry label in session.Files.SelectMany(AsLoaded).Where(label => label.Code == known.Code)) {
+				if (shown is null) {
+					shown = new LanguageEntry(label);
+				}
+				else {
+					Take(shown, label);
+				}
 			}
-			known.NativeName = shown.NativeName;
-			known.EnglishName = shown.EnglishName != "" ? shown.EnglishName : labels.Select(label => label.EnglishName).FirstOrDefault(name => name != "") ?? "";
+			if (shown is not null) {
+				known.NativeName = shown.NativeName;
+				known.EnglishName = shown.EnglishName;
+			}
+		}
+
+		//the labels a load of file alone reads: its table's, in its order, then a !code
+		//placeholder for each language its keys have words in and its table leaves out
+		private IEnumerable<LanguageEntry> AsLoaded(WordsFile file) {
+			foreach (string code in file.Languages) {
+				yield return file.Labels.GetValueOrDefault(code) ?? new LanguageEntry(code);
+			}
+			foreach (string code in session.KeysOf(file).SelectMany(key => key.Entries.Where(entry => !entry.Value.IsEmpty()).Select(entry => entry.Key)).Distinct()) {
+				if (!file.Languages.Contains(code)) {
+					yield return new LanguageEntry(code);
+				}
+			}
 		}
 
 		//the union in the files' order, each file's table in turn, the first file's

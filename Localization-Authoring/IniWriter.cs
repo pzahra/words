@@ -17,6 +17,12 @@ namespace PatTech.Localization.Authoring {
 		string FullLabel { get; }
 		/// <summary>The nodes below this one, in write order.</summary>
 		IEnumerable<IKeyTreeNode> Children { get; }
+		/// <summary>
+		///     On a root, the file whose tree it is: the session saves, exports, merges
+		///     and splits a file by its own tree alone, and refuses another's. Null
+		///     below a root, and on a tree built from keys alone, which its keys tell.
+		/// </summary>
+		WordsFile? File => null;
 	}
 
 	/// <summary>
