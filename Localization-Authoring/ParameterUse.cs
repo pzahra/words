@@ -231,10 +231,14 @@ namespace PatTech.Localization.Authoring {
 
 		/// <summary>
 		///     Whether <paramref name="name"/> names a parameter a text can use: a number,
-		///     <c>{0}</c>, or a name, <c>{Count}</c>, as a format item reads one.
+		///     <c>{0}</c>, or a name, <c>{Count}</c>, as a format item reads one, and
+		///     nothing else. The item's argument is the whole name: <c>Name:</c> reads as
+		///     <c>{Name}</c> with an empty spec, and written as <c>param-Name:=</c> would
+		///     load back as another parameter.
 		/// </summary>
 		public static bool IsName(string name)
-			=> !name.Any(char.IsWhiteSpace) && WordsTemplate.ParseFormat($"{{{name}}}") is [WordsPiece.Item { Alignment: null, Format: null } item] && item.Length == name.Length + 2;
+			=> !name.Any(char.IsWhiteSpace) && WordsTemplate.ParseFormat($"{{{name}}}") is [WordsPiece.Item { Alignment: null, Format: null } item]
+				&& item.Length == name.Length + 2 && item.Argument == Normal(name);
 
 		/// <summary>Whether two names are one parameter, as string.Format reads a number: <c>01</c> is <c>1</c>.</summary>
 		public static bool SameName(string a, string b) => Normal(a) == Normal(b);

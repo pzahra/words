@@ -438,6 +438,51 @@ context-fr=untranslated, with a note
 	}
 
 	[Fact]
+	public void Read_AParameterNamedAsNoTextReadsOne_IsSkipped_AndSaysSo() {
+		// Name: once imported, saved as param-Name:= and loaded back as another parameter
+		string folder = Folder();
+		try {
+			string path = Path.Combine(folder, "Params.fr.xlf");
+			File.WriteAllText(path, """
+				<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2" xmlns:w="https://github.com/pzahra/words">
+				  <file target-language="fr">
+				    <body>
+				      <trans-unit id="k">
+				        <source>{Name} of {0}</source>
+				        <w:param name="Name:" type="int">the count</w:param>
+				        <w:param name="two words">spaced</w:param>
+				        <w:param>unnamed</w:param>
+				        <w:param name="0">kept</w:param>
+				      </trans-unit>
+				    </body>
+				  </file>
+				</xliff>
+				""");
+			var codec = new XliffCodec();
+			var session = new WordsSession();
+
+			WordsFile file = session.Import(codec, [path]);
+
+			WordsParameter kept = Assert.Single(file.Keys["k"].Parameters);
+			Assert.Equal(("0", "kept"), (kept.Key, kept.Description));
+			Assert.Equal([
+				"Params.fr.xlf: trans-unit 'k': the parameter 'Name:' was skipped: a parameter is named as a format item reads one, a number or a name",
+				"Params.fr.xlf: trans-unit 'k': the parameter 'two words' was skipped: a parameter is named as a format item reads one, a number or a name",
+				"Params.fr.xlf: trans-unit 'k': the parameter '' was skipped: a parameter is named as a format item reads one, a number or a name",
+			], file.Errors);
+
+			var saved = new StringWriter();
+			session.Save(file, KeyTree.Build(file), saved);
+			Assert.DoesNotContain("param-Name", saved.ToString());
+			WordsFile again = new WordsSession().Load(new StringReader(saved.ToString()), "Params");
+			Assert.Equal(["0"], again.Keys["k"].Parameters.Select(parameter => parameter.Key));
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
 	public void Read_FromASourceInAnotherLanguage_GivesNoEnglishNames() {
 		string folder = Folder();
 		try {

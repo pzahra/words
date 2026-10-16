@@ -241,9 +241,14 @@ namespace PatTech.Localization.Authoring.Codecs {
 					key.Context = WordsOperations.Fold(key.Context, note.Value);
 				}
 			}
+			//a definition's name is one a text can use, or it is no definition: written
+			//as param-Name:=, a Name: would load back as Name
 			foreach (XElement parameter in unit.Elements(Ext + "param")) {
 				string named = (string?)parameter.Attribute("name") ?? "";
-				if (named != "" && !key.Parameters.Any(existing => existing.Key == named)) {
+				if (!ParameterUse.IsName(named)) {
+					loaded.Errors.Add($"{file}: trans-unit {shown}: the parameter '{named}' was skipped: a parameter is named as a format item reads one, a number or a name");
+				}
+				else if (!key.Parameters.Any(existing => existing.Key == named)) {
 					key.Parameters.Add(new WordsParameter(named, WordsParameterType.TryParse((string?)parameter.Attribute("type") ?? "", out var type) ? type : WordsParameterType.Str, parameter.Value));
 				}
 			}

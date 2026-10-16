@@ -1338,7 +1338,10 @@ one, its type guessed: `int` for a selector's count, `str` otherwise. The
 + adds the first of those, or else the lowest number no definition has, so
 `{0}` and never `P0`; its placeholder is editable, for `{Count}`, its input
 going with it; a name no parameter can have, or another definition's (`{01}`
-is `{1}`), marks the box and is not taken.
+is `{1}`), marks the box and is not taken. A name is the whole of what a
+format item reads, with no syntax taken out of it: `Name:` reads as `{Name}`
+with an empty spec, and saved as `param-Name:=` it would load back as another
+parameter, so it is no name.
 
 **The inputs.** One per definition, then one per parameter found and not
 defined, so a key nobody has defined still previews filled; each reads as its
@@ -1420,7 +1423,9 @@ place by place are the ones renamed.
 `WordsParameterType`, one of the six; the inputs are the editor's session's,
 never the model's, read by `WordsOperations.ReadInputs` and formatted by
 `FormatSample`. XLIFF carries a parameter, its type as an attribute, short,
-and its description as the text; resx lists parameters as lost. `words set`
+and its description as the text; an imported one whose name is no
+parameter's is skipped, with a gripe, before it reaches the writer. resx
+lists parameters as lost. `words set`
 writes a `param-` text as given, with no `String:` before one whose first
 words name no type, since the reader keeps such a text whole.
 
@@ -1438,6 +1443,10 @@ words name no type, since the reader keeps such a text whole.
   definition added, adopted, renamed, retyped or taken away is one entry; a
   rename's undo takes its input back to the old name (`42` on `0`, renamed
   `Count`), its redo on again, and an input typed meanwhile goes with it.
+- A rename to another definition's name, `02` for `2`, `two words` or
+  `Name:` is refused, and changes nothing; an XLIFF `Name:`, `two words` or
+  nameless parameter is skipped with a gripe, and what saves loads back the
+  same.
 - `param-0=the file: its full path` reads as one `str` description and
   writes back as it was; `param-0=INT:` reads as an `int` without one; a
   description that starts `real:` round-trips; 1.3.0's `Integer:` reads as

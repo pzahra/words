@@ -1447,6 +1447,8 @@ value=x
 		Assert.NotNull(row.NameError);
 		row.NameText = "02"; //the same number as string.Format reads it
 		Assert.NotNull(row.NameError);
+		row.NameText = "Name:"; //saved as param-Name:=, it would load back as Name
+		Assert.NotNull(row.NameError);
 		Assert.Equal("1", row.Parameter.Key);
 		Assert.Equal(done, vm.UndoStack.DoneCount);
 

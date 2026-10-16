@@ -371,6 +371,12 @@ public class ParameterUseTests {
 	[InlineData("two words", false)]
 	[InlineData("", false)]
 	[InlineData("{0}", false)]
+	[InlineData("01", true)] //1, as string.Format reads it
+	[InlineData("Name:", false)] //an empty spec: written param-Name:= it loads as Name
+	[InlineData("0:", false)]
+	[InlineData("Name,", false)]
+	[InlineData("Name#", false)]
+	[InlineData("Name}", false)]
 	public void AName_IsANumberOrAnIdentifier(string name, bool valid) => Assert.Equal(valid, ParameterUse.IsName(name));
 
 	[Fact]
