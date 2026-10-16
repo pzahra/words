@@ -20,6 +20,12 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>The field types a key's block holds.</summary>
 		public static IReadOnlyList<string> Types { get; } = ["value", "context", "comment", "stale", "param"];
 
+		/// <summary>The key's raised hand, its Needs Review: a <c>stale=</c> with no language, there or not, its words none.</summary>
+		public static WordsField Hand { get; } = new("stale", "", "");
+
+		/// <summary>A language's stale mark, <c>stale-xx</c>.</summary>
+		public static WordsField StaleIn(string code) => new("stale", code, "");
+
 		/// <summary>Reads a field's name; <paramref name="problem"/> says what is wrong with one that is no field.</summary>
 		public static bool TryParse(string name, out WordsField field, [NotNullWhen(false)] out string? problem) {
 			field = default;

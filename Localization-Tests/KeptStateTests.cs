@@ -107,6 +107,55 @@ public class KeptStateTests {
 		Assert.NotSame(entries["de"], key.Entries["de"]);
 	}
 
+	//what the history puts back finds its key by file and name, as the history names it
+	[Fact]
+	public void AField_IsSetByItsKeysFileAndName_AnEmptyFormBeingNone() {
+		var (session, file) = Load();
+		WordsKey sub = file.Keys["k.sub"];
+
+		Assert.True(session.Set(file, "k.sub", new WordsField("value", "", ""), "z"));
+		Assert.True(session.Set(file, "k.sub", new WordsField("value", "", "other"), ""));
+		Assert.True(session.Set(file, "k.sub", new WordsField("value", "de", "other"), "zz"));
+		Assert.True(session.Set(file, "k.sub", new WordsField("context", "", ""), "where"));
+		Assert.True(session.Set(file, "k.sub", new WordsField("comment", "fr", ""), "note"));
+		Assert.Equal(("z", "zz", "where", "note"), (sub.DefaultValue, sub.Entries["de"].Forms["other"], sub.Context, sub.Entries["fr"].Comment));
+		Assert.Empty(sub.Forms); //empty: none, as the session holds forms
+
+		//the hand and a stale mark, up and down
+		Assert.True(session.Set(file, "k.sub", WordsField.Hand, ""));
+		Assert.True(session.Set(file, "k.sub", WordsField.StaleIn("fr"), "machine translated"));
+		Assert.True(session.Set(file, "k.sub", WordsField.StaleIn("de"), null));
+		Assert.Equal((true, "machine translated", null), (sub.NeedsReview, sub.Entries["fr"].Stale, sub.Entries["de"].Stale));
+		Assert.True(session.Set(file, "k.sub", WordsField.Hand, null));
+		Assert.False(sub.NeedsReview);
+
+		//no key of the name, or no entry in the language: nothing, and no entry made
+		Assert.False(session.Set(file, "nope", WordsField.Hand, ""));
+		Assert.False(session.Set(file, "k.sub", new WordsField("value", "it", ""), "ciao"));
+		Assert.False(sub.Entries.ContainsKey("it"));
+	}
+
+	[Fact]
+	public void ADescription_AndAKeysParametersAndEntries_ArePutBackByName() {
+		var (session, file) = Load();
+		WordsKey sub = file.Keys["k.sub"];
+		var parameters = sub.CopyParameters();
+		var entries = sub.CopyEntries();
+
+		Assert.True(session.Describe(file, "k.sub", "0", "the files"));
+		Assert.Equal((WordsParameterType.Int, "the files"), (sub.Parameters[0].DataType, sub.Parameters[0].Description)); //its type kept
+		Assert.False(session.Describe(file, "k.sub", "1", "none such"));
+
+		sub.Parameters.Clear();
+		sub.Entries["de"] = new WordsEntry();
+		Assert.True(session.PutBackParameters(file, "k.sub", parameters));
+		Assert.True(session.PutBackEntries(file, "k.sub", entries));
+		Assert.Equal("a count", Assert.Single(sub.Parameters).Description);
+		Assert.Equal(("yy", "then"), (sub.Entries["de"].Value, sub.Entries["de"].Stale));
+		Assert.False(session.PutBackParameters(file, "nope", parameters));
+		Assert.False(session.PutBackEntries(file, "nope", entries));
+	}
+
 	[Fact]
 	public void AFilesSettingsSlots_AreKept_AndPutBack() {
 		var (_, file) = Load();

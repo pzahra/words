@@ -991,9 +991,13 @@ nodes itself. What it keeps of the document and puts back is Authoring's,
 tested headless: a language commit's tables and entries
 (`LanguageTableChange`), a key copied out and restored (`WordsSession.KeysUnder`,
 `WordsSession.Restore`), a file's settings references (`SettingsSlots`), a key's
-parameters and entries (`WordsKey.CopyParameters`, `PutBackParameters`,
-`CopyEntries`, `PutBackEntries`), and a form written, an empty one being none
-(`Write` on a key's or an entry's forms).
+parameters and entries kept (`WordsKey.CopyParameters`, `CopyEntries`) and put
+back by the key's file and name (`WordsSession.PutBackParameters`,
+`PutBackEntries`), a field, the raised hand and a stale mark set the same way
+(`WordsSession.Set`, naming a `WordsField`, an empty form being none, as `Write`
+on a key's or an entry's forms has it), and a definition's description
+(`WordsSession.Describe`). No entry sets the document itself; a comment's text,
+which is the tree's, is the one it writes.
 
 **Recording.** Fields report themselves; every other entry is made by its
 command through one door (`Perform`, on the main view model): the command
@@ -1131,7 +1135,10 @@ Authoring: a language change put back before and after gives the file's saved
 text byte for byte, says when it changed nothing and when it merged, and has no
 after until it is closed; a key copied out comes back as it was, the copy its
 own; a key's parameters and entries, and a file's settings references, are
-copied and put back; a form written empty is none. In laid-out
+copied and put back; a form written empty is none; a field, the hand and a
+stale mark are set by the key's file and name, a description keeps its
+type, and a key or an entry that is not there takes nothing and gains no
+entry. In laid-out
 boxes (`TextBoxUndoTests`), an editing box answers Undo and Redo from its
 history and tells it each keystroke's selections, and a plain box beside it
 keeps its own; typed into one bound to a key, Ctrl+Z steps back a word at a

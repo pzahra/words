@@ -39,9 +39,6 @@ public sealed record NodeRef(WordsFile File, string Label, int Index = -1) {
 		KeyNode? node = tree.NodeAt(File, Label);
 		return Index < 0 ? node : node?.Children.ElementAtOrDefault(Index);
 	}
-
-	/// <summary>The key at <see cref="Label"/> in the file, if it has one.</summary>
-	public WordsKey? Key => File.Keys.GetValueOrDefault(Label);
 }
 
 /// <summary>

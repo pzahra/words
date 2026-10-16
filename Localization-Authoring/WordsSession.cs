@@ -481,6 +481,53 @@ namespace PatTech.Localization.Authoring {
 		public string? SetConstant(WordsFile file, string name, bool isConstant, bool clearEntries = false)
 			=> WordsOperations.SetConstant(file.Store, name, isConstant, clearEntries);
 
+		//A key's state set and put back by its file and name, as an editor's history names
+		//it (the editor's SPEC: Undo → Where it lives); each is false, and does nothing,
+		//where the file has no key of the name
+
+		/// <summary>
+		///     Sets one field of <paramref name="file"/>'s key <paramref name="name"/>:
+		///     a value, a form, a context or a comment, the default's or a language's,
+		///     the raised hand (<see cref="WordsField.Hand"/>) or a language's stale
+		///     mark, as <see cref="WordsField.Write"/> writes it, <see langword="null"/>
+		///     clearing it, but for a form, where an empty one is none, as the session
+		///     holds forms. False too where the key has no entry in the field's language.
+		/// </summary>
+		public bool Set(WordsFile file, string name, WordsField field, string? text) {
+			if (!file.Keys.TryGetValue(name, out WordsKey? key) || field.Type != "param" && field.Language != "" && !key.Entries.ContainsKey(field.Language)) {
+				return false;
+			}
+			field.Write(key, field is { Type: "value", Form: not "" } && text == "" ? null : text);
+			return true;
+		}
+
+		/// <summary>Sets the description of the key's definition of <paramref name="parameter"/>, its type and its place kept; false where it defines none of the name.</summary>
+		public bool Describe(WordsFile file, string name, string parameter, string description) {
+			if (!file.Keys.TryGetValue(name, out WordsKey? key) || key.Parameters.FirstOrDefault(defined => defined.Key == parameter) is not { } found) {
+				return false;
+			}
+			found.Description = description;
+			return true;
+		}
+
+		/// <summary>Puts kept parameters (<see cref="WordsKey.CopyParameters"/>) back in place of the key's (<see cref="WordsKey.PutBackParameters"/>).</summary>
+		public bool PutBackParameters(WordsFile file, string name, IEnumerable<WordsParameter> kept) {
+			if (!file.Keys.TryGetValue(name, out WordsKey? key)) {
+				return false;
+			}
+			key.PutBackParameters(kept);
+			return true;
+		}
+
+		/// <summary>Puts kept entries (<see cref="WordsKey.CopyEntries"/>) back in the key (<see cref="WordsKey.PutBackEntries"/>).</summary>
+		public bool PutBackEntries(WordsFile file, string name, IReadOnlyDictionary<string, WordsEntry> kept) {
+			if (!file.Keys.TryGetValue(name, out WordsKey? key)) {
+				return false;
+			}
+			key.PutBackEntries(kept);
+			return true;
+		}
+
 		/// <summary>True when the files hold the same keys; the odd ones out come back.</summary>
 		public bool HaveSameKeys(IEnumerable<WordsFile> files, out HashSet<string> conflicts)
 			=> WordsOperations.HaveSameKeys(files.Select(file => file.Keys), out conflicts);

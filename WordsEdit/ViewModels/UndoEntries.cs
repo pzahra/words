@@ -192,38 +192,40 @@ public sealed class FieldEdit : UndoEntry {
 	public NodeRef? Apply(WordsSession session, TreeViewModel tree, int standing) {
 		string text = TextAt(standing);
 		Standing = standing;
+		//a comment's text is the tree's; the rest is the document's, set through the session
 		if (Field == DocumentField.CommentText) {
 			if (Node.Resolve(tree) is OrganizerNode organizer) {
 				organizer.Text = text;
 			}
 			return Node;
 		}
-		if (Node.Key is not { } key) {
-			return Node;
+		var (file, name) = (Node.File, Node.Label);
+		if (Field == DocumentField.ParameterDescription) {
+			session.Describe(file, name, Form ?? "", text);
 		}
-		WordsEntry? entry = Language is null ? null : key.Entries.GetValueOrDefault(Language);
-		switch (Field) {
-			case DocumentField.DefaultValue when Form is not null: key.Forms.Write(Form, text); break;
-			case DocumentField.EntryValue when entry is not null && Form is not null: entry.Forms.Write(Form, text); break;
-			case DocumentField.DefaultValue: key.DefaultValue = text; break;
-			case DocumentField.KeyContext: key.Context = text; break;
-			case DocumentField.KeyComment: key.Comment = text; break;
-			case DocumentField.EntryValue when entry is not null: entry.Value = text; break;
-			case DocumentField.EntryContext when entry is not null: entry.Context = text; break;
-			case DocumentField.EntryComment when entry is not null: entry.Comment = text; break;
-			case DocumentField.ParameterDescription when key.Parameters.FirstOrDefault(parameter => parameter.Key == Form) is { } parameter: parameter.Description = text; break;
+		else if (Written() is { } field) {
+			session.Set(file, name, field, text);
 		}
 		//the text first: the hand and the stamps go back to where they stood with it
 		if (RaisedReview) {
-			key.NeedsReview = standing >= raisedAt;
+			session.Set(file, name, WordsField.Hand, standing >= raisedAt ? "" : null);
 		}
 		foreach (string code in Staled) {
-			if (key.Entries.TryGetValue(code, out WordsEntry? staled)) {
-				staled.Stale = standing >= staledAt ? stamp : null;
-			}
+			session.Set(file, name, WordsField.StaleIn(code), standing >= staledAt ? stamp : null);
 		}
 		return Node;
 	}
+
+	//the field as the document names it; none for an entry's without a language
+	private WordsField? Written() => (Field, Language) switch {
+		(DocumentField.DefaultValue, _) => new("value", "", Form ?? ""),
+		(DocumentField.KeyContext, _) => new("context", "", ""),
+		(DocumentField.KeyComment, _) => new("comment", "", ""),
+		(DocumentField.EntryValue, { } code) => new("value", code, Form ?? ""),
+		(DocumentField.EntryContext, { } code) => new("context", code, ""),
+		(DocumentField.EntryComment, { } code) => new("comment", code, ""),
+		_ => null,
+	};
 
 	//what one keystroke did to the text: typed one character, removed one, or more than
 	//that (a paste, a cut, a line break, a selection typed over); and whether the one it
@@ -260,39 +262,32 @@ public abstract class KeyEdit(WordsFile file, string name) : UndoEntry {
 	public override NodeRef? Site(bool undoing) => new NodeRef(File, Name);
 
 	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) {
-		if (File.Keys.TryGetValue(Name, out WordsKey? key)) {
-			Change(key, undoing);
-		}
+		Change(session, undoing);
 		return new NodeRef(File, Name);
 	}
 
-	protected virtual void Change(WordsKey key, bool undoing) {
+	//puts the key's state back through the session, which finds it by its file and name
+	protected virtual void Change(WordsSession session, bool undoing) {
 	}
 }
 
 /// <summary>Needs Review toggled.</summary>
 public sealed class ReviewEdit(WordsFile file, string name, bool raised) : KeyEdit(file, name) {
-	protected override void Change(WordsKey key, bool undoing) => key.NeedsReview = raised != undoing;
+	protected override void Change(WordsSession session, bool undoing) => session.Set(File, Name, WordsField.Hand, raised != undoing ? "" : null);
 }
 
 /// <summary>Stale toggled in one language.</summary>
 public sealed class StaleEdit(WordsFile file, string name, string language, string? before, string? after) : KeyEdit(file, name) {
 	public override string? Language => language;
 
-	protected override void Change(WordsKey key, bool undoing) {
-		if (key.Entries.TryGetValue(language, out WordsEntry? entry)) {
-			entry.Stale = undoing ? before : after;
-		}
-	}
+	protected override void Change(WordsSession session, bool undoing) => session.Set(File, Name, WordsField.StaleIn(language), undoing ? before : after);
 }
 
 /// <summary>Stale All Languages: one stamp on every entry, the stamps it replaced kept.</summary>
 public sealed class StaleAllEdit(WordsFile file, string name, IReadOnlyDictionary<string, string?> before, string after) : KeyEdit(file, name) {
-	protected override void Change(WordsKey key, bool undoing) {
+	protected override void Change(WordsSession session, bool undoing) {
 		foreach (var (code, stamp) in before) {
-			if (key.Entries.TryGetValue(code, out WordsEntry? entry)) {
-				entry.Stale = undoing ? stamp : after;
-			}
+			session.Set(File, Name, WordsField.StaleIn(code), undoing ? stamp : after);
 		}
 	}
 }
@@ -310,8 +305,8 @@ public sealed class ConstantEdit(WordsFile file, string before, string after, bo
 		if (session.SetConstant(File, from, madeConstant != undoing, clearEntries: !undoing && cleared is not null) is null) {
 			return new NodeRef(File, from);
 		}
-		if (undoing && cleared is not null && File.Keys.TryGetValue(to, out WordsKey? key)) {
-			key.PutBackEntries(cleared);
+		if (undoing && cleared is not null) {
+			session.PutBackEntries(File, to, cleared);
 		}
 		node?.Relabel(to);
 		return new NodeRef(File, to);
@@ -323,7 +318,7 @@ public sealed class ConstantEdit(WordsFile file, string before, string after, bo
 ///     Undo): the key's parameters before and after.
 /// </summary>
 public sealed class ParametersEdit(WordsFile file, string name, IReadOnlyList<WordsParameter> before, IReadOnlyList<WordsParameter> after) : KeyEdit(file, name) {
-	protected override void Change(WordsKey key, bool undoing) => key.PutBackParameters(undoing ? before : after);
+	protected override void Change(WordsSession session, bool undoing) => session.PutBackParameters(File, Name, undoing ? before : after);
 
 	/// <summary>
 	///     Carries a renamed definition's input (<see cref="ParameterInputs"/>) back to
