@@ -433,6 +433,34 @@ public sealed class WordsCommandTests : IDisposable {
 		Assert.Equal("""{"value#other":null}""", request["items"]![1]!["translation"]!.ToJsonString());
 	}
 
+	//apply marks what it writes stale, so a loop of request --stale and apply once
+	//asked for the same keys again and again
+	[Fact]
+	public void StaleWithout_PassesOverTheMarksThatStartWithIt_SoABatchingLoopEnds() {
+		File.WriteAllText(path, Sample);
+		Run("set", "FILE", "menu.file", "value-it", "Archivio", "--stale", "machine translated by DeepL");
+		Run("set", "FILE", "menu.edit", "value-it", "Modifica", "--stale", "check the tone");
+
+		Assert.Equal((0, "menu.edit\n", ""), Run("list", "FILE", "--stale", "it", "--stale-without", "machine translated"));
+		Assert.Equal((0, "menu.file\nmenu.edit\n", ""), Run("list", "FILE", "--stale", "it", "--stale-without", "Machine")); //as written
+		Assert.Equal((0, "", ""), Run("list", "FILE", "--stale", "it", "--stale-without", "machine", "--stale-without=check"));
+		//it narrows --stale alone: files misses its plural whatever its mark
+		Run("set", "FILE", "files", "stale-it", "machine translated");
+		Assert.Equal((0, "menu.edit\nfiles\n", ""), Run("list", "FILE", "--missing", "it", "--stale", "it", "--stale-without", "machine"));
+
+		var request = Requested("--stale", "it", "--stale-without", "machine translated");
+		Assert.Equal(["menu.edit"], Keys(request));
+		request["items"]![0]!["translation"]!["value"] = "Cambia";
+		Assert.Equal(0, RunWith(request.ToJsonString(), "apply", "FILE", "-").Code);
+		var next = Run("request", "FILE", "--stale", "it", "--stale-without", "machine translated");
+		Assert.Equal((1, ""), (next.Code, next.Output));
+		Assert.Equal(["menu.file", "menu.edit", "files"], Keys(Requested("--stale", "it"))); //without it, round again
+
+		Assert.Equal(2, Run("list", "FILE", "--stale-without", "machine").Code);
+		Assert.Contains("narrows --stale", Run("request", "FILE", "--missing", "it", "--stale-without", "machine").Error);
+		Assert.Contains("every mark", Run("list", "FILE", "--stale", "it", "--stale-without", "").Error);
+	}
+
 	[Fact]
 	public void Request_WithNothingToAsk_ExitsOne_PrintingNothing() {
 		File.WriteAllText(path, Sample);

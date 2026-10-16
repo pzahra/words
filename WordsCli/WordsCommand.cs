@@ -25,9 +25,11 @@ namespace PatTech.Localization.Cli {
 			  words remove <file> <key> [field]       drops a field, or the whole key
 			  words list <file> [prefix]              the keys, in the file's order
 			            [--missing <code>]            only those missing words in a language,
-			            [--stale <code>]              or marked stale in it
+			            [--stale <code>]              or marked stale in it,
+			            [--stale-without <text>]      but for a mark that starts with text
 			  words request <file> [prefix]           a translation request, as JSON, for the
 			            --missing/--stale <code>      keys list would list
+			            [--stale-without <text>]
 			            [--limit <n>] [--brief <text>]
 			  words apply <file> <answer>             writes the translations a filled request
 			            [--stale [text]]              holds, marked "machine translated" or text
@@ -43,7 +45,9 @@ namespace PatTech.Localization.Cli {
 			translation service, and give apply the same document back, its nulls filled
 			(an answer of - is read from stdin). apply writes a key only when its answer
 			keeps the default's {...} tokens, code spans and link targets, and neither the
-			default nor the translation changed since the request.
+			default nor the translation changed since the request. A script that loops
+			request and apply over --stale passes over apply's own marks with
+			--stale-without "machine translated", or the words it gave --stale.
 
 			Exit codes: 0 done, 1 the key or field is not there, request found nothing
 			to ask or apply skipped a key, 2 a bad call, a file that is missing, can't be
@@ -240,7 +244,8 @@ namespace PatTech.Localization.Cli {
 
 		//the keys under the prefix, in the file's order, narrowed to those --missing
 		//or --stale selects in their one language, either taking a key; code is that
-		//language, null when neither is given
+		//language, null when neither is given. --stale passes over a mark that starts
+		//with a --stale-without, so a loop of request and apply ends on apply's marks
 		private static IEnumerable<WordsKey> Selected(IniPatcher patcher, Call call, TextWriter error, out string? code) {
 			string prefix = call.Positionals.Count > 1 ? call.Positionals[1] : "";
 			var keys = patcher.Keys.Where(key => key.BlockKey.StartsWith(prefix, StringComparison.Ordinal));
@@ -248,6 +253,9 @@ namespace PatTech.Localization.Cli {
 			string? stale = call.StaleIn is { } s ? Code("--stale", s) : null;
 			if (missing is not null && stale is not null && missing != stale) {
 				throw new UsageException($"--missing and --stale name one language, not {missing} and {stale}");
+			}
+			if (call.StaleWithout.Count != 0 && stale is null) {
+				throw new UsageException("--stale-without narrows --stale <code>, which is not given");
 			}
 			code = missing ?? stale;
 			if (code is not { } language) {
@@ -259,7 +267,9 @@ namespace PatTech.Localization.Cli {
 					? $"words: the default speaks {language}, so an empty entry reads it and misses nothing"
 					: $"words: {call.File} does not declare {language}, so nothing misses it");
 			}
-			return keys.Where(key => missing is not null && wants && MissingWords.InLanguage(key, language) || stale is not null && TranslationRequest.Stale(key, language));
+			return keys.Where(key => missing is not null && wants && MissingWords.InLanguage(key, language) || stale is not null && TranslationRequest.Stale(key, language) && !PassedOver(key.Entries[language].Stale!));
+
+			bool PassedOver(string mark) => call.StaleWithout.Any(start => mark.StartsWith(start, StringComparison.Ordinal));
 		}
 
 		private static string Code(string option, string text)
@@ -383,6 +393,7 @@ namespace PatTech.Localization.Cli {
 			public string? Stale { get; private set; }
 			public string? Missing { get; private set; }
 			public string? StaleIn { get; private set; }
+			public List<string> StaleWithout { get; } = [];
 			public int? Limit { get; private set; }
 			public string? Brief { get; private set; }
 
@@ -411,6 +422,10 @@ namespace PatTech.Localization.Cli {
 							break;
 						case "--stale" when verb is "list" or "request":
 							call.StaleIn = value ?? (i + 1 < args.Count ? args[++i] : throw new UsageException("--stale wants a language code"));
+							break;
+						case "--stale-without" when verb is "list" or "request":
+							string start = value ?? (i + 1 < args.Count ? args[++i] : throw new UsageException("--stale-without wants the words a mark starts with"));
+							call.StaleWithout.Add(start != "" ? start : throw new UsageException("--stale-without \"\" would pass over every mark: give the words one starts with"));
 							break;
 						case "--missing" when verb is "list" or "request":
 							call.Missing = value ?? (i + 1 < args.Count ? args[++i] : throw new UsageException("--missing wants a language code"));

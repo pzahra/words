@@ -60,6 +60,12 @@ before the first `:` are a type only where they name one (the editor spec's
   does not declare, or one its default speaks, misses nothing, and a line on
   stderr says which. `--stale xx` lists those whose `xx` entry carries a stale
   mark; with both, which name one language, a key either takes is listed.
+  `--stale-without text`, once or more, passes over a mark that starts with
+  the text as written, so a loop of `request` and `apply` over `--stale` ends
+  on the marks `apply` leaves (`machine translated`, or its `--stale` words)
+  without the command assuming which those are. It narrows `--stale` alone, a
+  key `--missing` takes is listed whatever its mark, and it is refused without
+  `--stale` or empty, which would pass over every mark.
 - `request <file> [prefix] --missing xx` and/or `--stale xx` prints a
   translation request (the editor spec's *Machine translation*) for the keys
   `list` would list, less those whose default has no words; `--limit n`
@@ -234,7 +240,10 @@ left alone, a missing or read-only file named without the calls, an empty
 field removed though `get` calls it none, a `[.child]` header before any base
 listed, read and removed but never written, and `list` with a prefix and
 `--missing` by the badges' rule; `list --stale`, alone and beside
-`--missing`; `request` for what `list` lists, under a prefix and up to a
+`--missing`; `--stale-without` passing over marks by their start, as written,
+given twice, beside `--missing` narrowing `--stale` alone, refused alone or
+empty, and a loop of `request` and `apply` over it ending with nothing to
+ask; `request` for what `list` lists, under a prefix and up to a
 limit, with a brief, and exit 1 with nothing to ask; `apply` writing filled
 slots, fenced as a model answers, each key marked stale in the writer's
 order, with `--stale`'s words from a file, the request sent back untouched

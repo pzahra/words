@@ -1766,7 +1766,9 @@ raises the hand of a key whose link target changed, naming the change,
 names each key it skips and why, and exits 1 when it skips any. An agent or
 a script loops `request --limit 50`, translate, `apply`, until
 `request` selects nothing or `apply` writes nothing, since a skipped key is
-still missing.
+still missing. A loop over `--stale` adds `--stale-without` with the start of
+the mark `apply` leaves, which would otherwise select what it just wrote; the
+command assumes no mark.
 
 **Nothing is written unchecked.** Each key's answer is compared with its
 default across all its slots, as the translation check compares parameters

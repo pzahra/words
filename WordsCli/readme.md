@@ -79,6 +79,18 @@ plural forms, so a script fills the plain values and leaves the forms for a
 person. `--stale it` asks for the stale ones instead, or as well, and
 `--brief` passes on your own word about tone and terms.
 
+Looping until there's nothing left? `--missing` gets there on its own, since a
+translated key isn't missing anymore. `--stale` doesn't: `apply` marks what it
+writes stale, so the next request would ask for it all over again. Tell it
+which marks to pass over by how they start:
+
+```sh
+words request strings.ini --stale it --stale-without "machine translated" --limit 50 > ask.json
+```
+
+Give it again for more marks. It only narrows `--stale`, so a key that's
+still missing words comes along regardless.
+
 `apply` reads the same document back, code fence and chatter around it
 included, and is fussy about what it writes. A key is skipped, with its
 reason on stderr, when its answer drops or invents a `{0}` or a `{>reference}`,

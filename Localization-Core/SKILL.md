@@ -164,7 +164,9 @@ hand of a key whose link target changed (a person checks the URL), and skips
 a key whose answer drops or invents a token, a code span or a link, formats a
 `{0:N1}` another way, or fills a slot it wasn't asked for, or whose default
 or translation changed since, naming why on stderr (exit 1): fix those with
-`set`. Repeat until `request` finds nothing (exit 1).
+`set`. Repeat until `request` finds nothing (exit 1). Looping over `--stale`,
+add `--stale-without "machine translated"`, since `apply` marks what it
+writes stale and the next request would ask for it again.
 
 Without the tool, edit by hand and keep the format's rules: a literal `\`, `_`
 or `'` is written doubled, a trailing `\` continues a value on the next line
