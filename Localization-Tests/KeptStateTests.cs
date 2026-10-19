@@ -135,6 +135,27 @@ public class KeptStateTests {
 		Assert.False(sub.Entries.ContainsKey("it"));
 	}
 
+	//Stale All and a default's change mark languages through the session, as typing and
+	//the flags do, each giving back what an undo needs
+	[Fact]
+	public void StaleAll_AndADefaultsChange_MarkLanguagesStale_ByTheKeysFileAndName() {
+		var (session, file) = Load();
+		WordsKey sub = file.Keys["k.sub"], k = file.Keys["k"];
+
+		var before = session.StaleAll(file, "k.sub", "now");
+		Assert.Equal(new Dictionary<string, string?> { ["en"] = null, ["de"] = "then", ["fr"] = null }, before);
+		Assert.All(sub.Entries.Values, entry => Assert.Equal("now", entry.Stale));
+
+		//a mark already there stays, and an empty translation is missing, not stale
+		k.Entries["de"].Stale = "then";
+		k.Entries["fr"].Value = "";
+		Assert.Equal(["en"], session.StaleTranslations(file, "k", "now"));
+		Assert.Equal(("now", "then", null), (k.Entries["en"].Stale, k.Entries["de"].Stale, k.Entries["fr"].Stale));
+
+		Assert.Null(session.StaleAll(file, "nope", "now"));
+		Assert.Empty(session.StaleTranslations(file, "nope", "now"));
+	}
+
 	[Fact]
 	public void ADescription_AndAKeysParametersAndEntries_ArePutBackByName() {
 		var (session, file) = Load();

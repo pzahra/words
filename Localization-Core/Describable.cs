@@ -3,6 +3,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -329,6 +330,7 @@ namespace PatTech.Localization {
 			//each value's member is its first name that is not obsolete, as Enum.GetNames
 			//orders them, or its first; each member's attributes are asked for once, and
 			//only those the registry knows are made and give it anything
+			[UnconditionalSuppressMessage("Trimming", "IL2070", Justification = "type is an enum's, and a trimmer keeps every field of an enum it keeps.")]
 			public Dictionary<Enum, Member> Build(Type type) {
 				var chosen = new Dictionary<Enum, (string Name, FieldInfo Field, bool Obsolete)>();
 				foreach (string name in Enum.GetNames(type)) {

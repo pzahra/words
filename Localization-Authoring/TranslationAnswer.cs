@@ -273,6 +273,12 @@ namespace PatTech.Localization.Authoring {
 			var (trial, writes) = Written(key, code, filled);
 			var translated = trial.Entries[code];
 			flags.AddRange(Mismatched(ParameterUse.Check(trial, code, defaults, defaultLanguage, translations), code));
+			//words that come back round to themselves, through the words the batch leaves,
+			//show # ∞ # where the default's do not: a reference moved from a form into the
+			//plain value, say, now reached from the key it reaches
+			if (ParameterUse.InLanguage(trial, code, translations).Circular && !ParameterUse.InDefault(key, defaults, defaultLanguage).Circular) {
+				flags.Add($"the {code} words come back round to themselves, which an app shows as # ∞ #");
+			}
 			//a brace that opens nothing shows as written in the app, as set refuses to write one
 			foreach (var (slot, text) in filled) {
 				if (ParameterUse.Malformed(text) is { Count: > 0 } braces) {
@@ -365,9 +371,11 @@ namespace PatTech.Localization.Authoring {
 			=> [.. Translation.Where(slot => !string.IsNullOrWhiteSpace(slot.Value)).Select(slot => (slot.Key, slot.Value!))];
 
 		//the key as the answer leaves it, its filled slots written in code; null where it
-		//fills none, or the key is gone or a constant, which it never writes
+		//fills none, or the key is gone or a constant, which it never writes, or it fills a
+		//slot the key has no use for in the language, which Check flags before it writes
 		internal WordsKey? Trial(WordsKey? key, string code)
-			=> key is null || key.IsConstant || Filled() is not { Count: > 0 } filled ? null : Written(key, code, filled).Trial;
+			=> key is null || key.IsConstant || Filled() is not { Count: > 0 } filled
+				|| filled.Any(slot => !TranslationRequest.Slots(key, code).Contains(slot.Slot)) ? null : Written(key, code, filled).Trial;
 
 		private static (WordsKey Trial, List<(WordsField Field, string Text)> Writes) Written(WordsKey key, string code, List<(string Slot, string Text)> filled) {
 			var trial = new WordsKey(key);

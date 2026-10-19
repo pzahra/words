@@ -164,6 +164,24 @@ public class OnePassTests {
 		Assert.Equal(["WORDS:FORMAT:`{0,5:Q}`"], logger.Messages);
 	}
 
+	//an argument whose ToString answers null, as nothing stops one doing
+	private sealed class Blank : IFormattable {
+		public string ToString(string? format, IFormatProvider? formatProvider) => null!;
+		public override string ToString() => null!;
+	}
+
+	private sealed class Silent {
+		public override string ToString() => null!;
+	}
+
+	[Fact]
+	public void AnArgumentWhoseToStringIsNull_PrintsNothing_PaddedAsStringFormatPadsIt() {
+		var en = Load("[k]\nvalue=[{0,3}|{1,-3}|{0}]\n");
+
+		Assert.Equal(string.Format("[{0,3}|{1,-3}|{0}]", new Blank(), new Silent()), en.Format("k", new Blank(), new Silent())); //threw
+		Assert.Equal("[   |   |]", string.Format(Words.ToDescribe, "[{0,3}|{1,-3}|{0}]", new Blank(), new Silent()));
+	}
+
 	//an IFormatProvider whose formatter shouts strings and leaves the rest to the argument
 	private sealed class Shouting(CultureInfo culture) : IFormatProvider, ICustomFormatter {
 		public object? GetFormat(Type? formatType) => formatType == typeof(ICustomFormatter) ? this : culture.GetFormat(formatType);

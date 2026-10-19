@@ -893,7 +893,8 @@ handed the enum itself, as string.Format would hand it; where there is none,
 or it returns `null` as string.Format lets it, to the describer, which
 describes an enum or an `IDescribable` and formats anything else as
 string.Format would: its `IFormattable` with the spec and the culture, else its
-`ToString()`, `null` printing nothing. So `{0}` is the general text, the key's
+`ToString()`, `null` printing nothing, and so does a `ToString()` that gives
+`null`. So `{0}` is the general text, the key's
 words in the template's language, `{0:T}` the tooltip and `{0:D}` the
 number, and a template reads an enum as the converters do. This holds for
 `Format`, `FormatByName`, `FormatParams` and their `Known` shorthands, so
@@ -987,8 +988,8 @@ string.Format reads a value.
   provider's `ICustomFormatter` first, then the describer, which describes an enum
   or an `IDescribable` in the dictionary, the spec being Describe's letters
   (*Describe in a template*), and formats anything else by its `IFormattable` with
-  the spec, else its `ToString()`, `null` printing nothing; padded to the
-  alignment. An item that cannot be filled collapses to its argument,
+  the spec, else its `ToString()`, `null` printing nothing, as does a
+  `ToString()` giving `null`; padded to the alignment. An item that cannot be filled collapses to its argument,
   marked, `#{3}#` or `#{Name}#`, its alignment and spec dropped, and warns: the
   braces keep it from reading as a missing key's `#key#`. That is a number past the
   arguments, a name in a positional call or one no member answers (`WORDS:FIELD`),

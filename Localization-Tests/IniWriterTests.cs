@@ -362,6 +362,15 @@ public class IniWriterTests {
 	}
 
 	[Fact]
+	public void IniWriter_ARepeatedDefinition_TheLastWins_WithItsOwnContinuation() {
+		var reloaded = Reload("value-en=English\n\n[k]\nvalue={0} {1}\nparam-0=int:first\nparam-1=a name\nparam-0=real:second_\ntail\n");
+
+		var parameters = reloaded["k"].Parameters;
+		Assert.Equal(["0", "1"], parameters.Select(parameter => parameter.Key)); //the first's place kept
+		Assert.Equal(("real", "secondtail"), (parameters[0].DataType.ToString(), parameters[0].Description)); //was int:firsttail
+	}
+
+	[Fact]
 	public void IniWriter_TerminalBackslashInContextDoesNotSwallowTheNextField() {
 		// a context ending in a literal backslash used to write as a naked
 		// continuation and eat the following `value=` line whole

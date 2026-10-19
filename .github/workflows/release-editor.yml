@@ -133,7 +133,8 @@ jobs:
       # the previous editor/ tag and a link to the full comparison, starting there
       # because the samples' api/ releases share the page and the notes would
       # otherwise start at whichever release came last. The note on the command
-      # line goes above them. Wordsmith's release is the one marked Latest.
+      # line goes above them, ending with the runtime both builds carry, read from
+      # Versions.props. Wordsmith's release is the one marked Latest.
       # A re-run finds the release made, and uploads every build over what an
       # interrupted upload left.
       - name: Create GitHub Release
@@ -151,6 +152,11 @@ jobs:
           **words** is the command line, for scripts, build steps and coding agents on any platform: one self-contained file, nothing to install. Unpack it somewhere on your `PATH` and run `words --help`.
 
           The macOS builds are signed ad hoc, not notarized, so macOS quarantines a download. Clear it once: `xattr -d com.apple.quarantine words`.
+          EOF
+          api=$(sed -n 's:.*<ApiVersion>\(.*\)</ApiVersion>.*:\1:p' Versions.props)
+          cat >> notes.md <<EOF
+
+          Both read and render words as \`PatTech.Localization.Core\` $api does (the \`api/$api\` release): an app on an earlier release may fill braces and enums otherwise than Wordsmith's previews show, so upgrade it alongside.
           EOF
           since=()
           previous=$(git tag --list 'editor/*' --sort=v:refname | grep -F -x -B1 "$GITHUB_REF_NAME" | head -n -1)

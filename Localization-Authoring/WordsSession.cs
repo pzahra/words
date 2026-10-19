@@ -33,10 +33,43 @@ namespace PatTech.Localization.Authoring {
 			Languages = new LanguageTable(this);
 		}
 
-		/// <summary>The file loaded from <paramref name="path"/>, if any (paths compare in full, case-insensitively); a file not saved yet is at none.</summary>
+		/// <summary>The file loaded from <paramref name="path"/>, if any (<see cref="SamePath"/>); a file not saved yet is at none.</summary>
 		public WordsFile? FileAt(string path) {
+			string resolved = Resolved(path);
+			return files.FirstOrDefault(file => file.Path is { } at && string.Equals(Resolved(at), resolved, StringComparison.OrdinalIgnoreCase));
+		}
+
+		/// <summary>
+		///     Whether two paths reach one file: compared in full and case-insensitively,
+		///     each folder on the way a link or a junction leads through followed to where
+		///     it leads, so <c>alias\words.ini</c>, <c>alias</c> a junction to <c>real</c>,
+		///     is <c>real\words.ini</c> (the editor's SPEC: Saving). The file's own link is
+		///     not followed: Save replaces a link to a file rather than writing through it.
+		/// </summary>
+		public static bool SamePath(string a, string b) => string.Equals(Resolved(a), Resolved(b), StringComparison.OrdinalIgnoreCase);
+
+		//path in full, each folder on it that is a link or a junction followed as far as the
+		//disk has it; what is not there yet, and the file itself, stay as written
+		private static string Resolved(string path) {
 			string full = System.IO.Path.GetFullPath(path);
-			return files.FirstOrDefault(file => file.Path is { } at && string.Equals(System.IO.Path.GetFullPath(at), full, StringComparison.OrdinalIgnoreCase));
+			string root = System.IO.Path.GetPathRoot(full) ?? "";
+			string[] segments = full[root.Length..].Split([System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
+			string at = root;
+			for (int i = 0; i < segments.Length; i++) {
+				at = System.IO.Path.Combine(at, segments[i]);
+				if (i == segments.Length - 1) {
+					break;
+				}
+				try {
+					if (new DirectoryInfo(at) is { Exists: true } folder && folder.ResolveLinkTarget(returnFinalTarget: true) is { } target) {
+						at = System.IO.Path.GetFullPath(target.FullName);
+					}
+				}
+				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+					//a folder it cannot look into is taken as written
+				}
+			}
+			return System.IO.Path.TrimEndingDirectorySeparator(at);
 		}
 
 		/// <summary>
@@ -526,6 +559,38 @@ namespace PatTech.Localization.Authoring {
 			}
 			key.PutBackEntries(kept);
 			return true;
+		}
+
+		/// <summary>
+		///     Stale All Languages: marks every language the key has an entry in stale with
+		///     <paramref name="stamp"/>, and gives back the marks it replaced, by language,
+		///     for an undo to put back; null where the file has no key of the name.
+		/// </summary>
+		public IReadOnlyDictionary<string, string?>? StaleAll(WordsFile file, string name, string stamp) {
+			if (!file.Keys.TryGetValue(name, out WordsKey? key)) {
+				return null;
+			}
+			var before = key.Entries.ToDictionary(pair => pair.Key, pair => pair.Value.Stale);
+			foreach (string code in before.Keys) {
+				Set(file, name, WordsField.StaleIn(code), stamp);
+			}
+			return before;
+		}
+
+		/// <summary>
+		///     Marks stale with <paramref name="stamp"/> the translations a change to the
+		///     key's default leaves behind (<see cref="WordsKey.TranslationsToStale"/>), and
+		///     gives back their languages; none where the file has no key of the name.
+		/// </summary>
+		public IReadOnlyList<string> StaleTranslations(WordsFile file, string name, string stamp) {
+			if (!file.Keys.TryGetValue(name, out WordsKey? key)) {
+				return [];
+			}
+			List<string> codes = [.. key.TranslationsToStale()];
+			foreach (string code in codes) {
+				Set(file, name, WordsField.StaleIn(code), stamp);
+			}
+			return codes;
 		}
 
 		/// <summary>True when the files hold the same keys; the odd ones out come back.</summary>

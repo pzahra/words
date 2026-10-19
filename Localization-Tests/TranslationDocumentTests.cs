@@ -356,6 +356,48 @@ public class TranslationDocumentTests {
 		Assert.Empty(reordered.Verdicts[0].Raised); //the same targets in another order
 	}
 
+	//the whole answer, each key's slots as given
+	private static TranslationBatch Slotted(string ini, string code, params (string Key, Dictionary<string, string?> Slots)[] answers) {
+		var patcher = IniPatcher.FromBytes(Encoding.UTF8.GetBytes(ini));
+		var items = answers.Select(answer => {
+			var sent = patcher.Find(answer.Key)!;
+			return new TranslationItem(answer.Key, TranslationRequest.Held(sent), TranslationRequest.Held(sent.Entries.GetValueOrDefault(code)), answer.Slots);
+		});
+		return new TranslationAnswer(code, [.. items]).Check(patcher.Keys.ToDictionary(found => found.BlockKey), code, patcher.DefaultLanguage);
+	}
+
+	//each form of a and b refers to the other's plain value, which ends there; the answer
+	//moves each reference into the plain value, every token kept, and a reads b reads a.
+	//a, skipped for it, leaves the batch, and b, reading a's default again, goes in
+	[Fact]
+	public void WordsComingBackRoundToThemselves_ThroughTheBatch_AreSkipped() {
+		string ini = Ini("value=!en", "value-it=Italiano", "",
+			"[a]", "value=A", "value#other={>b}", "",
+			"[b]", "value=B", "value#other={>a}");
+
+		var batch = Slotted(ini, "it",
+			("a", new() { ["value"] = "{>b}", ["value#other"] = "Aa" }),
+			("b", new() { ["value"] = "{>a}", ["value#other"] = "Bb" }));
+		var alone = Slotted(ini, "it", ("a", new() { ["value"] = "{>b}", ["value#other"] = "Aa" }));
+
+		Assert.Empty(batch.Verdicts[0].Writes); //both were written, and a read # ∞ #
+		Assert.Equal(["the it words come back round to themselves, which an app shows as # ∞ #"], batch.Verdicts[0].Flags);
+		Assert.Equal(2, batch.Verdicts[1].Writes.Count);
+		Assert.Empty(batch.Broken);
+		Assert.Equal(2, alone.Verdicts[0].Writes.Count); //b's plain value is still B
+	}
+
+	//a slot no key has is flagged on its own key; the rest of the batch still goes in
+	[Fact]
+	public void ASlotTheKeyHasNot_SkipsItsKey_AndNotTheBatch() {
+		var batch = Slotted(Referring, "it",
+			("saved", new() { ["text"] = "Ah" }), //threw, and words apply wrote nothing
+			("kept", new() { ["value"] = "Tenuti {0}" }));
+
+		Assert.Equal(["text is no slot it has in it"], batch.Verdicts[0].Flags);
+		Assert.Single(batch.Verdicts[1].Writes);
+	}
+
 	[Fact]
 	public void AKeyAnsweredTwice_KeepsItsFirstAnswer() {
 		var batch = Batch(Referring, "it", ("result", "Risultato: {>saved}"), ("result", "Esito: {>saved}"), ("result", null));

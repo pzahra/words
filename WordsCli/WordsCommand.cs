@@ -44,8 +44,9 @@ namespace PatTech.Localization.Cli {
 			A request explains itself: hand it to a language model, or to a script for a
 			translation service, and give apply the same document back, its nulls filled
 			(an answer of - is read from stdin). apply writes a key only when its answer
-			keeps the default's {...} tokens, code spans and link targets, and neither the
-			default nor the translation changed since the request. A script that loops
+			keeps the default's {...} tokens, code spans and links, and neither the
+			default nor the translation changed since the request. A changed link target
+			is written, and raises the key's hand (stale=) for a person to check. A script that loops
 			request and apply over --stale passes over apply's own marks with
 			--stale-without "machine translated", or the words it gave --stale.
 

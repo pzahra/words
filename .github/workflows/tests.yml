@@ -32,13 +32,13 @@ jobs:
       # One suite per step — the solution can't build on a bare runner (the .Vsix
       # needs the Visual Studio SDK), and a failing step fails the job.
       - name: Localization tests
-        run: dotnet test Localization-Tests/Localization-Tests.csproj --nologo
+        run: dotnet test Localization-Tests/Localization-Tests.csproj -c Release --nologo
 
       - name: Analyzer tests
-        run: dotnet test LocalizationAnalyzer/LocalizationAnalyzer.Test/LocalizationAnalyzer.Test.csproj --nologo
+        run: dotnet test LocalizationAnalyzer/LocalizationAnalyzer.Test/LocalizationAnalyzer.Test.csproj -c Release --nologo
 
       - name: Editor tests
-        run: dotnet test WordsEdit.Tests/WordsEdit.Tests.csproj --nologo
+        run: dotnet test WordsEdit.Tests/WordsEdit.Tests.csproj -c Release --nologo
 
       - name: WordsXaml tests
-        run: dotnet test WordsXaml/src/dotnet/WordsXaml.Tests/WordsXaml.Tests.csproj --nologo
+        run: dotnet test WordsXaml/src/dotnet/WordsXaml.Tests/WordsXaml.Tests.csproj -c Release --nologo

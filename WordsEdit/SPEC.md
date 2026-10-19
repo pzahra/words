@@ -103,8 +103,11 @@ top-of-file `param`/`param-xx` settings-file references (see Markdown previews),
 and plural forms (`value#few`, `value-xx#few`), every CLDR category written —
 one a runtime never reads, such as `#one`, is kept with a gripe.
 
-Not preserved: unknown field types and unknown `param` data-types (dropped or
-coerced to `String`, with a gripe); a form that names no CLDR category, and a
+A parameter's definition whose type is none Wordsmith knows keeps its whole text
+as its description, typed `str`, and writes back as it was (`param-0=the file:
+its path`), with no gripe: a type is a word it knows, and anything else is words.
+
+Not preserved: unknown field types (dropped, with a gripe); a form that names no CLDR category, and a
 form on a language label (dropped, with a gripe); a field repeated within one
 key (last wins, a repeated `value=` also warns); and the languageless
 `stale=`, kept as a review flag with no stored text. A bare `[group]` header
@@ -565,7 +568,8 @@ Reset returns to the empty session (one default `en` language).
 node's file at a path the dialog picks, proposing its own, as the first Save of
 a new file does (*New*, Saving it): the dialog's overwrite ask covers a file on
 disk, a path another file in the session has is refused and the dialog asks
-again, and the file is written before it takes the path, so a write that fails
+again, a path that reaches that file through a folder link or a junction too
+(`WordsSession.SamePath`), and the file is written before it takes the path, so a write that fails
 is told and leaves it where it was. The other files are written where they are,
 since unsaved work is the session's, as the window's dirty mark and the undo
 history's saved point are, so Save As leaves the window clean as Save does, and
@@ -1315,10 +1319,11 @@ name, the key's last segment, where it has none. A template's `{0:T}` reads
 the member's `.tooltip`, as `Format` describes any describable it is handed
 (the runtime spec's *Describe in a template*). What lives
 only on the type, `[Description]`, `[Tooltip]` and the number, stays empty,
-and a `[Flags]` combination is no member. The runtime's registry is one per
-process, so Wordsmith cannot hold the slots each app adds side by side; the
+and a `[Flags]` combination is no member. Each dictionary carries the registry
+its app configured (the runtime spec's *Frozen at Digest*), and Wordsmith's
+previews carry Words' own, so a slot an app adds reads nothing there; the
 general text needs none, and an input that reads an app's own slots waits on
-solving that.
+Wordsmith knowing them.
 
 **In the pane, a conversation.** The baseline pane reads as a chat already:
 the programmer's context on the left, inset from the right, the translator's
@@ -1524,7 +1529,7 @@ file by its own names, and the writer and the exporters write each name as it
 is. Whatever names a key names its file beside it:
 - **The session.** Adding, removing, renaming, moving and making a constant
   take the file and a key of its own (`AddKey(file, name)` and the rest).
-  `AllKeys` reads every file's in order, and `FileAt` finds a file by its path.
+  `AllKeys` reads every file's in order, and `FileAt` finds a file by its path, as `SamePath` compares two.
 - **The tree.** A root carries its file (`KeyNode.File`), and a node's full
   label is its path in that file, the root's empty. The root shows the file's
   true name (`WordsFile.Name`), its file name without the extension, dots and
@@ -1801,8 +1806,11 @@ each format item's alignment and format as the default writes them, since
 a format its argument does not take (`{0:Q}` for a count) shows marked in the
 app, though a parameter the default does not use, which a definition
 allows, may come bare; write no brace that opens nothing, which the app shows
-as written (*Parameters*, Translation check); and keep the default's code spans
-as they are. Code
+as written (*Parameters*, Translation check); come back round to no entry its
+words are rendering, through the words the batch leaves, where the default's do
+not, since the app shows `# ∞ #` there (a reference moved from a form into the
+plain value can reach the key that reaches it); and keep the default's code
+spans as they are. Code
 spans and links are read as the app reads them, by the runtime's
 `MarkdownParser`, so a span fenced by two backticks holds one, a link may carry
 a title, and a target that is no absolute URL is no link, since the app leaves
@@ -1819,7 +1827,9 @@ has no use for in the target, one the request did not ask for (it has words
 and is not stale, which the answer would overwrite; the check asks as the
 request would now, its words being as they were), a key whose default or current words changed
 since the request, a key that is gone and a constant are flagged too, but
-only where the answer filled something: a key it left alone is no error. A flagged key is not
+only where the answer filled something: a key it left alone is no error. A slot
+that is none, a name no key has (`text`), flags its own key and stops nothing
+else. A flagged key is not
 written, none of its slots: stricter than `set`, which writes a person's
 translation with a note. A batch is checked whole (`TranslationAnswer.Check`):
 a key's references read the words the batch writes, so `result`, holding

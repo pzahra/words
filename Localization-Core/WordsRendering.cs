@@ -140,11 +140,14 @@ namespace PatTech.Localization {
 			}
 		}
 
+		//how the named path reads a name off its value (TryMember)
+		private delegate bool ByName(object? item, string name, out object? found);
+
 		//the arguments a call's selectors and format items read: by number, a positional
 		//argument, and on the named path the one past them is the value itself,
 		//PreFormatByName's slot; by name, on the named path, a member of the value as
 		//FormatByName reads it, and on the positional path none
-		private sealed class Arguments(object?[]? args, bool named, object? value = null) {
+		private sealed class Arguments(object?[]? args, ByName? byName = null, object? value = null) {
 			private readonly int count = args?.Length ?? 0;
 
 			public bool TryRead(string argument, out object? found) {
@@ -154,14 +157,14 @@ namespace PatTech.Localization {
 							found = args![index];
 							return true;
 						}
-						if (named && index == count) {
+						if (byName is not null && index == count) {
 							found = value;
 							return true;
 						}
 					}
 				}
-				else if (named) {
-					return TryMember(value, argument, out found);
+				else if (byName is not null) {
+					return byName(value, argument, out found);
 				}
 				found = null;
 				return false;
@@ -231,7 +234,7 @@ namespace PatTech.Localization {
 		//PreFormatByName hands them over: the positional arguments, the value itself, then a
 		//slot per name as it first appears. The text is escaped as string.Format wants it
 		private sealed class Numbering(object?[]? args, object? value) : Items {
-			private readonly Arguments arguments = new(args, named: true, value);
+			private readonly Arguments arguments = new(args, TryMember, value);
 			private readonly int count = args?.Length ?? 0;
 			private readonly List<object?> slots = [.. args ?? [], value];
 			private readonly List<string> names = [];

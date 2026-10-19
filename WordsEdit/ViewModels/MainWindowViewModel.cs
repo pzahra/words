@@ -298,8 +298,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 	}
 
-	private static bool SamePath(string a, string b)
-		=> string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase);
+	private static bool SamePath(string a, string b) => WordsSession.SamePath(a, b);
 
 	//one filter entry per importer, then everything
 	[return: Localized]
@@ -683,17 +682,17 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	//Flags
 	private void DoStaleAllLanguages() {
-		if (Tree.SelectedKey is not { } key || Tree.SelectedKeyNode is not { } node) {
+		if (Tree.SelectedKey is null || Tree.SelectedKeyNode is not { } node) {
 			return;
 		}
 		Perform(() => {
-			string stamp = DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture);
-			var edit = new StaleAllEdit(Tree.FileOf(node), node.FullLabel, key.Entries.ToDictionary(pair => pair.Key, pair => pair.Value.Stale), stamp);
-			foreach (WordsEntry entry in key.Entries.Values) {
-				entry.Stale = stamp;
+			WordsFile file = Tree.FileOf(node);
+			string stamp = WordsKey.StaleStamp(time.GetLocalNow());
+			if (Session.StaleAll(file, node.FullLabel, stamp) is not { } before) {
+				return null;
 			}
 			Tree.RefreshBadges(node);
-			return edit;
+			return new StaleAllEdit(file, node.FullLabel, before, stamp);
 		});
 	}
 
@@ -703,10 +702,12 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			return;
 		}
 		Perform(() => {
+			WordsFile file = Tree.FileOf(node);
 			string? before = entry.Stale;
-			entry.Stale = before is null ? DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture) : null;
+			string? after = before is null ? WordsKey.StaleStamp(time.GetLocalNow()) : null;
+			Session.Set(file, node.FullLabel, WordsField.StaleIn(languageCode), after);
 			Tree.RefreshBadges(node);
-			return new StaleEdit(Tree.FileOf(node), node.FullLabel, languageCode, before, entry.Stale);
+			return new StaleEdit(file, node.FullLabel, languageCode, before, after);
 		});
 	}
 
@@ -715,9 +716,11 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			return;
 		}
 		Perform(() => {
-			key.NeedsReview = !key.NeedsReview;
+			WordsFile file = Tree.FileOf(node);
+			bool raised = !key.NeedsReview;
+			Session.Set(file, node.FullLabel, WordsField.Hand, raised ? "" : null);
 			Tree.RefreshBadges(node);
-			return new ReviewEdit(Tree.FileOf(node), node.FullLabel, key.NeedsReview);
+			return new ReviewEdit(file, node.FullLabel, raised);
 		});
 	}
 
@@ -786,16 +789,18 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			return;
 		}
 		bool wasDirty = IsDirty;
-		if (edit.IsNote && edit.After.Trim() != "" && Tree.SelectedKey is { NeedsReview: false } key) {
-			edit.RaisedReview = true;
-			key.NeedsReview = true;
-		}
-		if (edit.Field == DocumentField.DefaultValue && Tree.SelectedKey is { } changed && changed.TranslationsToStale().ToList() is { Count: > 0 } codes) {
-			string stamp = WordsKey.StaleStamp(time.GetLocalNow());
-			foreach (string code in codes) {
-				changed.Entries[code].Stale = stamp;
+		if (Tree.SelectedKey is { } key && Tree.SelectedKeyNode is { } node) {
+			WordsFile file = Tree.FileOf(node);
+			if (edit.IsNote && edit.After.Trim() != "" && !key.NeedsReview) {
+				edit.RaisedReview = true;
+				Session.Set(file, node.FullLabel, WordsField.Hand, "");
 			}
-			edit.Stamped(codes, stamp);
+			if (edit.Field == DocumentField.DefaultValue) {
+				string stamp = WordsKey.StaleStamp(time.GetLocalNow());
+				if (Session.StaleTranslations(file, node.FullLabel, stamp) is { Count: > 0 } codes) {
+					edit.Stamped(codes, stamp);
+				}
+			}
 		}
 		FieldEdit? open = UndoStack.NextUndo as FieldEdit;
 		bool? back = UndoStack.Type(edit, wasDirty);

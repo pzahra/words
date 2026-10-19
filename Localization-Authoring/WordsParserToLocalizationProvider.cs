@@ -185,8 +185,14 @@ namespace PatTech.Localization.Authoring {
 						localizationKey.Entries[languageCode].Stale = value;
 						break;
 					case (not "", "param"):
-						if (!localizationKey.Parameters.Any(parameter => parameter.Key == languageCode)) {
-							var (type, description) = WordsParameterType.Split(value);
+						//a field repeated within a key: the last wins, and its continuation is its own,
+						//the definition keeping its place
+						var (type, description) = WordsParameterType.Split(value);
+						if (localizationKey.Parameters.FirstOrDefault(parameter => parameter.Key == languageCode) is { } repeated) {
+							(repeated.DataType, repeated.Description) = (type, description);
+							parameterTexts[repeated] = value;
+						}
+						else {
 							WordsParameter parameterToAdd = new(languageCode, type, description);
 							parameterTexts[parameterToAdd] = value;
 							localizationKey.Parameters.Add(parameterToAdd);

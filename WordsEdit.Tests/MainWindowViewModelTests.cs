@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using PatTech.Localization;
 using PatTech.Localization.Authoring;
@@ -682,6 +683,37 @@ value=w
 		vm.SaveAsCommand.Execute(null);
 		Assert.Contains("[k]\nvalue=changed\n", File.ReadAllText(folder["Strings.ini"]));
 		Assert.False(vm.IsDirty);
+	}
+
+	//a folder reached through a junction is the folder it leads to, so Save As refuses
+	//another file's path spelt through one: written there, the two files were one on disk,
+	//the second's Save overwriting the first's words and leaving the window clean
+	[Fact]
+	public void SaveAs_RefusesAnotherFilesPath_ReachedThroughAJunction() {
+		using var folder = new TempFolder();
+		Directory.CreateDirectory(folder["real"]);
+		using (var mklink = Process.Start(new ProcessStartInfo("cmd.exe", $"/c mklink /J \"{folder["alias"]}\" \"{folder["real"]}\"") { CreateNoWindow = true, UseShellExecute = false })!) {
+			mklink.WaitForExit();
+		}
+		Assert.True(Directory.Exists(folder["alias"]), "a junction needs no privilege on Windows");
+		File.WriteAllText(folder["Strings.ini"], "value-en=English\n\n[k]\nvalue=x\n");
+		File.WriteAllText(Path.Combine(folder["real"], "Other.ini"), "value-en=English\n\n[o]\nvalue=y\n");
+		var dialogs = new FakeDialogs();
+		var vm = new MainWindowViewModel(dialogs);
+		vm.LoadFile(folder["Strings.ini"]);
+		vm.LoadFile(Path.Combine(folder["real"], "Other.ini"));
+		vm.Tree.SelectedKeyNode = vm.Tree.NodeOf(FileNamed(vm, "Strings"));
+		Key(vm, "Strings", "k").DefaultValue = "changed";
+		vm.MarkDirty();
+
+		dialogs.FilesToSave.Enqueue(Path.Combine(folder["alias"], "Other.ini"));
+		dialogs.FileToSave = folder["Words.ini"];
+		vm.SaveAsCommand.Execute(null);
+
+		Assert.Single(dialogs.Notices); //the path taken, and the dialog asked again
+		Assert.Contains("[o]\nvalue=y\n", File.ReadAllText(Path.Combine(folder["real"], "Other.ini")));
+		Assert.Contains("[k]\nvalue=changed\n", File.ReadAllText(folder["Words.ini"]));
+		Directory.Delete(folder["alias"]); //the junction alone, before the folder goes
 	}
 
 	//SPEC (Keys without the file's name): a root's name is its file's alone, so renaming

@@ -17,6 +17,12 @@ namespace PatTech.Localization.Authoring {
 	///     not loaded: what it would bring in may use anything.
 	/// </param>
 	public sealed record FoundParameters(IReadOnlyList<string> Names, IReadOnlySet<string> Counted, bool Unfollowed) {
+		/// <summary>
+		///     The words come back round to an entry they are rendering, a reference or a
+		///     selector's form: an app cuts it there and shows <c># ∞ #</c>.
+		/// </summary>
+		public bool Circular { get; init; }
+
 		/// <summary>The placeholder a parameter is written as: <c>{0}</c>, <c>{Name}</c>.</summary>
 		public static string Placeholder(string name) => $"{{{name}}}";
 	}
@@ -251,12 +257,13 @@ namespace PatTech.Localization.Authoring {
 			private readonly List<string> order = [];
 			private readonly HashSet<string> counted = [];
 			private bool unfollowed;
-			//the entries being rendered, for the circular cut
+			//the entries being rendered, for the circular cut, and whether it was made
 			private readonly Stack<string> path = new();
+			private bool circular;
 
 			public FoundParameters Found() {
 				var numbered = order.Where(name => char.IsAsciiDigit(name[0])).OrderBy(name => name.Length).ThenBy(name => name, StringComparer.Ordinal);
-				return new([.. numbered, .. order.Where(name => !char.IsAsciiDigit(name[0]))], counted, unfollowed);
+				return new([.. numbered, .. order.Where(name => !char.IsAsciiDigit(name[0]))], counted, unfollowed) { Circular = circular };
 			}
 
 			//entry's words, rendered against key, piece by piece: what a reference or a
@@ -288,7 +295,11 @@ namespace PatTech.Localization.Authoring {
 			//a key's words, rendered against the key they are words of, a form's against its
 			//key; a constant's are text
 			private void Reference(string entry) {
-				if (entry.StartsWith('$') || path.Contains(entry)) {
+				if (entry.StartsWith('$')) {
+					return;
+				}
+				if (path.Contains(entry)) {
+					circular = true;
 					return;
 				}
 				if (!provider.TryGetValue(entry, out string? words)) {
@@ -302,6 +313,7 @@ namespace PatTech.Localization.Authoring {
 			//every form of key the language counts by, as a count in each would pick it
 			private void Select(string key) {
 				if (path.Any(entry => entry == key || entry.StartsWith(key + "#", StringComparison.Ordinal))) {
+					circular = true;
 					return;
 				}
 				foreach (string form in PluralRules.Categories(language).Select(category => PatTech.Localization.Words.FormKey(provider, language, key, category)).Distinct()) {

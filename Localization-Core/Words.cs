@@ -190,7 +190,7 @@ namespace PatTech.Localization {
 			}
 			//the text is the caller's, not baseKey's words, so it may refer to baseKey and
 			//select its forms, as it may without arguments
-			var arguments = new Arguments(args, named: false);
+			var arguments = new Arguments(args);
 			var rendering = new Rendering(words.Provider, new(words.Language, arguments), new Filling(arguments, null, words));
 			rendering.Value(text, baseKey);
 			return rendering.ToString();
@@ -214,7 +214,7 @@ namespace PatTech.Localization {
 			ArgumentNullException.ThrowIfNull(wordsProvider);
 			ArgumentNullException.ThrowIfNull(key);
 
-			var rendering = new Rendering(wordsProvider, null, args?.Length > 0 ? new Filling(new Arguments(args, named: false), null, null) : null);
+			var rendering = new Rendering(wordsProvider, null, args?.Length > 0 ? new Filling(new Arguments(args), null, null) : null);
 			rendering.Key(key);
 			return rendering.ToString();
 		}
@@ -238,7 +238,7 @@ namespace PatTech.Localization {
 			ArgumentNullException.ThrowIfNull(wordsProvider);
 			ArgumentNullException.ThrowIfNull(text);
 
-			var rendering = new Rendering(wordsProvider, null, args?.Length > 0 ? new Filling(new Arguments(args, named: false), null, null) : null);
+			var rendering = new Rendering(wordsProvider, null, args?.Length > 0 ? new Filling(new Arguments(args), null, null) : null);
 			rendering.Value(text, baseKey);
 			return rendering.ToString();
 		}
@@ -348,7 +348,9 @@ namespace PatTech.Localization {
 
 		//a dictionary's value by name, else a public field or property; a null item has
 		//every member, as null. A dictionary answers with its values alone, so a
-		//{Count} reads the entry and never the dictionary's own Count
+		//{Count} reads the entry and never the dictionary's own Count. Only the named
+		//path hands it to its arguments, so a trimmed app that formats by number alone,
+		//or describes, never reaches the reflection
 		private static bool TryMember(object? item, string name, out object? found) {
 			found = null;
 			switch (item) {
@@ -451,7 +453,7 @@ namespace PatTech.Localization {
 		/// <param name="args">The values to format into the template.</param>
 		[return: Localized]
 		public static string Format(this IWords known, IFormatProvider? provider, [WordsKey] string key, params object?[] args)
-			=> Filled(known, provider, key, new Arguments(args, named: false));
+			=> Filled(known, provider, key, new Arguments(args));
 
 		//key's words in known, its selectors counting and its items filled by arguments
 		private static string Filled(IWords known, IFormatProvider? provider, string key, Arguments arguments) {
@@ -483,14 +485,16 @@ namespace PatTech.Localization {
 			public object? GetFormat(Type? formatType)
 				=> formatType == typeof(ICustomFormatter) ? this : (inner ?? CultureInfo.CurrentCulture).GetFormat(formatType);
 
+			//an argument's own ToString may answer null, whatever it declares: that prints nothing
 			public string Format(string? format, object? arg, IFormatProvider? formatProvider) {
 				IWords dictionary = words ?? Known;
-				return arg switch {
+				string? text = arg switch {
 					Enum member => Describable.Of(member, dictionary).Describe(format, dictionary),
 					IDescribable describable => describable.Describe(format, dictionary),
 					IFormattable formattable => formattable.ToString(format, inner),
-					_ => arg?.ToString() ?? "",
+					_ => arg?.ToString(),
 				};
+				return text ?? "";
 			}
 		}
 
@@ -515,7 +519,7 @@ namespace PatTech.Localization {
 		/// <param name="args">Additional positional arguments.</param>
 		[return: Localized]
 		public static string FormatByName(this IWords known, IFormatProvider? provider, [WordsKey] string key, object? value, params object?[] args)
-			=> Filled(known, provider, key, new Arguments(args, named: true, value));
+			=> Filled(known, provider, key, new Arguments(args, TryMember, value));
 
 		/// <summary>
 		/// Looks up <paramref name="key"/> and fills its placeholders from whatever
@@ -662,7 +666,7 @@ namespace PatTech.Localization {
 		/// <param name="args">Additional positional arguments, addressed by the template's numbered tags.</param>
 		public static string FormatByName(IFormatProvider? provider, string template, object? value, params object?[] args) {
 			ArgumentNullException.ThrowIfNull(template);
-			var rendering = new Rendering(WordsProvider.Empty(), null, new Filling(new Arguments(args, named: true, value), provider, null));
+			var rendering = new Rendering(WordsProvider.Empty(), null, new Filling(new Arguments(args, TryMember, value), provider, null));
 			rendering.Template(template);
 			return rendering.ToString();
 		}

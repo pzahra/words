@@ -51,7 +51,9 @@ before the first `:` are a type only where they name one (the editor spec's
   brace, and a constant's words are text.
 - `remove <file> <key> [field]` drops one field, every declaration of it, or
   the whole key. A field is there to drop when the file declares it, with
-  words or empty, though `get` reads an empty one as none, exit 1.
+  words or empty, though `get` reads an empty one as none, exit 1, but for the
+  hand (`stale=`) and a parameter's definition, whose empty text says what they
+  are: an empty line, exit 0.
 - `list <file> [prefix]` prints the keys in the order their blocks first
   appear, leaving out a bare group header as the editor drops it; the prefix
   is plain text, so `menu.` lists a group. `--missing xx` lists only those
@@ -184,11 +186,15 @@ keeps the executable bit a zip made on Windows would lose. The SDK signs the
 macOS builds ad hoc, which Apple Silicon requires to run them at all; they
 are not notarized, so macOS quarantines a download until it is cleared
 (`xattr -d com.apple.quarantine`), and the release notes say so. They are
-trimmed, from about 37 MB to 11. Core's reflection — enum descriptions, the
-markdown constants read from JSON, named format arguments read off an object
-— is nowhere the command line reaches, so the trimmer keeps none of it and
-warns about nothing; every platform's build is the same code as the Windows
-one, which runs every call trimmed as it does untrimmed. Trimming is the
+trimmed, from about 37 MB to 11, and the trimmer warns about nothing. Named
+format arguments read off an object are reflection only the named path
+(`FormatByName`) reaches, which the command line never calls; an enum's
+description is read off its fields, which a trimmer keeps with any enum it
+keeps, so the describer every format reaches through `ICustomFormatter` says
+so where it reads them; and the markdown `apply` reads to check an answer
+reads its entity and emoji tables with `JsonDocument`, which needs none.
+Every platform's build is the same code as the Windows one, which runs
+every call trimmed as it does untrimmed. Trimming is the
 command line's own setting: passed on the command line it would reach Core's
 build too, whose trim analyzer flags those patterns whether reached or not.
 
