@@ -70,6 +70,28 @@ public sealed class SelectionHistory<T>(int capacity = 50) where T : class {
 
 	private static bool Same(T a, T b) => a.Equals(b);
 
+	/// <summary>
+	///     Drops every entry that is <paramref name="gone"/> at once, and one left beside
+	///     its own twin once what stood between them went (SPEC: Dirty by file, Each
+	///     file's history); the selection stands on the nearest entry left at or before
+	///     where it stood.
+	/// </summary>
+	public void Forget(Func<T, bool> gone) {
+		List<T> left = [];
+		int standing = -1;
+		for (int i = 0; i < entries.Count; i++) {
+			if (!gone(entries[i]) && (left.Count == 0 || !Same(left[^1], entries[i]))) {
+				left.Add(entries[i]);
+			}
+			if (i == current) {
+				standing = left.Count - 1;
+			}
+		}
+		entries.Clear();
+		entries.AddRange(left);
+		current = entries.Count == 0 ? -1 : Math.Max(standing, 0);
+	}
+
 	public void Clear() {
 		entries.Clear();
 		current = -1;

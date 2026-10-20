@@ -524,13 +524,25 @@ namespace PatTech.Localization.Authoring {
 		///     the raised hand (<see cref="WordsField.Hand"/>) or a language's stale
 		///     mark, as <see cref="WordsField.Write"/> writes it, <see langword="null"/>
 		///     clearing it, but for a form, where an empty one is none, as the session
-		///     holds forms. False too where the key has no entry in the field's language.
+		///     holds forms. Words in a language the session let go, a redo after another
+		///     file went, bring the language back, as words in it keep it (the editor's
+		///     SPEC: Dirty by file); nothing written there is false, and makes no entry.
 		/// </summary>
 		public bool Set(WordsFile file, string name, WordsField field, string? text) {
-			if (!file.Keys.TryGetValue(name, out WordsKey? key) || field.Type != "param" && field.Language != "" && !key.Entries.ContainsKey(field.Language)) {
+			if (!file.Keys.TryGetValue(name, out WordsKey? key)) {
 				return false;
 			}
+			bool lacks = field.Type != "param" && field.Language != "" && !key.Entries.ContainsKey(field.Language);
+			if (lacks && string.IsNullOrEmpty(text)) {
+				return false;
+			}
+			if (lacks) {
+				key.Entries[field.Language] = new WordsEntry();
+			}
 			field.Write(key, field is { Type: "value", Form: not "" } && text == "" ? null : text);
+			if (lacks) {
+				Languages.Reread([field.Language]);
+			}
 			return true;
 		}
 
@@ -559,22 +571,6 @@ namespace PatTech.Localization.Authoring {
 			}
 			key.PutBackEntries(kept);
 			return true;
-		}
-
-		/// <summary>
-		///     Stale All Languages: marks every language the key has an entry in stale with
-		///     <paramref name="stamp"/>, and gives back the marks it replaced, by language,
-		///     for an undo to put back; null where the file has no key of the name.
-		/// </summary>
-		public IReadOnlyDictionary<string, string?>? StaleAll(WordsFile file, string name, string stamp) {
-			if (!file.Keys.TryGetValue(name, out WordsKey? key)) {
-				return null;
-			}
-			var before = key.Entries.ToDictionary(pair => pair.Key, pair => pair.Value.Stale);
-			foreach (string code in before.Keys) {
-				Set(file, name, WordsField.StaleIn(code), stamp);
-			}
-			return before;
 		}
 
 		/// <summary>

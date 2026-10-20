@@ -137,13 +137,19 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Tree.FieldEdited += OnFieldEdited;
 		Tree.KeyNodes.CollectionChanged += (_, e) => {
 			UpdateTitle();
-			//a file in or out is a boundary (SPEC: Undo); a reorder is only precedence
-			if (e.Action != NotifyCollectionChangedAction.Move) {
+			//a file gone, removed or loaded again, takes its history and its mark with it,
+			//and the others keep theirs; a file coming in starts with none, and a reorder is
+			//only precedence (SPEC: Dirty by file, Each file's history)
+			if (e.Action == NotifyCollectionChangedAction.Reset) {
 				UndoStack.Clear();
-				//a file gone from the session, removed or loaded again, takes its mark with it
-				foreach (WordsFile gone in Unsaved.Where(file => !Session.Files.Contains(file)).ToList()) {
-					MarkClean(gone);
+			}
+			foreach (WordsFile gone in (e.OldItems ?? Array.Empty<KeyNode>()).OfType<KeyNode>().Select(root => root.File).OfType<WordsFile>()) {
+				if (!Session.Files.Contains(gone)) {
+					UndoStack.Forget(gone);
 				}
+			}
+			foreach (WordsFile gone in Unsaved.Where(file => !Session.Files.Contains(file)).ToList()) {
+				MarkClean(gone);
 			}
 		};
 		NewFileCommand = new DelegateCommand(DoNewFile);
@@ -490,14 +496,14 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	/// <summary>
-	///     Changes the language table as one action (SPEC: Undo → Languages):
-	///     <paramref name="change"/> makes its operations through a
-	///     <see cref="LanguageTableChange"/>, which keeps the tables as they stood
-	///     before and after. A commit that merged two languages has no way back,
-	///     and clears the stack instead.
+	///     Changes <paramref name="file"/>'s language table as one action (SPEC:
+	///     Undo → Languages): <paramref name="change"/> makes its operations through
+	///     a <see cref="LanguageTableChange"/>, which keeps the file's table as it
+	///     stood before and after. A commit that merged two languages has no way
+	///     back, and clears the file's history instead (SPEC: Dirty by file).
 	/// </summary>
-	public void ChangeLanguages(Action<ILanguageEdits> change) => Perform(() => {
-		var edit = new LanguageTableChange(Session);
+	public void ChangeLanguages(WordsFile file, Action<ILanguageEdits> change) => Perform(() => {
+		var edit = new LanguageTableChange(Session, file);
 		change(edit);
 		if (!edit.Changed) {
 			return null;
@@ -512,8 +518,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (!edit.Merged) {
 			return new LanguagesEdit(edit);
 		}
-		UndoStack.Clear();
-		MarkDirty(edit.Files);
+		ForgetHistory(edit.Files);
 		return null;
 	});
 
@@ -693,19 +698,23 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	//Flags
+	//one stamp a language, undone as one (SPEC: One entry for many edits)
 	private void DoStaleAllLanguages() {
-		if (Tree.SelectedKey is null || Tree.SelectedKeyNode is not { } node) {
+		if (Tree.SelectedKey is not { } key || Tree.SelectedKeyNode is not { } node) {
 			return;
 		}
-		Perform(() => {
-			WordsFile file = Tree.FileOf(node);
-			string stamp = WordsKey.StaleStamp(time.GetLocalNow());
-			if (Session.StaleAll(file, node.FullLabel, stamp) is not { } before) {
-				return null;
+		WordsFile file = Tree.FileOf(node);
+		string stamp = WordsKey.StaleStamp(time.GetLocalNow());
+		Batch(() => {
+			foreach (var (code, entry) in key.Entries.ToList()) {
+				Perform(() => {
+					string? before = entry.Stale;
+					Session.Set(file, node.FullLabel, WordsField.StaleIn(code), stamp);
+					return new StaleEdit(file, node.FullLabel, code, before, stamp);
+				});
 			}
-			Tree.RefreshBadges(node);
-			return new StaleAllEdit(file, node.FullLabel, before, stamp);
 		});
+		Tree.RefreshBadges(node);
 	}
 
 	private void DoToggleStaleLanguage(string? languageCode) {
@@ -777,10 +786,58 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public void Perform(Func<UndoEntry?> action) {
 		HashSet<WordsFile> dirty = [.. Unsaved];
 		UndoEntry? entry = Quietly(action);
-		if (entry is not null) {
-			UndoStack.Push(entry, dirty);
-			MarkDirty(entry.Files);
+		if (entry is null) {
+			return;
 		}
+		if (batch is not null) {
+			batch.Add(entry);
+		}
+		else {
+			UndoStack.Push(entry, dirty);
+		}
+		MarkDirty(entry.Files);
+	}
+
+	//the edits the open batch has recorded, and the files dirty before it; none while no
+	//batch is open
+	private List<UndoEntry>? batch;
+	private HashSet<WordsFile> batchDirty = [];
+
+	/// <summary>
+	///     Runs an action made of edits as one (SPEC: One entry for many edits): each
+	///     <see cref="Perform"/> inside it adds its entry to the batch, and when the
+	///     action ends, or throws, the batch goes on the stack as one entry: nothing
+	///     when no edit was made, and one edit alone as itself. A batch opened inside
+	///     a batch adds to the outer one.
+	/// </summary>
+	public void Batch(Action action) {
+		if (batch is not null) {
+			action();
+			return;
+		}
+		batchDirty = [.. Unsaved];
+		batch = [];
+		try {
+			action();
+		}
+		finally {
+			List<UndoEntry> made = batch;
+			batch = null;
+			if (made.Count > 0) {
+				UndoStack.Push(made.Count == 1 ? made[0] : new BatchEdit(made), batchDirty);
+			}
+		}
+	}
+
+	//what has no way back clears its own files' history alone, the open batch's edits to
+	//them with it, and leaves them dirty (SPEC: Dirty by file, Each file's history)
+	private void ForgetHistory(IReadOnlyCollection<WordsFile> files) {
+		foreach (WordsFile file in files) {
+			UndoStack.Forget(file, dirty: true);
+			batch?.RemoveAll(entry => !entry.Forget(file, dirty: true));
+			batchDirty.Add(file);
+		}
+		MarkDirty(files);
 	}
 
 	private T Quietly<T>(Func<T> action) {
@@ -855,9 +912,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			follow = Quietly(() => edit is null ? entry.Apply(Session, Tree, undoing) : edit.Apply(Session, Tree, standing));
 		}
 		catch {
-			//the document may be half changed: no entry can be trusted to step from there
-			UndoStack.Clear();
-			MarkDirty(entry.Files);
+			//its files may be half changed: no entry of theirs can be trusted to step from there
+			ForgetHistory(entry.Files);
 			Commands.Refresh();
 			throw;
 		}
@@ -902,10 +958,11 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		public void Typed(string text, Selection found, Selection left) => vm.UndoStack.Typed(text, found, left);
 	}
 
-	//the node selected and, for an entry tied to a language, that language showing,
-	//and for a value, the form it was typed into
+	//the node selected and, for an entry tied to a language, that language showing, or
+	//none to show once a file's going let it go (SPEC: Dirty by file), and for a value,
+	//the form it was typed into
 	private bool InView(KeyNode site, UndoEntry entry)
-		=> Tree.SelectedKeyNode == site && (entry.Language is null || entry.Language == Tree.SelectedLanguage.Code)
+		=> Tree.SelectedKeyNode == site && (entry.Language is not { } code || code == Tree.SelectedLanguage.Code || Session.Languages.Find(code) is null)
 			&& (entry is not FieldEdit edit || Tree.FormsOf(edit.Field) is not { } pane || pane.Form == (edit.Form ?? FormPane.Plain));
 
 	//Previews

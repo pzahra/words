@@ -22,8 +22,9 @@ the command line that ships beside it.
 - **Undo, and Back** — Ctrl+Z takes back the last edit, one action at a
   time, and in a text box your typing a word at a time, the caret back where
   it was; if it happened somewhere you aren't looking, the first Ctrl+Z takes
-  you there and the second takes it back. Back and Forward retrace where
-  you've been in the tree, like a browser.
+  you there and the second takes it back. Each file keeps its own history,
+  so removing one leaves the others' Ctrl+Z right where it was. Back and
+  Forward retrace where you've been in the tree, like a browser.
 - **Languages** — manage the language list, and see at a glance which keys
   have no value in the language you're looking at.
 - **Plural forms** — "1 file", "2 files", and Maltese's other three: each pane

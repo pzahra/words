@@ -107,6 +107,14 @@ public sealed class FieldEdit : UndoEntry {
 		return false;
 	}
 
+	internal override bool Forget(WordsFile file, bool dirty) {
+		if (file == Node.File) {
+			return false;
+		}
+		Mark(DirtyBefore, file, !dirty);
+		return true;
+	}
+
 	//file was written with the steps standing as they are: of the run's own file, only
 	//there is clean, and the history beyond the run's ends is not
 	internal bool SavedPartly(WordsFile file) {
@@ -316,15 +324,6 @@ public sealed class StaleEdit(WordsFile file, string name, string language, stri
 	protected override void Change(WordsSession session, bool undoing) => session.Set(File, Name, WordsField.StaleIn(language), undoing ? before : after);
 }
 
-/// <summary>Stale All Languages: one stamp on every entry, the stamps it replaced kept.</summary>
-public sealed class StaleAllEdit(WordsFile file, string name, IReadOnlyDictionary<string, string?> before, string after) : KeyEdit(file, name) {
-	protected override void Change(WordsSession session, bool undoing) {
-		foreach (var (code, stamp) in before) {
-			session.Set(File, Name, WordsField.StaleIn(code), undoing ? stamp : after);
-		}
-	}
-}
-
 /// <summary>Constant toggled: the key renamed with its marker, and the translations making it constant cleared.</summary>
 /// <param name="file">The key's file.</param>
 /// <param name="before">The key's name before the toggle.</param>
@@ -419,11 +418,17 @@ public abstract class NodeEdit : UndoEntry {
 	private readonly IReadOnlyList<WordsKey> keys;
 	private readonly string text;
 
-	protected NodeEdit(WordsSession session, KeyNode node) {
+	/// <param name="session">The session the node's keys are in.</param>
+	/// <param name="node">The node, in the tree.</param>
+	/// <param name="carried">
+	///     The node is leaving for another file (SPEC: Dirty by file): the entry keeps a
+	///     copy of it as it stands here, so it stands alone once the other file goes.
+	/// </param>
+	protected NodeEdit(WordsSession session, KeyNode node, bool carried) {
 		KeyNode at = node.Parent ?? throw new ArgumentException("a file node is not added or removed this way", nameof(node));
 		parent = NodeRef.Of(at);
 		index = at.Children.IndexOf(node);
-		this.node = node;
+		this.node = carried ? node.Clone() : node;
 		keys = node is OrganizerNode ? [] : [.. session.KeysUnder(parent.File, node.FullLabel).Select(key => new WordsKey(key))];
 		text = (node as OrganizerNode)?.Text ?? "";
 	}
@@ -465,13 +470,13 @@ public abstract class NodeEdit : UndoEntry {
 }
 
 /// <summary>A node or a comment added; undone, the selection goes to its parent.</summary>
-public sealed class NodeAdded(WordsSession session, KeyNode node) : NodeEdit(session, node) {
+public sealed class NodeAdded(WordsSession session, KeyNode node) : NodeEdit(session, node, carried: false) {
 	public override NodeRef? Site(bool undoing) => undoing ? Here : Parent;
 	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) => undoing ? Take(session, tree) : Restore(session, tree);
 }
 
-/// <summary>A node removed, however much it took with it; undone, the selection goes to the node.</summary>
-public sealed class NodeRemoved(WordsSession session, KeyNode node) : NodeEdit(session, node) {
+/// <summary>A node removed, however much it took with it, or carried to another file; undone, the selection goes to the node.</summary>
+public sealed class NodeRemoved(WordsSession session, KeyNode node, bool carried = false) : NodeEdit(session, node, carried) {
 	public override NodeRef? Site(bool undoing) => undoing ? Parent : Here;
 	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) => undoing ? Restore(session, tree) : Take(session, tree);
 }
@@ -485,12 +490,13 @@ public readonly record struct Place(WordsFile File, string Parent, int Index, st
 }
 
 /// <summary>
-///     A rename or a drag: the node from one place to another, its keys renamed
-///     in the session when its file or its path changes. A comment's path is nobody's key.
+///     A rename or a drag within a file: the node from one place to another, its
+///     keys renamed in the session when its path changes. A comment's path is
+///     nobody's key. A drag into another file is a removal and an addition, one
+///     batch (SPEC: Dirty by file).
 /// </summary>
 public sealed class Move(Place from, Place to, bool comment) : UndoEntry {
-	//a drag can carry a node from one file to another
-	public override IReadOnlyCollection<WordsFile> Files => from.File == to.File ? [from.File] : [from.File, to.File];
+	public override IReadOnlyCollection<WordsFile> Files => [from.File];
 
 	public override NodeRef? Site(bool undoing) => At(undoing ? to : from);
 
@@ -502,7 +508,7 @@ public sealed class Move(Place from, Place to, bool comment) : UndoEntry {
 				|| tree.NodeAt(b.File, b.Parent) is not { } newParent) {
 			return null;
 		}
-		if (!comment && (a.File, a.Label) != (b.File, b.Label) && !Rename(session, a, b)) {
+		if (!comment && a.Label != b.Label && !session.TryRename(a.File, a.Label, b.Label, out _)) {
 			return At(a);
 		}
 		if (oldParent != newParent || a.Index != b.Index) {
@@ -513,10 +519,6 @@ public sealed class Move(Place from, Place to, bool comment) : UndoEntry {
 		node.Relabel(b.Label);
 		return At(b);
 	}
-
-	//a rename stays in its file; a drag into another keeps its last segment
-	private static bool Rename(WordsSession session, Place a, Place b)
-		=> a.File == b.File ? session.TryRename(a.File, a.Label, b.Label, out _) : session.TryMove(a.File, a.Label, b.File, b.Parent, out _);
 }
 
 /// <summary>A Settings Okay that changed a file's <c>param=</c> and <c>param-xx=</c> slots. It shows nowhere in the tree.</summary>
@@ -545,5 +547,39 @@ public sealed class LanguagesEdit(LanguageTableChange change) : UndoEntry {
 	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) {
 		change.PutBack(before: undoing);
 		return null;
+	}
+}
+
+/// <summary>
+///     Edits that undo as one (SPEC: One entry for many edits), each to its own
+///     key, field, language or file: undone last to first, redone first to last,
+///     each whole. It shows on the node its edits share, in the language they
+///     share, and nowhere when they spread.
+/// </summary>
+public sealed class BatchEdit(IEnumerable<UndoEntry> entries) : UndoEntry {
+	private readonly List<UndoEntry> entries = [.. entries];
+
+	/// <summary>The edits, in the order they were made.</summary>
+	public IReadOnlyList<UndoEntry> Entries => entries;
+
+	public override IReadOnlyCollection<WordsFile> Files => [.. entries.SelectMany(entry => entry.Files).Distinct()];
+
+	public override string? Language => entries.Select(entry => entry.Language).OfType<string>().Distinct().ToList() is [var one] ? one : null;
+
+	public override NodeRef? Site(bool undoing) => entries.Select(entry => entry.Site(undoing)).Distinct().ToList() is [{ } one] ? one : null;
+
+	//the selection goes where the last edit applied says
+	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) {
+		NodeRef? follow = null;
+		foreach (UndoEntry entry in undoing ? Enumerable.Reverse(entries) : entries) {
+			follow = entry.Apply(session, tree, undoing);
+		}
+		return follow;
+	}
+
+	//a file's edits leave the batch, which stays for the rest
+	internal override bool Forget(WordsFile file, bool dirty) {
+		entries.RemoveAll(entry => entry.Files.Contains(file));
+		return entries.Count > 0 && base.Forget(file, dirty);
 	}
 }

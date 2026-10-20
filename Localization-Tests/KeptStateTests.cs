@@ -27,7 +27,7 @@ public class KeptStateTests {
 	public void ALanguageChange_PutsBackWholeEitherWay_TheFileByteForByte() {
 		var (session, file) = Load();
 		string before = Saved(session, file);
-		var change = new LanguageTableChange(session);
+		var change = new LanguageTableChange(session, file);
 
 		//a swap, a removal and an addition, the default's language moved
 		var rows = session.Languages.For(file);
@@ -57,16 +57,21 @@ public class KeptStateTests {
 	public void ALanguageChange_SaysWhenItChangedNothing_WhichFilesItChanged_AndWhenItMerged() {
 		var (session, file) = Load();
 
-		var nothing = new LanguageTableChange(session);
+		var nothing = new LanguageTableChange(session, file);
 		nothing.Declare(file, "en"); //says so already
 		nothing.Reorder(file, 1, 1);
 		Assert.False(nothing.Changed);
 		Assert.Empty(nothing.Files);
 
-		var merge = new LanguageTableChange(session);
+		var merge = new LanguageTableChange(session, file);
 		merge.Rename(file, "fr", new LanguageEntry("de", "Deutsch"));
 		Assert.True(merge.Merged); //onto a code the file declares: two languages' entries made one
 		Assert.Equal([file], merge.Files); //the file whose table it changed (the editor's SPEC: Dirty by file)
+
+		//one file's change: another's table is not its to touch
+		WordsFile other = session.Load(new StringReader("value-en=English\n\n[o]\nvalue=y\n"), "Other");
+		Assert.Throws<ArgumentException>(() => merge.Add(other, new LanguageEntry("it", "Italiano")));
+		Assert.DoesNotContain("it", other.Languages);
 	}
 
 	[Fact]
@@ -131,22 +136,26 @@ public class KeptStateTests {
 		Assert.True(session.Set(file, "k.sub", WordsField.Hand, null));
 		Assert.False(sub.NeedsReview);
 
-		//no key of the name, or no entry in the language: nothing, and no entry made
+		//no key of the name, or nothing written in a language the session lacks: nothing,
+		//and no entry made
 		Assert.False(session.Set(file, "nope", WordsField.Hand, ""));
-		Assert.False(session.Set(file, "k.sub", new WordsField("value", "it", ""), "ciao"));
+		Assert.False(session.Set(file, "k.sub", new WordsField("value", "it", ""), ""));
 		Assert.False(sub.Entries.ContainsKey("it"));
+
+		//words in it bring the language into the session, as words in it keep it there,
+		//and every key has an entry for it (the editor's SPEC: Dirty by file)
+		Assert.True(session.Set(file, "k.sub", new WordsField("value", "it", ""), "ciao"));
+		Assert.Equal("ciao", sub.Entries["it"].Value);
+		Assert.Contains(session.Languages.Known, language => language.Code == "it");
+		Assert.True(file.Keys["k"].Entries.ContainsKey("it"));
 	}
 
-	//Stale All and a default's change mark languages through the session, as typing and
-	//the flags do, each giving back what an undo needs
+	//a default's change marks languages through the session, as typing and the flags
+	//do, giving back what an undo needs
 	[Fact]
-	public void StaleAll_AndADefaultsChange_MarkLanguagesStale_ByTheKeysFileAndName() {
+	public void ADefaultsChange_MarksLanguagesStale_ByTheKeysFileAndName() {
 		var (session, file) = Load();
-		WordsKey sub = file.Keys["k.sub"], k = file.Keys["k"];
-
-		var before = session.StaleAll(file, "k.sub", "now");
-		Assert.Equal(new Dictionary<string, string?> { ["en"] = null, ["de"] = "then", ["fr"] = null }, before);
-		Assert.All(sub.Entries.Values, entry => Assert.Equal("now", entry.Stale));
+		WordsKey k = file.Keys["k"];
 
 		//a mark already there stays, and an empty translation is missing, not stale
 		k.Entries["de"].Stale = "then";
@@ -154,7 +163,6 @@ public class KeptStateTests {
 		Assert.Equal(["en"], session.StaleTranslations(file, "k", "now"));
 		Assert.Equal(("now", "then", null), (k.Entries["en"].Stale, k.Entries["de"].Stale, k.Entries["fr"].Stale));
 
-		Assert.Null(session.StaleAll(file, "nope", "now"));
 		Assert.Empty(session.StaleTranslations(file, "nope", "now"));
 	}
 

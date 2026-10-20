@@ -366,6 +366,21 @@ namespace PatTech.Localization.Authoring {
 			Backfill();
 		}
 
+		//a file's table put back (LanguageTableChange), or a key given words in a language
+		//the union let go: each of codes is in it while a file declares it or a key has
+		//words in it, named and ordered as a load of the files would read it, and every key
+		//has an entry for each, so nothing is put back from a copy of the union (the
+		//editor's SPEC: Dirty by file, Each file's history)
+		internal void Reread(IEnumerable<string> codes) {
+			string[] read = [.. codes.Distinct()];
+			foreach (string code in read) {
+				if (Find(code) is null && Held(code)) {
+					Known.Add(new LanguageEntry(code));
+				}
+			}
+			Settle(read);
+		}
+
 		private bool Held(string code)
 			=> session.Files.Any(file => file.Languages.Contains(code))
 			|| session.AllKeys.Any(key => key.Entries.TryGetValue(code, out WordsEntry? entry) && !entry.IsEmpty());

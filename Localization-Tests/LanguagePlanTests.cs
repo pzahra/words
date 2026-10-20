@@ -93,7 +93,7 @@ public class LanguagePlanTests {
 	[Fact]
 	public void ARefusal_IsSaid_ThoughAnEarlierOperationWentThrough() {
 		var (session, file) = Load("value-en=English\nvalue-de=Deutsch\n\n[k]\nvalue=x\n");
-		var change = new LanguageTableChange(session);
+		var change = new LanguageTableChange(session, file);
 
 		Assert.Equal(["de"], session.Languages.Apply(file, [], change));
 		Assert.Equal(["de"], file.Languages);

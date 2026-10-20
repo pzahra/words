@@ -169,6 +169,36 @@ public class NavigationTests {
 		Assert.False(history.CanGoBack);
 	}
 
+	//SPEC (Dirty by file, Each file's history): a file going takes its places at once, a
+	//place left beside its own twin goes with them, and the selection stands on the
+	//nearest place left at or before where it stood
+	[Fact]
+	public void AFileGoingTakesItsPlacesAtOnce() {
+		var history = new SelectionHistory<string>();
+		foreach (string label in new[] { "a", "b", "x", "y", "b" }) {
+			history.Visit(label);
+		}
+		history.Forget(label => label is "x" or "y");
+		Assert.Equal(["a", "b"], history.Entries);
+		Assert.Equal("b", history.Current);
+		Assert.False(history.CanGoForward);
+
+		history = new SelectionHistory<string>();
+		foreach (string label in new[] { "a", "b", "x", "c" }) {
+			history.Visit(label);
+		}
+		Assert.Equal("x", history.Back(_ => true));
+		history.Forget(label => label == "x");
+		Assert.Equal(["a", "b", "c"], history.Entries);
+		Assert.Equal("b", history.Current);
+		Assert.True(history.CanGoForward);
+
+		history.Forget(_ => true);
+		Assert.Empty(history.Entries);
+		Assert.Null(history.Current);
+		Assert.False(history.CanGoBack);
+	}
+
 	[Fact]
 	public void TheMouseButtonsRunTheirCommands() {
 		//the gesture the window binds Back and Forward to, through WPF's own input bindings

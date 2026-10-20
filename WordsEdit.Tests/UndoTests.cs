@@ -336,8 +336,10 @@ public class UndoTests {
 		Assert.Equal(0, vm.UndoStack.UndoneCount);
 	}
 
+	//SPEC (Dirty by file, Each file's history): a file coming in starts with no history
+	//and leaves the others'; a file going takes its own, Back's places too; Reset clears all
 	[Fact]
-	public void SaveKeepsTheStackAndFilesInOrOutClearIt() {
+	public void SaveKeepsTheStack_AFileComingInLeavesIt_AndAFileGoingTakesItsOwn() {
 		string folder = Path.Combine(Path.GetTempPath(), $"WordsEditUndo-{Guid.NewGuid():N}");
 		Directory.CreateDirectory(folder);
 		try {
@@ -371,41 +373,44 @@ public class UndoTests {
 			Assert.False(vm.IsDirty);
 
 			Edit();
+			int depth = vm.UndoStack.DoneCount;
 			vm.LoadFile(other);
-			Assert.Equal(0, vm.UndoStack.DoneCount);
-			Assert.Equal(0, vm.UndoStack.UndoneCount);
-			Assert.False(vm.UndoCommand.CanExecute(null));
+			Assert.Equal(depth, vm.UndoStack.DoneCount);
+			vm.ImportFile(other); //an ini set imports as a load, of the file loaded already
+			Assert.Equal(depth, vm.UndoStack.DoneCount);
 
-			Edit();
-			vm.ImportFile(other); //an ini set imports as a load
-			Assert.Equal(0, vm.UndoStack.DoneCount);
-
-			Edit();
+			//Other's edits go with it, and Back's places in it; Example's stay, and undo
+			WordsFile gone = FileNamed(vm, "Other");
+			vm.Tree.Select(Node(vm, "Other", "a"));
+			vm.ToggleNeedsReviewCommand.Execute(null);
+			Assert.Equal(depth + 1, vm.UndoStack.DoneCount);
 			vm.RemoveFileNodeCore(Node(vm, "Other", ""));
-			Assert.Equal(0, vm.UndoStack.DoneCount);
+			Assert.Equal(depth, vm.UndoStack.DoneCount);
+			Assert.DoesNotContain(vm.Tree.History.Entries, place => place.File == gone);
+			Assert.True(vm.Tree.BackCommand.CanExecute(null));
 
-			Edit();
 			var merge = new MergeControlViewModel(vm);
 			merge.SplitFile = merge.Files[0];
 			dialogs.FileToSave = Path.Combine(folder, "Split.ini");
 			merge.SplitCommand.Execute(null);
-			Assert.Equal(0, vm.UndoStack.DoneCount);
+			Assert.Equal(depth, vm.UndoStack.DoneCount);
 
-			Edit();
 			merge = new MergeControlViewModel(vm);
 			merge.Files[0].IsSelected = true;
 			merge.Files[1].IsSelected = true;
 			dialogs.FileToSave = Path.Combine(folder, "Merged.ini");
 			merge.MergeCommand.Execute(null);
-			Assert.Equal(0, vm.UndoStack.DoneCount);
+			Assert.Equal(depth, vm.UndoStack.DoneCount);
 
-			//a file reordered is precedence, not a boundary
-			Edit();
+			//a file reordered is precedence
 			vm.KeyDrag.Drop(new FakeDropInfo(vm.Tree.KeyNodes[0], vm.Tree.KeyNodes[1], RelativeInsertPosition.AfterTargetItem));
-			Assert.Equal(1, vm.UndoStack.DoneCount);
+			Assert.Equal(depth, vm.UndoStack.DoneCount);
+			Undo(vm);
+			Assert.Equal(depth - 1, vm.UndoStack.DoneCount); //Example's history still undoes
 
 			vm.ResetCore();
 			Assert.Equal(0, vm.UndoStack.DoneCount);
+			Assert.Equal(0, vm.UndoStack.UndoneCount);
 			Assert.Empty(dialogs.Notices);
 		}
 		finally {
@@ -596,7 +601,7 @@ public class UndoTests {
 			vm.SettingsCommand.Execute(null);
 			dialogs.OnShow = null;
 		}, example);
-		Marks("a language added", () => vm.ChangeLanguages(edit => edit.Add(other, new LanguageEntry("de", "Deutsch"))), other);
+		Marks("a language added", () => vm.ChangeLanguages(other, edit => edit.Add(other, new LanguageEntry("de", "Deutsch"))), other);
 		Marks("a drag between files", () => vm.KeyDrag.Drop(new FakeDropInfo(Node(vm, "Example", "enum.two"), Node(vm, "Other", ""), RelativeInsertPosition.TargetItemCenter)), example, other);
 	}
 
@@ -644,37 +649,273 @@ public class UndoTests {
 		public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) => throw new InvalidOperationException("half done");
 	}
 
+	private const string OtherText = "value-en=English\n\n[o]\nvalue=y\n";
+
+	//SPEC (Dirty by file, Each file's history): what has no way back clears the history
+	//of the files it changed, leaves them dirty, and leaves the others' history alone
 	[Fact]
-	public void AnEntryThatFailsToApplyClearsTheHistory() {
+	public void AnEntryThatFailsToApplyClearsItsOwnFilesHistory() {
 		var (vm, _) = Load();
+		vm.LoadFile(new StringReader(OtherText), "Other");
+		WordsFile example = FileNamed(vm, "Example"), other = FileNamed(vm, "Other");
+		vm.Tree.Select(Node(vm, "Other", "o"));
+		vm.ToggleNeedsReviewCommand.Execute(null);
 		vm.Tree.Select(Node(vm, "Example", "enum.none"));
 		vm.ToggleNeedsReviewCommand.Execute(null);
-		vm.Perform(() => new Failing(vm.Session.Files[0]));
+		vm.Perform(() => new Failing(example));
 		vm.MarkClean();
 
 		Assert.Throws<InvalidOperationException>(() => vm.UndoCommand.Execute(null));
 
-		Assert.Equal(0, vm.UndoStack.DoneCount);
+		Assert.Equal(1, vm.UndoStack.DoneCount); //Other's hand
 		Assert.Equal(0, vm.UndoStack.UndoneCount);
-		Assert.False(vm.UndoCommand.CanExecute(null));
-		Assert.True(vm.IsUnsaved(vm.Session.Files[0])); //the file it names may be half changed
+		Assert.Equal([example], vm.Unsaved); //the file it names may be half changed
+		Undo(vm);
+		Assert.False(Key(vm, "Other", "o").NeedsReview);
+		Assert.Equal([example], vm.Unsaved); //Other as loaded; Example dirty wherever Other's history stands
+		Redo(vm);
+		Assert.True(vm.Unsaved.SetEquals([example, other]));
 	}
 
 	[Fact]
-	public void AMergingRecodeIsABoundary() {
+	public void AMergingRecodeClearsItsOwnFilesHistory() {
 		var (vm, _) = Load();
+		vm.LoadFile(new StringReader(OtherText), "Other");
+		WordsFile example = FileNamed(vm, "Example"), other = FileNamed(vm, "Other");
 		vm.Tree.Select(Node(vm, "Example", "enum.none"));
 		vm.ToggleNeedsReviewCommand.Execute(null);
-		Assert.Equal(1, vm.UndoStack.DoneCount);
+		vm.Tree.Select(Node(vm, "Other", "o"));
+		vm.ToggleNeedsReviewCommand.Execute(null);
+		Assert.Equal(2, vm.UndoStack.DoneCount);
 
-		vm.ChangeLanguages(edit => { }); //nothing changed, nothing recorded
-		Assert.Equal(1, vm.UndoStack.DoneCount);
+		vm.ChangeLanguages(example, edit => { }); //nothing changed, nothing recorded
+		Assert.Equal(2, vm.UndoStack.DoneCount);
 
 		vm.MarkClean();
-		vm.ChangeLanguages(edit => edit.Rename(vm.Session.Files[0], "en-GB", new LanguageEntry("en", "English")));
-		Assert.Equal(0, vm.UndoStack.DoneCount);
-		Assert.True(vm.IsDirty);
+		vm.ChangeLanguages(example, edit => edit.Rename(example, "en-GB", new LanguageEntry("en", "English")));
+		Assert.Equal(1, vm.UndoStack.DoneCount); //Other's hand
+		Assert.Equal([example], vm.Unsaved);
 		Assert.DoesNotContain(vm.Tree.KnownLanguages, language => language.Code == "en-GB");
+		Undo(vm);
+		Assert.False(Key(vm, "Other", "o").NeedsReview);
+		Assert.True(Key(vm, "Example", "enum.none").NeedsReview);
+		Assert.Equal([example], vm.Unsaved); //Other as loaded; Example dirty wherever Other's history stands
+		Redo(vm);
+		Assert.True(vm.Unsaved.SetEquals([example, other]));
+	}
+
+	//SPEC (Dirty by file, Each file's history): a file going leaves the other files'
+	//edits, before its own and after them, to undo and redo
+	[Fact]
+	public void AFileGoingLeavesTheOthersEditsAroundItsOwn() {
+		var vm = LoadAAndB();
+		WordsFile a = FileNamed(vm, "A");
+		vm.Tree.Select(Node(vm, "A", "k"));
+		vm.ToggleNeedsReviewCommand.Execute(null);
+		vm.Tree.Select(Node(vm, "B", "b"));
+		vm.ToggleNeedsReviewCommand.Execute(null);
+		vm.Tree.Select(Node(vm, "A", "k"));
+		vm.Tree.DefaultText = "hello";
+
+		vm.RemoveFileNodeCore(Node(vm, "B", ""));
+
+		Assert.Equal(2, vm.UndoStack.DoneCount);
+		Assert.Equal([a], vm.Unsaved);
+		Undo(vm);
+		Assert.Equal("hi", Key(vm, "A", "k").DefaultValue);
+		Undo(vm);
+		Assert.False(Key(vm, "A", "k").NeedsReview);
+		Assert.False(vm.IsDirty);
+		Redo(vm);
+		Redo(vm);
+		Assert.True(Key(vm, "A", "k").NeedsReview);
+		Assert.Equal("hello", Key(vm, "A", "k").DefaultValue);
+		Assert.Equal([a], vm.Unsaved);
+	}
+
+	//two files, the second declaring a language the first does not
+	private static MainWindowViewModel LoadAAndB() {
+		var vm = new MainWindowViewModel(new FakeDialogs());
+		vm.LoadFile(new StringReader("value-en=English\n\n[k]\nvalue=hi\n"), "A");
+		vm.LoadFile(new StringReader("value-en=English\nvalue-de=Deutsch\n\n[b]\nvalue=x\n"), "B");
+		return vm;
+	}
+
+	private static string[] Codes(MainWindowViewModel vm) => [.. vm.Tree.KnownLanguages.Select(language => language.Code).Order()];
+
+	//SPEC (Dirty by file, Each file's history: Languages): a file's table put back is its
+	//own, and the language list is read again from the files there are
+	[Fact]
+	public void ALanguageChangeUndoneAfterAFileWent_BringsBackNoLanguageOnlyThatFileHad() {
+		var vm = LoadAAndB();
+		WordsFile a = FileNamed(vm, "A");
+		vm.ChangeLanguages(a, edit => edit.Add(a, new LanguageEntry("fr", "Français")));
+		Assert.Equal(["de", "en", "fr"], Codes(vm));
+		vm.RemoveFileNodeCore(Node(vm, "B", ""));
+		Assert.Equal(["en", "fr"], Codes(vm));
+
+		Undo(vm);
+		Assert.Equal(["en"], Codes(vm)); //not de: B alone declared it
+		Assert.Equal(["en"], a.Languages);
+		Redo(vm);
+		Assert.Equal(["en", "fr"], Codes(vm));
+		Assert.Equal(["en", "fr"], a.Languages);
+	}
+
+	//SPEC (Dirty by file, Each file's history: Languages): words redone in a language the
+	//list let go when a file went bring it back, as words in it keep it
+	[Fact]
+	public void WordsRedoneInALanguageAFileTookWithIt_BringItBack() {
+		var vm = LoadAAndB();
+		vm.Tree.Select(Node(vm, "A", "k"));
+		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.Single(language => language.Code == "de");
+		vm.Tree.EntryText = "Hallo";
+		Undo(vm);
+		vm.RemoveFileNodeCore(Node(vm, "B", ""));
+		Assert.Equal(["en"], Codes(vm));
+		Assert.False(Key(vm, "A", "k").Entries.ContainsKey("de"));
+
+		Redo(vm);
+
+		Assert.Equal(["de", "en"], Codes(vm));
+		Assert.Equal("Hallo", Key(vm, "A", "k").Entries["de"].Value);
+		Undo(vm);
+		Assert.Equal("", Key(vm, "A", "k").Entries["de"].Value);
+	}
+
+	//SPEC (One entry for many edits): a drag from one file to another is a removal from
+	//the one and an addition to the other, one entry
+	[Fact]
+	public void ADragBetweenFilesIsOneEntry() {
+		var (vm, _) = Load();
+		vm.LoadFile(new StringReader(OtherText), "Other");
+		string before = State(vm);
+		int depth = vm.UndoStack.DoneCount;
+
+		vm.KeyDrag.Drop(new FakeDropInfo(Node(vm, "Example", "enum.two"), Node(vm, "Other", ""), RelativeInsertPosition.TargetItemCenter));
+		string after = State(vm);
+
+		Assert.Equal(depth + 1, vm.UndoStack.DoneCount);
+		Assert.IsType<BatchEdit>(vm.UndoStack.NextUndo);
+		Undo(vm);
+		Assert.Equal(before, State(vm));
+		Redo(vm);
+		Assert.Equal(after, State(vm));
+	}
+
+	//SPEC (Dirty by file, Each file's history): a file going takes its part of a drag
+	//between files, and the part left undoes and redoes in the file that stays
+	[Fact]
+	public void AFileGoingTakesItsPartOfADrag_AndThePartLeftStepsInTheFileThatStays() {
+		void Drag(MainWindowViewModel vm) => vm.KeyDrag.Drop(new FakeDropInfo(Node(vm, "Example", "enum.two"), Node(vm, "Other", ""), RelativeInsertPosition.TargetItemCenter));
+
+		//the file dragged from stays: the key comes back to it
+		var (vm, _) = Load();
+		string example = State(vm);
+		vm.LoadFile(new StringReader(OtherText), "Other");
+		Drag(vm);
+		vm.RemoveFileNodeCore(Node(vm, "Other", ""));
+		string left = State(vm);
+		Assert.NotEqual(example, left);
+		Undo(vm);
+		Assert.Equal(example, State(vm));
+		Redo(vm);
+		Assert.Equal(left, State(vm));
+
+		//the file dragged to stays: the key leaves it
+		(vm, _) = Load();
+		vm.LoadFile(new StringReader(OtherText), "Other");
+		Drag(vm);
+		vm.RemoveFileNodeCore(Node(vm, "Example", ""));
+		string landed = State(vm);
+		var lone = new MainWindowViewModel(new FakeDialogs());
+		lone.LoadFile(new StringReader(OtherText), "Other");
+		Undo(vm);
+		Assert.Equal(State(lone), State(vm));
+		Redo(vm);
+		Assert.Equal(landed, State(vm));
+	}
+
+	//SPEC (One entry for many edits): the edits a batch makes are one entry, undone and
+	//put back at once, wherever they are
+	[Fact]
+	public void ABatchIsOneEntry_UndoneAtOnce() {
+		var (vm, _) = Load();
+		string before = State(vm);
+		vm.Batch(() => {
+			vm.Tree.Select(Node(vm, "Example", "enum.none"));
+			vm.ToggleNeedsReviewCommand.Execute(null);
+			vm.Tree.Select(Node(vm, "Example", "enum.two"));
+			vm.ToggleNeedsReviewCommand.Execute(null);
+		});
+		string after = State(vm);
+		Assert.Equal(1, vm.UndoStack.DoneCount);
+		Assert.IsType<BatchEdit>(vm.UndoStack.NextUndo);
+
+		vm.UndoCommand.Execute(null); //two keys: no one place to go first
+		Assert.Equal(before, State(vm));
+		Assert.False(vm.IsDirty);
+		vm.RedoCommand.Execute(null);
+		Assert.Equal(after, State(vm));
+
+		//none made, none recorded; one alone, itself; one inside another, the outer's
+		vm.Batch(() => { });
+		Assert.Equal(1, vm.UndoStack.DoneCount);
+		vm.Batch(() => vm.ToggleNeedsReviewCommand.Execute(null));
+		Assert.Equal(2, vm.UndoStack.DoneCount);
+		Assert.IsNotType<BatchEdit>(vm.UndoStack.NextUndo);
+		vm.Batch(() => {
+			vm.ToggleNeedsReviewCommand.Execute(null);
+			vm.Batch(() => vm.ToggleNeedsReviewCommand.Execute(null));
+		});
+		Assert.Equal(3, vm.UndoStack.DoneCount);
+		Assert.Equal(2, Assert.IsType<BatchEdit>(vm.UndoStack.NextUndo).Entries.Count);
+	}
+
+	[Fact]
+	public void ABatchThatThrowsKeepsWhatItMade_AsOneEntry() {
+		var (vm, _) = Load();
+		string before = State(vm);
+
+		Assert.Throws<InvalidOperationException>(() => vm.Batch(() => {
+			vm.Tree.Select(Node(vm, "Example", "enum.none"));
+			vm.ToggleNeedsReviewCommand.Execute(null);
+			vm.Tree.Select(Node(vm, "Example", "enum.two"));
+			vm.ToggleNeedsReviewCommand.Execute(null);
+			throw new InvalidOperationException("half way");
+		}));
+
+		Assert.Equal(1, vm.UndoStack.DoneCount);
+		Assert.True(vm.IsDirty);
+		vm.UndoCommand.Execute(null);
+		Assert.Equal(before, State(vm));
+		Assert.False(vm.IsDirty);
+	}
+
+	//SPEC (Dirty by file, Each file's history): a merging recode inside a batch takes the
+	//batch's edits to its file with the file's history, and the batch keeps the rest
+	[Fact]
+	public void AMergingRecodeInsideABatchTakesItsFilesEditsOutOfIt() {
+		var (vm, _) = Load();
+		vm.LoadFile(new StringReader(OtherText), "Other");
+		WordsFile example = FileNamed(vm, "Example"), other = FileNamed(vm, "Other");
+		vm.Tree.Select(Node(vm, "Example", "enum.none"));
+		vm.ToggleNeedsReviewCommand.Execute(null);
+		vm.MarkClean();
+
+		vm.Batch(() => {
+			vm.ToggleNeedsReviewCommand.Execute(null); //Example's, gone with its history
+			vm.Tree.Select(Node(vm, "Other", "o"));
+			vm.ToggleNeedsReviewCommand.Execute(null);
+			vm.ChangeLanguages(example, edit => edit.Rename(example, "en-GB", new LanguageEntry("en", "English")));
+		});
+
+		Assert.Equal(1, vm.UndoStack.DoneCount); //Other's hand alone, as itself
+		Assert.IsNotType<BatchEdit>(vm.UndoStack.NextUndo);
+		Assert.True(vm.Unsaved.SetEquals([example, other]));
+		Undo(vm);
+		Assert.False(Key(vm, "Other", "o").NeedsReview);
+		Assert.Equal([example], vm.Unsaved);
 	}
 
 	//a translation with words, one with none, and one already marked
@@ -712,6 +953,40 @@ public class UndoTests {
 		Assert.Equal("Hello!!", key.DefaultValue);
 		Assert.Equal(stamp, key.Entries["it"].Stale);
 		Assert.Equal("machine translated", key.Entries["de"].Stale);
+	}
+
+	//SPEC (One entry for many edits): a batch on one key goes there before it applies, in
+	//the language its entries share; Stale All's stamps, one a language, leave it be
+	[Fact]
+	public void ABatchOnOneKeyGoesThereFirst_InTheLanguageItsEntriesShare() {
+		var (vm, _, _) = LoadTranslated();
+		string before = State(vm);
+		void Away() {
+			vm.Tree.Select(Node(vm, "Ex", ""));
+			vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.Single(language => language.Code == "fr");
+		}
+
+		vm.Batch(() => {
+			vm.ToggleStaleLanguageCommand.Execute(null); //in it
+			vm.ToggleNeedsReviewCommand.Execute(null);
+		});
+		Away();
+		vm.UndoCommand.Execute(null);
+		Assert.Same(Node(vm, "Ex", "k"), vm.Tree.SelectedKeyNode);
+		Assert.Equal("it", vm.Tree.SelectedLanguage.Code);
+		Assert.Equal(1, vm.UndoStack.DoneCount); //nothing undone yet
+		vm.UndoCommand.Execute(null);
+		Assert.Equal(before, State(vm));
+
+		vm.StaleAllLanguagesCommand.Execute(null);
+		Assert.Equal(1, vm.UndoStack.DoneCount);
+		Assert.Equal(4, Assert.IsType<BatchEdit>(vm.UndoStack.NextUndo).Entries.Count); //one a language the key keeps
+		Away();
+		vm.UndoCommand.Execute(null);
+		Assert.Same(Node(vm, "Ex", "k"), vm.Tree.SelectedKeyNode);
+		Assert.Equal("fr", vm.Tree.SelectedLanguage.Code);
+		vm.UndoCommand.Execute(null);
+		Assert.Equal(before, State(vm));
 	}
 
 	[Fact]

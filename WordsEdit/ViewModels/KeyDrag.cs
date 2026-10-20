@@ -116,12 +116,15 @@ public class KeyDrag : IDragSource, IDropTarget {
 		if (dragged.Parent is not { } oldParent) {
 			return; //a non-file node at the root is a broken invariant; leave it be
 		}
-		//one Move on the undo stack, whether or not the drop renamed anything
+		//one entry on the undo stack, whether or not the drop renamed anything
 		Vm.Perform(() => Land(dragged, oldParent, newParent, index));
 	}
 
-	private Move? Land(KeyNode dragged, KeyNode oldParent, KeyNode newParent, int index) {
+	//a Move within a file; into another, a removal from the one it left and an addition
+	//to the one it went to, one batch, each its own file's (SPEC: Dirty by file)
+	private UndoEntry? Land(KeyNode dragged, KeyNode oldParent, KeyNode newParent, int index) {
 		string newFullLabel = KeyNode.Join(newParent.FullLabel, WordsOperations.LastSegment(dragged.FullLabel));
+		NodeRemoved? left = oldParent.Root != newParent.Root ? new NodeRemoved(Vm!.Session, dragged, carried: true) : null;
 		if (newParent != oldParent && dragged is not CommentNode) {
 			//the document goes first and may refuse: a same-named sibling, or keys
 			//already at the destination, in its own file or another. Nothing is
@@ -149,8 +152,9 @@ public class KeyDrag : IDragSource, IDropTarget {
 			dragged.Relabel(newFullLabel);
 		}
 		TreeViewModel.UpdateCanBeConstant(newParent.Root);
-		if (oldParent.Root != newParent.Root) {
+		if (left is not null) {
 			TreeViewModel.UpdateCanBeConstant(oldParent.Root);
+			return new BatchEdit([left, new NodeAdded(Vm!.Session, dragged)]);
 		}
 		return new Move(from, Place.Of(dragged), dragged is CommentNode);
 	}

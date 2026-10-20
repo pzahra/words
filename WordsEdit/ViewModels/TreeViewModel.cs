@@ -800,6 +800,8 @@ public class TreeViewModel : ViewModelBase {
 		//the names first, a twin's brackets with them: whatever follows the roots reads them
 		FollowNames();
 		if (existing >= 0) {
+			//loaded again: the file it was is gone, and Back's places in it with it
+			Forget(KeyNodes[existing].File);
 			KeyNodes[existing] = node;
 		}
 		else {
@@ -817,6 +819,7 @@ public class TreeViewModel : ViewModelBase {
 	/// <summary>Takes a file's node out of the tree, after the session let the file go.</summary>
 	public void RemoveFile(KeyNode fileNode) {
 		FollowNames();
+		Forget(fileNode.File);
 		KeyNodes.Remove(fileNode);
 		SelectedKeyNode = KeyNodes.FirstOrDefault();
 		FollowLanguage();
@@ -833,6 +836,14 @@ public class TreeViewModel : ViewModelBase {
 			if (root.File is { } file && session.Files.Contains(file)) {
 				root.Label = session.ShownName(file);
 			}
+		}
+	}
+
+	//a file the session let go takes Back's and Forward's places in it at once (SPEC:
+	//Dirty by file)
+	private void Forget(WordsFile? file) {
+		if (file is not null && !session.Files.Contains(file)) {
+			History.Forget(place => place.File == file);
 		}
 	}
 

@@ -133,7 +133,7 @@ public class LanguageManagerViewModel : DialogViewModel {
 		LanguageTable table = Parent.Session.Languages;
 		List<PlannedLanguage> rows = [.. Rows.Select(row => new PlannedLanguage(row.Origin, row.ToEntry(), row == DefaultRow))];
 		IReadOnlyList<string> refused = [];
-		Parent.ChangeLanguages(edit => refused = table.Apply(File, rows, edit));
+		Parent.ChangeLanguages(File, edit => refused = table.Apply(File, rows, edit));
 		Parent.Tree.SelectedLanguage = (Selected is { } selected ? table.Find(selected.NormalCode) : null) ?? table.Known[0];
 		if (refused.Count > 0) {
 			Parent.Dialogs.Tell(Words.Known.Format("tell.languages-refused", string.Join(", ", refused)));

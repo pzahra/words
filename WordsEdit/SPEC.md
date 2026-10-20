@@ -886,9 +886,12 @@ B by hand therefore does not pile up entries, and stepping onto the next
 node by click rather than by the Forward button does not erase what lay
 ahead. Only a selection matching neither neighbour pushes, and a push while
 behind the end drops the forward run. An entry whose place no longer
-resolves — the node removed or renamed, its file unloaded or reloaded — is dropped when
+resolves — the node removed or renamed — is dropped when
 it is reached, and so is one left beside its own twin once what stood
-between them went. The history keeps fifty entries, the oldest going first,
+between them went. A file unloaded, or loaded again over itself, takes its
+places at once, and their twins with them (*Dirty by file*, Each file's
+history), the selection standing on the nearest place left at or before
+where it stood. The history keeps fifty entries, the oldest going first,
 and Reset clears it; a moment with nothing selected is not a move.
 
 **Arriving.** Back and Forward open the path to the node they arrive at and
@@ -912,7 +915,8 @@ selection matching neither neighbour drops the forward run; a removed
 node's entry is dropped when reached; Reset empties it; a Back onto a
 filtered-out node shows it, and moving on hides it again; arriving opens
 the path; the history is bounded, and a gone entry takes its twin with it;
-and the mouse's back button runs its command through WPF's own input
+a file going takes its places at once, their twins too, the selection on
+the nearest place left; and the mouse's back button runs its command through WPF's own input
 bindings, on the press alone.
 
 ## Undo
@@ -951,8 +955,8 @@ whatever was waiting to be redone.
   Constant — is a `KeyEdit` of its own (`ReviewEdit`, `StaleEdit`,
   `ConstantEdit`): the key, the flag, its value before and after; Constant
   also carries its new name and any translations it cleared. Stale All
-  Languages, on the selected key, is a `KeyEdit` too (`StaleAllEdit`), the
-  stamps it replaced kept with it. Adding key information is `KeyAdded`;
+  Languages, on the selected key, is a batch of `StaleEdit`s, one a language
+  the key keeps (*One entry for many edits*). Adding key information is `KeyAdded`;
   removing it is `KeyRemoved`, which keeps a copy of the key, plural forms
   and all, and puts a copy back. A parameter defined, adopted, renamed, retyped or taken away in the pane is one `ParametersEdit`, the key's
   parameters before and after, made only when they differ.
@@ -960,10 +964,14 @@ whatever was waiting to be redone.
   `NodeRemoved`: the parent, the position, the node itself — its subtree,
   comments and all — copies of the keys beneath it, and a comment's text
   (the preamble's lives in its file, which the removal empties) — one entry,
-  however much it takes. A rename and a drag are both a `Move` — the old
+  however much it takes. A rename and a drag within a file are both a `Move` — the old
   and new place: file, parent, position, path and name — since a drag may or may
   not rename and a rename is a move that changes only the last segment;
   undoing one renames back through the session and the node moves back. A
+  drag from one file to another is a removal from the file it left and an
+  addition to the file it went to, one batch (*One entry for many edits*),
+  the removal keeping a copy of the node as it left, so either part undoes
+  alone once the other's file goes (*Dirty by file*). A
   drop where the node already stood changes nothing and makes no entry; a
   file dragged among files is precedence, not content, and makes none
   either. A drop whose node or target an undo or redo took out of the tree
@@ -974,17 +982,20 @@ whatever was waiting to be redone.
   to their own files when the dialog closes, and stay outside undo.
 - **Languages.** A Language Manager commit is one `LanguagesEdit`: the
   manager makes its table operations on its file through a
-  `LanguageTableChange` (`ChangeLanguages`, on the main view model), which keeps what they can
-  change as it stood before the commit and after it, and puts it back whole
-  either way, never by replaying inverses, which can write a key's fields
-  back in another order: every file's table — its codes,
-  labels, settings references and default's language — the session's list,
-  its order and names, and each key's entries, in the order the key writes
-  its fields, copies for each code the commit touched. A recode onto a code
+  `LanguageTableChange` (`ChangeLanguages`, on the main view model, naming
+  the file), which keeps what they can change of that file as it stood
+  before the commit and after it, and puts it back whole either way, never
+  by replaying inverses, which can write a key's fields back in another
+  order: the file's table — its codes, labels, settings references and
+  default's language — and its keys' entries, in the order each key writes
+  its fields, copies for each code the commit touched. The session's list,
+  its order and names, and the empty entry each key keeps for each language
+  in it, are no one file's: put back, the commit reads them again from the
+  files (*Dirty by file*, Each file's history). A recode onto a code
   the file already declares merges two languages' entries and has no tidy
   inverse; the manager never asks for one (no two
-  rows share a code), but a commit that makes one clears the stack instead
-  — the last resort for any document-wide action that cannot keep a
+  rows share a code), but a commit that makes one clears its file's history
+  instead — the last resort for any action that cannot keep a
   reversible state. Undone or redone, a commit checks the panes' form picks
   again as the commit did: the same key in the same language may count by
   other rules now, and a pick they lack goes back to the plain value.
@@ -992,14 +1003,16 @@ whatever was waiting to be redone.
 **Where it lives.** The entries and the stack are the editor's: an entry
 knows where its change shows, a node by its file and its path, and moves the tree's
 nodes itself. What it keeps of the document and puts back is Authoring's,
-tested headless: a language commit's tables and entries
-(`LanguageTableChange`), a key copied out and restored (`WordsSession.KeysUnder`,
+tested headless: a language commit's table and entries, one file's
+(`LanguageTableChange`), and the session's list read again from the files
+(`LanguageTable`), a key copied out and restored (`WordsSession.KeysUnder`,
 `WordsSession.Restore`), a file's settings references (`SettingsSlots`), a key's
 parameters and entries kept (`WordsKey.CopyParameters`, `CopyEntries`) and put
 back by the key's file and name (`WordsSession.PutBackParameters`,
 `PutBackEntries`), a field, the raised hand and a stale mark set the same way
 (`WordsSession.Set`, naming a `WordsField`, an empty form being none, as `Write`
-on a key's or an entry's forms has it), and a definition's description
+on a key's or an entry's forms has it, and words in a language the session let
+go bringing it back), and a definition's description
 (`WordsSession.Describe`). No entry sets the document itself; a comment's text,
 which is the tree's, is the one it writes.
 
@@ -1014,9 +1027,12 @@ made. Each entry records the files dirty before its action and after it, and
 undo and redo put them back; writing a file moves that file's marks (*Dirty
 by file*), so an undo or redo that leaves a file's saved state stars it and
 one that comes back to it clears it.
-An entry that throws as it applies stays where it was, and the stack is
-cleared, the files it names marked dirty: they may be half changed, and no
-entry can be trusted to step from there. The error goes on.
+An action made of other edits records them as one, through a batch on the
+same door (*One entry for many edits*).
+An entry that throws as it applies goes, with the rest of its files'
+history, and its files are marked dirty: they may be half changed, and no
+entry of theirs can be trusted to step from there. The other files' history
+stays (*Dirty by file*, Each file's history). The error goes on.
 
 **Coalescing.** Consecutive edits to the same field of the same node and
 language fold into one entry, the first text before and the last after, so
@@ -1030,8 +1046,8 @@ again; a hand a note raised stays up.
 
 **Depth.** The stack is unbounded. An entry holds only what its action
 changed — a field's text before and after, a removed subtree's keys — and
-the boundaries below empty it, so a session's history stays small next to
-its document. A cap would drop the oldest entries from the bottom of the
+Reset empties it, a file going taking its own, so a session's history stays
+small next to its document. A cap would drop the oldest entries from the bottom of the
 stack; nothing has asked for one yet.
 
 **Navigate first.** An undo should not surprise: an entry whose change is
@@ -1043,7 +1059,9 @@ value typed into a plural form picks that form in its pane, so what is
 about to change is in view; the next Ctrl+Z undoes it. A change already
 in view — its node selected, in its language and form — undoes at once, and so does
 an entry that shows nowhere in the tree (a Language Manager commit, a
-Settings Okay). The step is a move like any other, so Back returns from it.
+Settings Okay, a batch spread across nodes); an entry in a language the
+session let go when a file went is in view in any, there being none to
+switch to. The step is a move like any other, so Back returns from it.
 Redo mirrors it. Once an entry is undone or redone the selection follows it
 — an undone removal selects the restored node, an undone addition its
 parent, an undone move the node in its old place — shown through the
@@ -1053,11 +1071,13 @@ left it (Text boxes) or the caret at the end, so the next keystroke lands
 where the change did.
 
 **Boundaries.** Save does not clear the stack (a saved state can still be
-undone; the title stars again). Reset, Load, Import, Unload, Merge and Split
-do: they change which files the document is, and an entry for other files is
-no help. Each of them puts a file node into the tree or takes one out, and
-that is what clears it; a file dragged among files does not. A Language
-Manager commit that merges codes clears it too. A root that changes its name
+undone; the title stars again), and Reset does: it empties the document.
+Each file's part of the history is its own (*Dirty by file*, Each file's
+history): a file coming in, by Load, Import, New, Merge or Split, leaves the
+others' history as it was, and a file going, unloaded or loaded again over
+itself, takes its own entries with it and leaves the rest. A file dragged
+among files is precedence and changes none of it. A Language Manager commit
+that merges codes clears its file's history. A root that changes its name
 (*New*), renamed in place, saved first under another name or saved as another
 file (*Saving*, Save As, the old file left where it was), does not: no key
 changes, and an entry names its file, not the name.
@@ -1120,7 +1140,8 @@ back; a save ends the run, and after a save that wrote one file and not
 another, undo and redo keep each file to its own saved point; undoing a
 declaration of the default's language drops a form pick the restored rules
 lack; a drop whose node a redo took away does nothing; an entry that throws
-as it applies clears the stack and marks its file dirty; a note that raised
+as it applies clears its file's history, the other file's kept, and marks it
+dirty; a note that raised
 the hand undoes both, and undoing the clearing of a note leaves a hand that
 was lowered down. Typing the default stamps the translations with words and
 no mark, once a run, keeping a mark there; undoing it takes the stamps back
@@ -1130,15 +1151,18 @@ that hides it and switches the language, changing nothing until the second
 call, which applies it, focuses the field and keeps the node in view; Back
 returns from the navigation; an undo in view applies at once and focuses
 the field, and so does its redo. Save keeps the stack, undoing past it
-stars the title and coming back clears it; Load, Import, Unload, Split,
-Merge and Reset clear it and a file reorder does not; a commit that changes
-nothing records nothing, and a merging recode clears the stack. Headless, in
+stars the title and coming back clears it; Load, Import, Split, Merge and a
+file reorder keep it, Unload takes the unloaded file's entries and Back
+places and leaves the others' to undo, and Reset clears it; a commit that
+changes nothing records nothing, and a merging recode clears its file's
+history alone. Headless, in
 Authoring: a language change put back before and after gives the file's saved
-text byte for byte, says when it changed nothing and when it merged, and has no
-after until it is closed; a key copied out comes back as it was, the copy its
+text byte for byte, says when it changed nothing and when it merged, has no
+after until it is closed, and refuses another file's table; a key copied out comes back as it was, the copy its
 own; a key's parameters and entries, and a file's settings references, are
 copied and put back; a form written empty is none; a field, the hand and a
-stale mark are set by the key's file and name, a description keeps its
+stale mark are set by the key's file and name, words set in a language the
+session let go bringing it back, a description keeps its
 type, and a key or an entry that is not there takes nothing and gains no
 entry. In laid-out
 boxes (`TextBoxUndoTests`), an editing box answers Undo and Redo from its
@@ -1594,12 +1618,6 @@ labelled by its paths writes, and another file's tree or one whose root is
 labelled is refused; a split, a merge, an export and every round trip write as
 before, byte for byte; and the tests name a key by its file and its own name.
 
----
-
-# Planned upgrades
-
-Not built yet. Each section here is the shape the feature takes when it is.
-
 ## Dirty by file
 
 Unsaved work is each file's own, and so is its history. A file is dirty from
@@ -1709,10 +1727,6 @@ and Save As did too; after a save, an undo in one file starred the whole
 window; closing could not say which files held the work it was about to
 drop; and a file loaded or removed emptied every file's undo history.
 
-**Order.** The marks, Save, Save As, and the asks on closing and removing a
-file (built); then each file's history, with the batch (*One entry for many
-edits*).
-
 **Tests.**
 - Each kind of entry marks its own file and no other: typing a field, each
   command, a node and a comment added and removed, a Settings Okay and a
@@ -1750,18 +1764,19 @@ edits*).
   without the warning.
 - An entry that throws as it applies marks its files dirty.
 - Headless: a Language Manager commit keeps its own file's table and keys
-  alone, and once it is put back either way, the session's list reads as a
+  alone, refusing another file's, and once it is put back either way, the session's list reads as a
   load of the files would read it; words set in a language the session let
   go bring it back.
 
 ## One entry for many edits
 
 An action that is a run of edits the history already knows, each to its own
-key, field or language, should undo as one: Machine translation's Apply
-writes a field, marks it stale and may raise a hand, row after row, and is
-one undo entry (*Machine translation*, It lands for review), and a drag
-from one file to another is a removal from the file it left and an addition
-to the file it went to, each its own file's (*Dirty by file*). A `BatchEdit`
+key, field or language, undoes as one: Stale All Languages stamps each
+language a key keeps, a drag from one file to another is a removal from the
+file it left and an addition to the file it went to, each its own file's
+(*Dirty by file*), and Machine translation's Apply, when it is built, writes
+a field, marks it stale and may raise a hand, row after row (*Machine
+translation*, It lands for review). A `BatchEdit`
 holds those entries, in the order they were made, and is one entry on the
 stack.
 - **Recording.** A batch is a scope on the one door (*Undo*, Recording):
@@ -1796,31 +1811,33 @@ stack.
   taken back, and the error goes on. An entry that throws as the batch
   applies clears its files' history, as any entry does.
 
-Stale All Languages becomes a batch of `StaleEdit`s, one a language, and
-`StaleAllEdit` goes. The rest stay as they are, each for its reason: a
-Language Manager commit is put back whole from a snapshot, never by replaying
-inverses (*Undo*, Languages); a typing run's stale stamps and raised hand
+Stale All Languages is a batch of `StaleEdit`s, one a language. The rest
+stay single entries, each for its reason: a Language Manager commit is put
+back whole from what it kept, never by replaying inverses (*Undo*,
+Languages); a typing run's stale stamps and raised hand
 belong to the step that made them, which a box steps through; and a Constant
 toggle's cleared translations are no entry of their own yet.
 
 **Where it lives.** The editor's, beside the entries it holds:
-`BatchEdit` with them, and the scope on the main view model's `Perform`.
+`BatchEdit` with them, and the scope (`Batch`) on the main view model,
+beside `Perform`.
 
-**Tests.** A batch of a written field, a stale mark and a raised hand across
-two keys and two languages is one entry: undone, every file's saved text is
-as before and the title as it was, and redone as after; a batch with no
-edit records nothing, and one with one edit records that edit; a batch inside
-a batch is one; a merging recode inside one clears its file's history, the
-batch's edits to it included, and the edits after it are one entry; an
-action throwing part way leaves its recorded edits one entry, undone to
-before; a batch on one key goes there before it applies, in its language
-when its entries share one, and one across keys applies at once; and Stale
-All undoes and redoes as before, going to its key in whatever language is
-showing.
+**Tests.** A batch of raised hands on two keys is one entry: undone at
+once, every file's saved text is as before and the title as it was, and
+redone as after; a batch with no edit records nothing, and one with one edit
+records that edit; a batch inside a batch is one; a merging recode inside
+one clears its file's history, the batch's edits to it included, and the
+batch keeps the other file's edit; an action throwing part way leaves its
+recorded edits one entry, undone to before; a batch on one key goes there
+before it applies, in its language when its entries share one; Stale All is
+one entry, going to its key in whatever language is showing; and a drag
+between two files is one entry, undone and redone whole.
 
-**Order.** With Dirty by file, a drag between two files the first batch,
-and Stale All moved onto it in the same step; Machine translation's Apply
-uses it when its grid is built.
+---
+
+# Planned upgrades
+
+Not built yet. Each section here is the shape the feature takes when it is.
 
 ## Save as a patch
 

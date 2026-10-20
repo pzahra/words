@@ -78,6 +78,18 @@ public abstract class UndoEntry {
 		return far;
 	}
 
+	//file's history goes (SPEC: Dirty by file, Each file's history): false when the entry
+	//changes it, and goes too; otherwise it stays, and file's marks with it are gone with
+	//the file, or dirty wherever the history stands when the file stays without its history
+	internal virtual bool Forget(WordsFile file, bool dirty) {
+		if (Files.Contains(file)) {
+			return false;
+		}
+		Mark(DirtyBefore, file, !dirty);
+		Mark(after, file, !dirty);
+		return true;
+	}
+
 	private protected static void Mark(HashSet<WordsFile> dirty, WordsFile file, bool clean) {
 		if (clean) {
 			dirty.Remove(file);
@@ -188,7 +200,31 @@ public sealed class UndoStack(TimeProvider? time = null) {
 		}
 	}
 
-	/// <summary>A boundary: what the entries refer to is gone.</summary>
+	/// <summary>
+	///     <paramref name="file"/>'s history goes, and every other file's stays as it
+	///     was (SPEC: Dirty by file, Each file's history): its entries leave the
+	///     stack, a batch keeping its entries for the other files. Gone from the
+	///     session, the file's marks go with it; staying without its history, it is
+	///     dirty wherever the history stands, as no entry left comes back to its
+	///     saved state.
+	/// </summary>
+	public void Forget(WordsFile file, bool dirty = false) {
+		Keep(done);
+		Keep(undone);
+		if (run is not null && !done.Contains(run)) {
+			run = null;
+		}
+
+		void Keep(Stack<UndoEntry> stack) {
+			UndoEntry[] kept = [.. stack.Reverse().Where(entry => entry.Forget(file, dirty))];
+			stack.Clear();
+			foreach (UndoEntry entry in kept) {
+				stack.Push(entry);
+			}
+		}
+	}
+
+	/// <summary>Reset: every file's history goes.</summary>
 	public void Clear() {
 		done.Clear();
 		undone.Clear();
