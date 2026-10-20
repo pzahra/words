@@ -113,9 +113,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public event Action<DocumentField, string?, Selection?>? FieldFocusRequested;
 	//above zero while a command or an undo changes the document: the fields' reports are not typing
 	private int quiet;
-	//the dirtiness a keystroke taking its run back returns to, for the tree's Edited
-	//that follows the report
-	private bool? typedBack;
+	//the files dirty when a keystroke took its run back, for the tree's Edited that
+	//follows the report
+	private IReadOnlySet<WordsFile>? typedBack;
 
 	//how the editor asks and tells: modal windows in the app, a fake in tests
 	public IDialogs Dialogs { get; }
@@ -133,13 +133,17 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		this.spellCheckers = spellCheckers ?? SpellCheckers.IsInstalled;
 		Tree = new TreeViewModel(Session);
 		ParametersPane = new ParametersPane(this);
-		Tree.Edited += AfterTyping;
+		Tree.Edited += () => AfterTyping(Tree.SelectedFile);
 		Tree.FieldEdited += OnFieldEdited;
 		Tree.KeyNodes.CollectionChanged += (_, e) => {
 			UpdateTitle();
 			//a file in or out is a boundary (SPEC: Undo); a reorder is only precedence
 			if (e.Action != NotifyCollectionChangedAction.Move) {
 				UndoStack.Clear();
+				//a file gone from the session, removed or loaded again, takes its mark with it
+				foreach (WordsFile gone in Unsaved.Where(file => !Session.Files.Contains(file)).ToList()) {
+					MarkClean(gone);
+				}
 			}
 		};
 		NewFileCommand = new DelegateCommand(DoNewFile);
@@ -147,7 +151,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		ImportCommand = new DelegateCommand(DoImport);
 		ExportCommand = new DelegateCommand(DoExport, () => Tree.KeyNodes.Count > 0);
 		ResetCommand = new DelegateCommand(DoReset);
-		SaveCommand = new DelegateCommand(DoSave);
+		SaveCommand = new DelegateCommand(DoSave, () => IsDirty);
 		SaveAsCommand = new DelegateCommand(DoSaveAs, () => Tree.SelectedFile is not null);
 		MergeFilesCommand = new DelegateCommand(DoMergeFiles);
 		ManageLanguagesCommand = new DelegateCommand(DoManageLanguages, () => LanguagesFile is not null);
@@ -204,6 +208,13 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	private void UpdateTitle()
 		=> Title = Tree.KeyNodes.Count == 0 ? Words.Known["app.title"] : Words.Known.Format("app.title-files", string.Join(", ", Tree.KeyNodes.Select(root => root.Label)));
 
+	//each root stars while its file has unsaved work (SPEC: Dirty by file)
+	protected override void OnUnsavedChanged() {
+		foreach (KeyNode root in Tree.KeyNodes) {
+			root.IsUnsaved = root.File is { } file && IsUnsaved(file);
+		}
+	}
+
 	//New (SPEC: New): asks nothing, the name open for renaming at once
 	private void DoNewFile() {
 		NewFile();
@@ -223,7 +234,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		WordsFile file = Session.New(NewFileName, Words.Known["file.new-preamble"], new LanguageEntry("en", "English"));
 		Tree.Present(file);
 		Tree.Select(Tree.NodeOf(file));
-		MarkDirty();
+		MarkDirty(file);
 		return file;
 	}
 
@@ -288,9 +299,10 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			if (!isLoad && File.Exists(native) && !Dialogs.Confirm(Words.Known.Format("ask.import-over", native))) {
 				return;
 			}
-			Tree.Present(Session.Import(importer, set));
+			WordsFile file = Session.Import(importer, set);
+			Tree.Present(file);
 			if (!isLoad) {
-				MarkDirty();
+				MarkDirty(file);
 			}
 		}
 		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
@@ -335,59 +347,49 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	private void DoSave() => Save();
 
 	/// <summary>
-	///     Writes every file (SPEC: Saving), each where it was loaded from. A file
-	///     never saved asks where first (SPEC: New), proposing its name; cancelled,
-	///     the Save stops there, the files before it saved and it left pathless.
+	///     Writes the files with unsaved work (SPEC: Dirty by file), in the tree's
+	///     order, each where it was loaded from, and leaves the clean ones alone. A
+	///     file never saved asks where first (SPEC: New), proposing its name;
+	///     cancelled, the Save stops there, the files before it saved and it left
+	///     pathless.
 	/// </summary>
-	public override void Save() => Save(null, null);
+	public override void Save() {
+		foreach (WordsFile file in Tree.Files.Where(IsUnsaved).ToList()) {
+			if (SaveFile(file) is null) {
+				break;
+			}
+		}
+	}
 
-	//Save As: the selected node's file at a path the dialog picks, proposing its own,
-	//and every other file as Save writes it; its own path is a plain Save, and the file
-	//at the old path stays on disk as it was (SPEC: Saving, Save As)
+	//Save As: the selected node's file alone, dirty or clean, at a path the dialog picks,
+	//proposing its own; every other file keeps its mark and its disk, and the file at the
+	//old path stays on disk as it was (SPEC: Saving, Save As; Dirty by file)
 	private void DoSaveAs() {
 		if (Tree.SelectedFile is not { } file
 			|| AskWhere(file, Words.Known.Format("file.save-as-title", Tree.NodeOf(file).Label), file.Path ?? file.Name + ".ini") is not { } path) {
 			return;
 		}
-		if (file.Path is { } own && SamePath(path, own)) {
-			Save();
-		}
-		else {
-			Save(file, path);
-		}
+		SaveFile(file, file.Path is { } own && SamePath(path, own) ? own : path);
 	}
 
-	//every file where it is, but moved at to, which it takes once written there. The
-	//moved file goes first, so a file never saved, asking where after it, finds its
-	//new path taken
-	private void Save(WordsFile? moved, string? to) {
-		int saved = 0;
-		IEnumerable<WordsFile> files = moved is null ? Session.Files : [moved, .. Session.Files.Where(file => file != moved)];
-		foreach (WordsFile file in files.ToList()) {
-			KeyNode node = Tree.NodeOf(file);
-			string? path = file == moved ? to : file.Path;
-			if (path is null) {
-				path = AskWhere(file, Words.Known.Format("file.save-title", node.Label), file.Name + ".ini");
-				if (path is null) {
-					break;
-				}
-			}
-			if (!TryWrite(file, node, path)) {
-				continue;
-			}
-			if (path != file.Path) {
-				Locate(file, path);
-			}
-			saved++;
+	//writes the file at path, or where it is, which it takes once written there; a file
+	//never saved asks where first. True when written; false when the write failed, which
+	//is told and moves nothing; null when the dialog was cancelled
+	private bool? SaveFile(WordsFile file, string? path = null) {
+		KeyNode node = Tree.NodeOf(file);
+		path ??= file.Path ?? AskWhere(file, Words.Known.Format("file.save-title", node.Label), file.Name + ".ini");
+		if (path is null) {
+			return null;
 		}
-		if (saved == Session.Files.Count) {
-			MarkClean();
-			UndoStack.Saved();
+		if (!TryWrite(file, node, path)) {
+			return false;
 		}
-		else if (saved > 0) {
-			//some files on disk moved on and some didn't: no undo or redo comes back to that
-			UndoStack.Saved(partly: true);
+		if (path != file.Path) {
+			Locate(file, path);
 		}
+		MarkClean(file);
+		UndoStack.Saved(file);
+		return true;
 	}
 
 	//writes the file at path, its own path left as it is: a failure is told and moves nothing
@@ -446,15 +448,16 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	}
 
 	/// <summary>
-	///     The window wants to close. Clean, it may; dirty, the user chooses to
-	///     save (and the close waits on every file being written), discard, or
-	///     stay. True when the window may go.
+	///     The window wants to close. Clean, it may; with unsaved work, the user is
+	///     told which files hold it and chooses to save (and the close waits on
+	///     every one being written), discard, or stay. True when the window may go.
 	/// </summary>
 	public bool TryClose() {
 		if (!IsDirty) {
 			return true;
 		}
-		switch (Dialogs.AskToSave(Words.Known["ask.save-before-close"])) {
+		string files = string.Join(", ", Tree.KeyNodes.Where(root => root.File is { } file && IsUnsaved(file)).Select(root => root.Label));
+		switch (Dialogs.AskToSave(Words.Known.Format("ask.save-before-close", files))) {
 			case CloseAnswer.Save:
 				Save();
 				return !IsDirty;
@@ -510,7 +513,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			return new LanguagesEdit(edit);
 		}
 		UndoStack.Clear();
-		MarkDirty();
+		MarkDirty(edit.Files);
 		return null;
 	});
 
@@ -547,7 +550,16 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			return;
 		}
 		if (node.IsFile) {
-			if (Dialogs.Confirm(Words.Known["ask.remove-file"])) {
+			if (node.File is { } dirty && IsUnsaved(dirty)) {
+				//its unsaved work is asked about as closing asks, for it alone (SPEC: Dirty by file)
+				switch (Dialogs.AskToSave(Words.Known.Format("ask.save-before-remove", node.Label))) {
+					case CloseAnswer.Save when SaveFile(dirty) is true:
+					case CloseAnswer.Discard:
+						RemoveFileNodeCore(node);
+						break;
+				}
+			}
+			else if (Dialogs.Confirm(Words.Known["ask.remove-file"])) {
 				RemoveFileNodeCore(node);
 			}
 			return;
@@ -763,11 +775,11 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	///     was dirty before.
 	/// </summary>
 	public void Perform(Func<UndoEntry?> action) {
-		bool wasDirty = IsDirty;
+		HashSet<WordsFile> dirty = [.. Unsaved];
 		UndoEntry? entry = Quietly(action);
 		if (entry is not null) {
-			UndoStack.Push(entry, wasDirty);
-			MarkDirty();
+			UndoStack.Push(entry, dirty);
+			MarkDirty(entry.Files);
 		}
 	}
 
@@ -788,7 +800,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (quiet > 0) {
 			return;
 		}
-		bool wasDirty = IsDirty;
+		HashSet<WordsFile> dirty = [.. Unsaved];
 		if (Tree.SelectedKey is { } key && Tree.SelectedKeyNode is { } node) {
 			WordsFile file = Tree.FileOf(node);
 			if (edit.IsNote && edit.After.Trim() != "" && !key.NeedsReview) {
@@ -803,7 +815,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			}
 		}
 		FieldEdit? open = UndoStack.NextUndo as FieldEdit;
-		bool? back = UndoStack.Type(edit, wasDirty);
+		IReadOnlySet<WordsFile>? back = UndoStack.Type(edit, dirty);
 		//typed back to where it started: the stamps the run made go too
 		if (back is not null && open is { Staled.Count: > 0 }) {
 			Quietly(() => open.Apply(Session, Tree, 0));
@@ -845,7 +857,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		catch {
 			//the document may be half changed: no entry can be trusted to step from there
 			UndoStack.Clear();
-			MarkDirty();
+			MarkDirty(entry.Files);
 			Commands.Refresh();
 			throw;
 		}
@@ -985,17 +997,17 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	/// </summary>
 	internal void Typed(FieldEdit edit) {
 		OnFieldEdited(edit);
-		AfterTyping();
+		AfterTyping(edit.Node.File);
 	}
 
-	//a keystroke reached the document; one that took its run back leaves it as dirty as
-	//the run found it (SPEC: Undo)
-	private void AfterTyping() {
+	//a keystroke reached file; one that took its run back leaves the files as dirty as
+	//the run found them (SPEC: Undo)
+	private void AfterTyping(WordsFile? file) {
 		if (typedBack is { } back) {
 			PutBack(back);
 		}
-		else {
-			MarkDirty();
+		else if (file is not null) {
+			MarkDirty(file);
 		}
 		typedBack = null;
 		RenderPreviews();

@@ -508,15 +508,20 @@ value-de=y
 		Assert.Equal("german.ini", file.LanguageSettings["de"]);
 	}
 
+	//SPEC (Dirty by file): closing names the files holding unsaved work
 	[Fact]
-	public void TryClose_CleanGoes_DirtyAsks() {
+	public void TryClose_CleanGoes_DirtyAsks_NamingTheDirtyFiles() {
 		var (vm, dialogs) = Load();
+		vm.LoadFile(new StringReader("value-en=English\n\n[o]\nvalue=y\n"), "Other");
 		Assert.True(vm.TryClose());
+		Assert.Empty(dialogs.SaveQuestions);
 
-		vm.MarkDirty();
+		vm.MarkDirty(vm.Session.Files[0]);
 		dialogs.SaveAnswer = CloseAnswer.Cancel;
 		Assert.False(vm.TryClose());
 		Assert.True(vm.IsDirty);
+		Assert.Contains("Example", dialogs.SaveQuestions[^1]);
+		Assert.DoesNotContain("Other", dialogs.SaveQuestions[^1]);
 
 		dialogs.SaveAnswer = CloseAnswer.Discard;
 		Assert.True(vm.TryClose());
@@ -531,7 +536,7 @@ value-de=y
 			var vm = new MainWindowViewModel(dialogs);
 			string path = Path.Combine(folder, "Example.ini");
 			vm.LoadFile(new StringReader(Ini), path);
-			vm.MarkDirty();
+			vm.MarkDirty(vm.Session.Files[0]);
 
 			Assert.True(vm.TryClose());
 			Assert.True(File.Exists(path));
@@ -539,7 +544,7 @@ value-de=y
 
 			//a file that cannot be written keeps the window open
 			vm.LoadFile(new StringReader(Ini), Path.Combine(folder, "missing", "Nowhere.ini"));
-			vm.MarkDirty();
+			vm.MarkDirty(vm.Session.Files[^1]);
 			Assert.False(vm.TryClose());
 			Assert.Single(dialogs.Notices);
 		}

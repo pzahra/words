@@ -76,20 +76,51 @@ public sealed class FieldEdit : UndoEntry {
 	//or stamped the translations
 	private (Step Step, string? Extended, bool Raised, bool Stamped)? awaiting;
 
-	//the text and the dirtiness with so many steps standing
-	private string TextAt(int standing) => standing == 0 ? Before : steps[standing - 1].Text;
-	internal bool DirtyAt(int standing) => standing == 0 ? DirtyBefore : steps[standing - 1].Dirty;
-	internal override bool DirtyAfter { get => steps[^1].Dirty; set => steps[^1].Dirty = value; }
+	public override IReadOnlyCollection<WordsFile> Files => [Node.File];
 
-	internal override void Unsaved() {
-		DirtyBefore = true;
+	//the text, and the files dirty, with so many steps standing: a run changes its own
+	//file alone, so its steps keep that file's mark, and the rest are as before it
+	private string TextAt(int standing) => standing == 0 ? Before : steps[standing - 1].Text;
+
+	internal IReadOnlySet<WordsFile> DirtyAt(int standing) {
+		if (standing == 0) {
+			return DirtyBefore;
+		}
+		HashSet<WordsFile> dirty = [.. DirtyBefore];
+		Mark(dirty, Node.File, !steps[standing - 1].Dirty);
+		return dirty;
+	}
+
+	internal override IReadOnlySet<WordsFile> DirtyAfter => DirtyAt(steps.Count);
+
+	//every step changes the field, so of the run's own file only the near end is clean
+	internal override bool Saved(WordsFile file, bool clean, bool ahead) {
+		if (file != Node.File) {
+			Mark(DirtyBefore, file, clean);
+			return clean;
+		}
+		Mark(DirtyBefore, file, ahead && clean);
 		foreach (Step step in steps) {
 			step.Dirty = true;
 		}
+		steps[^1].Dirty = ahead || !clean;
+		return false;
 	}
 
-	//the document was saved with the steps standing as they are
-	internal void SavedPartly() => steps[Standing - 1].Dirty = false;
+	//file was written with the steps standing as they are: of the run's own file, only
+	//there is clean, and the history beyond the run's ends is not
+	internal bool SavedPartly(WordsFile file) {
+		if (file != Node.File) {
+			Mark(DirtyBefore, file, clean: true);
+			return true;
+		}
+		Mark(DirtyBefore, file, clean: false);
+		foreach (Step step in steps) {
+			step.Dirty = true;
+		}
+		steps[Standing - 1].Dirty = false;
+		return false;
+	}
 
 	//a new edit drops the steps stepped back, as it drops the entries undone
 	internal void DropStepsBack() {
@@ -259,6 +290,8 @@ public abstract class KeyEdit(WordsFile file, string name) : UndoEntry {
 	/// <summary>The key's name in it.</summary>
 	protected string Name { get; } = name;
 
+	public override IReadOnlyCollection<WordsFile> Files => [File];
+
 	public override NodeRef? Site(bool undoing) => new NodeRef(File, Name);
 
 	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) {
@@ -340,6 +373,8 @@ public sealed class ParametersEdit(WordsFile file, string name, IReadOnlyList<Wo
 
 /// <summary>Key information added to a node.</summary>
 public sealed class KeyAdded(WordsFile file, string name) : UndoEntry {
+	public override IReadOnlyCollection<WordsFile> Files => [file];
+
 	public override NodeRef? Site(bool undoing) => new NodeRef(file, name);
 
 	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) {
@@ -356,6 +391,8 @@ public sealed class KeyAdded(WordsFile file, string name) : UndoEntry {
 /// <summary>Key information removed from a node, a copy of the key kept.</summary>
 public sealed class KeyRemoved(WordsFile file, WordsKey key) : UndoEntry {
 	private readonly WordsKey kept = new(key);
+
+	public override IReadOnlyCollection<WordsFile> Files => [file];
 
 	public override NodeRef? Site(bool undoing) => new NodeRef(file, kept.BlockKey);
 
@@ -390,6 +427,8 @@ public abstract class NodeEdit : UndoEntry {
 		keys = node is OrganizerNode ? [] : [.. session.KeysUnder(parent.File, node.FullLabel).Select(key => new WordsKey(key))];
 		text = (node as OrganizerNode)?.Text ?? "";
 	}
+
+	public override IReadOnlyCollection<WordsFile> Files => [parent.File];
 
 	/// <summary>The node, where it stands in the tree.</summary>
 	protected NodeRef Here => node is OrganizerNode ? parent with { Index = index } : new NodeRef(parent.File, node.FullLabel);
@@ -450,6 +489,9 @@ public readonly record struct Place(WordsFile File, string Parent, int Index, st
 ///     in the session when its file or its path changes. A comment's path is nobody's key.
 /// </summary>
 public sealed class Move(Place from, Place to, bool comment) : UndoEntry {
+	//a drag can carry a node from one file to another
+	public override IReadOnlyCollection<WordsFile> Files => from.File == to.File ? [from.File] : [from.File, to.File];
+
 	public override NodeRef? Site(bool undoing) => At(undoing ? to : from);
 
 	private NodeRef At(Place place) => comment ? new NodeRef(place.File, place.Parent, place.Index) : new NodeRef(place.File, place.Label);
@@ -479,6 +521,8 @@ public sealed class Move(Place from, Place to, bool comment) : UndoEntry {
 
 /// <summary>A Settings Okay that changed a file's <c>param=</c> and <c>param-xx=</c> slots. It shows nowhere in the tree.</summary>
 public sealed class FileSettingsEdit(WordsFile file, SettingsSlots before, SettingsSlots after) : UndoEntry {
+	public override IReadOnlyCollection<WordsFile> Files => [file];
+
 	public override NodeRef? Site(bool undoing) => null;
 
 	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) {
@@ -494,6 +538,8 @@ public sealed class FileSettingsEdit(WordsFile file, SettingsSlots before, Setti
 ///     instead, and makes none. It shows nowhere in the tree.
 /// </summary>
 public sealed class LanguagesEdit(LanguageTableChange change) : UndoEntry {
+	public override IReadOnlyCollection<WordsFile> Files => change.Files;
+
 	public override NodeRef? Site(bool undoing) => null;
 
 	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) {

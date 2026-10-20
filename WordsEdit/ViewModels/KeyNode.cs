@@ -91,6 +91,8 @@ public class KeyNode : ViewModelBase, IKeyTreeNode {
 		}
 	}
 	public bool IsLibraryFile { get; set => ChangeProperty(ref field, value); }
+	/// <summary>On a file node: its file has unsaved work, and it stars as the title does (SPEC: Dirty by file).</summary>
+	public bool IsUnsaved { get; set => ChangeProperty(ref field, value); }
 	/// <summary>On a library's file node: the languages a host lists that it has no words for, as its flag's tooltip says them; empty when none (SPEC: Badges).</summary>
 	public string LacksLanguages {
 		get;

@@ -54,17 +54,19 @@ public class KeptStateTests {
 	}
 
 	[Fact]
-	public void ALanguageChange_SaysWhenItChangedNothing_AndWhenItMerged() {
+	public void ALanguageChange_SaysWhenItChangedNothing_WhichFilesItChanged_AndWhenItMerged() {
 		var (session, file) = Load();
 
 		var nothing = new LanguageTableChange(session);
 		nothing.Declare(file, "en"); //says so already
 		nothing.Reorder(file, 1, 1);
 		Assert.False(nothing.Changed);
+		Assert.Empty(nothing.Files);
 
 		var merge = new LanguageTableChange(session);
 		merge.Rename(file, "fr", new LanguageEntry("de", "Deutsch"));
 		Assert.True(merge.Merged); //onto a code the file declares: two languages' entries made one
+		Assert.Equal([file], merge.Files); //the file whose table it changed (the editor's SPEC: Dirty by file)
 	}
 
 	[Fact]

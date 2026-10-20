@@ -79,17 +79,20 @@ namespace PatTech.Localization.Authoring {
 		public bool Changed { get; private set; }
 		/// <summary>A re-code merged two languages' entries.</summary>
 		public bool Merged { get; private set; }
+		/// <summary>The files whose tables an operation changed (the editor's SPEC: Dirty by file).</summary>
+		public IReadOnlyCollection<WordsFile> Files => files;
+		private readonly HashSet<WordsFile> files = [];
 
 		/// <inheritdoc cref="LanguageTable.Add"/>
 		public bool Add(WordsFile file, LanguageEntry language) {
 			Keep(language.Code);
-			return Note(Table.Add(file, language));
+			return Note(file, Table.Add(file, language));
 		}
 
 		/// <inheritdoc cref="LanguageTable.Remove"/>
 		public bool Remove(WordsFile file, string code) {
 			Keep(code);
-			return Note(Table.Remove(file, code));
+			return Note(file, Table.Remove(file, code));
 		}
 
 		/// <inheritdoc cref="LanguageTable.Rename"/>
@@ -97,7 +100,7 @@ namespace PatTech.Localization.Authoring {
 			Keep(code);
 			Keep(replacement.Code);
 			Merged |= replacement.Code != code && file.Languages.Contains(replacement.Code);
-			Note(true);
+			Note(file, true);
 			return Table.Rename(file, code, replacement);
 		}
 
@@ -105,7 +108,7 @@ namespace PatTech.Localization.Authoring {
 		public void Reorder(WordsFile file, int from, int to) {
 			if (from != to) {
 				Table.Reorder(file, from, to);
-				Note(true);
+				Note(file, true);
 			}
 		}
 
@@ -113,13 +116,16 @@ namespace PatTech.Localization.Authoring {
 		public void Declare(WordsFile file, string? code) {
 			if (file.DefaultLanguage != code) {
 				Table.Declare(file, code);
-				Note(true);
+				Note(file, true);
 			}
 		}
 
 		//an operation's own answer, a refusal kept a refusal however much changed before it
-		private bool Note(bool changed) {
-			Changed |= changed;
+		private bool Note(WordsFile file, bool changed) {
+			if (changed) {
+				Changed = true;
+				files.Add(file);
+			}
 			return changed;
 		}
 

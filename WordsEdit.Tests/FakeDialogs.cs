@@ -18,6 +18,8 @@ public sealed class FakeDialogs : IDialogs {
 
 	public List<IDialogViewModel> Shown { get; } = [];
 	public List<string> Confirmations { get; } = [];
+	/// <summary>What was asked before unsaved work went: closing, or removing a file.</summary>
+	public List<string> SaveQuestions { get; } = [];
 	public List<string> Notices { get; } = [];
 
 	public bool ConfirmAnswer { get; set; } = true;
@@ -51,7 +53,7 @@ public sealed class FakeDialogs : IDialogs {
 	}
 
 	public CloseAnswer AskToSave(string message) {
-		Rendered(message);
+		SaveQuestions.Add(Rendered(message));
 		return SaveAnswer;
 	}
 

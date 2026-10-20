@@ -525,12 +525,12 @@ New over a path already loaded, which replaced that file's unsaved work.
 - The name typed names it; renaming the pathless root changes no key, only what
   Save proposes, and the undo history keeps what it holds.
 - A saved root offers no rename: Rename is greyed and F2 does nothing on it.
-- Save As on a saved file writes it at the new path and every other file where
-  it is, as Save does, the root and its keys following and the window clean,
+- Save As on a saved file writes it alone at the new path, the root and its
+  keys following and it clean, every other file keeping its mark and its disk,
   and leaves the file at the old path as it was on disk, unsaved changes and
   all left out of it. A cancelled dialog changes nothing, and a path another
   file in the session has is refused; a write that fails is told and leaves the
-  file where it was; its own path is a plain Save.
+  file where it was; at its own path it writes it there, dirty or clean.
 - The first Save proposes the name, and writes the starter byte for byte at the
   chosen path, the root following its name, leaving the window clean. Later
   Saves ask nothing.
@@ -545,7 +545,8 @@ New over a path already loaded, which replaced that file's unsaved work.
 
 ## Saving
 
-Save rewrites every loaded file through `WordsSession.Save` — `IniWriter.WriteFile`
+Save writes the files with unsaved work (*Dirty by file*) through
+`WordsSession.Save` — `IniWriter.WriteFile`
 with the file's own language table, preamble and settings references, in the
 order its tree node walks — and with its own line break, `\n` or `\r\n`, the
 first one it was read with (the system's for a file imported from another
@@ -560,27 +561,26 @@ save. Each file is written to a temporary sibling and moved over the original,
 so a failure partway leaves it whole; what lands is a new file, so a Windows
 hidden attribute does not carry over, a hard link to the old file keeps the
 old text, and a symbolic link is replaced by the file rather than followed (the
-command line follows it). Merge and split check the tree covers the file's keys, as Save does. The editor tracks dirtiness; the window title names the
-loaded files and stars while dirty, and closing with unsaved changes prompts.
+command line follows it). Merge and split check the tree covers the file's
+keys, as Save does. The editor tracks each file's unsaved work (*Dirty by
+file*): the window title names the loaded files and stars while any has
+some, a dirty file's root stars too, and closing names the dirty files.
 Reset returns to the empty session (one default `en` language).
 
-**Save As** saves as Save does, every loaded file, but writes the selected
-node's file at a path the dialog picks, proposing its own, as the first Save of
-a new file does (*New*, Saving it): the dialog's overwrite ask covers a file on
-disk, a path another file in the session has is refused and the dialog asks
-again, a path that reaches that file through a folder link or a junction too
-(`WordsSession.SamePath`), and the file is written before it takes the path, so a write that fails
-is told and leaves it where it was. The other files are written where they are,
-since unsaved work is the session's, as the window's dirty mark and the undo
-history's saved point are, so Save As leaves the window clean as Save does, and
-a file that fails is told as Save tells it. Once written, the selected file is
-at the new path, its root follows the name, and later Saves go there. The file
-at the old path is left as it was on disk; Save As deletes no file of the
-user's. It is a saved file's only rename
-(*New*, Renaming a root). Its own path is a plain Save. The selected file is
-written first, so a file never saved, asking where after it, finds its new
-path taken. It sits in the File menu after Save, with no gesture yet:
-Ctrl+Shift+S is Stale All Languages.
+**Save As** writes the selected node's file alone, dirty or clean, at a path
+the dialog picks, proposing its own, as the first Save of a new file does
+(*New*, Saving it): the dialog's overwrite ask covers a file on disk, a path
+another file in the session has is refused and the dialog asks again, a path
+that reaches that file through a folder link or a junction too
+(`WordsSession.SamePath`), and the file is written before it takes the path,
+so a write that fails is told and leaves it where it was. Every other file
+keeps its mark and what it has on disk (*Dirty by file*). Once written, the
+selected file is at the new path, clean, its root follows the name, and later
+Saves go there. The file at the old path is left as it was on disk; Save As
+deletes no file of the user's. It is a saved file's only rename (*New*,
+Renaming a root). At its own path it writes the file there, the way to
+rewrite a clean one. It sits in the File menu after Save, with no gesture
+yet: Ctrl+Shift+S is Stale All Languages.
 
 ## Wordsmith's own words
 
@@ -1009,16 +1009,14 @@ makes its change and returns its entry, or nothing when it changed nothing,
 and while it runs the field reports are not typing — a constant clearing its
 translations is not typing. A dialog a command opens belongs to the command,
 so a Settings Okay is one entry, and the dialog
-dirties nothing itself: `Perform` stars the title when the entry is made.
-Each entry records whether the document was dirty before its action, and
-undo restores `IsDirty` to that; a save moves the marks, so an undo or redo
-that leaves the saved state stars the title and one that comes back to it
-clears it. A save that writes some files and not others leaves the disk in
-no state the history passes through, so it moves every mark to dirty: each
-undo and redo stars the title until a save gets every file out.
+dirties nothing itself: `Perform` marks the entry's files when the entry is
+made. Each entry records the files dirty before its action and after it, and
+undo and redo put them back; writing a file moves that file's marks (*Dirty
+by file*), so an undo or redo that leaves a file's saved state stars it and
+one that comes back to it clears it.
 An entry that throws as it applies stays where it was, and the stack is
-cleared, the title starred: the document may be half changed, and no entry
-can be trusted to step from there. The error goes on.
+cleared, the files it names marked dirty: they may be half changed, and no
+entry can be trusted to step from there. The error goes on.
 
 **Coalescing.** Consecutive edits to the same field of the same node and
 language fold into one entry, the first text before and the last after, so
@@ -1119,10 +1117,10 @@ comes between, and typing back to the start leaves none, nor a star where
 there was none; a parameter added and removed in one session is no entry;
 undoing the removal of a key, or of a node above it, puts their plural forms
 back; a save ends the run, and after a save that wrote one file and not
-another every undo and redo stars the title, and Close asks; undoing a
+another, undo and redo keep each file to its own saved point; undoing a
 declaration of the default's language drops a form pick the restored rules
 lack; a drop whose node a redo took away does nothing; an entry that throws
-as it applies clears the stack and stars the title; a note that raised
+as it applies clears the stack and marks its file dirty; a note that raised
 the hand undoes both, and undoing the clearing of a note leaves a hand that
 was lowered down. Typing the default stamps the translations with words and
 no mark, once a run, keeping a mark there; undoing it takes the stamps back
@@ -1710,6 +1708,10 @@ headless; the runtime does not change.
 and Save As did too; after a save, an undo in one file starred the whole
 window; closing could not say which files held the work it was about to
 drop; and a file loaded or removed emptied every file's undo history.
+
+**Order.** The marks, Save, Save As, and the asks on closing and removing a
+file (built); then each file's history, with the batch (*One entry for many
+edits*).
 
 **Tests.**
 - Each kind of entry marks its own file and no other: typing a field, each

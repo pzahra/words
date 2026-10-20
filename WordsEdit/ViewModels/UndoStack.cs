@@ -53,15 +53,38 @@ public abstract class UndoEntry {
 	public virtual string? Language => null;
 	/// <summary>Takes the action back, or puts it back, and says where the selection goes.</summary>
 	public abstract NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing);
+	/// <summary>The files the action changes (SPEC: Dirty by file).</summary>
+	public abstract IReadOnlyCollection<WordsFile> Files { get; }
 
-	//the dirtiness undoing and redoing return to; a save moves them (UndoStack.Saved)
-	internal bool DirtyBefore { get; set; }
-	internal virtual bool DirtyAfter { get; set; }
+	//the files dirty with the history standing before the entry and after it, which
+	//undoing and redoing return to; a save moves them (UndoStack.Saved)
+	internal HashSet<WordsFile> DirtyBefore { get; private set; } = [];
+	internal virtual IReadOnlySet<WordsFile> DirtyAfter => after;
+	private HashSet<WordsFile> after = [];
 
-	//a save left the disk at none of the states the entry passes through
-	internal virtual void Unsaved() {
-		DirtyBefore = true;
-		DirtyAfter = true;
+	//the stack took the entry, dirty the files dirty before it: after it, its own are too
+	internal virtual void Recorded(IReadOnlySet<WordsFile> dirty) {
+		DirtyBefore = [.. dirty];
+		after = [.. dirty, .. Files];
+	}
+
+	//file was written, and the history reaches the entry from where it stands, going back
+	//(or ahead): the file is clean on the entry's near side when clean, and on its far
+	//side too when the entry does not change it. Says whether it is clean on the far side
+	internal virtual bool Saved(WordsFile file, bool clean, bool ahead) {
+		bool far = clean && !Files.Contains(file);
+		Mark(ahead ? DirtyBefore : after, file, clean);
+		Mark(ahead ? after : DirtyBefore, file, far);
+		return far;
+	}
+
+	private protected static void Mark(HashSet<WordsFile> dirty, WordsFile file, bool clean) {
+		if (clean) {
+			dirty.Remove(file);
+		}
+		else {
+			dirty.Add(file);
+		}
 	}
 }
 
@@ -87,12 +110,11 @@ public sealed class UndoStack(TimeProvider? time = null) {
 	public UndoEntry? NextToPutBack => NextUndo is FieldEdit { Partly: true } edit ? edit : NextRedo;
 	public bool CanRedo => NextToPutBack is not null;
 
-	/// <summary>An action changed the document; <paramref name="wasDirty"/> is what undoing it returns to.</summary>
-	public void Push(UndoEntry entry, bool wasDirty) {
+	/// <summary>An action changed the document; <paramref name="dirty"/>, the files dirty before it, is what undoing it returns to.</summary>
+	public void Push(UndoEntry entry, IReadOnlySet<WordsFile> dirty) {
 		(NextUndo as FieldEdit)?.DropStepsBack();
 		undone.Clear();
-		entry.DirtyBefore = wasDirty;
-		entry.DirtyAfter = true;
+		entry.Recorded(dirty);
 		done.Push(entry);
 		run = entry as FieldEdit;
 		run?.Began(time.GetUtcNow());
@@ -103,12 +125,13 @@ public sealed class UndoStack(TimeProvider? time = null) {
 	///     and starts an entry otherwise.
 	/// </summary>
 	/// <returns>
-	///     The dirtiness the document goes back to when the keystroke took its run
-	///     back to where it started, leaving nothing to undo; null otherwise.
+	///     The files dirty when the keystroke took its run back to where it
+	///     started, leaving nothing to undo: those dirty before the run; null
+	///     otherwise.
 	/// </returns>
-	public bool? Type(FieldEdit edit, bool wasDirty) {
+	public IReadOnlySet<WordsFile>? Type(FieldEdit edit, IReadOnlySet<WordsFile> dirty) {
 		if (run is null || !run.Absorb(edit, time.GetUtcNow())) {
-			Push(edit, wasDirty);
+			Push(edit, dirty);
 			return null;
 		}
 		if (!run.ChangesNothing) {
@@ -116,7 +139,7 @@ public sealed class UndoStack(TimeProvider? time = null) {
 		}
 		//typed and taken back: nothing left to undo, and the document is as it was
 		done.Pop();
-		bool before = run.DirtyBefore;
+		IReadOnlySet<WordsFile> before = run.DirtyBefore;
 		run = null;
 		return before;
 	}
@@ -141,28 +164,28 @@ public sealed class UndoStack(TimeProvider? time = null) {
 	}
 
 	/// <summary>
-	///     The document was saved: every step away from here dirties it, and the
-	///     two steps that come back to it — redoing the entry just undone, undoing
-	///     the one just redone — leave it clean. Saved in part, the disk holds no
-	///     state the history passes through, and every step dirties. Either way
-	///     the typing run ends, so the next keystroke is a step of its own.
+	///     <paramref name="file"/> was written (SPEC: Dirty by file): it is clean
+	///     wherever the history reaches from here, back or ahead, without
+	///     crossing an entry that changes it, and dirty past the first that does.
+	///     Every other file keeps its marks. The typing run ends, so the next
+	///     keystroke is a step of its own.
 	/// </summary>
-	/// <param name="partly">Some files were written and some were not.</param>
-	public void Saved(bool partly = false) {
+	public void Saved(WordsFile file) {
 		run = null;
-		foreach (UndoEntry entry in done.Concat(undone)) {
-			entry.Unsaved();
-		}
-		if (partly) {
-			return;
-		}
-		//a run a box stepped part way back was saved between two of its steps
+		bool back = true, ahead = true;
+		IEnumerable<UndoEntry> below = done;
+		//a run a box stepped part way back was saved between two of its steps, and the
+		//steps it stepped back lie ahead before the entries undone
 		if (NextUndo is FieldEdit { Partly: true } edit) {
-			edit.SavedPartly();
-			return;
+			back = ahead = edit.SavedPartly(file);
+			below = done.Skip(1);
 		}
-		NextUndo?.DirtyAfter = false;
-		NextRedo?.DirtyBefore = false;
+		foreach (UndoEntry entry in below) {
+			back = entry.Saved(file, back, ahead: false);
+		}
+		foreach (UndoEntry entry in undone) {
+			ahead = entry.Saved(file, ahead, ahead: true);
+		}
 	}
 
 	/// <summary>A boundary: what the entries refer to is gone.</summary>

@@ -465,7 +465,7 @@ public class UndoTests {
 	}
 
 	[Fact]
-	public void ASaveEndsTheRunAndAPartialSaveCleansNoStep() {
+	public void ASaveEndsTheRun_AndAPartialSaveKeepsEachFileToItsOwnSavedPoint() {
 		string folder = Path.Combine(Path.GetTempPath(), $"WordsEditUndoSave-{Guid.NewGuid():N}");
 		Directory.CreateDirectory(folder);
 		try {
@@ -492,25 +492,30 @@ public class UndoTests {
 			Assert.True(vm.IsDirty);
 			Assert.False(vm.TryClose()); //it asks, and the test stays
 
-			//A saves and B is locked: undoing both edits is not what either file holds
+			//A saves and B is locked (SPEC: Dirty by file): A's saved point is where the
+			//history stands, and B keeps the one it had, as it was loaded
 			vm.Tree.Select(Node(vm, "B", "k"));
 			vm.ToggleNeedsReviewCommand.Execute(null);
 			using (new FileStream(b, FileMode.Open, FileAccess.Read, FileShare.None)) {
 				vm.Save();
 			}
 			Assert.Single(dialogs.Notices);
-			Assert.True(vm.IsDirty);
-			while (vm.UndoStack.DoneCount > 0) {
-				Undo(vm);
-				Assert.True(vm.IsDirty);
-			}
+			Assert.Equal([FileNamed(vm, "B")], vm.Unsaved);
+			Undo(vm); //B's hand down: B as loaded, and A as written, untouched by it
+			Assert.False(vm.IsDirty);
+			Undo(vm); //A's second keystroke taken back: A as it is not on disk
+			Assert.Equal([FileNamed(vm, "A")], vm.Unsaved);
+			Undo(vm);
+			Assert.Equal([FileNamed(vm, "A")], vm.Unsaved);
 			Assert.False(vm.TryClose());
-			while (vm.UndoStack.UndoneCount > 0) {
-				Redo(vm);
-				Assert.True(vm.IsDirty);
-			}
+			Redo(vm);
+			Assert.Equal([FileNamed(vm, "A")], vm.Unsaved);
+			Redo(vm); //back where A was written, B as loaded
+			Assert.False(vm.IsDirty);
+			Redo(vm);
+			Assert.Equal([FileNamed(vm, "B")], vm.Unsaved);
 
-			//until a save gets every file out
+			//B written too, nothing is left
 			vm.Save();
 			Assert.False(vm.IsDirty);
 		}
@@ -558,7 +563,83 @@ public class UndoTests {
 		Assert.NotNull(vm.Tree.NodeAt(FileNamed(vm, "Example"), "enum.two"));
 	}
 
-	private sealed class Failing : UndoEntry {
+	//SPEC (Dirty by file): an edit marks the file it changes and no other; a drag
+	//from one file to another changes both
+	[Fact]
+	public void EachEditMarksItsOwnFile_AndADragBetweenFilesMarksBoth() {
+		var (vm, dialogs) = Load();
+		vm.LoadFile(new StringReader("value-en=English\n\n[o]\nvalue=y\n"), "Other");
+		WordsFile example = FileNamed(vm, "Example"), other = FileNamed(vm, "Other");
+
+		void Marks(string what, Action edit, params WordsFile[] files) {
+			vm.MarkClean();
+			edit();
+			Assert.True(vm.Unsaved.SetEquals(files), $"{what} should mark {string.Join(" and ", files.Select(file => file.Name))}");
+		}
+
+		Marks("typing", () => {
+			vm.Tree.Select(Node(vm, "Example", "enum.none"));
+			vm.Tree.SelectedKey!.DefaultValue = "typed";
+		}, example);
+		Marks("a command", () => vm.ToggleNeedsReviewCommand.Execute(null), example);
+		Marks("a node added", () => vm.AddNode("fresh"), example);
+		Marks("a node removed", () => vm.RemoveNodeCommand.Execute(null), example);
+		Marks("a comment added", () => { vm.Tree.Select(Node(vm, "Example", "main.circle-1")); vm.AddOrganizerCommand.Execute(null); }, example);
+		Marks("a comment removed", () => vm.RemoveNodeCommand.Execute(null), example);
+		Marks("a Settings Okay", () => {
+			vm.Tree.Select(Node(vm, "Example", "enum"));
+			dialogs.OnShow = shown => {
+				var settings = (SettingsViewModel)shown;
+				settings.SettingsFile = "wordsmith.ini";
+				settings.OkayCommand.Execute(null);
+			};
+			vm.SettingsCommand.Execute(null);
+			dialogs.OnShow = null;
+		}, example);
+		Marks("a language added", () => vm.ChangeLanguages(edit => edit.Add(other, new LanguageEntry("de", "Deutsch"))), other);
+		Marks("a drag between files", () => vm.KeyDrag.Drop(new FakeDropInfo(Node(vm, "Example", "enum.two"), Node(vm, "Other", ""), RelativeInsertPosition.TargetItemCenter)), example, other);
+	}
+
+	//SPEC (Dirty by file): a new edit after undoing past a save drops the entries undone,
+	//and with them the saved point of a file one of them changed; a file none of them
+	//changed keeps its own
+	[Fact]
+	public void AnEditAfterUndoingPastASave_LeavesDirtyTheFileWhoseSavedPointItDropped() {
+		string folder = Path.Combine(Path.GetTempPath(), $"WordsEditUndoSave-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		try {
+			File.WriteAllText(Path.Combine(folder, "A.ini"), "value-en=English\n\n[k]\nvalue=a\n");
+			File.WriteAllText(Path.Combine(folder, "B.ini"), "value-en=English\n\n[k]\nvalue=b\n");
+			var vm = new MainWindowViewModel(new FakeDialogs());
+			vm.LoadFile(Path.Combine(folder, "A.ini"));
+			vm.LoadFile(Path.Combine(folder, "B.ini"));
+			WordsFile a = FileNamed(vm, "A"), b = FileNamed(vm, "B");
+			vm.Tree.Select(Node(vm, "A", "k"));
+			vm.ToggleNeedsReviewCommand.Execute(null);
+			vm.Tree.Select(Node(vm, "B", "k"));
+			vm.ToggleNeedsReviewCommand.Execute(null);
+			vm.Save();
+
+			Undo(vm); //B's hand down: B alone is not as written
+			Assert.Equal([b], vm.Unsaved);
+			Redo(vm);
+			Assert.False(vm.IsDirty);
+			Undo(vm);
+
+			//A's hand down drops B's, and the state B was written in with it
+			vm.Tree.Select(Node(vm, "A", "k"));
+			vm.ToggleNeedsReviewCommand.Execute(null);
+			Assert.True(vm.Unsaved.SetEquals([a, b]));
+			Undo(vm);
+			Assert.Equal([b], vm.Unsaved); //A back where it was written; B nowhere it was
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	private sealed class Failing(WordsFile file) : UndoEntry {
+		public override IReadOnlyCollection<WordsFile> Files => [file];
 		public override NodeRef? Site(bool undoing) => null;
 		public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) => throw new InvalidOperationException("half done");
 	}
@@ -568,7 +649,7 @@ public class UndoTests {
 		var (vm, _) = Load();
 		vm.Tree.Select(Node(vm, "Example", "enum.none"));
 		vm.ToggleNeedsReviewCommand.Execute(null);
-		vm.Perform(() => new Failing());
+		vm.Perform(() => new Failing(vm.Session.Files[0]));
 		vm.MarkClean();
 
 		Assert.Throws<InvalidOperationException>(() => vm.UndoCommand.Execute(null));
@@ -576,7 +657,7 @@ public class UndoTests {
 		Assert.Equal(0, vm.UndoStack.DoneCount);
 		Assert.Equal(0, vm.UndoStack.UndoneCount);
 		Assert.False(vm.UndoCommand.CanExecute(null));
-		Assert.True(vm.IsDirty);
+		Assert.True(vm.IsUnsaved(vm.Session.Files[0])); //the file it names may be half changed
 	}
 
 	[Fact]

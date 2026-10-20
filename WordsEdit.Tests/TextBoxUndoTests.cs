@@ -355,7 +355,7 @@ public class TextBoxUndoTests {
 	[Fact]
 	public void OnlyTheKeystrokesOwnBoxTellsWhereItLeftTheSelection() {
 		var stack = new UndoStack(new FakeTime());
-		stack.Type(new FieldEdit(new NodeRef(new WordsSession().New(new StringReader(""), "Ex"), "k"), null, DocumentField.KeyContext, "", "a"), wasDirty: false);
+		stack.Type(new FieldEdit(new NodeRef(new WordsSession().New(new StringReader(""), "Ex"), "k"), null, DocumentField.KeyContext, "", "a"), new HashSet<WordsFile>());
 		stack.Typed("another box", new Selection(5, 0), new Selection(6, 0)); //not this keystroke's text
 		stack.Typed("a", new Selection(0, 0), new Selection(1, 0));
 		stack.Typed("a", new Selection(3, 0), new Selection(3, 0)); //a text handed to the box after it

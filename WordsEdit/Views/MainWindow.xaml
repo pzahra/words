@@ -235,6 +235,10 @@
                                                FontWeight="{Binding EmptyValue, Converter={StaticResource BooleanToBoldConverter}}"
                                                TextTrimming="CharacterEllipsis"
                                                VerticalAlignment="Center"/>
+                                    <!-- a file with unsaved work stars, as the title does -->
+                                    <TextBlock Text=" *"
+                                               VerticalAlignment="Center"
+                                               Visibility="{Binding IsUnsaved, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                 </StackPanel>
                             </HierarchicalDataTemplate>
                             <DataTemplate DataType="{x:Type vm:OrganizerNode}">

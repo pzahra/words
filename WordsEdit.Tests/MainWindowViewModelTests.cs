@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using PatTech.Localization;
 using PatTech.Localization.Authoring;
+using WordsEdit.Utils;
 using WordsEdit.ViewModels;
 using Xunit;
 
@@ -439,7 +440,7 @@ value=w
 			}
 			var vm = NewVm();
 			vm.LoadFile(filePath);
-			vm.MarkDirty();
+			vm.MarkDirty(vm.Session.Files[0]);
 
 			vm.Save();
 
@@ -585,13 +586,14 @@ value=w
 		vm.LoadFile(folder["After.ini"]);
 		Key(vm, "Before", "k").DefaultValue = "changed";
 		Key(vm, "After", "k").DefaultValue = "changed";
+		vm.MarkDirty(vm.Session.Files); //edited behind the editor's back
 
 		vm.Save();
 
 		Assert.Contains("value=changed", File.ReadAllText(folder["Before.ini"]));
 		Assert.Equal("value-en=English\n\n[k]\nvalue=y\n", File.ReadAllText(folder["After.ini"]));
 		Assert.Null(file.Path);
-		Assert.True(vm.IsDirty);
+		Assert.Equal([file, FileNamed(vm, "After")], vm.Tree.Files.Where(vm.IsUnsaved)); //it and the rest dirty
 	}
 
 	//SPEC (New → Renaming a root): a saved root's name is its file's, so Rename greys
@@ -615,11 +617,11 @@ value=w
 		Assert.True(vm.RenameNodeCommand.CanExecute(null)); //its keys rename as ever
 	}
 
-	//SPEC (Saving, Save As): every file saved as Save saves them, the selected one at
-	//the path picked; the file at the old path is left as it was on disk, since
-	//Wordsmith deletes no words file of the user's
+	//SPEC (Saving, Save As; Dirty by file): the selected file alone, at the path picked,
+	//every other file keeping its mark and its disk; the file at the old path is left as
+	//it was on disk, since Wordsmith deletes no words file of the user's
 	[Fact]
-	public void SaveAs_WritesTheSelectedFileElsewhere_TheOthersWhereTheyAre_AndLeavesTheOldFile() {
+	public void SaveAs_WritesTheSelectedFileAloneElsewhere_TheOthersKeepTheirMarks_AndLeavesTheOldFile() {
 		using var folder = new TempFolder();
 		const string strings = "value-en=English\n\n[k]\nvalue=x\n";
 		File.WriteAllText(folder["Strings.ini"], strings);
@@ -630,7 +632,7 @@ value=w
 		vm.LoadFile(folder["Other.ini"]);
 		Key(vm, "Strings", "k").DefaultValue = "changed";
 		Key(vm, "Other", "o").DefaultValue = "too";
-		vm.MarkDirty(); //edited behind the editor's back
+		vm.MarkDirty(vm.Session.Files); //edited behind the editor's back
 		KeyNode root = vm.Tree.NodeOf(FileNamed(vm, "Strings"));
 		vm.Tree.SelectedKeyNode = root.Children.Single(); //any node of the file
 		Assert.True(vm.SaveAsCommand.CanExecute(null));
@@ -647,22 +649,96 @@ value=w
 
 		Assert.Single(dialogs.Notices); //the path taken
 		Assert.Contains("[k]\nvalue=changed\n", File.ReadAllText(folder["Words.ini"]));
-		Assert.Contains("[o]\nvalue=too\n", File.ReadAllText(folder["Other.ini"])); //written where it is
+		Assert.Contains("[o]\nvalue=y\n", File.ReadAllText(folder["Other.ini"])); //not written
 		Assert.Equal(strings, File.ReadAllText(folder["Strings.ini"])); //left as it was on disk
 		Assert.Equal(folder["Words.ini"], FileNamed(vm, "Words").Path);
 		Assert.Equal("Words", root.Label);
 		Assert.Equal("k", root.Children.Single().FullLabel);
-		Assert.False(vm.IsDirty);
+		Assert.False(vm.IsUnsaved(FileNamed(vm, "Words")));
+		Assert.True(vm.IsUnsaved(FileNamed(vm, "Other"))); //its unsaved work still its own
 
 		//later Saves go to the new path, and leave the old file out of it
 		Key(vm, "Words", "k").DefaultValue = "again";
+		vm.MarkDirty(FileNamed(vm, "Words"));
 		vm.Save();
 		Assert.Contains("[k]\nvalue=again\n", File.ReadAllText(folder["Words.ini"]));
+		Assert.Contains("[o]\nvalue=too\n", File.ReadAllText(folder["Other.ini"]));
 		Assert.Equal(strings, File.ReadAllText(folder["Strings.ini"]));
+		Assert.False(vm.IsDirty);
+	}
+
+	//SPEC (Dirty by file): Save writes the files with unsaved work and leaves the clean
+	//ones alone on disk, and greys while there is none
+	[Fact]
+	public void Save_WritesOnlyTheDirtyFiles_AndGreysWithNoneDirty() {
+		using var folder = new TempFolder();
+		const string strings = "value-en=English\n\n[k]\nvalue=x\n";
+		File.WriteAllText(folder["Strings.ini"], strings);
+		File.WriteAllText(folder["Other.ini"], "value-en=English\n\n[o]\nvalue=y\n");
+		var written = new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+		File.SetLastWriteTimeUtc(folder["Other.ini"], written);
+		var vm = new MainWindowViewModel(new FakeDialogs());
+		vm.LoadFile(folder["Strings.ini"]);
+		vm.LoadFile(folder["Other.ini"]);
+		Assert.False(vm.SaveCommand.CanExecute(null));
+
+		vm.Tree.Select(Node(vm, "Strings", "k"));
+		vm.ToggleNeedsReviewCommand.Execute(null);
+		Assert.Equal([FileNamed(vm, "Strings")], vm.Unsaved);
+		Assert.True(vm.SaveCommand.CanExecute(null));
+		vm.SaveCommand.Execute(null);
+
+		Assert.NotEqual(strings, File.ReadAllText(folder["Strings.ini"]));
+		Assert.Equal(written, File.GetLastWriteTimeUtc(folder["Other.ini"])); //never touched
+		Assert.False(vm.SaveCommand.CanExecute(null));
+	}
+
+	//SPEC (Dirty by file): removing a file with unsaved work asks about it alone, as
+	//closing asks; a clean file's removal asks as it always did
+	[Fact]
+	public void RemovingADirtyFile_AsksAboutItAlone_SaveWritingItFirst() {
+		using var folder = new TempFolder();
+		const string strings = "value-en=English\n\n[k]\nvalue=x\n", other = "value-en=English\n\n[o]\nvalue=y\n";
+		File.WriteAllText(folder["Strings.ini"], strings);
+		File.WriteAllText(folder["Other.ini"], other);
+		var dialogs = new FakeDialogs();
+		var vm = new MainWindowViewModel(dialogs);
+		vm.LoadFile(folder["Strings.ini"]);
+		vm.LoadFile(folder["Other.ini"]);
+		vm.MarkDirty(vm.Session.Files);
+
+		vm.Tree.SelectedKeyNode = Node(vm, "Strings", "");
+		dialogs.SaveAnswer = CloseAnswer.Cancel;
+		vm.RemoveNodeCommand.Execute(null);
+		Assert.Equal(2, vm.Session.Files.Count);
+		Assert.Contains("Strings", dialogs.SaveQuestions[^1]);
+		Assert.DoesNotContain("Other", dialogs.SaveQuestions[^1]);
+
+		Key(vm, "Strings", "k").DefaultValue = "changed";
+		dialogs.SaveAnswer = CloseAnswer.Save;
+		vm.RemoveNodeCommand.Execute(null);
+		Assert.Contains("[k]\nvalue=changed\n", File.ReadAllText(folder["Strings.ini"]));
+		Assert.Equal([FileNamed(vm, "Other")], vm.Unsaved);
+		Assert.Equal("Wordsmith Editor — Other *", vm.TitleMarked);
+
+		vm.Tree.SelectedKeyNode = Node(vm, "Other", "");
+		dialogs.SaveAnswer = CloseAnswer.Discard;
+		vm.RemoveNodeCommand.Execute(null);
+		Assert.Empty(vm.Session.Files);
+		Assert.Equal(other, File.ReadAllText(folder["Other.ini"])); //its unsaved work gone with it
+		Assert.False(vm.IsDirty);
+
+		vm.LoadFile(folder["Other.ini"]);
+		vm.Tree.SelectedKeyNode = Node(vm, "Other", "");
+		int asked = dialogs.SaveQuestions.Count;
+		vm.RemoveNodeCommand.Execute(null);
+		Assert.Equal(asked, dialogs.SaveQuestions.Count);
+		Assert.Single(dialogs.Confirmations);
+		Assert.Empty(vm.Session.Files);
 	}
 
 	[Fact]
-	public void SaveAs_AWriteThatFails_LeavesTheFileWhereItWas_AndItsOwnPathIsASave() {
+	public void SaveAs_AWriteThatFails_LeavesTheFileWhereItWas_AndItsOwnPathWritesItThere_DirtyOrClean() {
 		using var folder = new TempFolder();
 		File.WriteAllText(folder["Strings.ini"], "value-en=English\n\n[k]\nvalue=x\n");
 		var dialogs = new FakeDialogs();
@@ -670,7 +746,7 @@ value=w
 		vm.LoadFile(folder["Strings.ini"]);
 		vm.Tree.SelectedKeyNode = vm.Tree.KeyNodes.Single();
 		Key(vm, "Strings", "k").DefaultValue = "changed";
-		vm.MarkDirty();
+		vm.MarkDirty(vm.Session.Files[0]);
 
 		dialogs.FileToSave = Path.Combine(folder.Path, "missing", "Words.ini"); //no such folder
 		vm.SaveAsCommand.Execute(null);
@@ -683,6 +759,12 @@ value=w
 		vm.SaveAsCommand.Execute(null);
 		Assert.Contains("[k]\nvalue=changed\n", File.ReadAllText(folder["Strings.ini"]));
 		Assert.False(vm.IsDirty);
+
+		//clean, Save has nothing to write, and Save As writes it all the same
+		File.WriteAllText(folder["Strings.ini"], "; written by hand\nvalue-en=English\n\n[k]\nvalue=changed\n");
+		Assert.False(vm.SaveCommand.CanExecute(null));
+		vm.SaveAsCommand.Execute(null);
+		Assert.DoesNotContain("by hand", File.ReadAllText(folder["Strings.ini"]));
 	}
 
 	//a folder reached through a junction is the folder it leads to, so Save As refuses
@@ -704,7 +786,7 @@ value=w
 		vm.LoadFile(Path.Combine(folder["real"], "Other.ini"));
 		vm.Tree.SelectedKeyNode = vm.Tree.NodeOf(FileNamed(vm, "Strings"));
 		Key(vm, "Strings", "k").DefaultValue = "changed";
-		vm.MarkDirty();
+		vm.MarkDirty(FileNamed(vm, "Strings"));
 
 		dialogs.FilesToSave.Enqueue(Path.Combine(folder["alias"], "Other.ini"));
 		dialogs.FileToSave = folder["Words.ini"];
@@ -774,7 +856,7 @@ value=w
 			vm.LoadFile(good);
 			Key(vm, "Bad", "k").DefaultValue = "broken \uD83D";
 			Key(vm, "Good", "k").DefaultValue = "fine";
-			vm.MarkDirty();
+			vm.MarkDirty(vm.Session.Files);
 
 			vm.Save();
 
@@ -962,7 +1044,7 @@ value-en-GB=only regional
 		vm.Session.Languages.Rename(vm.Session.Files[0], "en-GB", new LanguageEntry("en", "English"));
 		vm.Tree.FollowLanguage();
 		vm.Tree.RefreshBadges();
-		vm.MarkDirty();
+		vm.MarkDirty(vm.Session.Files[0]);
 
 		Assert.DoesNotContain(vm.Tree.KnownLanguages, l => l.Code == "en-GB");
 		Assert.Equal(1, vm.Tree.KnownLanguages.Count(l => l.Code == "en"));
@@ -1321,11 +1403,14 @@ value=x
 		vm.LoadFile(new StringReader("value-en=English\n\n[a]\nvalue=A\n"), "Main");
 		vm.LoadFile(new StringReader("value-en=English\n\n[b]\nvalue=B\n"), "Lib");
 		Assert.Equal("Wordsmith Editor — Main, Lib", vm.Title);
-		vm.MarkDirty();
+		vm.MarkDirty(vm.Session.Files[0]);
 		Assert.Equal("Wordsmith Editor — Main, Lib *", vm.TitleMarked);
+		Assert.Equal([true, false], vm.Tree.KeyNodes.Select(root => root.IsUnsaved)); //the root stars too
 
+		//the dirty file gone, its mark goes with it
 		vm.RemoveFileNodeCore(vm.Tree.KeyNodes[0]);
-		Assert.Equal("Wordsmith Editor — Lib", vm.Title);
+		Assert.Equal("Wordsmith Editor — Lib", vm.TitleMarked);
+		vm.MarkDirty(vm.Session.Files[0]);
 		vm.ResetCore();
 		Assert.Equal("Wordsmith Editor", vm.TitleMarked);
 	}
@@ -1719,7 +1804,7 @@ value=x
 			Assert.Empty(dialogs.Notices);
 			Assert.Contains("renamed", File.ReadAllText(path));
 
-			vm.MarkDirty();
+			vm.MarkDirty(vm.Session.Files[0]);
 			vm.ResetCore();
 			Assert.False(vm.IsDirty);
 		}
