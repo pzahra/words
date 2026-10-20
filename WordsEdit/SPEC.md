@@ -1602,6 +1602,224 @@ before, byte for byte; and the tests name a key by its file and its own name.
 
 Not built yet. Each section here is the shape the feature takes when it is.
 
+## Dirty by file
+
+Unsaved work is each file's own, and so is its history. A file is dirty from
+an edit to it until it is written, and clean again whenever an undo or a
+redo brings it back to what was last written. The window's title stars while
+any file is dirty, as it does now, and a dirty file's root carries the same
+star after its name, so the tree says which files Save will write. A file
+that leaves the session takes its history with it, and the other files keep
+theirs.
+
+**What marks a file.** Every edit names the files it changes. An undo entry
+knows them (`UndoEntry.Files`), and each changes one: a field's typing, a
+key's command, a node or a comment added or removed, a rename or a drag
+within a file and a Settings Okay, the file they are in; a Language Manager
+commit, the file whose table it changes, as the manager edits one file's
+(*Languages*). A drag from one file to another is a removal from the file
+it left and an addition to the file it went to, one batch (*One entry for
+many edits*), so it marks both and undoes as one. `Perform` marks its
+entry's files and typing its run's. New marks the file it starts, and an
+import that is not a load the file it makes; a load, and the file a Merge or
+a Split writes, are clean, being what the disk holds. What clears a history
+as it changes the document marks its files all the same: a merging recode
+its file, and an entry that throws as it applies the files it names. Nothing
+marks the window as a whole: `MarkDirty` takes the file, so a door that does
+not know its file does not compile.
+
+**Saving.** Save writes the dirty files, in the tree's order, each where it
+is, and leaves the clean ones alone on disk: a file loaded and never edited
+is not rewritten, so the formatting it was written with stays until an edit
+(*Save as a patch* asks the same of the files edited). It greys while no
+file is dirty. A file never saved asks where, as it does now; cancelled, the
+Save stops there, the files written before it clean, and it and the rest
+dirty. A file that fails to write is told and stays dirty, and the others
+are written. Save As writes the selected file alone, dirty or clean, at the
+path the dialog picks, and every other file keeps its mark and what it has
+on disk; at its own path it is that file's write and no other's, the way to
+rewrite a clean file.
+
+**Undo.** The saved point is each file's own. Each entry records the files
+dirty before it and after it, where it records the window's flag now, and an
+undo or a redo puts back what it records (*Undo*, Recording). Writing a file
+moves that file's marks alone: it is clean wherever the history reaches from
+where it stands without crossing an entry that changes it, and dirty past
+the first entry that does, either way. So after a save, undoing an edit to
+one file stars that file alone, and a Save that writes some files and not
+others is no special case: each file written has its saved point where the
+history stands, and each file not written keeps the one it had. A typing
+run changes one file, so each of its steps keeps that file's mark, as each
+keeps the window's now, and a save between two steps is clean there for that
+file alone. A new edit after undoing past a save drops the entries undone,
+as it does now; a file whose saved point lay past one of them that changes
+it has no saved point left in the history, and stays dirty until it is
+written.
+
+**Each file's history.** The history is one stack, but each file's part of
+it stands alone: an entry changes one file, a batch holding entries that
+each do, and reads nothing of the others, so one file's entries can go and
+leave the rest as they were.
+Removing a file takes its entries out of the undo history, and its places
+out of Back's and Forward's (*Navigation*), at once, and every other file
+undoes, redoes and goes back as before. A batch sheds the removed file's
+entries and stays for the rest, so a drag between the removed file and
+another undoes in the one that stays as the node leaving it, or coming back
+to it. What that leaves on disk is the user's: undoing the part that stays
+and saving can leave what the drag carried in neither file, and their
+source control is the way back, as for any work dropped.
+- **Languages.** What the session holds for every file at once, the
+  language list a dropdown shows and the empty entry each key keeps for each
+  language in it, is never put back from a copy. A Language Manager commit
+  keeps its own file's table and keys alone (`LanguageTableChange`), and
+  once it is undone or redone, as once a file goes, the list is read again
+  from the files, as a load of them would read it. So undoing a commit in
+  one file never brings back a language only a removed file declared, and
+  words a redo writes in a language a removal let go bring the language
+  back, as words in it keep it now.
+- **Boundaries.** A file coming in, by Load, Import, New, Merge or Split,
+  starts with no history and leaves the others' alone, so Reset is the one
+  action that clears the whole history (*Undo*, Boundaries); a file loaded
+  again over itself is a removal and a load. What has no way back clears its
+  own files' history alone: a commit that merges two languages its file's,
+  and an entry that throws as it applies the files it names.
+
+**Closing and removing a file.** Closing asks only while a file is dirty,
+and names the dirty files (`ask.save-before-close` takes them): Save writes
+them and closes once none is dirty, so a write that fails or a first save
+cancelled keeps the window; Discard closes; Cancel stays. Removing a dirty
+file asks the same of that file alone: Save writes it and then removes it, a
+failed or cancelled write keeping it; Discard removes it, its unsaved work
+with it; Cancel keeps it. Removing a clean file asks as it does now, without
+the warning of lost changes, as there are none. A removed file's mark goes
+with it, so removing the last dirty file clears the title's star. Reset asks
+as it does now.
+
+**Where it lives.** The marks are the editor's, as the window's is now:
+`ViewModelSaveBase` keeps them by file behind the same doors (`MarkDirty`
+naming the file, the history's `PutBack`, Save's and Reset's clean),
+`IsDirty` saying whether any is set, and each root mirrors its file's for
+the tree. An entry's file is the entry's, and a drag between files is
+`KeyDrag`'s batch; the marks a save moves and the entries a removal takes
+are `UndoStack`'s, and the places it takes are `SelectionHistory`'s.
+Authoring keeps a commit to one file's table (`LanguageTableChange`) and
+reads the session's list again from the files (`LanguageTable`), tested
+headless; the runtime does not change.
+
+**Why.** Save wrote every loaded file, rewriting files nobody had touched,
+and Save As did too; after a save, an undo in one file starred the whole
+window; closing could not say which files held the work it was about to
+drop; and a file loaded or removed emptied every file's undo history.
+
+**Tests.**
+- Each kind of entry marks its own file and no other: typing a field, each
+  command, a node and a comment added and removed, a Settings Okay and a
+  Language Manager commit; a drag between two files marks both, and is one
+  entry, undoing and redoing as a drag within a file does. The title
+  stars while any file is dirty, and a dirty file's root shows the star.
+- New and an import that is not a load are dirty; a load, a Merge's file and
+  a Split's are clean.
+- Save writes only the dirty files, a clean file's bytes left as they were
+  on disk, and greys with none dirty; a write that fails leaves that file
+  dirty and the others clean; a cancelled first Save leaves the files before
+  it clean, and it and the rest dirty.
+- Save As writes the selected file alone, clean or dirty, every other file
+  keeping its mark and its disk; at its own path it writes that file alone.
+- Two files edited and saved: undoing the edit to one stars it alone, and
+  redoing clears it. After a Save that wrote one file and failed the other,
+  undo and redo keep each file to its own saved point. A typing run saved
+  between two steps is clean there for its file alone. An edit after undoing
+  past a save leaves dirty a file whose saved point lay past a dropped entry
+  that changes it, and clean a file none of them changes.
+- Removing a file takes its entries and its Back places, and the other
+  file's edits, before and after, undo, redo and go back as they did; a drag
+  between the two undoes in the file that stays as the node leaving it, or
+  coming back to it, and redoes again.
+- A Language Manager commit in a file that stays, undone after another file
+  went, brings back no language only the removed file declared; a field
+  redone in a language a removal let go brings the language back.
+- Load, Import, New, Merge and Split keep the history, and Reset clears it;
+  a merging recode clears its file's history alone, and an entry that
+  throws as it applies its files'.
+- Closing names the dirty files; Save writes them and closes, a failure
+  keeping the window; a clean window closes without asking.
+- Removing a dirty file asks for it alone, Save writing it first; removing
+  the last dirty file clears the title's star; a clean file's removal asks
+  without the warning.
+- An entry that throws as it applies marks its files dirty.
+- Headless: a Language Manager commit keeps its own file's table and keys
+  alone, and once it is put back either way, the session's list reads as a
+  load of the files would read it; words set in a language the session let
+  go bring it back.
+
+## One entry for many edits
+
+An action that is a run of edits the history already knows, each to its own
+key, field or language, should undo as one: Machine translation's Apply
+writes a field, marks it stale and may raise a hand, row after row, and is
+one undo entry (*Machine translation*, It lands for review), and a drag
+from one file to another is a removal from the file it left and an addition
+to the file it went to, each its own file's (*Dirty by file*). A `BatchEdit`
+holds those entries, in the order they were made, and is one entry on the
+stack.
+- **Recording.** A batch is a scope on the one door (*Undo*, Recording):
+  inside `Batch(action)`, each `Perform` the action makes, its own or a
+  command's, adds its entry to the open batch instead of the stack. When the
+  scope closes, the batch goes on the stack as one entry, or nothing when no
+  edit was made, and one edit alone goes on as itself. A batch opened inside a
+  batch adds to the outer one. So an action is made of the commands there are,
+  and a command is recorded as it always is.
+- **Applying.** Undone, the batch applies its entries last to first; redone,
+  first to last, each whole: a field edit in it is never stepped through by a
+  box. That each entry finds what it changes is the stack's own
+  guarantee, entries applied in order, so every label means what it meant.
+  The selection goes where the last entry applied says.
+- **Dirtiness.** The batch's files are its entries' together. It records the
+  files dirty before it and after it, and a save moves its marks, as any
+  entry's (*Dirty by file*); the marks of the entries inside it are never
+  read. Pushing a batch ends a typing run. Removing a file takes its entries
+  out of a batch, and the batch stays for the other files' (*Dirty by file*,
+  Each file's history).
+- **Navigate first.** A batch whose entries share one node goes there first,
+  as an entry does, and switches the translation language only when every
+  entry that names one names the same: Stale All's stamps, one a language,
+  go to their key and leave the language be. One spread across nodes shows
+  nowhere, and applies at once.
+- **What cannot go back.** A Language Manager commit that merges two
+  languages keeps no reversible state, and inside a batch it clears its
+  file's history as it does anywhere (*Dirty by file*, Each file's history),
+  that file's edits the batch had recorded with it. What the batch records
+  after it goes on as one entry. An action that throws ends the batch: the
+  edits it recorded, each whole, go on the stack as one entry, so they can be
+  taken back, and the error goes on. An entry that throws as the batch
+  applies clears its files' history, as any entry does.
+
+Stale All Languages becomes a batch of `StaleEdit`s, one a language, and
+`StaleAllEdit` goes. The rest stay as they are, each for its reason: a
+Language Manager commit is put back whole from a snapshot, never by replaying
+inverses (*Undo*, Languages); a typing run's stale stamps and raised hand
+belong to the step that made them, which a box steps through; and a Constant
+toggle's cleared translations are no entry of their own yet.
+
+**Where it lives.** The editor's, beside the entries it holds:
+`BatchEdit` with them, and the scope on the main view model's `Perform`.
+
+**Tests.** A batch of a written field, a stale mark and a raised hand across
+two keys and two languages is one entry: undone, every file's saved text is
+as before and the title as it was, and redone as after; a batch with no
+edit records nothing, and one with one edit records that edit; a batch inside
+a batch is one; a merging recode inside one clears its file's history, the
+batch's edits to it included, and the edits after it are one entry; an
+action throwing part way leaves its recorded edits one entry, undone to
+before; a batch on one key goes there before it applies, in its language
+when its entries share one, and one across keys applies at once; and Stale
+All undoes and redoes as before, going to its key in whatever language is
+showing.
+
+**Order.** With Dirty by file, a drag between two files the first batch,
+and Stale All moved onto it in the same step; Machine translation's Apply
+uses it when its grid is built.
+
 ## Save as a patch
 
 Undecided: whether Wordsmith's Save patches just the fields that changed, the
@@ -1921,77 +2139,3 @@ Cancel stops; a pasted answer fills the grid.
 them at once and the skill can say so (built); then the editor's dialog by
 hand and its grid, its Apply one batch entry (*One entry for many edits*);
 then the command runner and the batches.
-
-## One entry for many edits
-
-An action that is a run of edits the history already knows, each to its own
-key, field or language, should undo as one: Machine translation's Apply
-writes a field, marks it stale and may raise a hand, row after row, and is
-one undo entry (*Machine translation*, It lands for review). A `BatchEdit`
-holds those entries, in the order they were made, and is one entry on the
-stack.
-- **Recording.** A batch is a scope on the one door (*Undo*, Recording):
-  inside `Batch(action)`, each `Perform` the action makes, its own or a
-  command's, adds its entry to the open batch instead of the stack. When the
-  scope closes, the batch goes on the stack as one entry, or nothing when no
-  edit was made, and one edit alone goes on as itself. A batch opened inside a
-  batch adds to the outer one. So an action is made of the commands there are,
-  and a command is recorded as it always is.
-- **Applying.** Undone, the batch applies its entries last to first; redone,
-  first to last, each whole: a field edit in it is never stepped through by a
-  box. That each entry finds what it changes is the stack's own
-  guarantee, entries applied in order, so every label means what it meant.
-  The selection goes where the last entry applied says.
-- **Dirtiness.** The batch records whether the document was dirty before it,
-  and a save moves its marks, as any entry's; the marks of the entries inside
-  it are never read. Pushing a batch ends a typing run.
-- **Navigate first.** A batch whose entries share one node goes there first,
-  as an entry does, and switches the translation language only when every
-  entry that names one names the same: Stale All's stamps, one a language,
-  go to their key and leave the language be. One spread across nodes shows
-  nowhere, and applies at once.
-- **What cannot go back.** A boundary inside a batch clears the stack as it
-  does anywhere (*Undo*, Boundaries), and the edits the batch had recorded go
-  with it: a Language Manager commit that merges two languages keeps no
-  reversible state. What the batch records after it goes on as one entry. An
-  action that throws ends the batch: the edits it recorded, each whole, go on
-  the stack as one entry, so they can be taken back, and the error goes on.
-  An entry that throws as the batch applies clears the stack, as any entry
-  does.
-
-Stale All Languages becomes a batch of `StaleEdit`s, one a language, and
-`StaleAllEdit` goes. The rest stay as they are, each for its reason: a
-Language Manager commit is put back whole from a snapshot, never by replaying
-inverses (*Undo*, Languages); a typing run's stale stamps and raised hand
-belong to the step that made them, which a box steps through; and a Constant
-toggle's cleared translations are no entry of their own yet.
-
-**Where it lives.** The editor's, beside the entries it holds:
-`BatchEdit` with them, and the scope on the main view model's `Perform`.
-
-**Tests.** A batch of a written field, a stale mark and a raised hand across
-two keys and two languages is one entry: undone, every file's saved text is
-as before and the title as it was, and redone as after; a batch with no
-edit records nothing, and one with one edit records that edit; a batch inside
-a batch is one; a merging recode inside one clears the stack and the edits
-before it, and the edits after it are one entry; an action throwing part way
-leaves its recorded edits one entry, undone to before; a batch on one key goes
-there before it applies, in its language when its entries share one, and one
-across keys applies at once; and Stale All undoes and redoes as before, going
-to its key in whatever language is showing.
-
-**Order.** With Machine translation's grid, its Apply the first batch, and
-Stale All moved onto it in the same step.
-
-## Dirty by file
-
-Unsaved work is the session's today: one dirty mark for the window, and one
-saved point in the undo history, so Save and Save As write every loaded file
-(*Saving*). Each file should carry its own: a file's mark set by an edit to it
-and cleared by writing it, an undo back to its own saved point clearing it, the
-title starring while any file is dirty, and closing naming the files with
-unsaved work. Save would then write only the dirty files, and Save As the
-selected file alone, leaving the others as they are. Save As was built
-without it: a saved point of each file's own means each undo entry knowing
-the files it touches, a language change or a move between files touching
-several, and the close asking by file, which is no small change beside it.
