@@ -120,7 +120,7 @@ public class ExportViewModel : DialogViewModel {
 		foreach (ExportUnitRow row in Plan) {
 			try {
 				//each file atomic: a failure partway leaves what was there
-				IniWriter.WriteAtomic(row.Path, writer => Format.Format.Write(source, row.Unit, writer, gripes));
+				IniWriter.WriteAtomic(row.Path, writer => Format.Format.Write(source, row.Unit, writer, gripes), row.Unit.Encoding);
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.EncoderFallbackException) {
 				Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", row.Path, ex.Message));

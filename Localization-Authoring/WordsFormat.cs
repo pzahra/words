@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace PatTech.Localization.Authoring {
 	/// <summary>
 	///     What the Words model holds that a format may not. A format declares the
@@ -69,9 +71,11 @@ namespace PatTech.Localization.Authoring {
 	///     The settings a format takes for one read or write, by name: the bag a
 	///     format that cannot be read until it is configured (a spreadsheet, say)
 	///     fills from its options dialog. Most formats take none, and read
-	///     <see langword="null"/> as none.
+	///     <see langword="null"/> as none. Names are matched without case, as the
+	///     ODBC text driver matches a <c>schema.ini</c>'s, whose sections are a
+	///     spreadsheet's options (the editor's SPEC: Spreadsheets).
 	/// </summary>
-	public sealed class FormatOptions : Dictionary<string, string> { }
+	public sealed class FormatOptions() : Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { }
 
 	/// <summary>
 	///     A dictionary format the editor can trade with. The descriptor says what it
@@ -131,21 +135,30 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>
 		///     Writes one planned unit; what it dropped or guessed goes to
 		///     <paramref name="gripes"/>. The caller makes it atomic
-		///     (<see cref="IniWriter.WriteAtomic"/>).
+		///     (<see cref="IniWriter.WriteAtomic"/>), in the unit's encoding.
 		/// </summary>
 		void Write(ExportSource source, ExportUnit unit, TextWriter writer, ICollection<string> gripes, FormatOptions? options = null);
+
+		/// <summary>
+		///     What the format keeps written with <paramref name="options"/>: what its
+		///     descriptor says, unless what it keeps hangs on its options, as a
+		///     spreadsheet's hangs on its columns.
+		/// </summary>
+		WordsFeatures Keeps(FormatOptions? options = null) => Info.Features;
 	}
 
 	/// <summary>Helpers over the format interfaces.</summary>
 	public static class WordsFormatExtensions {
-		/// <summary>What exporting <paramref name="source"/> through <paramref name="format"/> drops: the features it uses that the format does not keep.</summary>
-		public static WordsFeatures Loses(this IWordsFormat format, ExportSource source) => source.Used() & ~format.Info.Features;
+		/// <summary>What exporting <paramref name="source"/> through <paramref name="format"/>, with <paramref name="options"/>, drops: the features it uses that the format does not keep.</summary>
+		public static WordsFeatures Loses(this IWordsFormat format, ExportSource source, FormatOptions? options = null)
+			=> source.Used() & ~(format is IWordsExporter exporter ? exporter.Keeps(options) : format.Info.Features);
 	}
 
-	/// <summary>One file an export writes: where, and which languages it carries.</summary>
+	/// <summary>One file an export writes: where, which languages it carries, and how its text is encoded.</summary>
 	/// <param name="Path">The file to write.</param>
 	/// <param name="Languages">The codes whose entries go in, in order; empty for the defaults alone. A format carrying every language in one file lists them all.</param>
-	public sealed record ExportUnit(string Path, IReadOnlyList<string> Languages);
+	/// <param name="Encoding">The encoding the file is written in; <see langword="null"/> for UTF-8 without a BOM.</param>
+	public sealed record ExportUnit(string Path, IReadOnlyList<string> Languages, Encoding? Encoding = null);
 
 	/// <summary>
 	///     What an exporter is handed: one loaded file, the tree that orders it —

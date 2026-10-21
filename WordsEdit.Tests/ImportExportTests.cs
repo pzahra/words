@@ -172,7 +172,7 @@ value-fr=Bonjour
 			var (vm, _, export) = Open(folder);
 			Assert.False(vm.ExportCommand.CanExecute(null) && vm.Tree.KeyNodes.Count == 0);
 			Assert.Same(vm.Tree.KeyNodes[0], export.FileNode);
-			Assert.Equal(["ini", "resx", "xliff"], export.Formats.Select(row => row.Format.Info.Id));
+			Assert.Equal(["ini", "resx", "xliff", "csv"], export.Formats.Select(row => row.Format.Info.Id));
 			FakeDialogs.Rendered(export.Formats[1].Label);
 			Assert.False(export.CanExport); //no target yet
 			Assert.Empty(export.Plan);

@@ -220,23 +220,25 @@ value-fr=Ouvrir
 	public void Registry_FindsByIdAndExtension_RefusesADuplicate() {
 		WordsFormats formats = WordsFormats.BuiltIn();
 
-		Assert.Equal(["ini", "resx", "xliff"], formats.All.Select(format => format.Info.Id));
+		Assert.Equal(["ini", "resx", "xliff", "csv"], formats.All.Select(format => format.Info.Id));
 		IWordsFormat ini = formats.All[0];
 		Assert.IsType<IniCodec>(ini);
 		Assert.Same(ini, formats.Find("ini"));
 		Assert.IsType<ResxCodec>(formats.Find("resx"));
-		Assert.Null(formats.Find("csv"));
+		Assert.Null(formats.Find("xlsx"));
 		Assert.Same(ini, formats.ImporterFor(Path.Combine("x", "Strings.INI"))); //extensions compare loosely
 		Assert.Same(ini, formats.ExporterFor("Strings.ini"));
 		Assert.IsType<ResxCodec>(formats.ImporterFor("Strings.fr.resx"));
 		Assert.IsType<XliffCodec>(formats.ImporterFor("Strings.fr.xlf"));
 		Assert.IsType<XliffCodec>(formats.ExporterFor("Strings.xliff"));
-		Assert.Null(formats.ImporterFor("Strings.csv"));
+		Assert.IsType<CsvCodec>(formats.ImporterFor("Strings.csv"));
+		Assert.IsType<CsvCodec>(formats.ExporterFor("Strings.TSV"));
+		Assert.Null(formats.ImporterFor("Strings.xlsx"));
 		Assert.Equal("format.ini.name", ini.Info.NameKey);
 
 		formats.Add(new FooImporter());
-		Assert.Equal(["ini", "resx", "xliff", "foo"], formats.Importers.Select(format => format.Info.Id));
-		Assert.Equal(["ini", "resx", "xliff"], formats.Exporters.Select(format => format.Info.Id)); //an importer alone does not export
+		Assert.Equal(["ini", "resx", "xliff", "csv", "foo"], formats.Importers.Select(format => format.Info.Id));
+		Assert.Equal(["ini", "resx", "xliff", "csv"], formats.Exporters.Select(format => format.Info.Id)); //an importer alone does not export
 		Assert.Throws<ArgumentException>(() => formats.Add(new FooImporter()));
 	}
 
@@ -260,6 +262,7 @@ value-fr=Ouvrir
 		Assert.Equal("Words", stacked["format.ini.name"]);
 		Assert.Equal(".NET resources", stacked["format.resx.name"]);
 		Assert.Equal("XLIFF 1.2", stacked["format.xliff.name"]);
+		Assert.Equal("CSV spreadsheet", stacked["format.csv.name"]);
 		Assert.Empty(WordsFormats.BuiltIn().LoadWords(WordsBuilder.Create()).GetLanguages());
 
 		//the seam's own words come first: every feature names itself by key, and the name is there

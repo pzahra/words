@@ -1893,8 +1893,10 @@ default's, and the same with a code for a language's (`value-fr`,
 flag (`stale`), each its text (below, The review flag's text). An empty
 cell is no mark, and a mark with no text, which a file's own `stale=` or
 `stale-fr=` can be, is the empty text quoted, `""`, which a reader tells
-from an empty cell. Whether Excel keeps `""` through a save of its own, or wants its formula for empty
-text (`=""`), is checked against Excel when this is built. A column whose
+from an empty cell. Whether Excel keeps `""` through a save of its own, or
+wants its formula for empty text (`=""`), waits on a machine with Excel:
+the codec was built on one without. A name's case is no matter, as it is
+none to the driver: `Value-FR` is `value-fr`. A column whose
 name is none of them (`Status`, `Translator`, the driver's own `F4`)
 is read past, so a translator's own columns ride along without a word. With
 a header, the schema's names are the ones that count, as they are for the
@@ -1913,8 +1915,10 @@ and loads nothing. Each language a column names is declared. A row whose key
 is empty is skipped with a gripe, and so is one whose key a row above
 already gave, the first kept. A name that is no key's is made one as the
 other formats make it, with a gripe, and a `$name` comes back a constant. A
-row with more cells than the schema has columns is skipped with a gripe, one
-with fewer reads the missing cells empty, and an empty row is no row. Plural
+row with words beyond the schema's columns is skipped with a gripe (an empty
+cell past them, as a sheet padded out to its widest row has, is
+none), one with fewer cells reads the missing ones empty, and an empty row is
+no row. Two columns of one role are griped, and the second read past. Plural
 forms ride in columns; a sheet with each form on a row of its own under its
 key waits until someone brings one. Freeform comments might ride as rows
 with a value and no key, but that is a stretch, and such a row is skipped
@@ -1942,8 +1946,9 @@ first guess (`Sniff`), which the dialog shows to be corrected:
 - the encoding: a byte-order mark, else UTF-8 when the bytes read as UTF-8
   and are not all ASCII, else the machine's ANSI code page;
 - the delimiter: whichever of comma, semicolon, tab and bar splits the first
-  rows into the same number of cells, outside the quotes, and on a tie the
-  machine's list separator, which is Excel's;
+  rows into the same number of cells, outside the quotes; of two that do,
+  the one splitting into more, and on a tie the machine's list separator,
+  which is Excel's;
 - a header, when a cell of the first row names a role or a language by its
   code;
 - the roles: the first column is the key and the second the default's
@@ -1978,14 +1983,18 @@ Export dialog shows what the target's columns will be.
   mark, plural forms, and the review flag. Some hang on others: a
   language's context, comment and stale mark need a language ticked, and
   are greyed until one is, and plural forms go to the default and to each
-  language ticked. Each starts ticked when the file uses it, so a dialog
+  language ticked: a column for each form the file writes in it, and for
+  each a plural key wants in that language (`MissingWords.Requires`), so a
+  translator has a column for a form not yet written. Each starts ticked when the file uses it, so a dialog
   left alone loses nothing a column could keep. Under them, one line says
   what no column can carry: the default's language, parameters, freeform
   comments and settings references.
 - **A table that exists**, a target with a section: its columns, so a sheet
   sent out again keeps the layout it went out with, and the loss line says
   what they drop. Changing them takes one tick, which opens the column
-  options, set from the section, and Export writes the section anew.
+  options, set from the section, and Export writes the section anew, its
+  columns from the ticks and all else of it (the header, delimiter and
+  encoding, the driver's own keys) as it was.
 
 The columns run the key, then the default's value, its forms, context and
 comment, then each language's the same way and its stale mark, in the
@@ -1998,8 +2007,9 @@ file's order, and the review flag last. The header row is their names.
 - Cells are quoted as Excel quotes them, rows end with CRLF, and a line
   break in a cell is a line feed. Under `TextDelimiter=none`, a cell that
   needs quoting is quoted with `"`, with a gripe.
-- A language the file has and an existing table has no column for is a
-  gripe: its words are not written.
+- A language the file has words in and an existing table has no column for
+  is a gripe: its words are not written. So is a table with no key or no
+  value column, which will not read back.
 - A leading `=`, `+`, `-` or `@` is Excel's formula, not text; whether to
   guard it (a `'` prefix, stripped on the way back in) is decided when a
   real value starts with one.
@@ -2035,9 +2045,9 @@ XLIFF codec) and the editor's (the stamp, its undo). The runtime does not
 change: it reads past `stale=` as it does now.
 
 **Order.** The review flag's text, in the model, the editor and XLIFF
-(built); then the codec, headless, with the schema, the sniff, the layout and the
-seams it needs (`Keeps`, a unit's encoding); then the editor's dialog, on
-Import and in Export.
+(built); then the codec, headless, with the schema, the sniff, the layout
+and the seams it needs (`Keeps`, a unit's encoding) (built); then the
+editor's dialog, on Import and in Export.
 
 **Tests.**
 - The review flag's text: `stale=note` loads and saves byte for byte, and

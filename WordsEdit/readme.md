@@ -41,9 +41,12 @@ the command line that ships beside it.
   reference.
 - **Merge** — combine per-language files into one multilingual file, as long
   as their key sets line up.
-- **Import and export** — read `.resx` sets and XLIFF 1.2 files into the tree
-  as the `words.ini` they become, and write a loaded file back out in either.
-  Export shows the files it will write and what the format has no slot for
+- **Import and export** — read `.resx` sets, XLIFF 1.2 files and CSV
+  spreadsheets into the tree as the `words.ini` they become, and write a
+  loaded file back out in any of them. A spreadsheet is a row a key and a
+  column a language, in the layout a `schema.ini` beside it describes (the
+  old ODBC text driver's), so Excel opens it in columns and Wordsmith reads
+  it back the same. Export shows the files it will write and what the format has no slot for
   before it writes a byte; Save keeps writing `words.ini`.
 - **Parameters** — the programmer says what each `{0}` is right under the
   context, and the translator types a value under it and watches both
