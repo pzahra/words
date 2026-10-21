@@ -2137,6 +2137,136 @@ change: it reads past `stale=` as it does now.
 
 Not built yet. Each section here is the shape the feature takes when it is.
 
+## Help bubbles
+
+Wordsmith explains itself where a thing comes up instead of in a manual: a
+speech bubble that points at the control a moment is about and holds a few
+sentences of the editor's own words. It shows the first time that moment
+arises, and not again until its page changes. The samples' topics work the
+same way (their SPEC: Topics and their markers), and the bubbles borrow
+their revision scheme.
+
+**The topics.** A catalogue in code (`HelpTopics`, like the samples'
+`SampleTopics`) lists each topic by its id and its revision. Its page is
+the key `help.<id>` in Wordsmith's own words, in a `[help]` group: markdown,
+rendered by the WPF package's parser as the previews are, and a sentence or
+three long. The catalogue reads each page by its literal key, so the editor's
+words test holds the catalogue and the file to each other. Pages are English
+only: help is no part of the translation the editor dogfoods, and a language
+without a page reads the English one. Raise a topic's revision in the commit
+that changes its page, and the bubble comes back for everyone who closed the
+old one; a typo fix leaves the revision alone.
+
+**When one shows.** The view model says when a topic's moment has come
+(`HelpBubbles.Arise(topic)`), and the view says where. The control a topic
+points at carries it (`Bubble.Topic="stale"`, an attached property), and the
+bubble opens beside that control with its tail toward it, on whichever side
+the screen has room, never covering it. It follows the control as the window
+moves or resizes, and hides while its window is not the active one. A topic
+shows when four things hold: its moment arises, its control is on screen,
+tips are on, and the revision the config remembers for it is below the
+catalogue's. One bubble shows at a time: a moment that arises while another
+is open waits for the next time it arises. The first set, each a trigger and
+a few sentences:
+
+| Topic | Arises when | Points at, and says |
+|---|---|---|
+| `start` | the editor opens with no file | the empty tree: New, Open, Import |
+| `tree` | the first file loads | the tree: groups and keys, dragging to move, the search and the filters |
+| `translation` | the translation pane first shows a language | the language box: the pane is one language at a time, and Languages manages the list |
+| `stale` | a selected key is stale in the translation language | the pane's stale toggle: what stale means, how it clears, Stale All, the Stale filter |
+| `review` | a selected key has its hand raised | the hand: the translator's note, and lowering it |
+| `forms` | a selected key has plural forms | the pane's form picker |
+| `parameters` | a selected key's default uses a `{0}` | the parameter rows: the programmer's definition, the translator's input |
+| `preview` | a preview is first turned on | the preview: markdown, the gripe badge, Project Settings for images and links |
+| `sheet` | a spreadsheet's import dialog opens | the role row: what a role is, and that Import waits for every column to have one |
+
+**Closing.** A bubble neither takes the focus nor holds up the editor:
+typing, clicking and the keys carry on beneath it. Its close button
+(`help.got-it`, "Got it") puts it away for good: the config remembers the
+revision as `<id>=<revision>` in its `[seen]` section. A bubble whose moment
+passes before it is closed goes without being remembered, and comes back the
+next time. Its moment passes when its control is hidden or unloaded, the
+selection moves to a key it is not about, or its dialog closes.
+
+**The Help menu.** A fifth menu, Help, comes after Tools with two rows of
+the command table:
+- Tips, a `ToggleItem`. Off, no bubble shows, and the config says
+  `tips=off` in its `[editor]` section.
+- Show the tips again. It forgets the `[seen]` section, so each bubble comes
+  back when its moment does.
+
+**The config in sections.** `config.ini` grows from a flat list of
+`key=value` lines into sections, each a group of values, so the bubbles'
+lines keep to themselves:
+
+```ini
+[editor]
+language=it
+tips=off
+
+[window]
+width=1180
+height=760
+state=maximized
+
+[seen]
+start=1
+tree=1
+```
+
+A value is read from its section, its section's name and its own matched
+without case. A setting still changes its own line and leaves the rest as it
+was, comments and keys the editor does not know included; a section the file
+lacks is appended, after a blank line. A config from before the sections is
+not read: its lines sit above the first section, which is no section, so the
+window opens at its default size once and the language is the system's until
+one is picked. A config that will not read or write still costs the
+settings, never a close or a restart (Wordsmith's own words, The window).
+
+**Links.** A page's links are the editor's own. `wordsmith:<row>` runs the
+command table's row whose caption key is `menu.<row>` (`wordsmith:stale-all`,
+`wordsmith:languages`) when it applies, and does nothing when it does not.
+`https:` opens the browser without the question a preview's link asks. A
+preview's links stay the dictionary's (Markdown previews, Hyperlinks): a
+`wordsmith:` link in a value is reported like any scheme its settings do not
+list, and never run. The one link handler hears a URI and not where it was
+clicked, so the editor tells the two apart by the clicked link itself. Its
+own class handler for `RequestNavigate`, registered ahead of the library's,
+takes a link inside a bubble and passes the rest through, so
+Localization-Wpf does not change.
+
+**Where it lives.** `HelpTopics` and `HelpBubbles` sit among the view
+models. `HelpBubbles` holds the catalogue, the topic open, and the seen
+revisions and the tips switch, read and written through `EditorConfig`,
+which keeps its values by section. The
+owners of the moments call `Arise`: the startup, the tree's selection, the
+panes, the previews and the sheet's import. The bubble is a view of its own
+(`HelpBubbleView`): a popup in the editor's colours, the page rendered as
+the previews render it, and the close button. The attached property's owner
+opens it when `HelpBubbles` names a topic its element carries. Nothing in
+Core, Wpf or Ava changes.
+
+**Order.** Three steps. First the config in sections, the language and the
+window moved into theirs. Then the bubble, the catalogue, the seen
+revisions, the Help menu and the links, with `start` and `tree` to show it
+working. Then the rest of the topics, each with its trigger.
+
+**Tests.**
+- The config: each value read from its section and written into it, a line
+  above the first section read as none; comments, unknown keys and unknown
+  sections kept; a new section appended.
+- The catalogue: every topic's page is in the words, renders with no key
+  leaking and no gripe, and links only rows the table has.
+- Showing: a topic shows once its moment arises and its control is on
+  screen, not again once closed, and again when its revision rises. A
+  bubble whose moment passes is not remembered; one shows at a time; Tips
+  off shows none, and Show the tips again brings each back.
+- A bubble's `wordsmith:` link runs its row, and the same link in a preview
+  is reported.
+- The view, headless as the dialogs are checked: the bubble on each side of
+  its control, and its page's markdown.
+
 ## Save as a patch
 
 Undecided: whether Wordsmith's Save patches just the fields that changed, the
