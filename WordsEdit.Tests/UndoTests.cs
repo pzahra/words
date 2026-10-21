@@ -387,7 +387,9 @@ public class UndoTests {
 			vm.RemoveFileNodeCore(Node(vm, "Other", ""));
 			Assert.Equal(depth, vm.UndoStack.DoneCount);
 			Assert.DoesNotContain(vm.Tree.History.Entries, place => place.File == gone);
-			Assert.True(vm.Tree.BackCommand.CanExecute(null));
+			//the selection stands where Back stood before it, a step and no visit
+			Assert.Same(Node(vm, "Example", "enum.none"), vm.Tree.SelectedKeyNode);
+			Assert.Equal(new NodeRef(FileNamed(vm, "Example"), "enum.none"), vm.Tree.History.Current);
 
 			var merge = new MergeControlViewModel(vm);
 			merge.SplitFile = merge.Files[0];
@@ -834,6 +836,150 @@ public class UndoTests {
 		Assert.Equal(State(lone), State(vm));
 		Redo(vm);
 		Assert.Equal(landed, State(vm));
+	}
+
+	//SPEC (Undo → Structure, Dirty by file): each entry puts back a copy of the node as it
+	//stood and takes away the one standing where it stood, so the node added before a drag
+	//to another file undoes alone, a key of the same path in its file untouched, and redoes
+	//as it was added, whatever the other file did to it before it went
+	[Fact]
+	public void ANodeDraggedToAnotherFile_UndoesBackThroughItsAdding_AndNoOtherNode() {
+		MainWindowViewModel Two() {
+			var vm = new MainWindowViewModel(new FakeDialogs());
+			vm.LoadFile(new StringReader("value-en=English\n\n[k]\nvalue=hi\n\n[z.fresh]\nvalue=kept\n"), "A");
+			vm.LoadFile(new StringReader("value-en=English\n\n[z]\nvalue=other\n"), "B");
+			return vm;
+		}
+		void Drag(MainWindowViewModel vm) => vm.KeyDrag.Drop(new FakeDropInfo(Node(vm, "A", "fresh"), Node(vm, "B", "z"), RelativeInsertPosition.TargetItemCenter));
+
+		var vm = Two();
+		string before = State(vm);
+		vm.Tree.Select(Node(vm, "A", ""));
+		vm.AddNode("fresh");
+		string added = State(vm);
+		Drag(vm);
+		string dragged = State(vm);
+		Undo(vm);
+		Assert.Equal(added, State(vm));
+		Undo(vm);
+		Assert.Equal(before, State(vm));
+		Assert.Equal("kept", Key(vm, "A", "z.fresh").DefaultValue);
+		Assert.False(vm.IsDirty);
+		Redo(vm);
+		Assert.Equal(added, State(vm));
+		Redo(vm);
+		Assert.Equal(dragged, State(vm));
+
+		//the file it went to grows it, then goes, and takes that with it
+		string Rows(MainWindowViewModel vm) => string.Join(",", Node(vm, "A", "").Descendants().Select(node => node.FullLabel));
+		vm = Two();
+		vm.Tree.Select(Node(vm, "A", ""));
+		vm.AddNode("fresh");
+		string rows = Rows(vm);
+		Drag(vm);
+		vm.Tree.Select(Node(vm, "B", "z.fresh"));
+		vm.AddNode("child");
+		vm.RemoveFileNodeCore(Node(vm, "B", ""));
+		Undo(vm);
+		Assert.Equal(rows, Rows(vm));
+		Undo(vm);
+		Assert.Equal("k,z,z.fresh", Rows(vm));
+		Redo(vm);
+		Assert.Equal(rows, Rows(vm));
+	}
+
+	//SPEC (Dirty by file): an undo puts back the marks of the files its entry changes, and
+	//leaves the rest, a file New started that the history never recorded among them
+	[Fact]
+	public void AnUndoLeavesAloneTheMarksOfFilesItsEntryDoesNotChange() {
+		var vm = LoadAAndB();
+		WordsFile a = FileNamed(vm, "A");
+		vm.Tree.Select(Node(vm, "A", "k"));
+		vm.ToggleNeedsReviewCommand.Execute(null);
+		WordsFile fresh = vm.NewFile();
+
+		Undo(vm);
+
+		Assert.Equal([fresh], vm.Unsaved);
+		Assert.True(vm.Tree.NodeOf(fresh).IsUnsaved);
+		Assert.True(vm.SaveCommand.CanExecute(null));
+		Redo(vm);
+		Assert.True(vm.Unsaved.SetEquals([a, fresh]));
+	}
+
+	//SPEC (Dirty by file, Each file's history: Languages): a key put back meets the
+	//languages there are now: an entry for one a file brought since, a language its words
+	//are in brought back, and an empty entry in one let go dropped
+	[Fact]
+	public void AKeyPutBack_MeetsTheLanguagesThereAreNow() {
+		var vm = new MainWindowViewModel(new FakeDialogs());
+		vm.LoadFile(new StringReader("value-en=English\n\n[k]\nvalue=hi\n"), "A");
+		vm.Tree.Select(Node(vm, "A", "k"));
+		vm.RemoveKeyCommand.Execute(null);
+		vm.LoadFile(new StringReader("value-en=English\nvalue-de=Deutsch\n\n[b]\nvalue=x\n"), "B");
+		vm.Tree.SelectedLanguage = vm.Tree.KnownLanguages.Single(language => language.Code == "de");
+		Undo(vm);
+		Assert.Equal("", Key(vm, "A", "k").Entries["de"].Value);
+
+		vm = new MainWindowViewModel(new FakeDialogs());
+		vm.LoadFile(new StringReader("value-en=English\n\n[k]\nvalue=hi\nvalue-de=Hallo\n\n[e]\nvalue=empty\n"), "A");
+		vm.LoadFile(new StringReader("value-en=English\nvalue-de=Deutsch\n\n[b]\nvalue=x\n"), "B");
+		vm.Tree.Select(Node(vm, "A", "k"));
+		vm.RemoveKeyCommand.Execute(null);
+		vm.Tree.Select(Node(vm, "A", "e"));
+		vm.RemoveKeyCommand.Execute(null);
+		vm.RemoveFileNodeCore(Node(vm, "B", ""));
+		Assert.Equal(["en"], Codes(vm));
+		Undo(vm);
+		Assert.Equal(["en"], Codes(vm));
+		Assert.False(Key(vm, "A", "e").Entries.ContainsKey("de")); //empty, as B gave it
+		Undo(vm);
+		Assert.Equal(["de", "en"], Codes(vm));
+		Assert.Equal("Hallo", Key(vm, "A", "k").Entries["de"].Value);
+		Assert.Equal("", Key(vm, "A", "e").Entries["de"].Value); //every key, every language
+	}
+
+	//SPEC (Dirty by file, Each file's history): a batch in a batch sheds a file's edits
+	//alone, so a drag between files inside a larger action keeps its part for the file
+	//that stays
+	[Fact]
+	public void AFileGoingTakesItsEditsOutOfABatchInABatch_AndNoMore() {
+		var vm = new MainWindowViewModel(new FakeDialogs());
+		vm.LoadFile(new StringReader("value-en=English\n\n[k]\nvalue=hi\n"), "A");
+		vm.LoadFile(new StringReader("value-en=English\n\n[z]\nvalue=x\n"), "B");
+		vm.Batch(() => {
+			vm.KeyDrag.Drop(new FakeDropInfo(Node(vm, "A", "k"), Node(vm, "B", "z"), RelativeInsertPosition.TargetItemCenter));
+			vm.Tree.Select(Node(vm, "B", "z"));
+			vm.ToggleNeedsReviewCommand.Execute(null);
+		});
+		vm.RemoveFileNodeCore(Node(vm, "A", ""));
+		Assert.Equal(1, vm.UndoStack.DoneCount);
+
+		Undo(vm);
+
+		Assert.Equal(["z"], FileNamed(vm, "B").Keys.Keys);
+		Assert.False(Key(vm, "B", "z").NeedsReview);
+		Assert.False(vm.IsDirty);
+		Redo(vm);
+		Assert.Equal("hi", Key(vm, "B", "z.k").DefaultValue);
+		Assert.True(Key(vm, "B", "z").NeedsReview);
+		Assert.True(vm.IsDirty);
+	}
+
+	//SPEC (Navigation): a file going leaves the selection on the nearest place Back keeps,
+	//a step of the history and no visit
+	[Fact]
+	public void AFileGoingLeavesTheSelectionWhereBackStood() {
+		var vm = LoadAAndB();
+		vm.Tree.Select(Node(vm, "A", ""));
+		vm.Tree.Select(Node(vm, "A", "k"));
+		vm.Tree.Select(Node(vm, "B", ""));
+
+		vm.RemoveFileNodeCore(Node(vm, "B", ""));
+
+		Assert.Same(Node(vm, "A", "k"), vm.Tree.SelectedKeyNode);
+		Assert.True(vm.Tree.BackCommand.CanExecute(null));
+		Assert.False(vm.Tree.ForwardCommand.CanExecute(null));
 	}
 
 	//SPEC (One entry for many edits): the edits a batch makes are one entry, undone and

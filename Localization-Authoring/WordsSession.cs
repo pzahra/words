@@ -474,7 +474,8 @@ namespace PatTech.Localization.Authoring {
 		///     <paramref name="file"/> as it was: the session makes the key, as
 		///     <see cref="AddKey(WordsFile, string)"/> does, and the copy fills it,
 		///     plural forms, parameters, entries and all, so the copy stays as it was
-		///     kept and can go back again.
+		///     kept and can go back again. Its entries meet the languages there are
+		///     now, as <see cref="PutBackEntries"/> puts them.
 		/// </summary>
 		public WordsKey Restore(WordsFile file, WordsKey kept) {
 			WordsKey key = AddKey(file, kept.BlockKey);
@@ -490,6 +491,7 @@ namespace PatTech.Localization.Authoring {
 			key.PutBackParameters(kept.Parameters);
 			key.Entries.Clear();
 			key.PutBackEntries(kept.Entries);
+			Reconcile(key);
 			return key;
 		}
 
@@ -564,13 +566,37 @@ namespace PatTech.Localization.Authoring {
 			return true;
 		}
 
-		/// <summary>Puts kept entries (<see cref="WordsKey.CopyEntries"/>) back in the key (<see cref="WordsKey.PutBackEntries"/>).</summary>
+		/// <summary>
+		///     Puts kept entries (<see cref="WordsKey.CopyEntries"/>) back in the key
+		///     (<see cref="WordsKey.PutBackEntries"/>), meeting the languages there are
+		///     now: a language the session let go since they were kept comes back where
+		///     they have words in it, and an empty entry in one is dropped; one it took
+		///     since gives the key an empty entry, as every key has for each.
+		/// </summary>
 		public bool PutBackEntries(WordsFile file, string name, IReadOnlyDictionary<string, WordsEntry> kept) {
 			if (!file.Keys.TryGetValue(name, out WordsKey? key)) {
 				return false;
 			}
 			key.PutBackEntries(kept);
+			Reconcile(key);
 			return true;
+		}
+
+		//a key's entries put back from a copy, which knew the languages there were then (the
+		//editor's SPEC: Dirty by file, Each file's history)
+		private void Reconcile(WordsKey key) {
+			string[] gone = [.. key.Entries.Keys.Where(code => Languages.Find(code) is null)];
+			if (gone.Length > 0) {
+				Languages.Reread(gone);
+			}
+			foreach (string code in gone) {
+				if (Languages.Find(code) is null) {
+					key.Entries.Remove(code);
+				}
+			}
+			foreach (LanguageEntry language in Languages.Known) {
+				key.Entries.TryAdd(language.Code, new WordsEntry());
+			}
 		}
 
 		/// <summary>

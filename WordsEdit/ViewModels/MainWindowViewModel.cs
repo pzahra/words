@@ -113,9 +113,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public event Action<DocumentField, string?, Selection?>? FieldFocusRequested;
 	//above zero while a command or an undo changes the document: the fields' reports are not typing
 	private int quiet;
-	//the files dirty when a keystroke took its run back, for the tree's Edited that
-	//follows the report
-	private IReadOnlySet<WordsFile>? typedBack;
+	//the files dirty when a keystroke took its run back, and the run's file, for the
+	//tree's Edited that follows the report
+	private (IReadOnlySet<WordsFile> Dirty, WordsFile File)? typedBack;
 
 	//how the editor asks and tells: modal windows in the app, a fake in tests
 	public IDialogs Dialogs { get; }
@@ -877,7 +877,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (back is not null && open is { Staled.Count: > 0 }) {
 			Quietly(() => open.Apply(Session, Tree, 0));
 		}
-		typedBack = back;
+		typedBack = back is null ? null : (back, edit.Node.File);
 	}
 
 	//Undo and Redo (SPEC: Undo → Navigate first): a change out of view is gone to and
@@ -943,7 +943,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		}
 		RenderPreviews();
 		Commands.Refresh();
-		PutBack(edit?.DirtyAt(standing) ?? (undoing ? entry.DirtyBefore : entry.DirtyAfter));
+		PutBack(edit?.DirtyAt(standing) ?? (undoing ? entry.DirtyBefore : entry.DirtyAfter), entry.Files);
 		if (edit is not null) {
 			FieldFocusRequested?.Invoke(edit.Field, edit.Form, edit.SelectionAt(standing, undoing));
 		}
@@ -1060,8 +1060,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	//a keystroke reached file; one that took its run back leaves the files as dirty as
 	//the run found them (SPEC: Undo)
 	private void AfterTyping(WordsFile? file) {
-		if (typedBack is { } back) {
-			PutBack(back);
+		if (typedBack is ({ } back, { } run)) {
+			PutBack(back, [run]);
 		}
 		else if (file is not null) {
 			MarkDirty(file);

@@ -20,13 +20,13 @@ line that ships beside it, has its own ([../WordsCli/SPEC.md](../WordsCli/SPEC.m
 - The runtime packages stay lean: nothing the editor needs beyond parse events
   (`IWordsParserConsumer`) belongs in Localization-Core.
 - Short names.
-- Dirtiness has one door. `ViewModelSaveBase` owns `IsDirty`: a command that
-  edited the document calls `MarkDirty()`, a property that *is* document state
-  sets itself with the `dirty: true` overload of `ChangeProperty`, and only
-  Save and Reset clear it (`MarkClean()`) — and the history, which puts back
-  the dirtiness it recorded (`PutBack`): Undo and Redo, and a keystroke typing
-  its run back to where it started (Undo). Nowhere else assigns the flag, and
-  the compiler holds it: its setter is private.
+- Dirtiness has one door, each file's own (*Dirty by file*).
+  `ViewModelSaveBase` owns the marks: an edit marks the file it changed
+  (`MarkDirty(file)`), and only Save and Reset clear them (`MarkClean`) — and
+  the history, which puts back the marks it recorded for the files an entry
+  changes (`PutBack`): Undo and Redo, and a keystroke typing its run back to
+  where it started (Undo). `IsDirty` says whether any file is marked. Nowhere
+  else sets a mark, and the compiler holds it: the set is the base's own.
 - The main window is three panes: **tree** (left), **baseline** (middle),
   **translation** (right).
 - Dialogs are tool windows: one shell (`DialogWindow`), resizable, close
@@ -891,7 +891,8 @@ it is reached, and so is one left beside its own twin once what stood
 between them went. A file unloaded, or loaded again over itself, takes its
 places at once, and their twins with them (*Dirty by file*, Each file's
 history), the selection standing on the nearest place left at or before
-where it stood. The history keeps fifty entries, the oldest going first,
+where it stood, a step of the history and no visit, or on the first root
+when no place is left. The history keeps fifty entries, the oldest going first,
 and Reset clears it; a moment with nothing selected is not a move.
 
 **Arriving.** Back and Forward open the path to the node they arrive at and
@@ -961,17 +962,21 @@ whatever was waiting to be redone.
   and all, and puts a copy back. A parameter defined, adopted, renamed, retyped or taken away in the pane is one `ParametersEdit`, the key's
   parameters before and after, made only when they differ.
 - **Structure.** Adding a node or a comment is `NodeAdded`; removing one is
-  `NodeRemoved`: the parent, the position, the node itself — its subtree,
-  comments and all — copies of the keys beneath it, and a comment's text
-  (the preamble's lives in its file, which the removal empties) — one entry,
-  however much it takes. A rename and a drag within a file are both a `Move` — the old
+  `NodeRemoved`: the parent, the position, the path, a copy of the node as it
+  stood — its subtree, comments and all — copies of the keys beneath it, and
+  a comment's text (the preamble's lives in its file, which the removal
+  empties) — one entry, however much it takes. Putting it back puts back a
+  copy of the copy, and taking it away takes whatever node stands at its
+  place, so no two entries share a node, and an entry undone after a node
+  moved to another file, or after that file went, finds the tree as it left
+  it. A rename and a drag within a file are both a `Move` — the old
   and new place: file, parent, position, path and name — since a drag may or may
   not rename and a rename is a move that changes only the last segment;
   undoing one renames back through the session and the node moves back. A
   drag from one file to another is a removal from the file it left and an
   addition to the file it went to, one batch (*One entry for many edits*),
-  the removal keeping a copy of the node as it left, so either part undoes
-  alone once the other's file goes (*Dirty by file*). A
+  each keeping its copy of the node, so either part undoes alone once the
+  other's file goes (*Dirty by file*). A
   drop where the node already stood changes nothing and makes no entry; a
   file dragged among files is precedence, not content, and makes none
   either. A drop whose node or target an undo or redo took out of the tree
@@ -1658,7 +1663,10 @@ rewrite a clean file.
 
 **Undo.** The saved point is each file's own. Each entry records the files
 dirty before it and after it, where it records the window's flag now, and an
-undo or a redo puts back what it records (*Undo*, Recording). Writing a file
+undo or a redo puts back what it records for the files the entry changes
+(*Undo*, Recording); every other file keeps its mark, as the entry did not
+touch it, a file New started or an import made, which the history never
+recorded, among them. Writing a file
 moves that file's marks alone: it is clean wherever the history reaches from
 where it stands without crossing an entry that changes it, and dirty past
 the first entry that does, either way. So after a save, undoing an edit to
@@ -1692,7 +1700,11 @@ source control is the way back, as for any work dropped.
   from the files, as a load of them would read it. So undoing a commit in
   one file never brings back a language only a removed file declared, and
   words a redo writes in a language a removal let go bring the language
-  back, as words in it keep it now.
+  back, as words in it keep it now. A key put back from a copy, a removal
+  undone or a constant's cleared translations, meets the list as it stands
+  (`WordsSession.Restore`, `PutBackEntries`): an empty entry for a language
+  a file brought since, its words in a language the list let go bringing it
+  back, and an empty entry in one let go dropped.
 - **Boundaries.** A file coming in, by Load, Import, New, Merge or Split,
   starts with no history and leaves the others' alone, so Reset is the one
   action that clears the whole history (*Undo*, Boundaries); a file loaded

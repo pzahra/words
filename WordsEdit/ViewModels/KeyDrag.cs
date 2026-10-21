@@ -124,7 +124,7 @@ public class KeyDrag : IDragSource, IDropTarget {
 	//to the one it went to, one batch, each its own file's (SPEC: Dirty by file)
 	private UndoEntry? Land(KeyNode dragged, KeyNode oldParent, KeyNode newParent, int index) {
 		string newFullLabel = KeyNode.Join(newParent.FullLabel, WordsOperations.LastSegment(dragged.FullLabel));
-		NodeRemoved? left = oldParent.Root != newParent.Root ? new NodeRemoved(Vm!.Session, dragged, carried: true) : null;
+		NodeRemoved? left = oldParent.Root != newParent.Root ? new NodeRemoved(Vm!.Session, dragged) : null;
 		if (newParent != oldParent && dragged is not CommentNode) {
 			//the document goes first and may refuse: a same-named sibling, or keys
 			//already at the destination, in its own file or another. Nothing is

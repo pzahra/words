@@ -46,15 +46,17 @@ public abstract class ViewModelSaveBase : ViewModelBase {
 
 	/// <summary>
 	///     Undo or Redo, or a keystroke typing its run back to where it started: the
-	///     files are as dirty as the history recorded them there.
+	///     <paramref name="files"/> it changes are as dirty as the history recorded
+	///     them there (<paramref name="dirty"/>). Every other file keeps its mark,
+	///     which the history may never have recorded: a file New started, or an
+	///     import made.
 	/// </summary>
-	protected void PutBack(IReadOnlySet<WordsFile> dirty) {
-		if (unsaved.SetEquals(dirty)) {
-			return;
+	protected void PutBack(IReadOnlySet<WordsFile> dirty, IEnumerable<WordsFile> files) {
+		bool changed = false;
+		foreach (WordsFile file in files) {
+			changed |= dirty.Contains(file) ? unsaved.Add(file) : unsaved.Remove(file);
 		}
-		unsaved.Clear();
-		unsaved.UnionWith(dirty);
-		Marked(true);
+		Marked(changed);
 	}
 
 	//the marks changed: the title, and whatever shows them

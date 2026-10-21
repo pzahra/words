@@ -407,47 +407,52 @@ public sealed class KeyRemoved(WordsFile file, WordsKey key) : UndoEntry {
 }
 
 /// <summary>
-///     A node in or out of the tree: its parent, its place, the node itself
-///     (its subtree, comments and all), copies of the keys beneath it, and a
-///     comment's text — the preamble's lives in its file.
+///     A node in or out of the tree: its parent, its place, its path, a copy of
+///     the node as it stood (its subtree, comments and all), copies of the keys
+///     beneath it, and a comment's text — the preamble's lives in its file.
 /// </summary>
 public abstract class NodeEdit : UndoEntry {
 	private readonly NodeRef parent;
 	private readonly int index;
+	private readonly string label;
+	//the node as it stood, never in the tree: the entry puts back a copy of its own and
+	//takes away whatever node stands where it stood, so no entry shares a node with
+	//another, nor with a file gone (SPEC: Dirty by file). The preamble's organizer
+	//presents its file's text, and is kept as it is
 	private readonly KeyNode node;
 	private readonly IReadOnlyList<WordsKey> keys;
 	private readonly string text;
 
 	/// <param name="session">The session the node's keys are in.</param>
 	/// <param name="node">The node, in the tree.</param>
-	/// <param name="carried">
-	///     The node is leaving for another file (SPEC: Dirty by file): the entry keeps a
-	///     copy of it as it stands here, so it stands alone once the other file goes.
-	/// </param>
-	protected NodeEdit(WordsSession session, KeyNode node, bool carried) {
+	protected NodeEdit(WordsSession session, KeyNode node) {
 		KeyNode at = node.Parent ?? throw new ArgumentException("a file node is not added or removed this way", nameof(node));
 		parent = NodeRef.Of(at);
 		index = at.Children.IndexOf(node);
-		this.node = carried ? node.Clone() : node;
+		label = node.FullLabel;
+		this.node = Preamble(node) ? node : node.Clone();
 		keys = node is OrganizerNode ? [] : [.. session.KeysUnder(parent.File, node.FullLabel).Select(key => new WordsKey(key))];
 		text = (node as OrganizerNode)?.Text ?? "";
 	}
 
+	private static bool Preamble(KeyNode node) => node is OrganizerNode and not CommentNode;
+
 	public override IReadOnlyCollection<WordsFile> Files => [parent.File];
 
 	/// <summary>The node, where it stands in the tree.</summary>
-	protected NodeRef Here => node is OrganizerNode ? parent with { Index = index } : new NodeRef(parent.File, node.FullLabel);
+	protected NodeRef Here => node is OrganizerNode ? parent with { Index = index } : new NodeRef(parent.File, label);
 	protected NodeRef Parent => parent;
 
 	protected NodeRef? Restore(WordsSession session, TreeViewModel tree) {
 		if (parent.Resolve(tree) is not { } at) {
 			return null;
 		}
-		at.Children.Insert(index, node);
+		KeyNode placed = Preamble(node) ? node : node.Clone();
+		at.Children.Insert(index, placed);
 		foreach (WordsKey key in keys) {
 			session.Restore(parent.File, key);
 		}
-		if (node is OrganizerNode organizer) {
+		if (placed is OrganizerNode organizer) {
 			organizer.Text = text;
 		}
 		return Here;
@@ -457,26 +462,29 @@ public abstract class NodeEdit : UndoEntry {
 		if (parent.Resolve(tree) is not { } at) {
 			return null;
 		}
-		if (node is OrganizerNode organizer) {
+		KeyNode? standing = Here.Resolve(tree);
+		if (node is not OrganizerNode) {
+			session.RemoveKeysUnder(parent.File, label);
+		}
+		else if (standing is OrganizerNode organizer) {
 			organizer.Text = "";
 		}
-		else {
-			session.RemoveKeysUnder(parent.File, node.FullLabel);
+		if (standing is not null) {
+			standing.IsSelected = false;
+			at.Children.Remove(standing);
 		}
-		node.IsSelected = false;
-		at.Children.Remove(node);
 		return Parent;
 	}
 }
 
 /// <summary>A node or a comment added; undone, the selection goes to its parent.</summary>
-public sealed class NodeAdded(WordsSession session, KeyNode node) : NodeEdit(session, node, carried: false) {
+public sealed class NodeAdded(WordsSession session, KeyNode node) : NodeEdit(session, node) {
 	public override NodeRef? Site(bool undoing) => undoing ? Here : Parent;
 	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) => undoing ? Take(session, tree) : Restore(session, tree);
 }
 
 /// <summary>A node removed, however much it took with it, or carried to another file; undone, the selection goes to the node.</summary>
-public sealed class NodeRemoved(WordsSession session, KeyNode node, bool carried = false) : NodeEdit(session, node, carried) {
+public sealed class NodeRemoved(WordsSession session, KeyNode node) : NodeEdit(session, node) {
 	public override NodeRef? Site(bool undoing) => undoing ? Parent : Here;
 	public override NodeRef? Apply(WordsSession session, TreeViewModel tree, bool undoing) => undoing ? Restore(session, tree) : Take(session, tree);
 }
@@ -577,9 +585,9 @@ public sealed class BatchEdit(IEnumerable<UndoEntry> entries) : UndoEntry {
 		return follow;
 	}
 
-	//a file's edits leave the batch, which stays for the rest
+	//a file's edits leave the batch, which stays for the rest, as a batch in it does
 	internal override bool Forget(WordsFile file, bool dirty) {
-		entries.RemoveAll(entry => entry.Files.Contains(file));
+		entries.RemoveAll(entry => !entry.Forget(file, dirty));
 		return entries.Count > 0 && base.Forget(file, dirty);
 	}
 }

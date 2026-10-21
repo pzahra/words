@@ -136,6 +136,7 @@ public class KeyNode : ViewModelBase, IKeyTreeNode {
 		GripeCount = original.GripeCount;
 		EmptyValue = original.EmptyValue;
 		Mismatch = original.Mismatch;
+		IsExpanded = original.IsExpanded;
 		foreach (KeyNode child in original.Children) {
 			Children.Add(child.Clone());
 		}

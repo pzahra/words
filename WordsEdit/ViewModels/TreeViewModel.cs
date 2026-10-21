@@ -816,12 +816,21 @@ public class TreeViewModel : ViewModelBase {
 		ApplyFilters();
 	}
 
-	/// <summary>Takes a file's node out of the tree, after the session let the file go.</summary>
+	/// <summary>
+	///     Takes a file's node out of the tree, after the session let the file go: the
+	///     selection stands on the nearest place Back keeps, a step of the history and
+	///     no visit, or on the first root when none is left.
+	/// </summary>
 	public void RemoveFile(KeyNode fileNode) {
 		FollowNames();
 		Forget(fileNode.File);
 		KeyNodes.Remove(fileNode);
-		SelectedKeyNode = KeyNodes.FirstOrDefault();
+		if (History.Current?.Resolve(this) is { } standing) {
+			Arrive(standing, visit: false);
+		}
+		else {
+			SelectedKeyNode = KeyNodes.FirstOrDefault();
+		}
 		FollowLanguage();
 		RefreshBadges();
 	}

@@ -95,6 +95,29 @@ public class KeptStateTests {
 		Assert.Equal("a count", kept[1].Parameters[0].Description);
 	}
 
+	//a copy knew the languages there were when it was kept: put back, it meets the list as
+	//it stands (editor SPEC: Dirty by file, Each file's history → Languages)
+	[Fact]
+	public void AKeptKey_PutBack_MeetsTheLanguagesThereAreNow() {
+		var (session, file) = Load();
+		WordsKey kept = new(file.Keys["k"]);
+		kept.Entries.Remove("fr"); //kept before French came
+		kept.Entries["it"] = new WordsEntry { Value = "ciao" }; //words in a language let go since
+		kept.Entries["xx"] = new WordsEntry(); //nothing in another
+
+		session.RemoveKey(file, "k");
+		WordsKey key = session.Restore(file, kept);
+
+		Assert.Equal(["de", "en", "fr", "it"], key.Entries.Keys.Order());
+		Assert.Equal(("", "ciao"), (key.Entries["fr"].Value, key.Entries["it"].Value));
+		Assert.NotNull(session.Languages.Find("it"));
+		Assert.Null(session.Languages.Find("xx"));
+		Assert.True(file.Keys["k.sub"].Entries.ContainsKey("it")); //every key, every language
+
+		Assert.True(session.PutBackEntries(file, "k.sub", new Dictionary<string, WordsEntry> { ["yy"] = new() }));
+		Assert.False(file.Keys["k.sub"].Entries.ContainsKey("yy"));
+	}
+
 	[Fact]
 	public void AKeysParametersAndEntries_AreCopied_AndPutBack() {
 		var (session, _) = Load();

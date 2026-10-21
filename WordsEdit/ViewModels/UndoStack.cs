@@ -19,8 +19,8 @@ public enum DocumentField {
 ///     Where a node stands, as an entry or Back's history remembers it: its file and
 ///     its path there, which is a key's node's alone, or for a comment its parent's
 ///     path and its place there, since comments share paths. The file is the
-///     session's: a file in or out empties the undo history, and Back drops an entry
-///     whose file went. Entries are undone in order, so the tree a reference meets
+///     session's: a file going takes its entries and Back's places with it (SPEC:
+///     Dirty by file). Entries are undone in order, so the tree a reference meets
 ///     is the tree it was taken from.
 /// </summary>
 /// <param name="File">The file the node is in.</param>
