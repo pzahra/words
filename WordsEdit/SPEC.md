@@ -1887,13 +1887,14 @@ default's, and the same with a code for a language's (`value-fr`,
 `comment-de`); a plural form with its category (`value#one`,
 `value-mt#few`); and a language's stale mark (`stale-fr`) and the review
 flag (`stale`), each its text (below, The review flag's text). An empty
-cell is no mark, and a mark with no text, which a file's own `stale=` or
-`stale-fr=` can be, is the empty text quoted, `""`, which a reader tells
-from an empty cell. Whether Excel keeps `""` through a save of its own, or
-wants its formula for empty text (`=""`), waits on a machine with Excel:
-the codec was built on one without. A name's case is no matter, as it is
-none to the driver: `Value-FR` is `value-fr`. A column whose
-name is none of them (`Status`, `Translator`, the driver's own `F4`)
+cell is no mark. A mark with no text, which a file's own `stale=` or
+`stale-fr=` can be, is written as its column's word, `review` for the flag
+and `stale` for a language's mark, since a spreadsheet drops the empty text
+quoted, `""` (below, Other tools). The word reads back as a mark with no
+text, its case and spaces no matter, and so does `""`; a mark whose text is
+the word itself comes back with none, still a mark. A name's case is no
+matter, as it is none to the driver: `Value-FR` is `value-fr`. A column
+whose name is none of them (`Status`, `Translator`, the driver's own `F4`)
 is read past, so a translator's own columns ride along without a word. With
 a header, the schema's names are the ones that count, as they are for the
 driver: the header is for people. Wordsmith writes the columns' names
@@ -2010,15 +2011,38 @@ file's order, and the review flag last. The header row is their names.
   byte-order mark (`CharacterSet=65001`), which Excel needs to read UTF-8. A
   character the code page a schema names has no byte for fails the write,
   told, rather than becoming a `?`.
-- Cells are quoted as Excel quotes them, rows end with CRLF, and a line
-  break in a cell is a line feed. Under `TextDelimiter=none`, a cell that
-  needs quoting is quoted with `"`, with a gripe.
+- Every cell with words is quoted, as Excel quotes them, the header's
+  included, so a spreadsheet told to take a quoted cell as text keeps `007`
+  and `1/2` as they are; an empty cell is no text. Rows end with CRLF, and a
+  line break in a cell is a line feed. Under `TextDelimiter=none`, only a
+  cell holding the delimiter or a line break is quoted, with `"`, and a
+  gripe.
 - A language the file has words in and an existing table has no column for
   is a gripe: its words are not written. So is a table with no key or no
   value column, which will not read back.
-- A leading `=`, `+`, `-` or `@` is Excel's formula, not text; whether to
-  guard it (a `'` prefix, stripped on the way back in) is decided when a
-  real value starts with one.
+- A leading `=`, `+`, `-` or `@` is Excel's formula, not text, unless a
+  quoted cell is taken as text; whether to guard it (a `'` prefix, stripped
+  on the way back in) is decided when a real value starts with one.
+
+**Other tools.** Checked by hand, a sheet's round trip through each, and not
+by the tests, which need neither:
+- The ODBC text driver (Jet's, 32-bit; this machine has no ACE) reads a
+  sheet Wordsmith wrote by its section: quotes, line breaks in cells, a cell
+  past 255 characters as a `Memo`, UTF-8 as `65001`, and a mark with no text
+  as its word, where `""` read as no value. Wordsmith reads the driver's own
+  tables back: it writes `Char Width 50` columns, `CharacterSet=1252` and
+  every cell quoted. The script that checked it is kept beside the codec,
+  `Localization-Authoring/Codecs/odbc-check.ps1`, for reference: nothing
+  runs it.
+- LibreOffice 24.2 opens a sheet in its columns. Its default import takes
+  `007` for 7, `1.50` for 1.5, `=1+1` for 2, and `50%` and `1/2` for a
+  percentage and a date; with "Format quoted field as text" ticked, or the
+  columns set to Text, every field comes back as it went out. It drops
+  `""` in any setting, hence the words. It saves without a byte-order mark,
+  and the section still names the encoding, so the sheet reads back as
+  UTF-8. ISO dates, the editor's stamps, line breaks, padded spaces, a `$`
+  key and UTF-8 come through in any setting.
+- Excel waits on a machine with it: the codec was built on one without.
 
 **Loss follows the columns.** What a sheet keeps is what its columns name:
 the context and comment channels, stale marks and the review flag when there
@@ -2068,8 +2092,9 @@ change: it reads past `stale=` as it does now.
 - Reading: a quote doubled inside quotes, a line break in a cell, CRLF and
   LF rows; comma, semicolon and tab; ANSI, OEM, UNICODE and 65001, and a
   byte-order mark winning over the schema; a header read past; a column
-  read past; plural form, stale mark and review flag columns, `""` a mark
-  with no text and an empty cell none; a constant;
+  read past; plural form, stale mark and review flag columns, a column's
+  word (`review`, `STALE`) and `""` a mark with no text and an empty cell
+  none; a constant;
   an empty, a repeated and a made key, each griped; a row too long skipped
   and one too short read empty; no `key` or no `value` column refused;
   `FixedLength` refused; `Strings.csv` loading as `Strings-words.ini`.
@@ -2082,8 +2107,10 @@ change: it reads past `stale=` as it does now.
   language's context greyed with no language ticked; forms going to each
   language ticked; the layout made into columns and read back from them.
 - Export: a new table's columns as ticked, in their order; an existing
-  table's kept, and changed by the tick; the header, the quoting, CRLF rows
-  and line feeds in cells; UTF-8 with a byte-order mark, and a code page
+  table's kept, and changed by the tick; the header, every cell with words
+  quoted (only those that need it under `TextDelimiter=none`), a mark with
+  no text as its column's word, CRLF rows and line feeds in cells; UTF-8
+  with a byte-order mark, and a code page
   failing on a character it lacks; a language an existing table has no
   column for griped. Export, import and export through one schema gives the
   same bytes, and the fields its columns carry are unchanged.

@@ -39,6 +39,7 @@ public class CsvCodecTests {
 		value-fr={n} fichier
 		value-fr#other={n} fichiers
 		value-de={n} Datei
+		stale-de=
 
 		[$unit]
 		value=kg
@@ -133,13 +134,13 @@ public class CsvCodecTests {
 				"key,value,value#one,value#other,context,Status,value-fr,value-fr#one,value-fr#other,stale-fr,comment-fr,stale\r\n" + //1
 				"greeting,\"Hello, \"\"you\"\"\",,,shown at login,done,\"Bonjour, \"\"toi\"\"\",,,\"\",,check the tone\r\n" + //2
 				"lines,\"one\r\ntwo\",,,,,\"un\ndeux\",,,,,\n" + //3 to 5
-				"files,{n} files,{n} file,{n} files,,,{n} fichiers,{n} fichier,{n} fichiers,2026-01-01,au pluriel,\n" + //6
+				"files,{n} files,{n} file,{n} files,,,{n} fichiers,{n} fichier,{n} fichiers,2026-01-01,au pluriel, Review\n" + //6
 				"$unit,kg,,,,,,,,,,\n" + //7
 				",orphan,,,,,,,,,,\n" + //8
 				"greeting,again,,,,,,,,,,\n" + //9
 				"bad key,x,,,,,,,,,,\n" + //10
 				"long,x,,,,,,,,,,,extra\n" + //11
-				"short,x,,,,,,,,,,,\n" + //12: a trailing empty cell is no word
+				"short,x,,,,,,,,STALE,,,\n" + //12: a trailing empty cell is no word
 				"tiny,y\n" + //13
 				",,,,\n"); //14
 			SchemaIni.Write(sheet, Options((CsvCodec.HeaderOption, "True"), (CsvCodec.FormatOption, "CSVDelimited"), (CsvCodec.CharacterSetOption, "65001")));
@@ -156,7 +157,7 @@ public class CsvCodecTests {
 			Assert.Equal("Hello, \"you\"", greeting.DefaultValue);
 			Assert.Equal("shown at login", greeting.Context);
 			Assert.Equal("Bonjour, \"toi\"", greeting.Entries["fr"].Value);
-			Assert.Equal("", greeting.Entries["fr"].Stale); //"" a mark with no text
+			Assert.Equal("", greeting.Entries["fr"].Stale); //"" too a mark with no text
 			Assert.Equal("", greeting.Entries["fr"].Comment);
 			Assert.Equal("check the tone", greeting.Review);
 
@@ -173,9 +174,11 @@ public class CsvCodecTests {
 			Assert.Equal("{n} fichiers", files.Entries["fr"].Forms["other"]);
 			Assert.Equal("2026-01-01", files.Entries["fr"].Stale);
 			Assert.Equal("au pluriel", files.Entries["fr"].Comment);
+			Assert.Equal("", files.Review); //its column's word a mark with no text, its case and spaces no matter
 
 			Assert.True(file.Keys["$unit"].IsConstant);
 			Assert.Equal("x", file.Keys["short"].DefaultValue);
+			Assert.Equal("", file.Keys["short"].Entries["fr"].Stale);
 			Assert.Equal("", file.Keys["tiny"].Entries["fr"].Value); //a row too short reads empty
 
 			Assert.Equal([
@@ -372,7 +375,7 @@ public class CsvCodecTests {
 	}
 
 	[Fact]
-	public void Export_ANewTable_ItsColumnsAsTicked_QuotedAsExcelQuotes_InUtf8WithAMark() {
+	public void Export_ANewTable_ItsColumnsAsTicked_EveryCellWithWordsQuoted_InUtf8WithAMark() {
 		string folder = Folder();
 		try {
 			var (_, _, source) = Loaded(folder);
@@ -388,11 +391,11 @@ public class CsvCodecTests {
 			Assert.Empty(gripes);
 			Assert.Equal([0xEF, 0xBB, 0xBF], File.ReadAllBytes(unit.Path)[..3]);
 			Assert.Equal(
-				"key,value,value#other,context,value-fr,value-fr#other,comment-fr,stale-fr,value-de,value-de#other,comment-de,stale-de,stale\r\n" +
-				"greeting,\"Hello, \"\"you\"\"\",,shown at login,Bonjour,,vu,2026-01-01,,,,,\"\"\r\n" +
-				"files,{n} file,{n} files,,{n} fichier,{n} fichiers,,,{n} Datei,,,,\r\n" +
-				"$unit,kg,,,,,,,,,,,\r\n" +
-				"lines,\"one\ntwo\",,,\"un\ndeux\",,,,,,,,\r\n",
+				"\"key\",\"value\",\"value#other\",\"context\",\"value-fr\",\"value-fr#other\",\"comment-fr\",\"stale-fr\",\"value-de\",\"value-de#other\",\"comment-de\",\"stale-de\",\"stale\"\r\n" +
+				"\"greeting\",\"Hello, \"\"you\"\"\",,\"shown at login\",\"Bonjour\",,\"vu\",\"2026-01-01\",,,,,\"review\"\r\n" + //a mark with no text its column's word
+				"\"files\",\"{n} file\",\"{n} files\",,\"{n} fichier\",\"{n} fichiers\",,,\"{n} Datei\",,,\"stale\",\r\n" +
+				"\"$unit\",\"kg\",,,,,,,,,,,\r\n" +
+				"\"lines\",\"one\ntwo\",,,\"un\ndeux\",,,,,,,,\r\n",
 				File.ReadAllText(unit.Path));
 
 			//a fixed-width section, naming no columns, writes the same, comma-delimited
@@ -402,13 +405,15 @@ public class CsvCodecTests {
 			Assert.Equal(File.ReadAllText(unit.Path), fixedWidth.ToString());
 			Assert.Equal(["Out.csv: Format=FixedLength: a fixed-width file is no sheet, so it was written comma-delimited"], fixedGripes);
 
-			//under TextDelimiter=none a cell that needs quoting is quoted all the same
+			//under TextDelimiter=none only a cell that needs quoting is quoted, all the same
 			var none = new StringWriter();
 			FormatOptions unquoted = codec.Options(source, CsvLayout.For(source));
 			unquoted[CsvCodec.TextDelimiterOption] = "none";
 			codec.Write(source, unit, none, gripes, unquoted);
-			Assert.Contains("greeting,\"Hello, \"\"you\"\"\",", none.ToString());
-			Assert.Equal(["Out.csv: TextDelimiter=none, but cells holding the delimiter, a line break or a mark with no text were quoted with \""], gripes);
+			Assert.StartsWith("key,value,", none.ToString());
+			Assert.Contains("\r\ngreeting,\"Hello, \"\"you\"\"\",,shown at login,", none.ToString());
+			Assert.Contains(",review\r\n", none.ToString());
+			Assert.Equal(["Out.csv: TextDelimiter=none, but cells holding the delimiter or a line break were quoted with \""], gripes);
 		}
 		finally {
 			Directory.Delete(folder, recursive: true);
@@ -430,7 +435,7 @@ public class CsvCodecTests {
 			Assert.Equal(1252, unit.Encoding!.CodePage);
 			List<string> gripes = [];
 			IniWriter.WriteAtomic(unit.Path, writer => codec.Write(source, unit, writer, gripes), unit.Encoding);
-			Assert.Equal("key;value;value-fr;Notes\r\ngreeting;\"Hello, \"\"you\"\"\";Bonjour;\r\nfiles;{n} file;{n} fichier;\r\n$unit;kg;;\r\nlines;\"one\ntwo\";\"un\ndeux\";\r\n",
+			Assert.Equal("\"key\";\"value\";\"value-fr\";\"Notes\"\r\n\"greeting\";\"Hello, \"\"you\"\"\";\"Bonjour\";\r\n\"files\";\"{n} file\";\"{n} fichier\";\r\n\"$unit\";\"kg\";;\r\n\"lines\";\"one\ntwo\";\"un\ndeux\";\r\n",
 				File.ReadAllText(sheet, Encoding.GetEncoding(1252)));
 			Assert.Equal(["Kept.csv: no column carries de, so its words were not written"], gripes);
 

@@ -255,7 +255,7 @@ value-fr=Bonjour
 			Assert.True(closed);
 			//a new table is delimited by the list separator, as Excel is
 			char d = new CsvCodec().Culture.TextInfo.ListSeparator[0];
-			Assert.Equal($"key{d}value{d}comment{d}value-fr\r\ngreeting{d}Hello{d}Keep it short{d}Bonjour\r\n", File.ReadAllText(target));
+			Assert.Equal($"\"key\"{d}\"value\"{d}\"comment\"{d}\"value-fr\"\r\n\"greeting\"{d}\"Hello\"{d}\"Keep it short\"{d}\"Bonjour\"\r\n", File.ReadAllText(target));
 			Assert.Equal(new FormatOptions {
 				[CsvCodec.HeaderOption] = "True", [CsvCodec.FormatOption] = CsvCodec.FormatFor(d), [CsvCodec.CharacterSetOption] = "65001",
 				["Col1"] = "key Text", ["Col2"] = "value Memo", ["Col3"] = "comment Memo", ["Col4"] = "value-fr Memo",
@@ -286,7 +286,7 @@ value-fr=Bonjour
 			Assert.Contains(WordsFeatures.Context.Describe("S"), export.Loss); //what its columns drop
 
 			export.ExportCommand.Execute(null);
-			Assert.Equal("key;value;value-fr\r\ngreeting;Hello;Bonjour\r\n", File.ReadAllText(target));
+			Assert.Equal("\"key\";\"value\";\"value-fr\"\r\n\"greeting\";\"Hello\";\"Bonjour\"\r\n", File.ReadAllText(target));
 			Assert.Equal(schema, File.ReadAllBytes(SchemaIni.For(target))); //kept as it was
 
 			//the tick: the columns open, set from the section, and the section is written anew
@@ -300,7 +300,7 @@ value-fr=Bonjour
 			Assert.Equal(Words.Known.Format("export.sheet-columns", "key, value, context, value-fr"), sheet.Columns);
 			export.ExportCommand.Execute(null);
 
-			Assert.Equal("key;value;context;value-fr\r\ngreeting;Hello;Said on arrival;Bonjour\r\n", File.ReadAllText(target));
+			Assert.Equal("\"key\";\"value\";\"context\";\"value-fr\"\r\n\"greeting\";\"Hello\";\"Said on arrival\";\"Bonjour\"\r\n", File.ReadAllText(target));
 			Assert.Equal(new FormatOptions {
 				[CsvCodec.HeaderOption] = "True", [CsvCodec.FormatOption] = "Delimited(;)", [CsvCodec.CharacterSetOption] = "65001",
 				["Col1"] = "key Text", ["Col2"] = "value Memo", ["Col3"] = "context Memo", ["Col4"] = "value-fr Memo", ["MaxScanRows"] = "0",

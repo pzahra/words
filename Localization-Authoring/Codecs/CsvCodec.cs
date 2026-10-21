@@ -11,8 +11,11 @@ namespace PatTech.Localization.Authoring.Codecs {
 	///     <c>value-fr</c>, <c>comment-de</c>, <c>value-mt#few</c>, <c>stale-fr</c>,
 	///     and <c>stale</c> for the review flag — and a column of any other name is
 	///     read past. A sheet with no section reads as <see cref="Sniff"/> guesses it.
-	///     Cells are quoted as Excel quotes them; a mark with no text is the empty
-	///     text quoted, <c>""</c>, which an empty cell, no mark, is not.
+	///     Every cell with words is quoted, as Excel quotes them, so a spreadsheet told
+	///     to take a quoted cell as text keeps <c>007</c> and <c>1/2</c> as they are; an
+	///     empty cell is no text. A stale mark with no text is its column's word,
+	///     <c>review</c> or <c>stale</c>, since a spreadsheet drops an empty quoted
+	///     cell; the word reads back as a mark with no text, and so does <c>""</c>.
 	/// </summary>
 	/// <param name="culture">
 	///     The culture whose code pages <c>ANSI</c> and <c>OEM</c> name, and whose list
@@ -147,9 +150,9 @@ namespace PatTech.Localization.Authoring.Codecs {
 				given[name] = row.Line;
 				WordsKey key = loaded.Key(FileNames.BlockKey(loaded, name, file));
 				for (int i = 0; i < schema.Columns.Count; i++) {
-					//an empty cell is no text, and a quoted one empty text: a mark with none
+					//an empty cell is no text; a mark with none comes as its column's word, or quoted empty
 					if (schema.Columns[i].Field is { } field && row.Cell(i) is { } text) {
-						field.Write(key, text);
+						field.Write(key, field.Type == "stale" && text.Trim().Equals(MarkWord(field), StringComparison.OrdinalIgnoreCase) ? "" : text);
 					}
 				}
 			}
@@ -320,8 +323,10 @@ namespace PatTech.Localization.Authoring.Codecs {
 		/// <summary>
 		///     Writes the sheet: the header row when the schema has one, then a row a key
 		///     in the tree's order, a cell a column, a column read past left empty, rows
-		///     ending CRLF. A language the file has words in and no column carries is a
-		///     gripe.
+		///     ending CRLF. Every cell with words is quoted, or under
+		///     <c>TextDelimiter=none</c> only one holding the delimiter or a line break,
+		///     with a gripe; a stale mark with no text is its column's word. A language
+		///     the file has words in and no column carries is a gripe.
 		/// </summary>
 		public void Write(ExportSource source, ExportUnit unit, TextWriter writer, ICollection<string> gripes, FormatOptions? options = null) {
 			string file = Path.GetFileName(unit.Path);
@@ -347,10 +352,10 @@ namespace PatTech.Localization.Authoring.Codecs {
 				Row(schema.Columns.Select(column => (string?)column.Name));
 			}
 			foreach (WordsKey key in source.Keys()) {
-				Row(schema.Columns.Select(column => column.IsKey ? key.BlockKey : column.Field?.Read(key)));
+				Row(schema.Columns.Select(column => column.IsKey ? key.BlockKey : column.Field is { } field ? Text(field, key) : null));
 			}
 			if (unquotable) {
-				gripes.Add($"{file}: {TextDelimiterOption}=none, but cells holding the delimiter, a line break or a mark with no text were quoted with \"");
+				gripes.Add($"{file}: {TextDelimiterOption}=none, but cells holding the delimiter or a line break were quoted with \"");
 			}
 
 			void Row(IEnumerable<string?> cells) {
@@ -362,15 +367,26 @@ namespace PatTech.Localization.Authoring.Codecs {
 				if (text is null) {
 					return "";
 				}
-				bool needs = text == "" || text.IndexOfAny([schema.Delimiter, '\r', '\n']) >= 0 || schema.Quote is { } own && text.Contains(own);
-				if (!needs) {
-					return text;
+				if (schema.Quote is not { } quote) {
+					if (text.IndexOfAny([schema.Delimiter, '\r', '\n']) < 0) {
+						return text;
+					}
+					unquotable = true;
+					quote = '"';
 				}
-				unquotable |= schema.Quote is null;
-				string quote = (schema.Quote ?? '"').ToString();
-				return quote + text.Replace(quote, quote + quote) + quote;
+				string mark = quote.ToString();
+				return mark + text.Replace(mark, mark + mark) + mark;
 			}
 		}
+
+		//a field's cell: its text, and a stale mark with none its column's word
+		private static string? Text(WordsField field, WordsKey key) {
+			string? text = field.Read(key);
+			return text == "" && field.Type == "stale" ? MarkWord(field) : text;
+		}
+
+		//the word a stale mark with no text is written as: review for the review flag, stale for a language's
+		private static string MarkWord(WordsField field) => field.Language == "" ? "review" : "stale";
 
 		/// <summary>
 		///     What a sheet keeps written with <paramref name="options"/>: what its
