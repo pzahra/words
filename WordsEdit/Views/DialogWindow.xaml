@@ -32,6 +32,9 @@
         <DataTemplate DataType="{x:Type vm:GripesViewModel}">
             <v:GripesView/>
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SheetImportViewModel}">
+            <v:SheetImportView/>
+        </DataTemplate>
     </Window.Resources>
     <ContentPresenter Content="{Binding}"/>
 </Window>

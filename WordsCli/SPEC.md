@@ -277,3 +277,17 @@ gains the blank line after it, in a file spaced so, and one that loses it,
 by `remove` or an empty `set`, loses the line. Until then, a new key's value
 goes first; the keys the editor's *New* added to Wordsmith's own words went
 so.
+
+## A new group's keys chain
+
+`set` adding keys under a parent no key has yet writes each as a full header
+(`[sheet.title]`, `[sheet.blurb]`), as *Surgical edits* says it must: cutting
+at the group the second key makes would rewrite the first key's header. The
+editor cuts there (`GroupCuts`) and writes `[sheet]` and a `[.title]` chain,
+so Wordsmith's own words stop reading back byte for byte until a Save
+rewrites them. The fix: the second key under a new parent rewrites the
+first's full header as the bare group and its `[.child]`, the one edit that
+changes a line not its own, checked like any other by reading the result
+back. Until then, a new group of Wordsmith's words goes in through `set`,
+then once through the editor's Save, which changes only those headers; the
+spreadsheet dialog's `sheet.*` went so.

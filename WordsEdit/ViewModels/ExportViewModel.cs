@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows.Input;
+using PatTech.Localization.Authoring.Codecs;
 using PatTech.Utils;
 using WordsEdit.Utils;
 
@@ -29,7 +30,8 @@ public sealed class ExportUnitRow(ExportUnit unit) {
 ///     ones it overwrites — and the loss, what this file uses that the format has
 ///     no slot for. Export writes each planned file atomically and shows what
 ///     the format dropped or guessed. Save is untouched: the words.ini stays the
-///     document.
+///     document. A sheet shows its columns (<see cref="Sheet"/>), and the loss
+///     line follows them.
 /// </summary>
 public class ExportViewModel : DialogViewModel {
 	public override string Title => Words.Known["export.title"];
@@ -49,6 +51,9 @@ public class ExportViewModel : DialogViewModel {
 	/// <summary>What the file uses that the format drops, in words; empty until there is a plan.</summary>
 	public string Loss { get; private set => ChangeProperty(ref field, value); } = "";
 	public bool CanExport => Plan.Count > 0;
+	/// <summary>A sheet's columns, when the format is the spreadsheet: the target's section, or a new table's ticks.</summary>
+	public SheetColumnsViewModel? Sheet { get; private set => _ = ChangeProperty(ref field, value) && AffectProperty(nameof(HasSheet)); }
+	public bool HasSheet => Sheet is not null;
 
 	public ICommand BrowseCommand { get; }
 	public ICommand ExportCommand { get; }
@@ -77,12 +82,29 @@ public class ExportViewModel : DialogViewModel {
 		}
 		else {
 			ExportSource source = Source(FileNode);
-			Plan = [.. Format.Format.Plan(source, Target).Select(unit => new ExportUnitRow(unit))];
-			Loss = Describe(Format.Format.Loses(source));
+			Sheet = Format.Format is CsvCodec codec ? SheetFor(codec, source, FileNode) : null;
+			FormatOptions? options = Sheet?.Options;
+			Plan = [.. Format.Format.Plan(source, Target, options).Select(unit => new ExportUnitRow(unit))];
+			Loss = Describe(Format.Format.Loses(source, options));
+		}
+		if (Plan.Count == 0) {
+			Sheet = null;
 		}
 		AffectProperty(nameof(CanExport));
 		return true;
 	}
+
+	//the sheet's columns, laid out afresh when the file or the sheet changes, and kept,
+	//ticks and all, while neither does
+	private SheetColumnsViewModel SheetFor(CsvCodec codec, ExportSource source, KeyNode node) {
+		string sheet = codec.Plan(source, Target).Single().Path;
+		return Sheet is { } kept && kept.Node == node && WordsSession.SamePath(kept.Sheet, sheet)
+			? kept
+			: new SheetColumnsViewModel(this, codec, source, node, sheet);
+	}
+
+	/// <summary>A tick changed what the sheet's columns are: the plan and the loss follow.</summary>
+	internal void SheetChanged() => Replan();
 
 	/// <summary>
 	///     The loss in words: each feature the format has no slot for, named, or
@@ -116,15 +138,26 @@ public class ExportViewModel : DialogViewModel {
 			return;
 		}
 		ExportSource source = Source(FileNode);
+		FormatOptions? options = Sheet?.Options;
 		List<string> gripes = [];
 		foreach (ExportUnitRow row in Plan) {
 			try {
 				//each file atomic: a failure partway leaves what was there
-				IniWriter.WriteAtomic(row.Path, writer => Format.Format.Write(source, row.Unit, writer, gripes), row.Unit.Encoding);
+				IniWriter.WriteAtomic(row.Path, writer => Format.Format.Write(source, row.Unit, writer, gripes, options), row.Unit.Encoding);
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.EncoderFallbackException) {
 				Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", row.Path, ex.Message));
 				Replan(); //the files written so far now exist
+				return;
+			}
+		}
+		//the sheet written, its section: a new table's, or a changed one's
+		if (Sheet is { WritesSection: true } sheet && options is not null) {
+			try {
+				CsvCodec.SaveSchema(sheet.Sheet, options);
+			}
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+				Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", SchemaIni.For(sheet.Sheet), ex.Message));
 				return;
 			}
 		}

@@ -43,6 +43,42 @@
 
         <!-- the plan and the loss: said before a byte lands -->
         <StackPanel Visibility="{Binding CanExport, Converter={StaticResource IsTrue}}">
+            <!-- a sheet: the target's columns; a new table's ticks, or the one tick that opens them -->
+            <StackPanel Visibility="{Binding HasSheet, Converter={StaticResource IsTrue}}">
+                <StackPanel DataContext="{Binding Sheet}" d:DataContext="{d:DesignInstance vm:SheetColumnsViewModel}">
+                    <TextBlock Text="{Binding Columns}" TextWrapping="Wrap" Margin="2.5px 8px 2.5px 2.5px"/>
+                    <CheckBox Content="{l:Words export.sheet-change}" IsChecked="{Binding Change}" Margin="2.5px 5px"
+                              Visibility="{Binding CanChange, Converter={StaticResource IsTrue}}"/>
+                    <StackPanel Visibility="{Binding ShowTicks, Converter={StaticResource IsTrue}}" Margin="10 0">
+                        <TextBlock Text="{l:Words export.sheet-languages}" FontWeight="SemiBold" Margin="0 5px 0 2px"/>
+                        <ItemsControl ItemsSource="{Binding Languages}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:SheetLanguageTick}">
+                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsTicked}" Margin="0 2 12 2"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="{l:Words export.sheet-carries}" FontWeight="SemiBold" Margin="0 5px 0 2px"/>
+                        <ItemsControl ItemsSource="{Binding Features}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:SheetFeatureTick}">
+                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsTicked}" IsEnabled="{Binding IsEnabled}" Margin="0 2 12 2"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
             <TextBlock Text="{Binding Loss}" TextWrapping="Wrap" Margin="2.5px 8px 2.5px 2.5px"/>
             <TextBlock Text="{l:Words export.plan}" FontWeight="SemiBold" Margin="2.5px 8px 2.5px 0"/>
             <ItemsControl ItemsSource="{Binding Plan}" Margin="10 0">

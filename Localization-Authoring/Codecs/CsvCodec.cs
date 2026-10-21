@@ -61,6 +61,29 @@ namespace PatTech.Localization.Authoring.Codecs {
 			_ => $"Delimited({delimiter})",
 		};
 
+		/// <summary>The delimiter a <c>Format</c> names: a comma, a tab, or a <c>Delimited(x)</c>'s character; <see langword="null"/> for <c>FixedLength</c> and any value naming none.</summary>
+		public static char? DelimiterOf(string format) {
+			string trimmed = format.Trim();
+			if (trimmed.Equals("CSVDelimited", StringComparison.OrdinalIgnoreCase)) {
+				return ',';
+			}
+			if (trimmed.Equals("TabDelimited", StringComparison.OrdinalIgnoreCase)) {
+				return '\t';
+			}
+			return trimmed.StartsWith("Delimited(", StringComparison.OrdinalIgnoreCase) && trimmed.EndsWith(')') && trimmed.Length == "Delimited(x)".Length ? trimmed[^2] : null;
+		}
+
+		/// <summary>A column as the schema gives it: its name, unquoted, and the driver's type after it, empty when there is none.</summary>
+		public static (string Name, string Type) ReadColumn(string column) {
+			string trimmed = column.Trim();
+			if (trimmed.StartsWith('"')) {
+				int close = trimmed.IndexOf('"', 1);
+				return close < 0 ? (trimmed[1..], "") : (trimmed[1..close], trimmed[(close + 1)..].Trim());
+			}
+			int space = trimmed.IndexOfAny([' ', '\t']);
+			return space < 0 ? (trimmed, "") : (trimmed[..space], trimmed[(space + 1)..].Trim());
+		}
+
 		/// <summary>A sheet carries every language in one file: the pick alone.</summary>
 		public IReadOnlyList<string> Discover(string path) => [Path.GetFullPath(path)];
 
@@ -506,14 +529,8 @@ namespace PatTech.Localization.Authoring.Codecs {
 			}
 			if (options.TryGetValue(CsvCodec.FormatOption, out string? format)) {
 				string trimmed = format.Trim();
-				if (trimmed.Equals("CSVDelimited", StringComparison.OrdinalIgnoreCase)) {
-					schema.Delimiter = ',';
-				}
-				else if (trimmed.Equals("TabDelimited", StringComparison.OrdinalIgnoreCase)) {
-					schema.Delimiter = '\t';
-				}
-				else if (trimmed.StartsWith("Delimited(", StringComparison.OrdinalIgnoreCase) && trimmed.EndsWith(')') && trimmed.Length == "Delimited(x)".Length) {
-					schema.Delimiter = trimmed[^2];
+				if (CsvCodec.DelimiterOf(trimmed) is { } delimiter) {
+					schema.Delimiter = delimiter;
 				}
 				else if (trimmed.Equals("FixedLength", StringComparison.OrdinalIgnoreCase)) {
 					schema.FixedLength = true; //the caller says what came of it
@@ -546,22 +563,11 @@ namespace PatTech.Localization.Authoring.Codecs {
 			if (columns.Count > 0) {
 				List<string?> names = [];
 				for (int number = 1; number <= columns.Keys.Max(); number++) {
-					names.Add(columns.TryGetValue(number, out string? column) ? Unquoted(column).Name : $"F{number}");
+					names.Add(columns.TryGetValue(number, out string? column) ? CsvCodec.ReadColumn(column).Name : $"F{number}");
 				}
-				schema.Name(names, gripes, file, [.. Enumerable.Range(1, names.Count).Select(number => columns.TryGetValue(number, out string? column) ? Unquoted(column).Type : "Text")]);
+				schema.Name(names, gripes, file, [.. Enumerable.Range(1, names.Count).Select(number => columns.TryGetValue(number, out string? column) ? CsvCodec.ReadColumn(column).Type : "Text")]);
 			}
 			return schema;
-		}
-
-		//a ColN value: the name, in quotes when it has a space, then the driver's type
-		private static (string Name, string Type) Unquoted(string column) {
-			string trimmed = column.Trim();
-			if (trimmed.StartsWith('"')) {
-				int close = trimmed.IndexOf('"', 1);
-				return close < 0 ? (trimmed[1..], "") : (trimmed[1..close], trimmed[(close + 1)..].Trim());
-			}
-			int space = trimmed.IndexOfAny([' ', '\t']);
-			return space < 0 ? (trimmed, "") : (trimmed[..space], trimmed[(space + 1)..].Trim());
 		}
 
 		//the columns by their names, each name's role its own, and a role a column before

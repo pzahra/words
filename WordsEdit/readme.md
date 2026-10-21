@@ -46,8 +46,12 @@ the command line that ships beside it.
   loaded file back out in any of them. A spreadsheet is a row a key and a
   column a language, in the layout a `schema.ini` beside it describes (the
   old ODBC text driver's), so Excel opens it in columns and Wordsmith reads
-  it back the same. Export shows the files it will write and what the format has no slot for
-  before it writes a byte; Save keeps writing `words.ini`.
+  it back the same. Importing one shows its first rows and asks what each
+  column is; a sheet you never described gets a decent guess, and a
+  translator's copy can borrow the layout its original went out with.
+  Export shows the files it will write and what the format has no slot for
+  before it writes a byte, and for a new sheet, which columns to give it;
+  Save keeps writing `words.ini`.
 - **Parameters** — the programmer says what each `{0}` is right under the
   context, and the translator types a value under it and watches both
   previews fill in, before a user meets a `#{0}#` where a number should be.

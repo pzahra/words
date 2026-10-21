@@ -745,7 +745,9 @@ no default is ever text in a language it does not say. A unit only that file
 gives has no default, and shows as missing it. The default's
 language is a feature like any other: resx has no slot for it and says so.
 So are plural forms, which neither has a slot for: to a translation tool a
-form is no unit of its own, so both drop them, counted, with a gripe. A
+form is no unit of its own, so both drop them, counted, with a gripe. `csv`,
+one sheet of every language, read and written as the `schema.ini` beside it
+says, keeps what its columns carry (*Spreadsheets*). A
 foreign name that is no key's (the runtime spec's *Key names*) is made one,
 segment by segment, in NFC, with a gripe: what is no letter, digit, `_` or `-`
 becomes `_`, and an empty segment, or one led by a dash or a mark, gains one,
@@ -1848,12 +1850,6 @@ before it applies, in its language when its entries share one; Stale All is
 one entry, going to its key in whatever language is showing; and a drag
 between two files is one entry, undone and redone whole.
 
----
-
-# Planned upgrades
-
-Not built yet. Each section here is the shape the feature takes when it is.
-
 ## Spreadsheets
 
 A spreadsheet is how most translators like to work: a row a key, a column a
@@ -1959,19 +1955,26 @@ first guess (`Sniff`), which the dialog shows to be corrected:
   past.
 
 **The dialog.** Import, given a sheet, opens the codec's own dialog before
-`Read`: the first rows as a grid, the header row marked, so the user sees
-what the file is (mojibake in the preview is the tell of a wrong encoding);
-whether the first row is a header; the delimiter; the encoding; and a role
-for each column, picked from the key, the default's value, context and
-comment, a language's value, context, comment or stale mark (its code picked
-from the session's languages or typed), the review flag, or read past, a
-plural form typed as `words.ini` spells it. It opens with the sheet's
-section when the folder's `schema.ini` has one, and with the sniff
-otherwise, and the folder's other sections are listed for a sheet to borrow
-one: a translator's `Strings_fr.csv` comes back with the layout
-`Strings.csv` went out with. Import writes the sheet's section, making the
-`schema.ini` when there is none, then reads. Each sheet of a pick of
-several has its own turn.
+`Read`. Its choices start from a layout: the sheet's own section when the
+folder's `schema.ini` has one, else the sniff's guess, and the folder's
+other sections are listed for a sheet to borrow one, so a translator's
+`Strings_fr.csv` comes back with the layout `Strings.csv` went out with.
+Then the delimiter, the encoding and whether the first row is a header, and
+the first rows as a grid, as those choices split and decode them, the header
+row marked, so the user sees what the file is: mojibake is the tell of a
+wrong encoding, and a line break in a cell shows as a ⏎. Above each column
+is its role, picked from the key, the default's value, context and comment,
+the review flag (`stale`), and each language's value, context, comment and
+stale mark for the languages the session or a layout on offer names, or
+typed as `words.ini` spells it (`value-mt#few`, a code the list lacks), its
+case no matter; cleared, the column is read past. Under it, the role in
+words, a language by its name. A delimiter that splits the rows into fewer
+columns hides the rest, and their roles come back with one that splits
+more. Import is held back, the reason said, while a role is none, a role is
+on two columns, or no column is the key or the default's value. Import
+writes the sheet's section, making the `schema.ini` when there is none,
+then reads; Cancel writes nothing and imports nothing. Each sheet of a pick
+of several has its own turn.
 
 **Export.** One sheet, in the wide layout translators work in, and its
 section in `schema.ini`, made or edited. When the format is the sheet, the
@@ -1985,16 +1988,19 @@ Export dialog shows what the target's columns will be.
   are greyed until one is, and plural forms go to the default and to each
   language ticked: a column for each form the file writes in it, and for
   each a plural key wants in that language (`MissingWords.Requires`), so a
-  translator has a column for a form not yet written. Each starts ticked when the file uses it, so a dialog
-  left alone loses nothing a column could keep. Under them, one line says
-  what no column can carry: the default's language, parameters, freeform
-  comments and settings references.
+  translator has a column for a form not yet written. Each starts ticked
+  when the file uses it, so a dialog left alone loses nothing a column could
+  keep. Under them the loss line follows the ticks: what no column can carry
+  (the default's language, parameters, freeform comments and settings
+  references), and what is left unticked.
 - **A table that exists**, a target with a section: its columns, so a sheet
   sent out again keeps the layout it went out with, and the loss line says
   what they drop. Changing them takes one tick, which opens the column
   options, set from the section, and Export writes the section anew, its
   columns from the ticks and all else of it (the header, delimiter and
   encoding, the driver's own keys) as it was.
+- The section is written once the sheet is: a write that fails leaves the
+  `schema.ini` as it was.
 
 The columns run the key, then the default's value, its forms, context and
 comment, then each language's the same way and its stale mark, in the
@@ -2036,18 +2042,16 @@ binds the ticks. The sheet is the plan's one file; its section is the
 dialog's own step, written as Import or Export goes ahead. `ExportUnit`
 gains the encoding it is written in (none being UTF-8 without a BOM, as
 now), and `IWordsExporter` gains `Keeps(options)`. Code pages come from
-.NET's own `CodePagesEncodingProvider`, registered once. The dialog is the
-editor's, its view model thin over those calls, and the CSV codec's alone: a
-generic options surface, a format declaring its options and their kinds,
-waits until a second format needs one. The review flag's text is
+.NET's own `CodePagesEncodingProvider`, registered once. The dialogs are the
+editor's, their view models thin over those calls: `SheetImportViewModel`,
+which Import shows for a sheet, and `SheetColumnsViewModel`, the Export
+dialog's columns when the format is the sheet, which the plan, the loss line
+and the write go by. They are the CSV codec's alone: a generic options
+surface, a format declaring its options and their kinds, waits until a
+second format needs one. The review flag's text is
 Authoring's (`WordsKey`, the loader, `IniWriter`, `WordsField.Hand`, the
 XLIFF codec) and the editor's (the stamp, its undo). The runtime does not
 change: it reads past `stale=` as it does now.
-
-**Order.** The review flag's text, in the model, the editor and XLIFF
-(built); then the codec, headless, with the schema, the sniff, the layout
-and the seams it needs (`Keeps`, a unit's encoding) (built); then the
-editor's dialog, on Import and in Export.
 
 **Tests.**
 - The review flag's text: `stale=note` loads and saves byte for byte, and
@@ -2087,10 +2091,18 @@ editor's dialog, on Import and in Export.
   columns keeps plural forms.
 - The editor, through `FakeDialogs`: a sheet's pick opens the dialog with
   the sniff, or with its section, or with one borrowed; a role corrected
-  reads as corrected; Import presents the file unsaved at its
-  `-words.ini` and writes the section; Cancel imports nothing and writes
-  nothing; Export to a new table shows the ticks, to an existing one the
-  loss line and the tick that changes it, and writes the section.
+  reads as corrected, and a role amiss holds Import back, said; a delimiter
+  that splits fewer columns hides the rest, and their roles come back;
+  Import presents the file unsaved at its `-words.ini` and writes the
+  section; Cancel imports nothing and writes nothing; Export to a new table
+  shows the ticks, to an existing one the loss line and the tick that
+  changes it, and writes the section.
+
+---
+
+# Planned upgrades
+
+Not built yet. Each section here is the shape the feature takes when it is.
 
 ## Save as a patch
 

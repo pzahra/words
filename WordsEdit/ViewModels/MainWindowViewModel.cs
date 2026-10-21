@@ -1,4 +1,5 @@
 using PatTech.Localization;
+using PatTech.Localization.Authoring.Codecs;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
@@ -283,7 +284,10 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	///     extension names, and presents it. The words.ini it becomes is where Save
 	///     will write: one already on disk is asked about first. A set that is
 	///     its own ini — importing ini is loading it — leaves the document clean;
-	///     any other is unsaved work.
+	///     any other is unsaved work. A spreadsheet is read as its dialog says
+	///     (SPEC: Spreadsheets, The dialog), whose choices become the sheet's
+	///     section of the <c>schema.ini</c> beside it; cancelled, nothing is
+	///     imported or written.
 	/// </summary>
 	/// <param name="fileName">The pick.</param>
 	/// <param name="imported">The native paths imported so far, to skip a set already taken.</param>
@@ -305,7 +309,17 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			if (!isLoad && File.Exists(native) && !Dialogs.Confirm(Words.Known.Format("ask.import-over", native))) {
 				return;
 			}
-			WordsFile file = Session.Import(importer, set);
+			FormatOptions? options = null;
+			if (importer is CsvCodec codec) {
+				var sheet = new SheetImportViewModel(this, codec, set[0]);
+				Dialogs.Show(sheet);
+				if (sheet.Options is null) {
+					return;
+				}
+				CsvCodec.SaveSchema(set[0], sheet.Options);
+				options = sheet.Options;
+			}
+			WordsFile file = Session.Import(importer, set, options);
 			Tree.Present(file);
 			if (!isLoad) {
 				MarkDirty(file);
