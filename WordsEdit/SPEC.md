@@ -1851,6 +1851,236 @@ between two files is one entry, undone and redone whole.
 
 Not built yet. Each section here is the shape the feature takes when it is.
 
+## Spreadsheets
+
+A spreadsheet is how most translators like to work: a row a key, a column a
+language. CSV is the format every spreadsheet reads and writes, and it says
+nothing about itself: no header it must have, no encoding, not even its
+delimiter. So the codec reads what a `schema.ini` beside the sheet tells it,
+one section a file, and makes or edits that section as it goes. The format
+is the old ODBC text driver's, chosen for compatibility alone: nothing needs
+the driver, but anything that speaks it can read a sheet Wordsmith
+described. `FormatOptions` has had a seam and no door (xliff's
+`source-language` is the file's default language until a dialog asks), and
+this is the format that earns the door.
+
+**The schema.** `schema.ini` is the Microsoft Text driver's: one a folder,
+a `[Strings.csv]` section a file, its names matched without case. Wordsmith
+writes a sheet's own section and leaves any other as it is.
+- `ColNameHeader=True` when the first row is a header, read past.
+- `Format=CSVDelimited` (a comma), `TabDelimited`, or `Delimited(;)` with
+  any one character. `FixedLength` is refused with a gripe: no sheet is
+  fixed-width.
+- `CharacterSet=ANSI` or `OEM` (the machine's code pages), `UNICODE`
+  (UTF-16), or a code page by number, `65001` for UTF-8. A byte-order mark
+  the file starts with wins over it.
+- `TextDelimiter`: `"`, unless it names another character, or `none`.
+- `Col1=key Text`, `Col2=value Memo`, `Col3=value-fr Memo`: each column's
+  name and type, a name with a space in quotes. The type is the driver's;
+  Wordsmith reads every cell as text.
+- Any other key (`MaxScanRows`, `DateTimeFormat`) is the driver's, and kept
+  as it is.
+
+**A column's name is its role.** The driver lets a schema name every column,
+and the names Wordsmith reads are the fields as `words.ini` spells them:
+`key` for the key column; `value`, `context` and `comment` for the
+default's, and the same with a code for a language's (`value-fr`,
+`comment-de`); a plural form with its category (`value#one`,
+`value-mt#few`); and a language's stale mark (`stale-fr`) and the review
+flag (`stale`), each its text (below, The review flag's text). An empty
+cell is no mark, and a mark with no text, which a file's own `stale=` or
+`stale-fr=` can be, is the empty text quoted, `""`, which a reader tells
+from an empty cell. Whether Excel keeps `""` through a save of its own, or wants its formula for empty
+text (`=""`), is checked against Excel when this is built. A column whose
+name is none of them (`Status`, `Translator`, the driver's own `F4`)
+is read past, so a translator's own columns ride along without a word. With
+a header, the schema's names are the ones that count, as they are for the
+driver: the header is for people. Wordsmith writes the columns' names
+there, so a language is named by its code.
+
+**Reading.** One assumption is made: the sheet is quoted the way Excel
+quotes. A cell holding the delimiter, the text delimiter or a line break is
+wrapped in the text delimiter, doubled inside it, and a line break in a cell
+is kept, as a line feed; rows end with CRLF or LF. A sheet carries every
+language in one file, so `Discover` answers the pick alone, and `NativePath`
+is the stem with `-words.ini`: `Strings.csv` loads as `Strings-words.ini`.
+The extensions are `.csv`, and `.tsv`, which sniffs tab first. `Read`
+refuses, with a gripe, a schema with no `key` column or no `value` column,
+and loads nothing. Each language a column names is declared. A row whose key
+is empty is skipped with a gripe, and so is one whose key a row above
+already gave, the first kept. A name that is no key's is made one as the
+other formats make it, with a gripe, and a `$name` comes back a constant. A
+row with more cells than the schema has columns is skipped with a gripe, one
+with fewer reads the missing cells empty, and an empty row is no row. Plural
+forms ride in columns; a sheet with each form on a row of its own under its
+key waits until someone brings one. Freeform comments might ride as rows
+with a value and no key, but that is a stretch, and such a row is skipped
+until someone asks for it.
+
+**The review flag's text.** A raised hand (`stale=`) can carry text, as a
+stale mark does, and a sheet has a column for it, so the editor stops
+dropping it (*Round-trip guarantees* has it kept with no stored text). The
+model keeps the flag as its text (`WordsKey.Review`, null while the hand is
+down, `NeedsReview` saying whether it is up), the loader and `IniWriter`
+keep it as written, and `WordsField.Hand` reads and writes it, so the
+command line's `get` and `set` reach it as they reach a stale mark.
+Raising the hand stamps it, by the Needs Review toggle or by a note typed,
+as a stale mark is stamped (`WordsKey.StaleStamp`), and lowering it takes
+the text away; a flag a file gives keeps whatever text it has, none
+included. The panes show no text for it, as now. Undo keeps the text before
+and after: the toggle's entry (`ReviewEdit`), and the step of a note's
+typing that raised the hand, which keeps the stamp it raised it with, as a
+typing of the default keeps its stale stamps. XLIFF carries it beside `approved="no"` in a Words-namespace
+attribute, as it carries a stale mark's text, and an `approved="no"`
+without one is a flag with no text; resx, which keeps no flag, still drops
+it. Built, *Round-trip guarantees* keeps `stale=` with its text, byte for
+byte.
+
+**The sniff.** A sheet with no section in its folder's `schema.ini` gets a
+first guess (`Sniff`), which the dialog shows to be corrected:
+- the encoding: a byte-order mark, else UTF-8 when the bytes read as UTF-8
+  and are not all ASCII, else the machine's ANSI code page;
+- the delimiter: whichever of comma, semicolon, tab and bar splits the first
+  rows into the same number of cells, outside the quotes, and on a tie the
+  machine's list separator, which is Excel's;
+- a header, when a cell of the first row names a role or a language by its
+  code;
+- the roles: the first column is the key and the second the default's
+  value. After them, a header cell that names a role is that role, so a
+  sheet Wordsmith wrote reads back whole without its schema, and one that
+  is a language code alone, or ends in one in brackets (`fr`, `fr-CA`,
+  `French (fr)`), is a value in that language. Every other column is read
+  past.
+
+**The dialog.** Import, given a sheet, opens the codec's own dialog before
+`Read`: the first rows as a grid, the header row marked, so the user sees
+what the file is (mojibake in the preview is the tell of a wrong encoding);
+whether the first row is a header; the delimiter; the encoding; and a role
+for each column, picked from the key, the default's value, context and
+comment, a language's value, context, comment or stale mark (its code picked
+from the session's languages or typed), the review flag, or read past, a
+plural form typed as `words.ini` spells it. It opens with the sheet's
+section when the folder's `schema.ini` has one, and with the sniff
+otherwise, and the folder's other sections are listed for a sheet to borrow
+one: a translator's `Strings_fr.csv` comes back with the layout
+`Strings.csv` went out with. Import writes the sheet's section, making the
+`schema.ini` when there is none, then reads. Each sheet of a pick of
+several has its own turn.
+
+**Export.** One sheet, in the wide layout translators work in, and its
+section in `schema.ini`, made or edited. When the format is the sheet, the
+Export dialog shows what the target's columns will be.
+- **A new table**, a target its folder's `schema.ini` has no section for:
+  the loss line gives way to the column options, a tick for each thing a
+  sheet can carry. They are each language in the file's table, the
+  default's context and comment, a language's context, comment and stale
+  mark, plural forms, and the review flag. Some hang on others: a
+  language's context, comment and stale mark need a language ticked, and
+  are greyed until one is, and plural forms go to the default and to each
+  language ticked. Each starts ticked when the file uses it, so a dialog
+  left alone loses nothing a column could keep. Under them, one line says
+  what no column can carry: the default's language, parameters, freeform
+  comments and settings references.
+- **A table that exists**, a target with a section: its columns, so a sheet
+  sent out again keeps the layout it went out with, and the loss line says
+  what they drop. Changing them takes one tick, which opens the column
+  options, set from the section, and Export writes the section anew.
+
+The columns run the key, then the default's value, its forms, context and
+comment, then each language's the same way and its stale mark, in the
+file's order, and the review flag last. The header row is their names.
+- Without a section, the delimiter is the machine's list separator, so
+  Excel opens the file in columns, and the encoding is UTF-8 with a
+  byte-order mark (`CharacterSet=65001`), which Excel needs to read UTF-8. A
+  character the code page a schema names has no byte for fails the write,
+  told, rather than becoming a `?`.
+- Cells are quoted as Excel quotes them, rows end with CRLF, and a line
+  break in a cell is a line feed. Under `TextDelimiter=none`, a cell that
+  needs quoting is quoted with `"`, with a gripe.
+- A language the file has and an existing table has no column for is a
+  gripe: its words are not written.
+- A leading `=`, `+`, `-` or `@` is Excel's formula, not text; whether to
+  guard it (a `'` prefix, stripped on the way back in) is decided when a
+  real value starts with one.
+
+**Loss follows the columns.** What a sheet keeps is what its columns name:
+the context and comment channels, stale marks and the review flag when there
+are columns for them, plural forms when there are form columns, and
+constants by the key's `$`. The default's language, parameters, freeform
+comments and settings references have no column. `Loses` asks the exporter
+what it keeps with the options at hand (`Keeps`: `Info.Features` unless the
+format says otherwise, and the sheet's from its columns), so the loss line
+follows the columns. Export, then import and export again through the same
+schema, gives the same bytes.
+
+**Where it lives.** `CsvCodec` among Authoring's codecs, with its words
+(`format.csv.*`), tested headless: the schema (`SchemaIni`, which reads a
+file's section and writes one, every other line kept), `Sniff(path)`,
+`Preview(path, options, rows)`, `Read`, `Plan` and `Write`. The section is
+the options: its key=value pairs are the `FormatOptions` bag as they stand,
+so the dialog edits the bag and the schema saves it. The column options are
+a value of their own (`CsvLayout`), which the codec turns into the section's
+columns and back, the ticks that hang on others with it, so the dialog only
+binds the ticks. The sheet is the plan's one file; its section is the
+dialog's own step, written as Import or Export goes ahead. `ExportUnit`
+gains the encoding it is written in (none being UTF-8 without a BOM, as
+now), and `IWordsExporter` gains `Keeps(options)`. Code pages come from
+.NET's own `CodePagesEncodingProvider`, registered once. The dialog is the
+editor's, its view model thin over those calls, and the CSV codec's alone: a
+generic options surface, a format declaring its options and their kinds,
+waits until a second format needs one. The review flag's text is
+Authoring's (`WordsKey`, the loader, `IniWriter`, `WordsField.Hand`, the
+XLIFF codec) and the editor's (the stamp, its undo). The runtime does not
+change: it reads past `stale=` as it does now.
+
+**Order.** The review flag's text, in the model, the editor and XLIFF;
+then the codec, headless, with the schema, the sniff, the layout and the
+seams it needs (`Keeps`, a unit's encoding); then the editor's dialog, on
+Import and in Export.
+
+**Tests.**
+- The review flag's text: `stale=note` loads and saves byte for byte, and
+  `stale=` stays empty; the toggle stamps the hand and lowering it clears
+  the text; a note raising the hand stamps it, and stepping back past that
+  step takes the stamp with the hand; undo and redo put the text back either
+  way; `WordsField.Hand` reads and
+  writes it, and the command line's `get` prints it; XLIFF carries it, and
+  an `approved="no"` alone reads as a flag with no text.
+- The schema: a section found without case, a quoted name, a type read
+  past, an unknown key kept; writing one section leaves every other line,
+  comment and blank as it was, a new section is appended, and a missing
+  `schema.ini` is made.
+- Reading: a quote doubled inside quotes, a line break in a cell, CRLF and
+  LF rows; comma, semicolon and tab; ANSI, OEM, UNICODE and 65001, and a
+  byte-order mark winning over the schema; a header read past; a column
+  read past; plural form, stale mark and review flag columns, `""` a mark
+  with no text and an empty cell none; a constant;
+  an empty, a repeated and a made key, each griped; a row too long skipped
+  and one too short read empty; no `key` or no `value` column refused;
+  `FixedLength` refused; `Strings.csv` loading as `Strings-words.ini`.
+- The sniff: the delimiter by its consistency, and the list separator on a
+  tie; UTF-8 with and without a byte-order mark, and ANSI; a header, the key
+  first and the value second, and languages from role names, bare codes and
+  `French (fr)`; a sheet Wordsmith wrote reading back whole without its
+  schema.
+- The layout: the ticks a file starts with follow what it uses; a
+  language's context greyed with no language ticked; forms going to each
+  language ticked; the layout made into columns and read back from them.
+- Export: a new table's columns as ticked, in their order; an existing
+  table's kept, and changed by the tick; the header, the quoting, CRLF rows
+  and line feeds in cells; UTF-8 with a byte-order mark, and a code page
+  failing on a character it lacks; a language an existing table has no
+  column for griped. Export, import and export through one schema gives the
+  same bytes, and the fields its columns carry are unchanged.
+- Loss: a table without context columns loses context, and one with form
+  columns keeps plural forms.
+- The editor, through `FakeDialogs`: a sheet's pick opens the dialog with
+  the sniff, or with its section, or with one borrowed; a role corrected
+  reads as corrected; Import presents the file unsaved at its
+  `-words.ini` and writes the section; Cancel imports nothing and writes
+  nothing; Export to a new table shows the ticks, to an existing one the
+  loss line and the tick that changes it, and writes the section.
+
 ## Save as a patch
 
 Undecided: whether Wordsmith's Save patches just the fields that changed, the
@@ -1859,54 +2089,6 @@ question for the editor too. The patcher could do it field by field today;
 what it cannot do yet is move a key, which the tree does by drag.
 
 ## Import and export, next
-
-**Options.** `FormatOptions` has a seam and no door yet: xliff's
-`source-language` is the file's default language until a dialog asks. The spreadsheet importer is what
-earns that door, and it is the format that will prove the seam.
-
-**Spreadsheets.** A CSV has no real consistency, so the one assumption made is
-that Excel wrote it: cells quoted with doubled quotes, newlines kept inside the
-quotes, and the delimiter and encoding the machine's locale's — a comma, or a
-semicolon where the decimal is a comma; UTF-8 with a BOM from "CSV UTF-8", the
-ANSI code page otherwise. Everything else is asked. Import opens a dialog
-before `Read`: the first rows as a grid, so the user sees what the file is;
-whether the first row is a header; the delimiter and the encoding, sniffed and
-overridable (mojibake in the preview is the tell); and a role for every column
-— the key, the default value, its context, its comment, a language's value,
-context or comment, or ignore. A language column carries its code: read from
-the header by pattern (`fr`, `fr-CA`, `French (fr)`, `value-fr` — a regex with
-a `code` group, the built-in patterns tried in turn, a custom one typed), or
-typed when the header is no help. The sniff makes the first guess — a header
-when the first row's cells look like names, the key column when its cells are
-unique and dotted, a language column when its header yields a code
-`CultureInfo` knows — and the dialog is where the user corrects it. `Read`
-refuses, with a gripe, a schema with no key or no default column; a row whose
-key is empty or repeated is skipped with a gripe, and a row with more cells
-than columns is one too.
-
-**The schema is the options, and it saves.** Everything the dialog settles is
-the `FormatOptions` bag — `header`, `delimiter`, `encoding`, `column.N=key`,
-`column.N=value-fr`, `code-pattern` — and a bag of key=value pairs is a
-words-syntax file, so a schema saves as `Strings.csv-schema.ini` beside the
-sheet and loads back into the dialog whole. A translator's tool that exports
-the same layout every time becomes a one-click import, and the same schema
-drives export, so a sheet sent out and the sheet coming back share it: the
-weaker round trip (Save never routes through it) made reliable for this
-format.
-
-**Export.** One sheet, the wide layout translators work in: a column for the
-key, the default, and one per language, with context and comment columns when
-the schema asks. Cells that need it are quoted. A leading `=`, `+`, `-` or
-`@` is Excel's formula, not text; whether to guard it (a `'` prefix, stripped
-on the way back in) is decided when a real value starts with one. No long
-layout — one row per key and language — until a tool asks for it.
-
-**Where it lives.** The codec in Authoring, tested headless: `Sniff(path)`
-gives the first-guess options and `Preview(path, options, rows)` the grid,
-both public, so the editor's dialog view model stays thin and the tests drive
-the same calls. The dialog is the CSV codec's own for now; a generic options
-surface — a format declaring its option keys and their kinds — waits until a
-second format needs one.
 
 **Third-party formats.** A second repository, pinned as a submodule and
 PR-reviewed, compiled from source: no runtime loading, no signing, none of the
