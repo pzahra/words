@@ -42,9 +42,27 @@ public class ExportViewModel : DialogViewModel {
 	public KeyNode? FileNode { get; set => _ = ChangeProperty(ref field, value) && Replan(); }
 	/// <summary>Every format that writes.</summary>
 	public IReadOnlyList<ExportFormatRow> Formats { get; }
-	public ExportFormatRow? Format { get; set => _ = ChangeProperty(ref field, value) && Replan(); }
-	/// <summary>Where the format writes: the one file, or the neutral one of a set.</summary>
-	public string Target { get; set => _ = ChangeProperty(ref field, value) && Replan(); } = "";
+	/// <summary>The format picked. A target another format claims takes this one's extension.</summary>
+	public ExportFormatRow? Format {
+		get;
+		set {
+			if (ChangeProperty(ref field, value) && !RenameTarget()) {
+				Replan();
+			}
+		}
+	}
+	/// <summary>Where the format writes: the one file, or the neutral one of a set. A name another format claims picks that format.</summary>
+	public string Target {
+		get;
+		set {
+			if (ChangeProperty(ref field, value) && !FollowTarget()) {
+				Replan();
+			}
+		}
+	} = "";
+	/// <summary>Said when no format claims the target's extension, so the format names the files its own way; empty otherwise.</summary>
+	public string Unclaimed { get; private set => _ = ChangeProperty(ref field, value) && AffectProperty(nameof(HasUnclaimed)); } = "";
+	public bool HasUnclaimed => Unclaimed != "";
 
 	/// <summary>The files the export will write, for the file, format and target as they stand.</summary>
 	public IReadOnlyList<ExportUnitRow> Plan { get; private set => ChangeProperty(ref field, value); } = [];
@@ -90,7 +108,32 @@ public class ExportViewModel : DialogViewModel {
 		if (Plan.Count == 0) {
 			Sheet = null;
 		}
+		Unclaimed = Plan.Count > 0 && Path.GetExtension(Target.Trim()) is { Length: > 1 } extension && !Formats.Any(row => row.Format.Info.Claims(Target.Trim()))
+			? Words.Known.Format("export.unclaimed", extension, Format!.Name)
+			: "";
 		AffectProperty(nameof(CanExport));
+		return true;
+	}
+
+	//a target another format claims switches to it, unless the format picked claims it too
+	//(Strings.xlf typed with CSV picked is XLIFF); true when it switched, which replanned
+	private bool FollowTarget() {
+		string target = Target.Trim();
+		if (Format is { } picked && picked.Format.Info.Claims(target) || Formats.FirstOrDefault(row => row.Format.Info.Claims(target)) is not { } claimed) {
+			return false;
+		}
+		Format = claimed;
+		return true;
+	}
+
+	//the other way: a format picked after a target another format claims renames it
+	//(CSV picked over Strings.xlf makes it Strings.csv); true when it did, which replanned
+	private bool RenameTarget() {
+		string target = Target.Trim();
+		if (Format is not { } picked || picked.Format.Info.Claims(target) || !Formats.Any(row => row.Format.Info.Claims(target))) {
+			return false;
+		}
+		Target = Path.ChangeExtension(target, picked.Format.Info.Extensions[0]);
 		return true;
 	}
 
@@ -123,8 +166,14 @@ public class ExportViewModel : DialogViewModel {
 		return Words.Known.Format("export.loses", string.Join(", ", names));
 	}
 
+	//every format's type, the one picked first so the dialog names its files; picking
+	//another type names that format's, and the target then picks the format
 	private void DoBrowse() {
-		if (Format is not null && Parent.Dialogs.TrySaveFile(Words.Known["file.export-title"], Format.Filter, out string? target)) {
+		if (Format is not { } picked) {
+			return;
+		}
+		string filter = string.Join("|", Formats.OrderBy(row => row != picked).Select(row => row.Filter));
+		if (Parent.Dialogs.TrySaveFile(Words.Known["file.export-title"], filter, Target.Trim() is { Length: > 0 } proposed ? proposed : null, out string? target)) {
 			Target = target;
 		}
 	}

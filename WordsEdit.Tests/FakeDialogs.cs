@@ -32,6 +32,8 @@ public sealed class FakeDialogs : IDialogs {
 	public Queue<string?> FilesToSave { get; } = [];
 	/// <summary>What each save dialog proposed, in order.</summary>
 	public List<string?> SaveProposals { get; } = [];
+	/// <summary>Each save dialog's filter, in order.</summary>
+	public List<string> SaveFilters { get; } = [];
 	public Action<IDialogViewModel>? OnShow { get; set; }
 
 	/// <summary>The text as the user would read it: resolved, no key showing through.</summary>
@@ -72,7 +74,7 @@ public sealed class FakeDialogs : IDialogs {
 
 	public bool TrySaveFile(string title, string filter, string? proposed, [NotNullWhen(true)] out string? fileName) {
 		Rendered(title);
-		Rendered(filter);
+		SaveFilters.Add(Rendered(filter));
 		SaveProposals.Add(proposed);
 		fileName = FilesToSave.TryDequeue(out string? picked) ? picked : FileToSave;
 		return fileName is not null;

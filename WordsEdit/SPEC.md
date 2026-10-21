@@ -789,7 +789,12 @@ imports once. Export is a dialog: one loaded file (the selection's, to begin
 with), one format, one target — the one file, or the neutral one of a set —
 and as any of them changes, the plan (each file `Plan` will write, flagged when
 it already exists) and the loss (`Loses`, in words, or that nothing is lost).
-Export confirms the overwrites, writes each unit atomically through
+The format and the target's extension follow each other. A target whose
+extension another format claims, typed or browsed for, picks that format, and
+a format picked after the target gives it the format's own extension. Browse
+offers every format's file type, the one picked first. An extension no format
+claims keeps the format, which names the files its own way, and the dialog
+says so above the plan. Export confirms the overwrites, writes each unit atomically through
 `IniWriter.WriteAtomic` — a failure partway is told and the files before it
 stand — shows what the format griped about, and closes. The captions and the
 loss words live in `words.ini`; the format list, names included, comes from
@@ -807,7 +812,8 @@ originals that import apart, and the inline codes among them. Every exporter rou
 the fields the format holds are unchanged — and the native fixed point is
 re-checked to prove Save still never touches a foreign writer. The editor's
 tests drive Import and Export through `FakeDialogs`: the native path, the ask,
-dirtiness, the plan, the loss and the overwrite confirmation.
+dirtiness, the plan, the loss, the format and the target's extension following
+each other, and the overwrite confirmation.
 
 ## Menu and toolbars
 

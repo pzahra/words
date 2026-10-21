@@ -43,6 +43,9 @@
 
         <!-- the plan and the loss: said before a byte lands -->
         <StackPanel Visibility="{Binding CanExport, Converter={StaticResource IsTrue}}">
+            <!-- a target's extension no format claims: the format names the files its own way -->
+            <TextBlock Text="{Binding Unclaimed}" TextWrapping="Wrap" Foreground="{StaticResource WordsmithOrangeBrush}" Margin="2.5px"
+                       Visibility="{Binding HasUnclaimed, Converter={StaticResource IsTrue}}"/>
             <!-- a sheet: the target's columns; a new table's ticks, or the one tick that opens them -->
             <StackPanel Visibility="{Binding HasSheet, Converter={StaticResource IsTrue}}">
                 <StackPanel DataContext="{Binding Sheet}" d:DataContext="{d:DesignInstance vm:SheetColumnsViewModel}">

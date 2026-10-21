@@ -252,6 +252,52 @@ value-fr=Bonjour
 	}
 
 	[Fact]
+	public void Export_TheFormatAndTheTargetsExtensionFollowEachOther() {
+		string folder = Folder();
+		try {
+			var (_, dialogs, export) = Open(folder);
+			ExportFormatRow Row(string id) => export.Formats.Single(row => row.Format.Info.Id == id);
+			export.Format = Row("csv");
+
+			//Browse offers every format, the one picked first, and a name of another picks that one
+			dialogs.FileToSave = Path.Combine(folder, "Out.xlf");
+			export.BrowseCommand.Execute(null);
+			Assert.Equal(string.Join("|", ((string[])["csv", "ini", "resx", "xliff"]).Select(id => Row(id).Filter)), dialogs.SaveFilters.Single());
+			Assert.Null(dialogs.SaveProposals.Single()); //no target yet
+			Assert.Same(Row("xliff"), export.Format);
+			Assert.Equal(["Out.en.xlf", "Out.fr.xlf"], export.Plan.Select(row => Path.GetFileName(row.Path)));
+			Assert.False(export.HasUnclaimed);
+
+			//a format picked after the name renames it, and a name typed picks the format
+			export.Format = Row("resx");
+			Assert.Equal(Path.Combine(folder, "Out.resx"), export.Target);
+			Assert.Equal(["Out.resx", "Out.en.resx", "Out.fr.resx"], export.Plan.Select(row => Path.GetFileName(row.Path)));
+			export.Target = Path.Combine(folder, "Out.csv");
+			Assert.Same(Row("csv"), export.Format);
+			Assert.Equal(["Out.csv"], export.Plan.Select(row => Path.GetFileName(row.Path)));
+			dialogs.FileToSave = null; //cancelled: nothing changes
+			export.BrowseCommand.Execute(null);
+			Assert.Equal(Path.Combine(folder, "Out.csv"), dialogs.SaveProposals[^1]); //the target as it stands
+			Assert.StartsWith(Row("csv").Filter + "|", dialogs.SaveFilters[^1]);
+			Assert.Equal(Path.Combine(folder, "Out.csv"), export.Target);
+
+			//an extension no format claims keeps the format, which names the files its own way, and says so
+			export.Target = Path.Combine(folder, "Out.txt");
+			Assert.Same(Row("csv"), export.Format);
+			Assert.Equal(["Out.csv"], export.Plan.Select(row => Path.GetFileName(row.Path)));
+			Assert.Equal(Words.Known.Format("export.unclaimed", ".txt", Row("csv").Name), FakeDialogs.Rendered(export.Unclaimed));
+			export.Format = Row("xliff"); //nothing to rename
+			Assert.Equal(Path.Combine(folder, "Out.txt"), export.Target);
+			Assert.Contains(Row("xliff").Name, export.Unclaimed);
+			export.Target = Path.Combine(folder, "Out"); //the neutral name of a set
+			Assert.False(export.HasUnclaimed);
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
 	public void Export_NeedsAFileLoaded() {
 		var vm = new MainWindowViewModel(new FakeDialogs());
 		Assert.False(vm.ExportCommand.CanExecute(null));
