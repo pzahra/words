@@ -98,8 +98,8 @@ so load → save is not a verbatim copy of arbitrary input.
 
 Preserved (through load → save, and stable thereafter): every recognized field
 and language entry, key order, freeform comments, preamble, trailer, constants,
-`!` labels, per-language stale values (freeform text, kept as written), the
-top-of-file `param`/`param-xx` settings-file references (see Markdown previews),
+`!` labels, per-language stale values and the review flag's (freeform text,
+kept as written), the top-of-file `param`/`param-xx` settings-file references (see Markdown previews),
 and plural forms (`value#few`, `value-xx#few`), every CLDR category written —
 one a runtime never reads, such as `#one`, is kept with a gripe.
 
@@ -109,8 +109,7 @@ its path`), with no gripe: a type is a word it knows, and anything else is words
 
 Not preserved: unknown field types (dropped, with a gripe); a form that names no CLDR category, and a
 form on a language label (dropped, with a gripe); a field repeated within one
-key (last wins, a repeated `value=` also warns); and the languageless
-`stale=`, kept as a review flag with no stored text. A bare `[group]` header
+key (last wins, a repeated `value=` also warns). A bare `[group]` header
 reloads as an empty key (below).
 
 Canonicalized by the writer (`IniWriter`): line wrapping (from any point with
@@ -185,6 +184,9 @@ One tree presents every loaded file:
   or adds a parameter, or that write a brace opening nothing. The needs-review filter is the programmer's work queue in reverse — the
   translator raises a hand by setting the unlocalised `stale=` flag
   (recycled as the "raise hand" action), and the programmer filters for it.
+  Raised, the flag is stamped with the time, as a stale mark is, and keeps
+  the words a file gives it; the panes show none of them (*Spreadsheets*,
+  The review flag's text).
 - **Structure edits**: add/rename/remove nodes and keys; renames rewrite every
   descendant key; drag-and-drop moves subtrees. A file dragged among files
   changes which wins a reference, a later file over an earlier, so what reads
@@ -731,7 +733,8 @@ four note channels `<note>`s told apart by `from` (developer, translator) and
 `annotates` (source, target), and the target state carrying what every other
 format throws away — an untranslated entry is `needs-translation`, a stale one
 `needs-review-translation` with its stale text in a Words-namespace attribute,
-the review flag `approved="no"`; a constant keeps its `$` and is
+the review flag `approved="no"` with its text in another; a constant keeps
+its `$` and is
 `translate="no"`; parameters ride as Words extension elements. XLIFF insists
 on a `source-language`. The file's default language is it, `en` for a file
 that declares none, and the `source-language` option overrides both. On the
@@ -948,8 +951,8 @@ whatever was waiting to be redone.
   selected node's text fields as they last stood and reports each change
   (`FieldEdited`) with both texts. A note — a key's or an entry's comment —
   raises Needs Review as it is typed, and only as it is typed: not while a
-  command or an undo runs. Its entry says so, and undoing the typing lowers
-  the hand again. Typing the default stamps its translations stale the same
+  command or an undo runs, stamping it as the toggle does. Its entry says
+  so, the stamp with it, and undoing the typing lowers the hand again. Typing the default stamps its translations stale the same
   way (The baseline pane): the stamps go with the step that made them, so
   undoing the typing, or stepping back past that step, takes them back.
 - **Commands.** Each toggle — Needs Review, Stale in the selected language,
@@ -1918,9 +1921,8 @@ with a value and no key, but that is a stretch, and such a row is skipped
 until someone asks for it.
 
 **The review flag's text.** A raised hand (`stale=`) can carry text, as a
-stale mark does, and a sheet has a column for it, so the editor stops
-dropping it (*Round-trip guarantees* has it kept with no stored text). The
-model keeps the flag as its text (`WordsKey.Review`, null while the hand is
+stale mark does, and a sheet has a column for it, so the editor keeps it,
+byte for byte (*Round-trip guarantees*). The model keeps the flag as its text (`WordsKey.Review`, null while the hand is
 down, `NeedsReview` saying whether it is up), the loader and `IniWriter`
 keep it as written, and `WordsField.Hand` reads and writes it, so the
 command line's `get` and `set` reach it as they reach a stale mark.
@@ -1930,11 +1932,10 @@ the text away; a flag a file gives keeps whatever text it has, none
 included. The panes show no text for it, as now. Undo keeps the text before
 and after: the toggle's entry (`ReviewEdit`), and the step of a note's
 typing that raised the hand, which keeps the stamp it raised it with, as a
-typing of the default keeps its stale stamps. XLIFF carries it beside `approved="no"` in a Words-namespace
-attribute, as it carries a stale mark's text, and an `approved="no"`
-without one is a flag with no text; resx, which keeps no flag, still drops
-it. Built, *Round-trip guarantees* keeps `stale=` with its text, byte for
-byte.
+typing of the default keeps its stale stamps. XLIFF carries it beside
+`approved="no"` in a Words-namespace attribute, as it carries a stale
+mark's text, and an `approved="no"` without one is a flag with no text;
+resx, which keeps no flag, still drops it.
 
 **The sniff.** A sheet with no section in its folder's `schema.ini` gets a
 first guess (`Sniff`), which the dialog shows to be corrected:
@@ -2033,8 +2034,8 @@ Authoring's (`WordsKey`, the loader, `IniWriter`, `WordsField.Hand`, the
 XLIFF codec) and the editor's (the stamp, its undo). The runtime does not
 change: it reads past `stale=` as it does now.
 
-**Order.** The review flag's text, in the model, the editor and XLIFF;
-then the codec, headless, with the schema, the sniff, the layout and the
+**Order.** The review flag's text, in the model, the editor and XLIFF
+(built); then the codec, headless, with the schema, the sniff, the layout and the
 seams it needs (`Keeps`, a unit's encoding); then the editor's dialog, on
 Import and in Export.
 

@@ -20,7 +20,7 @@ public class XliffCodecTests {
 <xliff version=""1.2"" xmlns=""urn:oasis:names:tc:xliff:document:1.2"" xmlns:w=""https://github.com/pzahra/words"">
   <file original=""Strings.ini"" source-language=""en"" target-language=""fr"" datatype=""plaintext"">
     <body>
-      <trans-unit id=""greeting"" approved=""no"">
+      <trans-unit id=""greeting"" approved=""no"" w:review=""the tone, again"">
         <source>Hello {0}</source>
         <target state=""needs-review-translation"" w:stale=""2026-01-01"">Bonjour {0}</target>
         <note from=""developer"" annotates=""source"">shown at login</note>
@@ -91,6 +91,7 @@ value=kg
 [.file]
 value=File
 value#other=Files
+stale=the plural reads oddly
 value-fr=Fichier
 value-fr#other=Fichiers
 
@@ -153,7 +154,7 @@ context-fr=untranslated, with a note
 			Assert.Equal("Hello {0}", greeting.DefaultValue);
 			Assert.Equal("shown at login", greeting.Context); //once, though both files carry the note
 			Assert.Equal("keep it short", greeting.Comment);
-			Assert.True(greeting.NeedsReview);
+			Assert.Equal("the tone, again", greeting.Review); //the review flag's words, in a Words attribute
 			WordsParameter parameter = Assert.Single(greeting.Parameters);
 			Assert.Equal(("0", WordsParameterType.Str, "Pat"), (parameter.Key, parameter.DataType, parameter.Description)); //1.3.0's type name, read short
 			Assert.Equal("Bonjour {0}", greeting.Entries["fr"].Value);
@@ -604,6 +605,8 @@ context-fr=untranslated, with a note
 
 		XElement greeting = units2[0];
 		Assert.Equal("no", (string)greeting.Attribute("approved")!);
+		Assert.Null(greeting.Attribute(W + "review")); //raised with no words
+		Assert.Equal("the plural reads oddly", (string)units2[2].Attribute(W + "review")!);
 		Assert.Null(greeting.Attribute("translate"));
 		Assert.Equal("Hello {0}", greeting.Element(X + "source")!.Value);
 		XElement target = greeting.Element(X + "target")!;
@@ -668,7 +671,7 @@ context-fr=untranslated, with a note
 				Assert.Equal(before.DefaultValue, after.DefaultValue);
 				Assert.Equal(before.Context, after.Context);
 				Assert.Equal(before.Comment, after.Comment);
-				Assert.Equal(before.NeedsReview, after.NeedsReview);
+				Assert.Equal(before.Review, after.Review); //with its words, or none
 				Assert.Equal(before.IsConstant, after.IsConstant);
 				Assert.Equal(before.Parameters.Select(p => (p.Key, p.DataType, p.Description)), after.Parameters.Select(p => (p.Key, p.DataType, p.Description)));
 				foreach (string code in (string[])["en", "fr"]) {

@@ -71,10 +71,10 @@ namespace PatTech.Localization.Authoring {
 
 		/// <summary>
 		///     The field's text in <paramref name="key"/>, or <see langword="null"/>
-		///     when it is not there. An empty text is none, except a stale mark, which
-		///     is there with or without words, and a parameter, which is there when it
-		///     is defined; the default's stale mark keeps no words, and a parameter
-		///     reads as the writer writes it, <c>type:Description</c>.
+		///     when it is not there. An empty text is none, except a stale mark, the
+		///     review flag among them, which is there with or without words, and a
+		///     parameter, which is there when it is defined; a parameter reads as the
+		///     writer writes it, <c>type:Description</c>.
 		/// </summary>
 		public string? Read(WordsKey key) {
 			string name = Language;
@@ -86,7 +86,7 @@ namespace PatTech.Localization.Authoring {
 				("context", false) => entry?.Context,
 				("comment", true) => key.Comment,
 				("comment", false) => entry?.Comment,
-				("stale", true) => key.NeedsReview ? "" : null,
+				("stale", true) => key.Review,
 				("stale", false) => entry?.Stale,
 				_ => key.Parameters.FirstOrDefault(parameter => parameter.Key == name)?.FieldText,
 			};
@@ -95,9 +95,8 @@ namespace PatTech.Localization.Authoring {
 
 		/// <summary>
 		///     Sets the field's text in <paramref name="key"/> as reading the file back
-		///     would, or clears it for <see langword="null"/>: the default's stale mark
-		///     keeps no words, and a parameter's text is split as the reader splits it
-		///     (<see cref="WordsParameterType.Split"/>).
+		///     would, or clears it for <see langword="null"/>: a parameter's text is split
+		///     as the reader splits it (<see cref="WordsParameterType.Split"/>).
 		/// </summary>
 		public void Write(WordsKey key, string? text) {
 			if (Type == "param") {
@@ -127,7 +126,7 @@ namespace PatTech.Localization.Authoring {
 						key.Comment = text ?? "";
 						break;
 					case "stale":
-						key.NeedsReview = text is not null;
+						key.Review = text;
 						break;
 				}
 				return;

@@ -170,7 +170,7 @@ namespace PatTech.Localization.Authoring {
 						localizationKey.Comment = value;
 						break;
 					case ("", "stale"):
-						localizationKey.NeedsReview = true;
+						localizationKey.Review = value;
 						break;
 					case (not "", "value"):
 						localizationKey.Entries[languageCode].Value = value;
@@ -247,8 +247,8 @@ namespace PatTech.Localization.Authoring {
 					localizationKey.Comment += value;
 					break;
 				case ("", "stale"):
-					// default stale is a flag (NeedsReview) with no stored text, so
-					// a continuation has nothing to extend — swallow, don't gripe
+					// the review flag's text wraps like a stale mark's
+					localizationKey.Review += value;
 					break;
 				case (not "", "value"):
 					localizationKey.Entries[languageCode].Value += value;

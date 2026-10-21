@@ -1135,6 +1135,48 @@ public class UndoTests {
 		Assert.Equal(before, State(vm));
 	}
 
+	//SPEC (Spreadsheets, The review flag's text): raising the hand stamps it as a stale
+	//mark is stamped, by the toggle or by a note typed; lowering it takes the text away,
+	//and undo puts back the text it had, a flag's own words with it
+	[Fact]
+	public void RaisingTheHandStampsIt_AndUndoPutsBackItsText() {
+		var (vm, key, time) = LoadTranslated();
+		string stamp = WordsKey.StaleStamp(time.GetLocalNow());
+
+		vm.ToggleNeedsReviewCommand.Execute(null);
+		Assert.Equal(stamp, key.Review);
+		time.Now += TimeSpan.FromMinutes(1);
+		vm.ToggleNeedsReviewCommand.Execute(null);
+		Assert.Null(key.Review);
+		Undo(vm);
+		Assert.Equal(stamp, key.Review); //the text it had, not a new stamp
+		Undo(vm);
+		Assert.Null(key.Review);
+		Redo(vm);
+		Redo(vm);
+		Assert.Null(key.Review);
+
+		//a note typed raises it with its keystroke's stamp, and the typing undone takes both
+		string later = WordsKey.StaleStamp(time.GetLocalNow());
+		Assert.NotEqual(stamp, later);
+		key.Comment = "a note";
+		Assert.Equal(later, key.Review);
+		Undo(vm);
+		Assert.Equal("", key.Comment);
+		Assert.Null(key.Review);
+		Redo(vm);
+		Assert.Equal(later, key.Review);
+
+		//a flag the file gives keeps its own words through the toggle and back
+		vm = new MainWindowViewModel(new FakeDialogs(), time: time);
+		vm.LoadFile(new StringReader("value-en=English\n\n[k]\nvalue=Hello\nstale=the tone\n"), "Ex");
+		vm.Tree.Select(Node(vm, "Ex", "k"));
+		vm.ToggleNeedsReviewCommand.Execute(null);
+		Assert.Null(Key(vm, "Ex", "k").Review);
+		Undo(vm);
+		Assert.Equal("the tone", Key(vm, "Ex", "k").Review);
+	}
+
 	[Fact]
 	public void TypingTheDefaultBackToWhereItStartedTakesItsStampsWithIt() {
 		var (vm, key, _) = LoadTranslated();

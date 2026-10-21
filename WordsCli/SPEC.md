@@ -36,7 +36,8 @@ before the first `:` are a type only where they name one (the editor spec's
   the time, as typing it in Wordsmith does (the editor spec's *The baseline pane*); one set to
   the text it holds marks nothing, its line breaks read as the file keeps them,
   so a shell's `\r\n` for a `\n` is no change. `--stale [text]` marks the language's entry
-  stale with it (the default's mark keeps no words), so the review filter
+  stale with it (the default's mark is the hand, `stale=`, which keeps them
+  too), so the review filter
   surfaces a machine-written value. Options go anywhere after the call:
   `--stale` takes the next argument as its words only once the value is in,
   and `--stale=text` always does. A translation it writes is checked against

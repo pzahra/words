@@ -153,9 +153,6 @@ namespace PatTech.Localization.Authoring {
 				throw new ArgumentException($"{key}: {field} can't hold a NUL, which would leave the file no text");
 			}
 			text = Kept(text);
-			if (field is { Type: "stale", Language: "" }) {
-				text = ""; //the default's stale mark keeps no words
-			}
 			List<string> notes = [];
 			var own = Declarations(key, field);
 			if (own.Count == 1 && Find(key) is { } found && field.Read(found) == text) {

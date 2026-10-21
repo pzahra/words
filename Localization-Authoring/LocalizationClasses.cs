@@ -19,7 +19,15 @@ namespace PatTech.Localization.Authoring {
 
 		public string Comment { get; set => ChangeProperty(ref field, value); }
 
-		public bool NeedsReview { get; set => ChangeProperty(ref field, value); }
+		/// <summary>
+		///     The review flag's text, <c>stale=</c>: <see langword="null"/> while the hand is
+		///     down, and up, what the file gives it, a stamp when the editor raised it, or
+		///     none (the editor's SPEC: Spreadsheets, The review flag's text).
+		/// </summary>
+		public string? Review { get; set => _ = ChangeProperty(ref field, value) && AffectProperty(nameof(NeedsReview)); }
+
+		/// <summary>Whether the hand is up: the review flag is there, with words or without.</summary>
+		public bool NeedsReview => Review is not null;
 
 		public ObservableCollection<WordsParameter> Parameters { get; } = [];
 
@@ -45,7 +53,7 @@ namespace PatTech.Localization.Authoring {
 			DefaultValue = original.DefaultValue;
 			Context = original.Context;
 			Comment = original.Comment;
-			NeedsReview = original.NeedsReview;
+			Review = original.Review;
 			Entries = original.Entries.ToDictionary(k => k.Key, v => new WordsEntry(v.Value));
 			Forms = new(original.Forms);
 			foreach (WordsParameter parameter in original.Parameters) {
@@ -59,7 +67,7 @@ namespace PatTech.Localization.Authoring {
 			&& Context == ""
 			&& Comment == ""
 			&& Parameters.Count == 0
-			&& NeedsReview == false
+			&& Review is null
 			&& !Forms.HasWords()
 			&& Entries.Values.All(entry => entry.IsEmpty());
 

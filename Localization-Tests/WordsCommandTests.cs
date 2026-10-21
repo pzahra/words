@@ -204,7 +204,8 @@ public sealed class WordsCommandTests : IDisposable {
 		string text = File.ReadAllText(path);
 		Assert.Contains("value-it=Modifica\nstale-it=machine translated\n", text);
 		Assert.Contains("value-it=Archivio\nstale-it=\n", text);
-		Assert.Contains("value#other=files\nstale=\nvalue-it=file\n", text); //the default's mark keeps no words
+		Assert.Contains("value#other=files\nstale=reworded\nvalue-it=file\n", text); //the hand keeps its words too
+		Assert.Equal((0, "reworded\n", ""), Run("get", "FILE", "files", "stale"));
 	}
 
 	[Fact]

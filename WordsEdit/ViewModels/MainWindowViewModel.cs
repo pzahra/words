@@ -736,12 +736,14 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (Tree.SelectedKey is not { } key || Tree.SelectedKeyNode is not { } node) {
 			return;
 		}
+		//raised, the hand is stamped as a stale mark is (SPEC: Spreadsheets, The review flag's text)
 		Perform(() => {
 			WordsFile file = Tree.FileOf(node);
-			bool raised = !key.NeedsReview;
-			Session.Set(file, node.FullLabel, WordsField.Hand, raised ? "" : null);
+			string? before = key.Review;
+			string? after = before is null ? WordsKey.StaleStamp(time.GetLocalNow()) : null;
+			Session.Set(file, node.FullLabel, WordsField.Hand, after);
 			Tree.RefreshBadges(node);
-			return new ReviewEdit(file, node.FullLabel, raised);
+			return new ReviewEdit(file, node.FullLabel, before, after);
 		});
 	}
 
@@ -860,12 +862,12 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		HashSet<WordsFile> dirty = [.. Unsaved];
 		if (Tree.SelectedKey is { } key && Tree.SelectedKeyNode is { } node) {
 			WordsFile file = Tree.FileOf(node);
+			string stamp = WordsKey.StaleStamp(time.GetLocalNow());
 			if (edit.IsNote && edit.After.Trim() != "" && !key.NeedsReview) {
-				edit.RaisedReview = true;
-				Session.Set(file, node.FullLabel, WordsField.Hand, "");
+				edit.Raised(stamp);
+				Session.Set(file, node.FullLabel, WordsField.Hand, stamp);
 			}
 			if (edit.Field == DocumentField.DefaultValue) {
-				string stamp = WordsKey.StaleStamp(time.GetLocalNow());
 				if (Session.StaleTranslations(file, node.FullLabel, stamp) is { Count: > 0 } codes) {
 					edit.Stamped(codes, stamp);
 				}

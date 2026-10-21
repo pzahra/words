@@ -42,10 +42,7 @@ public sealed class FieldEdit : UndoEntry {
 	/// <summary>Steps stepped back wait to be put back, and the run still stands.</summary>
 	public bool Partly => Standing > 0 && Standing < steps.Count;
 	/// <summary>The typing raised the key's Needs Review, as a note does; undoing it lowers the hand.</summary>
-	public bool RaisedReview {
-		get => raisedAt > 0;
-		set => raisedAt = !value ? 0 : raisedAt > 0 ? raisedAt : Math.Max(Standing, 1);
-	}
+	public bool RaisedReview => raisedAt > 0;
 	/// <summary>A translator's note: a field whose typing raises Needs Review.</summary>
 	public bool IsNote => Field is DocumentField.KeyComment or DocumentField.EntryComment;
 	/// <summary>The translations typing the default stamped stale; undoing it takes the stamps back.</summary>
@@ -66,8 +63,10 @@ public sealed class FieldEdit : UndoEntry {
 	}
 
 	private readonly List<Step> steps;
-	//the step the hand went up in, counting from one; zero when it stayed down
+	//the step the hand went up in, counting from one; zero when it stayed down; and the
+	//stamp it went up with
 	private int raisedAt;
+	private string? raisedWith;
 	//the step the stale stamps went on in, likewise, and the stamp
 	private int staledAt;
 	private string? stamp;
@@ -141,6 +140,12 @@ public sealed class FieldEdit : UndoEntry {
 		}
 	}
 
+	/// <summary>The keystroke raised the key's hand with <paramref name="mark"/>, typing a note (SPEC: Spreadsheets, The review flag's text).</summary>
+	internal void Raised(string mark) {
+		raisedWith = mark;
+		raisedAt = raisedAt > 0 ? raisedAt : Math.Max(Standing, 1);
+	}
+
 	/// <summary>The keystroke stamped <paramref name="codes"/> stale with <paramref name="mark"/>, typing the default.</summary>
 	internal void Stamped(IReadOnlyList<string> codes, string mark) {
 		Staled = codes;
@@ -190,6 +195,7 @@ public sealed class FieldEdit : UndoEntry {
 		bool raised = next.RaisedReview && raisedAt == 0;
 		if (raised) {
 			raisedAt = Standing;
+			raisedWith = next.raisedWith;
 		}
 		bool stamped = next.Staled.Count != 0 && staledAt == 0;
 		if (stamped) {
@@ -247,7 +253,7 @@ public sealed class FieldEdit : UndoEntry {
 		}
 		//the text first: the hand and the stamps go back to where they stood with it
 		if (RaisedReview) {
-			session.Set(file, name, WordsField.Hand, standing >= raisedAt ? "" : null);
+			session.Set(file, name, WordsField.Hand, standing >= raisedAt ? raisedWith ?? "" : null);
 		}
 		foreach (string code in Staled) {
 			session.Set(file, name, WordsField.StaleIn(code), standing >= staledAt ? stamp : null);
@@ -312,9 +318,9 @@ public abstract class KeyEdit(WordsFile file, string name) : UndoEntry {
 	}
 }
 
-/// <summary>Needs Review toggled.</summary>
-public sealed class ReviewEdit(WordsFile file, string name, bool raised) : KeyEdit(file, name) {
-	protected override void Change(WordsSession session, bool undoing) => session.Set(File, Name, WordsField.Hand, raised != undoing ? "" : null);
+/// <summary>Needs Review toggled: the flag's text before and after, none while the hand is down.</summary>
+public sealed class ReviewEdit(WordsFile file, string name, string? before, string? after) : KeyEdit(file, name) {
+	protected override void Change(WordsSession session, bool undoing) => session.Set(File, Name, WordsField.Hand, undoing ? before : after);
 }
 
 /// <summary>Stale toggled in one language.</summary>

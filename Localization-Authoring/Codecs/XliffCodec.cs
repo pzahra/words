@@ -11,8 +11,9 @@ namespace PatTech.Localization.Authoring.Codecs {
 	///     (developer, translator) and <c>annotates</c> (source, target); an
 	///     untranslated entry is a target in <c>needs-translation</c>, a stale one
 	///     in <c>needs-review-translation</c> with its stale text in a Words
-	///     attribute; the review flag is <c>approved="no"</c>; a constant keeps its
-	///     <c>$</c> and is marked <c>translate="no"</c>; parameters ride as Words
+	///     attribute; the review flag is <c>approved="no"</c>, its text in another
+	///     Words attribute; a constant keeps its <c>$</c> and is marked
+	///     <c>translate="no"</c>; parameters ride as Words
 	///     extension elements. Only the freeform comments, the settings references
 	///     and the plural forms have nowhere to go: a form is no unit of its own to
 	///     a translation tool. XLIFF 2.0 is another shape, refused with a gripe. On
@@ -194,7 +195,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 				loaded.Errors.Add($"{file}: translate=\"no\" on '{name}' ignored: a Words constant is a $key");
 			}
 			if ((string?)unit.Attribute("approved") == "no") {
-				key.NeedsReview = true;
+				key.Review = (string?)unit.Attribute(Ext + "review") ?? "";
 			}
 			if (sources && XmlText.Child(unit, "source") is { } source) {
 				key.DefaultValue = Text(source, file, shown, loaded.Errors);
@@ -367,8 +368,11 @@ namespace PatTech.Localization.Authoring.Codecs {
 				if (key.IsConstant) {
 					trans.Add(new XAttribute("translate", "no"));
 				}
-				if (key.NeedsReview) {
+				if (key.Review is { } review) {
 					trans.Add(new XAttribute("approved", "no"));
+					if (review != "") {
+						trans.Add(new XAttribute(Ext + "review", review));
+					}
 				}
 				trans.Add(new XElement(Xliff + "source", key.DefaultValue));
 				key.Entries.TryGetValue(code, out WordsEntry? entry);

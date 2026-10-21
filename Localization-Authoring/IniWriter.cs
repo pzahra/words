@@ -357,8 +357,8 @@ namespace PatTech.Localization.Authoring {
 				}
 			}
 
-			if (key.NeedsReview) {
-				WritePair("stale", "");
+			if (key.Review is { } review) {
+				WritePair("stale", review);
 			}
 
 			foreach (var (lang, entry) in key.Entries) {

@@ -420,6 +420,30 @@ public class IniWriterTests {
 	}
 
 	[Fact]
+	public void IniWriter_ReviewFlagText_SaveLoadSaveStable() {
+		// the review flag keeps its words as a stale mark does, a long one folded and
+		// read back whole, and one with none stays empty (editor SPEC: Spreadsheets,
+		// The review flag's text)
+		string note = "raised " + string.Join(" ", Enumerable.Repeat("because the wording reads oddly", 4));
+		var tree = new FakeNode("", new FakeNode("a"), new FakeNode("b"), new FakeNode("c"));
+		Dictionary<string, WordsKey> allKeys = new() {
+			["a"] = new WordsKey("a") { DefaultValue = "A", Review = "10/21/2026 12:00:00 +10:30" },
+			["b"] = new WordsKey("b") { DefaultValue = "B", Review = "" },
+			["c"] = new WordsKey("c") { DefaultValue = "C", Review = note },
+		};
+
+		string firstSave = Write(tree, allKeys);
+		var reloaded = Reload(firstSave);
+
+		Assert.Contains("stale=10/21/2026 12:00:00 +10:30", firstSave.Split(Environment.NewLine));
+		Assert.Contains("stale=", firstSave.Split(Environment.NewLine));
+		Assert.Equal("10/21/2026 12:00:00 +10:30", reloaded["a"].Review);
+		Assert.Equal("", reloaded["b"].Review);
+		Assert.Equal(note, reloaded["c"].Review);
+		Assert.Equal(firstSave, Write(tree, reloaded.ToDictionary(pair => pair.Key, pair => new WordsKey(pair.Value))));
+	}
+
+	[Fact]
 	public void IniWriter_BackslashValues_SaveLoadSaveStable() {
 		// the second save matches the first byte for byte once backslashes are in
 		var tree = new FakeNode("", new FakeNode("k"));

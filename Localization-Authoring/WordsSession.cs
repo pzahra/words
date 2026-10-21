@@ -483,7 +483,7 @@ namespace PatTech.Localization.Authoring {
 			key.DefaultValue = kept.DefaultValue;
 			key.Context = kept.Context;
 			key.Comment = kept.Comment;
-			key.NeedsReview = kept.NeedsReview;
+			key.Review = kept.Review;
 			key.Forms.Clear();
 			foreach (var (form, text) in kept.Forms) {
 				key.Forms[form] = text;

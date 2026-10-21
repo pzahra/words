@@ -151,13 +151,18 @@ public class KeptStateTests {
 		Assert.Equal(("z", "zz", "where", "note"), (sub.DefaultValue, sub.Entries["de"].Forms["other"], sub.Context, sub.Entries["fr"].Comment));
 		Assert.Empty(sub.Forms); //empty: none, as the session holds forms
 
-		//the hand and a stale mark, up and down
-		Assert.True(session.Set(file, "k.sub", WordsField.Hand, ""));
+		//the hand and a stale mark, up and down, each with its words (the editor's SPEC:
+		//Spreadsheets, The review flag's text)
+		Assert.True(session.Set(file, "k.sub", WordsField.Hand, "the tone"));
 		Assert.True(session.Set(file, "k.sub", WordsField.StaleIn("fr"), "machine translated"));
 		Assert.True(session.Set(file, "k.sub", WordsField.StaleIn("de"), null));
 		Assert.Equal((true, "machine translated", null), (sub.NeedsReview, sub.Entries["fr"].Stale, sub.Entries["de"].Stale));
+		Assert.Equal("the tone", WordsField.Hand.Read(sub));
+		Assert.True(session.Set(file, "k.sub", WordsField.Hand, ""));
+		Assert.Equal(("", true), (WordsField.Hand.Read(sub), sub.NeedsReview)); //up, with no words
 		Assert.True(session.Set(file, "k.sub", WordsField.Hand, null));
 		Assert.False(sub.NeedsReview);
+		Assert.Null(WordsField.Hand.Read(sub));
 
 		//no key of the name, or nothing written in a language the session lacks: nothing,
 		//and no entry made

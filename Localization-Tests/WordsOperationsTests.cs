@@ -53,7 +53,7 @@ public class WordsOperationsTests {
 		// the WordsKey copy constructor used to drop these silently
 		var keys = FileA();
 		keys["title"].Parameters.Add(new WordsParameter("0", WordsParameterType.Int, "the files"));
-		keys["title"].NeedsReview = true;
+		keys["title"].Review = "";
 
 		var merged = WordsOperations.Merge(keys, new Dictionary<string, IReadOnlyDictionary<string, WordsKey>>(), out _);
 
