@@ -53,6 +53,12 @@ public sealed class SheetImportViewModel : DialogViewModel {
 	//what the layout says that the dialog does not ask: TextDelimiter, the driver's own keys
 	private FormatOptions kept = [];
 	private bool loading;
+	//the columns the layout declares, and the delimiter it declares them under: a column
+	//the first rows leave empty is kept while the sheet splits as the layout says
+	private int declared;
+	private string? declaredUnder;
+	//a sheet in UTF-32, which is not read, whatever the choices
+	private readonly bool utf32;
 
 	public override string Title => Words.Known["sheet.title"];
 	public CsvCodec Codec { get; }
@@ -98,6 +104,7 @@ public sealed class SheetImportViewModel : DialogViewModel {
 		this.parent = parent;
 		Codec = codec;
 		Sheet = sheet;
+		utf32 = CsvCodec.IsUtf32(sheet);
 		ImportCommand = new DelegateCommand(DoImport, () => CanImport);
 		CancelCommand = new DelegateCommand(Close);
 
@@ -153,7 +160,9 @@ public sealed class SheetImportViewModel : DialogViewModel {
 		}
 		IReadOnlyList<IReadOnlyList<string>> preview = Preview();
 		IReadOnlyList<string> headerCells = named.Count == 0 && Header && preview.Count > 0 ? preview[0] : [];
-		int width = Math.Max(Width(preview), named.Count == 0 ? 0 : named.Keys.Max());
+		declared = named.Count == 0 ? headerCells.Count : named.Keys.Max();
+		declaredUnder = Delimiter?.Value;
+		int width = Math.Max(Width(preview), declared);
 		columns.Clear();
 		for (int number = 1; number <= width; number++) {
 			var (name, type) = named.TryGetValue(number, out var column) ? column
@@ -189,6 +198,10 @@ public sealed class SheetImportViewModel : DialogViewModel {
 	}
 
 	private void LoadCharacterSet(string characterSet) {
+		//one a sheet is never read in, UTF-32 among them, is taken as ANSI, as the codec takes it
+		if (!CsvCodec.IsCharacterSet(characterSet)) {
+			characterSet = "ANSI";
+		}
 		List<SheetChoice> choices = [
 			new("ANSI", Words.Known.Format("sheet.ansi", Codec.CodePage("ANSI"))),
 			new("OEM", Words.Known.Format("sheet.oem", Codec.CodePage("OEM"))),
@@ -216,6 +229,9 @@ public sealed class SheetImportViewModel : DialogViewModel {
 		}
 		IReadOnlyList<IReadOnlyList<string>> preview = Preview();
 		int width = preview.Count == 0 ? columns.Count : Width(preview);
+		if (Delimiter?.Value == declaredUnder) {
+			width = Math.Max(width, declared);
+		}
 		while (columns.Count < width) {
 			columns.Add(new SheetColumn(this, columns.Count + 1, "", $"F{columns.Count + 1}", "Text"));
 		}
@@ -235,10 +251,10 @@ public sealed class SheetImportViewModel : DialogViewModel {
 		return true;
 	}
 
-	//what keeps the sheet from reading: no delimiter, a role that is none, a role twice,
-	//no key, no value
+	//what keeps the sheet from reading: UTF-32, no delimiter, a role that is none, a role
+	//twice, no key, no value
 	private void Validate() {
-		Problem = Delimiter is null ? Words.Known["sheet.no-delimiter"] : RoleProblem();
+		Problem = utf32 ? Words.Known["sheet.utf32"] : Delimiter is null ? Words.Known["sheet.no-delimiter"] : RoleProblem();
 		foreach (SheetColumn column in Columns) {
 			column.Reword();
 		}

@@ -39,13 +39,17 @@ public sealed class SheetColumnsViewModel : ViewModelBase {
 	private readonly ExportViewModel parent;
 	private readonly CsvCodec codec;
 	private readonly ExportSource source;
-	//the target's section, when it has one
+	//the target's section, when it has one, and what the export goes by with it: the
+	//section, or the columns the file uses where it names none (CsvCodec.Effective)
 	private readonly FormatOptions? section;
+	private readonly FormatOptions? effective;
 
 	/// <summary>The file it was laid out for.</summary>
 	public KeyNode Node { get; }
 	/// <summary>The sheet the export writes.</summary>
 	public string Sheet { get; }
+	/// <summary>The target's section as <c>schema.ini</c> has it; <see langword="null"/> for a new table.</summary>
+	internal FormatOptions? Section => section;
 	/// <summary>No section yet: a new table, its columns ticked.</summary>
 	public bool IsNew => section is null;
 	/// <summary>A table that exists can have its columns changed.</summary>
@@ -63,7 +67,7 @@ public sealed class SheetColumnsViewModel : ViewModelBase {
 	public bool LanguageChannelsOpen => Languages.Any(language => language.IsTicked);
 
 	/// <summary>The section the export goes by: the table's as it is, or one made from the ticks, the rest of a changed table's kept.</summary>
-	public FormatOptions Options => ShowTicks ? codec.Options(source, Layout(), section) : section!;
+	public FormatOptions Options => ShowTicks ? codec.Options(source, Layout(), section) : effective!;
 	/// <summary>The target's columns, by name, in their order.</summary>
 	public string Columns
 		=> Words.Known.Format("export.sheet-columns", string.Join(", ", Options
@@ -79,7 +83,8 @@ public sealed class SheetColumnsViewModel : ViewModelBase {
 		Node = node;
 		Sheet = sheet;
 		section = SchemaIni.Read(sheet);
-		CsvLayout layout = section is null ? CsvLayout.For(source) : CsvLayout.From(section);
+		effective = section is null ? null : codec.Effective(source, section);
+		CsvLayout layout = effective is null ? CsvLayout.For(source) : CsvLayout.From(effective);
 		Languages = [.. source.File.Languages.Select(code => new SheetLanguageTick(this, code,
 			parent.Parent.Session.Languages.Find(code)?.DisplayName ?? code, layout.Languages.Contains(code)))];
 		Features = [.. Carried.Select(feature => new SheetFeatureTick(this, feature, Ticked(layout, feature)))];

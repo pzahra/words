@@ -41,6 +41,10 @@
             </DockPanel>
         </Grid>
 
+        <!-- no plan, and why: a schema.ini that can't be read -->
+        <TextBlock Text="{Binding PlanProblem}" TextWrapping="Wrap" Foreground="{StaticResource WordsmithOrangeBrush}" Margin="2.5px"
+                   Visibility="{Binding HasPlanProblem, Converter={StaticResource IsTrue}}"/>
+
         <!-- the plan and the loss: said before a byte lands -->
         <StackPanel Visibility="{Binding CanExport, Converter={StaticResource IsTrue}}">
             <!-- a target's extension no format claims: the format names the files its own way -->

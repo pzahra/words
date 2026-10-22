@@ -316,7 +316,15 @@ public class MainWindowViewModel : ViewModelSaveBase {
 				if (sheet.Options is null) {
 					return;
 				}
-				CsvCodec.SaveSchema(set[0], sheet.Options);
+				//the sheet is read only as a section on disk says: one that can't be saved
+				//(locked, or a schema.ini in UTF-16 the driver doesn't read) imports nothing
+				try {
+					CsvCodec.SaveSchema(set[0], sheet.Options);
+				}
+				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException) {
+					Dialogs.Tell(Words.Known.Format("file.write-failed", SchemaIni.For(set[0]), ex.Message));
+					return;
+				}
 				options = sheet.Options;
 			}
 			WordsFile file = Session.Import(importer, set, options);

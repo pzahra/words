@@ -83,7 +83,9 @@ before the first `:` are a type only where they name one (the editor spec's
   a key reads the words it writes for the keys it refers to, a key skipped is
   checked out of it again, and a key it does not write whose translation it
   leaves at odds with its default is named, not skipped. A key answered twice
-  keeps its first answer. The writes are one patch, saved once: an edit the
+  keeps its first answer. A changed link target is written with the key's
+  hand raised, so a person checks the URL, and named; a hand already up is
+  left as it is, its text kept. The writes are one patch, saved once: an edit the
   patcher refuses writes nothing. The answer's language must be one the file
   declares.
 - `--version` and `--help`.
@@ -255,7 +257,7 @@ limit, with a brief, and exit 1 with nothing to ask; `apply` writing filled
 slots, fenced as a model answers, each key marked stale in the writer's
 order, with `--stale`'s words from a file, the request sent back untouched
 writing nothing, a changed link target written with the key's hand raised and
-the change named (exit 0), a key with a broken token or a default changed since
+the change named (exit 0), a hand already up keeping its text, a key with a broken token or a default changed since
 skipped and named (exit 1), and no document, an undeclared language or a
 refused edit leaving the file (exit 2). The document's own, headless, are
 the editor spec's *Machine translation*. The editor's: new keys and fields

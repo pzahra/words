@@ -324,9 +324,12 @@ namespace PatTech.Localization.Cli {
 				if (verdict.Writes.Count != 0) {
 					gripes.AddRange(patcher.Set(item.Key, mark, call.Stale ?? "machine translated"));
 				}
-				//a changed link target goes in, and the key's hand up, so a person checks the URL
+				//a changed link target goes in, and the key's hand up, so a person checks the URL;
+				//a hand up already keeps its words
 				if (verdict.Raised.Count != 0) {
-					gripes.AddRange(patcher.Set(item.Key, hand, ""));
+					if (patcher.Find(item.Key) is not { NeedsReview: true }) {
+						gripes.AddRange(patcher.Set(item.Key, hand, ""));
+					}
 					gripes.Add($"{item.Key}: written, its hand raised: {string.Join("; ", verdict.Raised)}");
 					raised++;
 				}

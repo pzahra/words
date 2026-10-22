@@ -506,6 +506,21 @@ public sealed class WordsCommandTests : IDisposable {
 		Assert.EndsWith("[help]\nvalue=See [the docs](https://example.com/docs)\nstale=\nvalue-it=Vedi [la guida](https://example.com/it/docs)\nstale-it=machine translated\n", File.ReadAllText(path));
 	}
 
+	//a hand up already keeps the words a person gave it (editor SPEC: Spreadsheets, The
+	//review flag's text)
+	[Fact]
+	public void Apply_AChangedLinkTarget_LeavesAHandUpAlready_ItsWordsAndAll() {
+		File.WriteAllText(path, Ini("value=!en", "value-it=Italiano", "", "[help]", "value=See [the docs](https://example.com/docs)", "stale=check the wording with Sam"));
+		var answer = Requested("--missing", "it");
+		answer["items"]![0]!["translation"]!["value"] = "Vedi [la guida](https://example.com/it/docs)";
+
+		var (code, _, error) = RunWith(answer.ToJsonString(), "apply", "FILE", "-");
+
+		Assert.Equal(0, code);
+		Assert.Contains("help: written, its hand raised", error);
+		Assert.EndsWith("[help]\nvalue=See [the docs](https://example.com/docs)\nstale=check the wording with Sam\nvalue-it=Vedi [la guida](https://example.com/it/docs)\nstale-it=machine translated\n", File.ReadAllText(path));
+	}
+
 	[Fact]
 	public void Apply_MarksWithTheWordsStaleGives_FromAFile() {
 		File.WriteAllText(path, Sample);

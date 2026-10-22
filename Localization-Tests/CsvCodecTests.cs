@@ -277,7 +277,7 @@ public class CsvCodecTests {
 			string sheet = Sheet(folder, "key;value\r\na;\"b;c\"\r\n;\r\nd;e\r\n");
 			var codec = new CsvCodec(Us);
 
-			string[][] semicolons = [["key", "value"], ["a", "b;c"], ["", ""]];
+			string[][] semicolons = [["key", "value"], ["a", "b;c"], ["d", "e"]]; //an empty row is no row
 			Assert.Equal(semicolons, codec.Preview(sheet, Options((CsvCodec.FormatOption, "Delimited(;)")), 3).Select(row => row.ToArray()));
 			string[][] commas = [["key;value"], ["a;\"b;c\""]]; //a comma, and the quote no quote: one cell each
 			Assert.Equal(commas, codec.Preview(sheet, Options((CsvCodec.TextDelimiterOption, "none")), 2).Select(row => row.ToArray()));
@@ -405,15 +405,17 @@ public class CsvCodecTests {
 			Assert.Equal(File.ReadAllText(unit.Path), fixedWidth.ToString());
 			Assert.Equal(["Out.csv: Format=FixedLength: a fixed-width file is no sheet, so it was written comma-delimited"], fixedGripes);
 
-			//under TextDelimiter=none only a cell that needs quoting is quoted, all the same
+			//under TextDelimiter=none no cell is quoted: a literal quote is text, and the
+			//delimiter and a line break are spaces, each key named
 			var none = new StringWriter();
 			FormatOptions unquoted = codec.Options(source, CsvLayout.For(source));
 			unquoted[CsvCodec.TextDelimiterOption] = "none";
 			codec.Write(source, unit, none, gripes, unquoted);
 			Assert.StartsWith("key,value,", none.ToString());
-			Assert.Contains("\r\ngreeting,\"Hello, \"\"you\"\"\",,shown at login,", none.ToString());
+			Assert.Contains("\r\ngreeting,Hello  \"you\",,shown at login,", none.ToString());
+			Assert.Contains("\r\nlines,one two,,,un deux,", none.ToString());
 			Assert.Contains(",review\r\n", none.ToString());
-			Assert.Equal(["Out.csv: TextDelimiter=none, but cells holding the delimiter or a line break were quoted with \""], gripes);
+			Assert.Equal(["Out.csv: TextDelimiter=none, so the delimiter and line breaks in the cells of 2 keys were written as spaces (greeting, lines)"], gripes);
 		}
 		finally {
 			Directory.Delete(folder, recursive: true);
@@ -421,7 +423,7 @@ public class CsvCodecTests {
 	}
 
 	[Fact]
-	public void Export_ATableThatExists_KeepsItsSection_GripesOnALanguageItLacks_AndFailsOnACharacterItsCodePageLacks() {
+	public void Export_ATableThatExists_KeepsItsSection_GripesOnWhatItsLanguagesLose_AndFailsOnACharacterItsCodePageLacks() {
 		string folder = Folder();
 		try {
 			var (_, file, source) = Loaded(folder);
@@ -437,7 +439,8 @@ public class CsvCodecTests {
 			IniWriter.WriteAtomic(unit.Path, writer => codec.Write(source, unit, writer, gripes), unit.Encoding);
 			Assert.Equal("\"key\";\"value\";\"value-fr\";\"Notes\"\r\n\"greeting\";\"Hello, \"\"you\"\"\";\"Bonjour\";\r\n\"files\";\"{n} file\";\"{n} fichier\";\r\n\"$unit\";\"kg\";;\r\n\"lines\";\"one\ntwo\";\"un\ndeux\";\r\n",
 				File.ReadAllText(sheet, Encoding.GetEncoding(1252)));
-			Assert.Equal(["Kept.csv: no column carries de, so its words were not written"], gripes);
+			//each field the default or French fills that no column carries; de, left out, is no gripe
+			Assert.Equal([.. ((string[])["context", "stale", "comment-fr", "stale-fr", "value#other", "value-fr#other"]).Select(field => $"Kept.csv: no column carries {field}, so its words were not written")], gripes);
 
 			//what it drops follows its columns
 			Assert.Equal(WordsFeatures.Context | WordsFeatures.EntryComment | WordsFeatures.Stale | WordsFeatures.NeedsReview | WordsFeatures.PluralForms | WordsFeatures.Parameters,
@@ -533,6 +536,265 @@ public class CsvCodecTests {
 			Assert.Equal(WordsFeatures.Parameters | WordsFeatures.Context | WordsFeatures.PluralForms, lost);
 			Assert.Equal(WordsFeatures.Constants, codec.Keeps(Options(("Col1", "key Text"), ("Col2", "value Memo")))); //constants by the key's $
 			Assert.Equal(codec.Info.Features, codec.Keeps(Options((CsvCodec.HeaderOption, "True")))); //no columns: the layout the file's use ticks
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	//a field an included language fills with no column is lost and griped, a mark with no
+	//text counting; a language with no value column is left out, and loses nothing
+	[Fact]
+	public void Loss_NamesWhatAnIncludedLanguageLoses_CountingAMarkWithNoText() {
+		string folder = Folder();
+		try {
+			var (_, file, source) = Loaded(folder);
+			var codec = new CsvCodec(Us);
+			ExportUnit unit = Assert.Single(codec.Plan(source, Path.Combine(folder, "Out.csv")));
+
+			//French's #other has no column, though the default's does
+			FormatOptions forms = Options(("Col1", "key Text"), ("Col2", "value Memo"), ("Col3", "value#other Memo"), ("Col4", "value-fr Memo"),
+				("Col5", "context Memo"), ("Col6", "stale Memo"), ("Col7", "comment-fr Memo"), ("Col8", "stale-fr Memo"));
+			Assert.Equal(WordsFeatures.PluralForms | WordsFeatures.Parameters, codec.Loses(source, forms));
+			List<string> gripes = [];
+			codec.Write(source, unit, new StringWriter(), gripes, forms);
+			Assert.Equal(["Out.csv: no column carries value-fr#other, so its words were not written"], gripes);
+
+			//French's stale mark is there with no text, and only German has a stale column
+			file.Keys["greeting"].Entries["fr"].Stale = null;
+			file.Keys["files"].Entries["fr"].Stale = "";
+			FormatOptions marks = Options(("Col1", "key Text"), ("Col2", "value Memo"), ("Col3", "value-fr Memo"), ("Col4", "value-de Memo"), ("Col5", "stale-de Memo"));
+			Assert.True((codec.Loses(source, marks) & WordsFeatures.Stale) != 0);
+			gripes.Clear();
+			codec.Write(source, unit, new StringWriter(), gripes, marks);
+			Assert.Contains("Out.csv: no column carries stale-fr, so its words were not written", gripes);
+
+			//no language at all: they are left out, and lose nothing of theirs
+			FormatOptions defaults = Options(("Col1", "key Text"), ("Col2", "value Memo"), ("Col3", "value#other Memo"), ("Col4", "context Memo"), ("Col5", "stale Memo"));
+			Assert.Equal(WordsFeatures.Parameters, codec.Loses(source, defaults));
+			gripes.Clear();
+			codec.Write(source, unit, new StringWriter(), gripes, defaults);
+			Assert.Empty(gripes);
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	//a section naming no columns keeps its header, delimiter, encoding and the driver's own
+	//keys, and takes the columns the file uses, so it reads back through that same section
+	[Fact]
+	public void Export_ASectionNamingNoColumns_KeepsItsSettings_AndReadsBackThroughIt() {
+		string folder = Folder();
+		try {
+			var (_, _, source) = Loaded(folder);
+			var codec = new CsvCodec(Us);
+			string sheet = Path.Combine(folder, "Bare.csv");
+			FormatOptions section = Options((CsvCodec.HeaderOption, "True"), (CsvCodec.FormatOption, "Delimited(;)"), (CsvCodec.CharacterSetOption, "1252"), ("MaxScanRows", "0"));
+			CsvCodec.SaveSchema(sheet, section);
+
+			FormatOptions effective = codec.Effective(source, section);
+			Assert.Equal("Delimited(;)", effective[CsvCodec.FormatOption]);
+			Assert.Equal("0", effective["MaxScanRows"]);
+			Assert.Equal("key Text", effective["Col1"]);
+			ExportUnit unit = Assert.Single(codec.Plan(source, sheet));
+			Assert.Equal(1252, unit.Encoding!.CodePage);
+			List<string> gripes = [];
+			IniWriter.WriteAtomic(unit.Path, writer => codec.Write(source, unit, writer, gripes), unit.Encoding);
+			Assert.Empty(gripes);
+			Assert.StartsWith("\"key\";\"value\";", File.ReadAllText(sheet, Encoding.GetEncoding(1252)));
+
+			WordsFile read = new WordsSession().Import(codec, [sheet]);
+			Assert.Empty(read.Errors);
+			Assert.Equal("Hello, \"you\"", read.Keys["greeting"].DefaultValue);
+			Assert.Equal("Bonjour", read.Keys["greeting"].Entries["fr"].Value);
+
+			//with no header, nothing would name its columns
+			FormatOptions headless = Options((CsvCodec.HeaderOption, "False"), (CsvCodec.FormatOption, "Delimited(;)"));
+			gripes.Clear();
+			codec.Write(source, unit, new StringWriter(), gripes, headless);
+			Assert.Equal(["Bare.csv: its section names no columns and ColNameHeader=False, so nothing names them and the sheet will not read back"], gripes);
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	//blank lines above the header are no rows, however many: the reader, the preview and
+	//the sniff each take the first row with words in it as the header
+	[Fact]
+	public void Read_TheHeaderIsTheFirstRowWithWords_ThroughAnyBlankLines() {
+		string folder = Folder();
+		try {
+			var codec = new CsvCodec(Us);
+			foreach (int blanks in (int[])[1, 9, 51]) {
+				string sheet = Sheet(folder, string.Concat(Enumerable.Repeat("\r\n", blanks)) + "key,value\r\nk,v\r\n", name: $"Blank{blanks}.csv");
+				Assert.Equal("True", codec.Sniff(sheet)[CsvCodec.HeaderOption]);
+				Assert.Equal(["key", "value"], codec.Preview(sheet, codec.Sniff(sheet), 8)[0]);
+				WordsFile sniffed = new WordsSession().Import(codec, [sheet]);
+				Assert.Equal(["k"], sniffed.Keys.Keys);
+				Assert.Equal("v", sniffed.Keys["k"].DefaultValue);
+
+				//a section naming no columns names them by that row
+				WordsFile named = new WordsSession().Import(codec, [sheet], Options((CsvCodec.HeaderOption, "True"), (CsvCodec.FormatOption, "CSVDelimited")));
+				Assert.Empty(named.Errors);
+				Assert.Equal(["k"], named.Keys.Keys);
+			}
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	//a line break is LF in a cell, however the value holds it, so a round trip gives the same bytes
+	[Fact]
+	public void ExportImportExport_ALineBreakInACell_IsWrittenAsLf() {
+		string folder = Folder();
+		try {
+			var session = new WordsSession();
+			WordsFile file = session.Load(new StringReader("value-fr=Français\n\n[k]\nvalue=x\n"), Path.Combine(folder, "Main.ini"));
+			file.Keys["k"].DefaultValue = "a\r\nb\rc";
+			var source = new ExportSource(session, file, KeyTree.Build(file));
+			var codec = new CsvCodec(Us);
+			string sheet = Path.Combine(folder, "Lines.csv");
+			FormatOptions options = codec.Options(source, CsvLayout.For(source));
+			CsvCodec.SaveSchema(sheet, options);
+			ExportUnit unit = Assert.Single(codec.Plan(source, sheet, options));
+			IniWriter.WriteAtomic(unit.Path, writer => codec.Write(source, unit, writer, [], options), unit.Encoding);
+			byte[] first = File.ReadAllBytes(sheet);
+			Assert.Contains("\"a\nb\nc\"", File.ReadAllText(sheet));
+
+			var through = new WordsSession();
+			WordsFile read = through.Import(codec, [sheet]);
+			Assert.Equal("a\nb\nc", read.Keys["k"].DefaultValue);
+			var back = new ExportSource(through, read, KeyTree.Build(read));
+			IniWriter.WriteAtomic(unit.Path, writer => codec.Write(back, unit, writer, []), unit.Encoding);
+			Assert.Equal(first, File.ReadAllBytes(sheet));
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	//under TextDelimiter=none the codec adds no quoting; Quoting says when a cell needs it
+	[Fact]
+	public void TextDelimiterNone_AddsNoQuoting_AndQuotingSaysWhenACellNeedsIt() {
+		string folder = Folder();
+		try {
+			var session = new WordsSession();
+			WordsFile file = session.Load(new StringReader("value-fr=Français\n\n[lead]\nvalue=\"hi\" there\n\n[mid]\nvalue=say \"x\" now\n"), Path.Combine(folder, "Main.ini"));
+			var source = new ExportSource(session, file, KeyTree.Build(file));
+			var codec = new CsvCodec(Us);
+			string sheet = Path.Combine(folder, "Bare.csv");
+			FormatOptions none = Options((CsvCodec.HeaderOption, "True"), (CsvCodec.FormatOption, "CSVDelimited"), (CsvCodec.TextDelimiterOption, "none"),
+				("Col1", "key Text"), ("Col2", "value Memo"));
+			Assert.Same(none, codec.Quoting(source, none)); //nothing needs a quote
+
+			ExportUnit unit = Assert.Single(codec.Plan(source, sheet, none));
+			List<string> gripes = [];
+			IniWriter.WriteAtomic(unit.Path, writer => codec.Write(source, unit, writer, gripes, none), unit.Encoding);
+			Assert.Empty(gripes);
+			Assert.Equal("key,value\r\nlead,\"hi\" there\r\nmid,say \"x\" now\r\n", File.ReadAllText(sheet));
+			WordsFile read = new WordsSession().Import(codec, [sheet], none);
+			Assert.Equal("\"hi\" there", read.Keys["lead"].DefaultValue);
+			Assert.Equal("say \"x\" now", read.Keys["mid"].DefaultValue);
+
+			//a comma or a line break needs a quote: Quoting says TextDelimiter=", leaving the rest
+			file.Keys["mid"].DefaultValue = "one, two";
+			FormatOptions quoted = codec.Quoting(source, none);
+			Assert.NotSame(none, quoted);
+			Assert.Equal("\"", quoted[CsvCodec.TextDelimiterOption]);
+			Assert.Equal("none", none[CsvCodec.TextDelimiterOption]);
+			Assert.Equal(none.Keys.Order(), quoted.Keys.Order());
+			file.Keys["mid"].DefaultValue = "one\ntwo";
+			Assert.Equal("\"", codec.Quoting(source, none)[CsvCodec.TextDelimiterOption]);
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	//no sheet is UTF-32: named, it is taken as ANSI; by its byte-order mark, it is not read
+	[Fact]
+	public void Utf32_IsRefused_ByNameAndByTheFilesMark() {
+		string folder = Folder();
+		try {
+			var (_, _, source) = Loaded(folder);
+			var codec = new CsvCodec(Us);
+			Assert.False(CsvCodec.IsCharacterSet("12000"));
+			Assert.False(CsvCodec.IsCharacterSet("12001"));
+			Assert.True(CsvCodec.IsCharacterSet("1252"));
+			Assert.True(CsvCodec.IsCharacterSet("unicode"));
+
+			FormatOptions utf32 = codec.Options(source, CsvLayout.For(source));
+			utf32[CsvCodec.CharacterSetOption] = "12000";
+			ExportUnit unit = Assert.Single(codec.Plan(source, Path.Combine(folder, "Out.csv"), utf32));
+			Assert.Equal(1252, unit.Encoding!.CodePage);
+			List<string> gripes = [];
+			codec.Write(source, unit, new StringWriter(), gripes, utf32);
+			Assert.Contains("Out.csv: CharacterSet=12000: UTF-32 is no sheet encoding, so it is taken as ANSI", gripes);
+
+			foreach (var (name, encoding) in (IEnumerable<(string, Encoding)>)[("Le.csv", new UTF32Encoding(false, true)), ("Be.csv", new UTF32Encoding(true, true))]) {
+				string sheet = Sheet(folder, "key,value\r\nk,v\r\n", encoding, name);
+				Assert.True(CsvCodec.IsUtf32(sheet));
+				WordsFile read = new WordsSession().Import(codec, [sheet]);
+				Assert.Empty(read.Keys);
+				Assert.Equal([$"{name}: the sheet is UTF-32, which is not read"], read.Errors);
+				Assert.Empty(codec.Preview(sheet, codec.Sniff(sheet), 8));
+			}
+			//UTF-16 still reads, either way round
+			foreach (var (name, encoding) in (IEnumerable<(string, Encoding)>)[("Le16.csv", new UnicodeEncoding(false, true)), ("Be16.csv", new UnicodeEncoding(true, true))]) {
+				string sheet = Sheet(folder, "key,value\r\nk,v\r\n", encoding, name);
+				Assert.False(CsvCodec.IsUtf32(sheet));
+				Assert.Equal("v", new WordsSession().Import(codec, [sheet]).Keys["k"].DefaultValue);
+			}
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	//a schema.ini as the driver reads it: each other line kept with its own line break, a
+	//file's end without one kept, and never a byte-order mark; one in UTF-16 is none
+	[Fact]
+	public void Schema_KeepsEachLinesBreak_WritesNoByteOrderMark_AndLeavesAUtf16OneAlone() {
+		string folder = Folder();
+		try {
+			string sheet = Path.Combine(folder, "B.csv");
+			string schema = SchemaIni.For(sheet);
+			FormatOptions mine = Options((CsvCodec.HeaderOption, "True"), ("Col1", "key Text"), ("Col2", "value Memo"));
+
+			//CR, LF and CRLF, and a last section with no line break at its end
+			string head = "[A.csv]\r\nColNameHeader=True\n\r";
+			string tail = "[C.csv]\rFormat=TabDelimited";
+			File.WriteAllText(schema, head + "[B.csv]\nFormat=CSVDelimited\n" + tail, new UTF8Encoding(false));
+			CsvCodec.SaveSchema(sheet, mine);
+			string written = File.ReadAllText(schema);
+			Assert.Equal(head + "[B.csv]\nColNameHeader=True\nCol1=key Text\nCol2=value Memo\n" + tail, written);
+
+			//appended after a last line with no break: that line gets one, and the section the file's last
+			CsvCodec.SaveSchema(Path.Combine(folder, "D.csv"), mine);
+			Assert.Equal(written + "\r\r[D.csv]\rColNameHeader=True\rCol1=key Text\rCol2=value Memo\r", File.ReadAllText(schema));
+
+			//a byte-order mark is read past, and not written back
+			File.WriteAllText(schema, "[B.csv]\r\nFormat=CSVDelimited\r\n", new UTF8Encoding(true));
+			Assert.Equal("CSVDelimited", SchemaIni.Read(sheet)![CsvCodec.FormatOption]);
+			CsvCodec.SaveSchema(sheet, mine);
+			Assert.NotEqual(0xEF, File.ReadAllBytes(schema)[0]);
+			Assert.Equal("key Text", SchemaIni.Read(sheet)!["Col1"]);
+
+			//a new file has none either
+			File.Delete(schema);
+			CsvCodec.SaveSchema(sheet, mine);
+			Assert.Equal((byte)'[', File.ReadAllBytes(schema)[0]);
+
+			//UTF-16 is none the driver reads: no sections, and never written over
+			File.WriteAllText(schema, "[B.csv]\r\nFormat=CSVDelimited\r\n", new UnicodeEncoding(false, true));
+			byte[] before = File.ReadAllBytes(schema);
+			Assert.Null(SchemaIni.Read(sheet));
+			Assert.Empty(SchemaIni.Sections(sheet));
+			Assert.Throws<InvalidDataException>(() => CsvCodec.SaveSchema(sheet, mine));
+			Assert.Equal(before, File.ReadAllBytes(schema));
 		}
 		finally {
 			Directory.Delete(folder, recursive: true);

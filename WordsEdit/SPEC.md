@@ -1871,15 +1871,23 @@ this is the format that earns the door.
 
 **The schema.** `schema.ini` is the Microsoft Text driver's: one a folder,
 a `[Strings.csv]` section a file, its names matched without case. Wordsmith
-writes a sheet's own section and leaves any other as it is.
+writes a sheet's own section and leaves any other line as it is, each with
+its own break (CR, LF or CRLF, as the driver reads them). The file is ANSI or
+UTF-8 with no byte-order mark, which is all the driver reads: a UTF-8 mark
+found is read past and not written back, and a file in UTF-16 or UTF-32 is
+none the driver reads, so it reads as no file (a sheet goes by the sniff),
+and writing a section to it is refused, the file left as it is.
 - `ColNameHeader=True` when the first row is a header, read past.
 - `Format=CSVDelimited` (a comma), `TabDelimited`, or `Delimited(;)` with
   any one character. `FixedLength` is refused with a gripe: no sheet is
   fixed-width.
 - `CharacterSet=ANSI` or `OEM` (the machine's code pages), `UNICODE`
   (UTF-16), or a code page by number, `65001` for UTF-8. A byte-order mark
-  the file starts with wins over it.
-- `TextDelimiter`: `"`, unless it names another character, or `none`.
+  the file starts with wins over it. UTF-32 is no sheet's: named, it is
+  taken as ANSI with a gripe, and a sheet with its byte-order mark is not
+  read, with a gripe, whatever the section says.
+- `TextDelimiter`: `"`, unless it names another character, or `none`, when
+  a quote is text.
 - `Col1=key Text`, `Col2=value Memo`, `Col3=value-fr Memo`: each column's
   name and type, a name with a space in quotes. The type is the driver's;
   Wordsmith reads every cell as text.
@@ -1909,7 +1917,8 @@ there, so a language is named by its code.
 **Reading.** One assumption is made: the sheet is quoted the way Excel
 quotes. A cell holding the delimiter, the text delimiter or a line break is
 wrapped in the text delimiter, doubled inside it, and a line break in a cell
-is kept, as a line feed; rows end with CRLF or LF. A sheet carries every
+is kept, as a line feed; rows end with CRLF or LF. With a header, it is the
+first row that isn't empty, blank lines above it read past. A sheet carries every
 language in one file, so `Discover` answers the pick alone, and `NativePath`
 is the stem with `-words.ini`: `Strings.csv` loads as `Strings-words.ini`.
 The extensions are `.csv`, and `.tsv`, which sniffs tab first. `Read`
@@ -1949,7 +1958,7 @@ first guess (`Sniff`), which the dialog shows to be corrected:
 - the encoding: a byte-order mark, else UTF-8 when the bytes read as UTF-8
   and are not all ASCII, else the machine's ANSI code page;
 - the delimiter: whichever of comma, semicolon, tab and bar splits the first
-  rows into the same number of cells, outside the quotes; of two that do,
+  rows that aren't empty into the same number of cells, outside the quotes; of two that do,
   the one splitting into more, and on a tie the machine's list separator,
   which is Excel's;
 - a header, when a cell of the first row names a role or a language by its
@@ -1967,7 +1976,7 @@ folder's `schema.ini` has one, else the sniff's guess, and the folder's
 other sections are listed for a sheet to borrow one, so a translator's
 `Strings_fr.csv` comes back with the layout `Strings.csv` went out with.
 Then the delimiter, the encoding and whether the first row is a header, and
-the first rows as a grid, as those choices split and decode them, the header
+the first rows that aren't empty as a grid, as those choices split and decode them, the header
 row marked, so the user sees what the file is: mojibake is the tell of a
 wrong encoding, and a line break in a cell shows as a ⏎. Above each column
 is its role, picked from the key, the default's value, context and comment,
@@ -1977,10 +1986,16 @@ typed as `words.ini` spells it (`value-mt#few`, a code the list lacks), its
 case no matter; cleared, the column is read past. Under it, the role in
 words, a language by its name. A delimiter that splits the rows into fewer
 columns hides the rest, and their roles come back with one that splits
-more. Import is held back, the reason said, while a role is none, a role is
-on two columns, or no column is the key or the default's value. Import
-writes the sheet's section, making the `schema.ini` when there is none,
-then reads; Cancel writes nothing and imports nothing. Each sheet of a pick
+more. A column the layout declares is kept while the sheet splits by the
+layout's own delimiter, though the first rows leave it empty. Import is held
+back, the reason said, while a role is none, a role is on two columns, or no
+column is the key or the default's value, and for a sheet in UTF-32, which
+is not read; a layout naming UTF-32 shows ANSI, as the codec takes it, and
+UTF-32 is never offered. Import writes the sheet's section, making the
+`schema.ini` when there is none, then reads; a section that can't be written
+(the file locked, or in UTF-16) is told, and nothing is imported, so what
+imports always matches a section on disk. Cancel writes nothing and imports
+nothing. Each sheet of a pick
 of several has its own turn.
 
 **Export.** One sheet, in the wide layout translators work in, and its
@@ -2005,9 +2020,19 @@ Export dialog shows what the target's columns will be.
   what they drop. Changing them takes one tick, which opens the column
   options, set from the section, and Export writes the section anew, its
   columns from the ticks and all else of it (the header, delimiter and
-  encoding, the driver's own keys) as it was.
-- The section is written once the sheet is: a write that fails leaves the
-  `schema.ini` as it was.
+  encoding, the driver's own keys) as it was. A section that names no
+  columns keeps all it does say, and its columns are a new table's, ticked
+  by what the file uses; Export leaves it naming none unless the tick
+  changes it.
+- The section is written before the sheet, so a `schema.ini` that refuses it
+  is known before a byte of the sheet lands: told, nothing written, and the
+  dialog left open. A sheet whose write then fails puts the `schema.ini`
+  back as it was, byte for byte, or removes it when Export made it; when
+  that fails too, both are told: the sheet was not written, and its section
+  says what Export wrote.
+- A target whose `schema.ini` can't be read leaves no plan: Export greys,
+  and the dialog says why, so it never writes by the plan of a target
+  before.
 
 The columns run the key, then the default's value, its forms, context and
 comment, then each language's the same way and its stale mark, in the
@@ -2020,12 +2045,21 @@ file's order, and the review flag last. The header row is their names.
 - Every cell with words is quoted, as Excel quotes them, the header's
   included, so a spreadsheet told to take a quoted cell as text keeps `007`
   and `1/2` as they are; an empty cell is no text. Rows end with CRLF, and a
-  line break in a cell is a line feed. Under `TextDelimiter=none`, only a
-  cell holding the delimiter or a line break is quoted, with `"`, and a
-  gripe.
-- A language the file has words in and an existing table has no column for
-  is a gripe: its words are not written. So is a table with no key or no
-  value column, which will not read back.
+  line break in a cell is a line feed. Under `TextDelimiter=none` no cell is
+  quoted, a quote in it being text, so a cell holding the delimiter or a
+  line break can't be kept as it is: Export changes the section to
+  `TextDelimiter="`, only that, with a gripe, and quotes the sheet. Where the
+  section can't be changed, someone has locked the sheet to unquoted cells:
+  it goes by its section as it is, the delimiter and line breaks in such a
+  cell written as spaces, so the row keeps its columns, and a gripe names
+  the keys. A table opened for change has no such way out: its sheet is
+  never written under columns its section doesn't say.
+- A field the file fills, in the default or in a language with a value
+  column, that no column carries is a gripe, a field at a time: its words
+  are not written. A language with no value column is left out, a choice,
+  and no gripe. A table with no key or no value column is a gripe too, and
+  so is a section naming no columns with `ColNameHeader=False`: neither
+  will read back.
 - A leading `=`, `+`, `-` or `@` is Excel's formula, not text, unless a
   quoted cell is taken as text; whether to guard it (a `'` prefix, stripped
   on the way back in) is decided when a real value starts with one.
@@ -2056,8 +2090,11 @@ are columns for them, plural forms when there are form columns, and
 constants by the key's `$`. The default's language, parameters, freeform
 comments and settings references have no column. `Loses` asks the exporter
 what it keeps with the options at hand (`Keeps`: `Info.Features` unless the
-format says otherwise, and the sheet's from its columns), so the loss line
-follows the columns. Export, then import and export again through the same
+format says otherwise, and the sheet's from its columns, and from what the
+file fills: `Keeps(source, options)`), so the loss line follows the columns.
+A language with a value column loses what the file fills in it that no
+column carries, a mark with no text counted; a language left out is a
+choice, and no loss. Export, then import and export again through the same
 schema, gives the same bytes.
 
 **Where it lives.** `CsvCodec` among Authoring's codecs, with its words
@@ -2071,7 +2108,10 @@ columns and back, the ticks that hang on others with it, so the dialog only
 binds the ticks. The sheet is the plan's one file; its section is the
 dialog's own step, written as Import or Export goes ahead. `ExportUnit`
 gains the encoding it is written in (none being UTF-8 without a BOM, as
-now), and `IWordsExporter` gains `Keeps(options)`. Code pages come from
+now), and `IWordsExporter` gains `Keeps(options)` and `Keeps(source,
+options)`. The codec says what a section comes to (`Effective`: the columns
+a file uses for a section naming none) and what it must say to keep every
+cell (`Quoting`), and `IsUtf32` and `IsCharacterSet` what is no sheet's. Code pages come from
 .NET's own `CodePagesEncodingProvider`, registered once. The dialogs are the
 editor's, their view models thin over those calls: `SheetImportViewModel`,
 which Import shows for a sheet, and `SheetColumnsViewModel`, the Export
@@ -2093,8 +2133,11 @@ change: it reads past `stale=` as it does now.
   an `approved="no"` alone reads as a flag with no text.
 - The schema: a section found without case, a quoted name, a type read
   past, an unknown key kept; writing one section leaves every other line,
-  comment and blank as it was, a new section is appended, and a missing
-  `schema.ini` is made.
+  comment and blank as it was, each line's own break kept and a last line
+  without one left so, a new section is appended with the one break it
+  needs, and a missing `schema.ini` is made, with no byte-order mark; a
+  UTF-8 one is read and written back without its mark, and a UTF-16 one
+  reads as none and is refused, left as it was.
 - Reading: a quote doubled inside quotes, a line break in a cell, CRLF and
   LF rows; comma, semicolon and tab; ANSI, OEM, UNICODE and 65001, and a
   byte-order mark winning over the schema; a header read past; a column
@@ -2103,7 +2146,10 @@ change: it reads past `stale=` as it does now.
   none; a constant;
   an empty, a repeated and a made key, each griped; a row too long skipped
   and one too short read empty; no `key` or no `value` column refused;
-  `FixedLength` refused; `Strings.csv` loading as `Strings-words.ini`.
+  `FixedLength` refused; `Strings.csv` loading as `Strings-words.ini`; the
+  header the first row with words, through blank lines, and the preview
+  counting only rows with words; UTF-32 refused, by name and by the file's
+  mark.
 - The sniff: the delimiter by its consistency, and the list separator on a
   tie; UTF-8 with and without a byte-order mark, and ANSI; a header, the key
   first and the value second, and languages from role names, bare codes and
@@ -2117,11 +2163,17 @@ change: it reads past `stale=` as it does now.
   quoted (only those that need it under `TextDelimiter=none`), a mark with
   no text as its column's word, CRLF rows and line feeds in cells; UTF-8
   with a byte-order mark, and a code page
-  failing on a character it lacks; a language an existing table has no
-  column for griped. Export, import and export through one schema gives the
-  same bytes, and the fields its columns carry are unchanged.
+  failing on a character it lacks; a field an included language fills and
+  no column carries griped, a language left out not. A section naming no
+  columns keeps its settings and reads back through them. Under
+  `TextDelimiter=none` no quoting is added, a literal quote reading back as
+  itself, and `Quoting` says when a cell needs it. A line break in a cell
+  goes out as a line feed, whatever it came in as. Export, import and export
+  through one schema gives the same bytes, and the fields its columns carry
+  are unchanged.
 - Loss: a table without context columns loses context, and one with form
-  columns keeps plural forms.
+  columns keeps plural forms; an included language loses what no column
+  carries, a mark with no text counted.
 - The editor, through `FakeDialogs`: a sheet's pick opens the dialog with
   the sniff, or with its section, or with one borrowed; a role corrected
   reads as corrected, and a role amiss holds Import back, said; a delimiter
@@ -2129,7 +2181,17 @@ change: it reads past `stale=` as it does now.
   Import presents the file unsaved at its `-words.ini` and writes the
   section; Cancel imports nothing and writes nothing; Export to a new table
   shows the ticks, to an existing one the loss line and the tick that
-  changes it, and writes the section.
+  changes it, and writes the section. A section naming no columns is
+  exported by the file's and left as it was. Under `TextDelimiter=none`, a
+  cell that needs a quote switches the section to `"`; a locked section
+  gets the cells bare, spaces for what needed the quote, and reads back so;
+  changed ticks against a locked or UTF-16 `schema.ini` write nothing and
+  keep the dialog open. The sheet's write failing puts the `schema.ini`
+  back byte for byte, or removes it, and a failure to put it back is told
+  too. A `schema.ini` that can't be read greys Export and says why. Import
+  keeps the columns a section declares, refuses a UTF-32 sheet with the
+  reason, shows a section naming UTF-32 as ANSI, and imports nothing when
+  its section can't be written.
 
 ---
 

@@ -145,13 +145,21 @@ namespace PatTech.Localization.Authoring {
 		///     spreadsheet's hangs on its columns.
 		/// </summary>
 		WordsFeatures Keeps(FormatOptions? options = null) => Info.Features;
+
+		/// <summary>
+		///     What the format keeps of <paramref name="source"/> written with
+		///     <paramref name="options"/>: <see cref="Keeps(FormatOptions?)"/>, unless
+		///     what it keeps hangs on what the file fills, as a spreadsheet's does on a
+		///     column for each field the file fills.
+		/// </summary>
+		WordsFeatures Keeps(ExportSource source, FormatOptions? options) => Keeps(options);
 	}
 
 	/// <summary>Helpers over the format interfaces.</summary>
 	public static class WordsFormatExtensions {
 		/// <summary>What exporting <paramref name="source"/> through <paramref name="format"/>, with <paramref name="options"/>, drops: the features it uses that the format does not keep.</summary>
 		public static WordsFeatures Loses(this IWordsFormat format, ExportSource source, FormatOptions? options = null)
-			=> source.Used() & ~(format is IWordsExporter exporter ? exporter.Keeps(options) : format.Info.Features);
+			=> source.Used() & ~(format is IWordsExporter exporter ? exporter.Keeps(source, options) : format.Info.Features);
 	}
 
 	/// <summary>One file an export writes: where, which languages it carries, and how its text is encoded.</summary>

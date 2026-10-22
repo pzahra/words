@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text;
 using System.Windows.Input;
 using PatTech.Localization.Authoring.Codecs;
 using PatTech.Utils;
@@ -72,6 +73,15 @@ public class ExportViewModel : DialogViewModel {
 	/// <summary>A sheet's columns, when the format is the spreadsheet: the target's section, or a new table's ticks.</summary>
 	public SheetColumnsViewModel? Sheet { get; private set => _ = ChangeProperty(ref field, value) && AffectProperty(nameof(HasSheet)); }
 	public bool HasSheet => Sheet is not null;
+	/// <summary>Why there is no plan, when planning failed (a <c>schema.ini</c> that can't be read); empty otherwise.</summary>
+	public string PlanProblem { get; private set => _ = ChangeProperty(ref field, value) && AffectProperty(nameof(HasPlanProblem)); } = "";
+	public bool HasPlanProblem => PlanProblem != "";
+
+	//how Export writes a file, and a sheet's section, and puts a schema.ini back as it was
+	//(its bytes, or none): seams a test fails a write through
+	internal Action<string, Action<TextWriter>, Encoding?> WriteFile { get; set; } = IniWriter.WriteAtomic;
+	internal Action<string, FormatOptions> WriteSection { get; set; } = CsvCodec.SaveSchema;
+	internal Action<string, byte[]?> PutBackSchema { get; set; } = PutBack;
 
 	public ICommand BrowseCommand { get; }
 	public ICommand ExportCommand { get; }
@@ -93,17 +103,27 @@ public class ExportViewModel : DialogViewModel {
 	private ExportSource Source(KeyNode node)
 		=> new(Parent.Session, Parent.Tree.FileOf(node), node);
 
+	//the old plan goes first, so a plan that fails leaves none to export by; the old sheet
+	//is kept aside only to keep its ticks
 	private bool Replan() {
-		if (FileNode is null || Format is null || Target.Trim() == "") {
-			Plan = [];
-			Loss = "";
-		}
-		else {
-			ExportSource source = Source(FileNode);
-			Sheet = Format.Format is CsvCodec codec ? SheetFor(codec, source, FileNode) : null;
-			FormatOptions? options = Sheet?.Options;
-			Plan = [.. Format.Format.Plan(source, Target, options).Select(unit => new ExportUnitRow(unit))];
-			Loss = Describe(Format.Format.Loses(source, options));
+		SheetColumnsViewModel? kept = Sheet;
+		Plan = [];
+		Loss = "";
+		Unclaimed = "";
+		PlanProblem = "";
+		if (FileNode is not null && Format is not null && Target.Trim() != "") {
+			try {
+				ExportSource source = Source(FileNode);
+				Sheet = Format.Format is CsvCodec codec ? SheetFor(codec, source, FileNode, kept) : null;
+				FormatOptions? options = Sheet?.Options;
+				Plan = [.. Format.Format.Plan(source, Target, options).Select(unit => new ExportUnitRow(unit))];
+				Loss = Describe(Format.Format.Loses(source, options));
+			}
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+				Plan = [];
+				Loss = "";
+				PlanProblem = Words.Known.Format("export.plan-failed", SchemaIni.For(Target.Trim()), ex.Message);
+			}
 		}
 		if (Plan.Count == 0) {
 			Sheet = null;
@@ -139,9 +159,9 @@ public class ExportViewModel : DialogViewModel {
 
 	//the sheet's columns, laid out afresh when the file or the sheet changes, and kept,
 	//ticks and all, while neither does
-	private SheetColumnsViewModel SheetFor(CsvCodec codec, ExportSource source, KeyNode node) {
+	private SheetColumnsViewModel SheetFor(CsvCodec codec, ExportSource source, KeyNode node, SheetColumnsViewModel? kept) {
 		string sheet = codec.Plan(source, Target).Single().Path;
-		return Sheet is { } kept && kept.Node == node && WordsSession.SamePath(kept.Sheet, sheet)
+		return kept is not null && kept.Node == node && WordsSession.SamePath(kept.Sheet, sheet)
 			? kept
 			: new SheetColumnsViewModel(this, codec, source, node, sheet);
 	}
@@ -178,6 +198,24 @@ public class ExportViewModel : DialogViewModel {
 		}
 	}
 
+	//a schema.ini as it was before Export wrote its section: its bytes, through a file beside
+	//it moved over it, or no file, when Export made it
+	private static void PutBack(string path, byte[]? bytes) {
+		if (bytes is null) {
+			File.Delete(path);
+			return;
+		}
+		string temp = path + $".{Guid.NewGuid():N}.tmp";
+		try {
+			File.WriteAllBytes(temp, bytes);
+			File.Move(temp, path, overwrite: true);
+		}
+		catch {
+			try { File.Delete(temp); } catch { /* the move's own error is the one worth raising */ }
+			throw;
+		}
+	}
+
 	private void DoExport() {
 		if (!CanExport || FileNode is null || Format is null) {
 			return;
@@ -189,24 +227,54 @@ public class ExportViewModel : DialogViewModel {
 		ExportSource source = Source(FileNode);
 		FormatOptions? options = Sheet?.Options;
 		List<string> gripes = [];
+		//a sheet's section goes first, so a schema.ini that refuses it is known before a byte
+		//of the sheet lands: a new table's, a changed one's, or one whose cells need quoting
+		//that TextDelimiter=none would not give them
+		string? schema = null;
+		byte[]? before = null;
+		if (Sheet is { } sheet && Format.Format is CsvCodec codec && options is not null) {
+			FormatOptions wanted = codec.Quoting(source, options);
+			if (sheet.WritesSection || !ReferenceEquals(wanted, options)) {
+				schema = SchemaIni.For(sheet.Sheet);
+				try {
+					before = File.Exists(schema) ? File.ReadAllBytes(schema) : null;
+					//a table not opened for change has only its text delimiter changed, so a
+					//section naming no columns still names none
+					WriteSection(sheet.Sheet, sheet.WritesSection ? wanted : codec.Quoting(source, sheet.Section!));
+					if (!sheet.WritesSection) {
+						gripes.Add(Words.Known.Format("export.quoted", schema));
+					}
+					options = wanted;
+				}
+				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException) {
+					if (sheet.WritesSection) {
+						//the sheet is not written under columns its section does not say
+						Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", schema, ex.Message));
+						return;
+					}
+					//the section is locked: the sheet goes by it as it is, its cells unquoted
+					gripes.Add(Words.Known.Format("export.schema-locked", schema, ex.Message));
+					schema = null;
+				}
+			}
+		}
 		foreach (ExportUnitRow row in Plan) {
 			try {
 				//each file atomic: a failure partway leaves what was there
-				IniWriter.WriteAtomic(row.Path, writer => Format.Format.Write(source, row.Unit, writer, gripes, options), row.Unit.Encoding);
+				WriteFile(row.Path, writer => Format.Format.Write(source, row.Unit, writer, gripes, options), row.Unit.Encoding);
 			}
-			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.EncoderFallbackException) {
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EncoderFallbackException) {
 				Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", row.Path, ex.Message));
+				//the section written for a sheet that wasn't goes back as it was
+				if (schema is not null) {
+					try {
+						PutBackSchema(schema, before);
+					}
+					catch (Exception again) when (again is IOException or UnauthorizedAccessException) {
+						Parent.Dialogs.Tell(Words.Known.Format("export.schema-changed", schema, row.Path, again.Message));
+					}
+				}
 				Replan(); //the files written so far now exist
-				return;
-			}
-		}
-		//the sheet written, its section: a new table's, or a changed one's
-		if (Sheet is { WritesSection: true } sheet && options is not null) {
-			try {
-				CsvCodec.SaveSchema(sheet.Sheet, options);
-			}
-			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-				Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", SchemaIni.For(sheet.Sheet), ex.Message));
 				return;
 			}
 		}

@@ -112,14 +112,21 @@ namespace PatTech.Localization.Authoring.Codecs {
 			foreach (string other in paths.Skip(1)) {
 				loaded.Errors.Add($"{Path.GetFileName(other)}: a sheet is one file, and only {file} was read");
 			}
+			byte[] bytes = File.ReadAllBytes(path);
+			if (CodePages.IsUtf32(bytes)) {
+				loaded.Errors.Add($"{file}: the sheet is UTF-32, which is not read");
+				return loaded;
+			}
 			CsvSchema schema = CsvSchema.Parse(options ?? OptionsFor(path), loaded.Errors, file);
 			if (schema.FixedLength) {
 				loaded.Errors.Add($"{file}: Format=FixedLength: a fixed-width file is no sheet, so nothing was read");
 				return loaded;
 			}
-			List<CsvRow> rows = CsvRows.Split(Text(path, schema), schema.Delimiter, schema.Quote);
+			List<CsvRow> rows = CsvRows.Split(Text(bytes, schema), schema.Delimiter, schema.Quote);
+			//the header is the first row with anything in it, blank lines above it no rows
+			int header = schema.Header ? rows.FindIndex(row => !row.IsEmpty) : -1;
 			if (schema.Columns.Count == 0) {
-				schema.Name(schema.Header && rows.Count > 0 ? rows[0].Cells : [], loaded.Errors, file);
+				schema.Name(header >= 0 ? rows[header].Cells : [], loaded.Errors, file);
 			}
 			int keyAt = schema.Columns.FindIndex(column => column.IsKey);
 			if (keyAt < 0 || !schema.Columns.Any(column => column.Field is { Type: "value", Language: "", Form: "" })) {
@@ -130,7 +137,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 				FileNames.Declare(loaded, code);
 			}
 			Dictionary<string, int> given = [];
-			foreach (CsvRow row in rows.Skip(schema.Header ? 1 : 0)) {
+			foreach (CsvRow row in schema.Header ? rows.Skip(header < 0 ? rows.Count : header + 1) : rows) {
 				if (row.IsEmpty) {
 					continue;
 				}
@@ -267,21 +274,43 @@ namespace PatTech.Localization.Authoring.Codecs {
 		/// </summary>
 		public IReadOnlyList<IReadOnlyList<string>> Preview(string path, FormatOptions options, int rows) {
 			CsvSchema schema = CsvSchema.Parse(options, [], Path.GetFileName(path));
-			if (schema.FixedLength) {
+			byte[] bytes = File.ReadAllBytes(path);
+			if (schema.FixedLength || CodePages.IsUtf32(bytes)) {
 				return [];
 			}
-			return [.. CsvRows.Split(Text(path, schema), schema.Delimiter, schema.Quote, rows).Select(row => (IReadOnlyList<string>)[.. row.Cells.Select(cell => cell ?? "")])];
+			//no empty rows: the first shown is the header, however many blank lines come before it
+			return [.. CsvRows.Split(Text(bytes, schema), schema.Delimiter, schema.Quote, rows)
+				.Where(row => !row.IsEmpty)
+				.Select(row => (IReadOnlyList<string>)[.. row.Cells.Select(cell => cell ?? "")])];
+		}
+
+		/// <summary>True when the sheet's byte-order mark says UTF-32, which a sheet is never read in.</summary>
+		public static bool IsUtf32(string path) {
+			using FileStream stream = File.OpenRead(path);
+			byte[] head = new byte[4];
+			return CodePages.IsUtf32(head[..stream.ReadAtLeast(head, 4, throwOnEndOfStream: false)]);
 		}
 
 		//the sheet as text: in the encoding its byte-order mark names, else the schema's
-		private string Text(string path, CsvSchema schema) => CodePages.Decode(File.ReadAllBytes(path), CodePages.Reading(CodePage(schema.CharacterSet))).Text;
+		private string Text(byte[] bytes, CsvSchema schema) => CodePages.Decode(bytes, CodePages.Reading(CodePage(schema.CharacterSet))).Text;
 
-		/// <summary>The code page a <c>CharacterSet</c> names: <c>ANSI</c> and <c>OEM</c> the culture's, <c>UNICODE</c> UTF-16, or the number.</summary>
+		/// <summary>
+		///     Whether a <c>CharacterSet</c> names an encoding a sheet is read and written
+		///     in: <c>ANSI</c>, <c>OEM</c>, <c>UNICODE</c>, or a code page the platform
+		///     has, but for UTF-32 (12000, 12001), which no spreadsheet reads.
+		/// </summary>
+		public static bool IsCharacterSet(string characterSet) {
+			string trimmed = characterSet.Trim();
+			return trimmed.ToUpperInvariant() is "ANSI" or "OEM" or "UNICODE"
+				|| int.TryParse(trimmed, NumberStyles.None, CultureInfo.InvariantCulture, out int page) && !CodePages.IsUtf32Page(page) && CodePages.Known(page);
+		}
+
+		/// <summary>The code page a <c>CharacterSet</c> names: <c>ANSI</c> and <c>OEM</c> the culture's, <c>UNICODE</c> UTF-16, or the number; ANSI for any it does not name (<see cref="IsCharacterSet"/>).</summary>
 		public int CodePage(string characterSet) => characterSet.Trim().ToUpperInvariant() switch {
 			"ANSI" => Culture.TextInfo.ANSICodePage,
 			"OEM" => Culture.TextInfo.OEMCodePage,
 			"UNICODE" => 1200,
-			var number => int.TryParse(number, NumberStyles.None, CultureInfo.InvariantCulture, out int page) && CodePages.Known(page) ? page : Culture.TextInfo.ANSICodePage,
+			var number => IsCharacterSet(number) ? int.Parse(number, NumberStyles.None, CultureInfo.InvariantCulture) : Culture.TextInfo.ANSICodePage,
 		};
 
 		/// <summary>
@@ -313,71 +342,118 @@ namespace PatTech.Localization.Authoring.Codecs {
 		/// <summary>What an export to <paramref name="sheet"/> writes by when it is given no options: the sheet's section, else a new table's, ticked by what the file uses.</summary>
 		public FormatOptions OptionsFor(ExportSource source, string sheet) => SchemaIni.Read(sheet) ?? Options(source, CsvLayout.For(source));
 
+		/// <summary>
+		///     The section an export of <paramref name="source"/> goes by: <paramref name="section"/>
+		///     as it is when it names columns; one naming none keeps its header, delimiter,
+		///     encoding and the driver's own keys, and takes the columns a new table would,
+		///     ticked by what the file uses.
+		/// </summary>
+		public FormatOptions Effective(ExportSource source, FormatOptions section)
+			=> CsvSchema.Parse(section, [], "").Columns.Count > 0 ? section : Options(source, CsvLayout.For(source), section);
+
 		/// <summary>One sheet at <paramref name="target"/>, a <c>.csv</c> unless it names a sheet's extension, carrying every language, in the encoding its schema names.</summary>
 		public IReadOnlyList<ExportUnit> Plan(ExportSource source, string target, FormatOptions? options = null) {
 			string sheet = Info.Claims(target) ? target : Path.ChangeExtension(target, ".csv");
-			CsvSchema schema = CsvSchema.Parse(options ?? OptionsFor(source, sheet), [], Path.GetFileName(sheet));
+			CsvSchema schema = CsvSchema.Parse(Effective(source, options ?? OptionsFor(source, sheet)), [], Path.GetFileName(sheet));
 			return [new ExportUnit(sheet, [.. source.File.Languages], CodePages.Writing(CodePage(schema.CharacterSet)))];
+		}
+
+		/// <summary>
+		///     <paramref name="options"/> as an export of <paramref name="source"/> must
+		///     have them to keep every cell as it is: unchanged, unless under
+		///     <c>TextDelimiter=none</c> some cell holds the delimiter or a line break,
+		///     when they say <c>TextDelimiter="</c> instead (the editor's SPEC:
+		///     Spreadsheets, Export).
+		/// </summary>
+		public FormatOptions Quoting(ExportSource source, FormatOptions options) {
+			CsvSchema schema = CsvSchema.Parse(Effective(source, options), [], "");
+			if (schema.Quote is not null || !Cells(source, schema).Any(cell => cell?.IndexOfAny([schema.Delimiter, '\n']) >= 0)) {
+				return options;
+			}
+			FormatOptions quoted = [];
+			foreach (var (key, value) in options) {
+				quoted[key] = value;
+			}
+			quoted[TextDelimiterOption] = "\"";
+			return quoted;
 		}
 
 		/// <summary>
 		///     Writes the sheet: the header row when the schema has one, then a row a key
 		///     in the tree's order, a cell a column, a column read past left empty, rows
-		///     ending CRLF. Every cell with words is quoted, or under
-		///     <c>TextDelimiter=none</c> only one holding the delimiter or a line break,
-		///     with a gripe; a stale mark with no text is its column's word. A language
-		///     the file has words in and no column carries is a gripe.
+		///     ending CRLF and a line break in a cell LF. Every cell with words is quoted;
+		///     under <c>TextDelimiter=none</c> none is, and a cell holding the delimiter
+		///     or a line break has each written as a space, with a gripe naming its key.
+		///     A stale mark with no text is its column's word. A field the file fills, in
+		///     the default or a language with a value column, that no column carries is a
+		///     gripe; a language with no value column is left out, and no gripe.
 		/// </summary>
 		public void Write(ExportSource source, ExportUnit unit, TextWriter writer, ICollection<string> gripes, FormatOptions? options = null) {
 			string file = Path.GetFileName(unit.Path);
-			CsvSchema schema = CsvSchema.Parse(options ?? OptionsFor(source, unit.Path), gripes, file);
+			FormatOptions section = options ?? OptionsFor(source, unit.Path);
+			CsvSchema schema = CsvSchema.Parse(Effective(source, section), gripes, file);
+			if (CsvSchema.Parse(section, [], file).Columns.Count == 0 && !schema.Header) {
+				gripes.Add($"{file}: its section names no columns and {HeaderOption}=False, so nothing names them and the sheet will not read back");
+			}
 			if (schema.FixedLength) {
 				schema.Delimiter = ',';
 				gripes.Add($"{file}: Format=FixedLength: a fixed-width file is no sheet, so it was written comma-delimited");
 			}
-			if (schema.Columns.Count == 0) {
-				schema = CsvSchema.Parse(Options(source, CsvLayout.For(source)), [], file);
-			}
 			if (!schema.Columns.Any(column => column.IsKey) || !schema.Columns.Any(column => column.Field is { Type: "value", Language: "", Form: "" })) {
 				gripes.Add($"{file}: no column is the key or the default's value, so the sheet will not read back");
 			}
-			foreach (string code in source.File.Languages) {
-				bool carried = schema.Columns.Any(column => column.Field is { Type: "value" } field && field.Language == code);
-				if (!carried && source.Keys().Any(key => key.Entries.TryGetValue(code, out WordsEntry? entry) && (entry.Value != "" || entry.Forms.HasWords()))) {
-					gripes.Add($"{file}: no column carries {code}, so its words were not written");
-				}
+			foreach (WordsField missing in Missing(source, schema.Columns).Distinct()) {
+				gripes.Add($"{file}: no column carries {missing}, so its words were not written");
 			}
-			bool unquotable = false;
+			List<string> spaced = [];
 			if (schema.Header) {
 				Row(schema.Columns.Select(column => (string?)column.Name));
 			}
 			foreach (WordsKey key in source.Keys()) {
-				Row(schema.Columns.Select(column => column.IsKey ? key.BlockKey : column.Field is { } field ? Text(field, key) : null));
+				if (Row(Cells(key, schema))) {
+					spaced.Add(key.BlockKey);
+				}
 			}
-			if (unquotable) {
-				gripes.Add($"{file}: {TextDelimiterOption}=none, but cells holding the delimiter or a line break were quoted with \"");
+			if (spaced.Count > 0) {
+				gripes.Add($"{file}: {TextDelimiterOption}=none, so the delimiter and line breaks in the cells of {spaced.Count} keys were written as spaces ({string.Join(", ", spaced)})");
 			}
 
-			void Row(IEnumerable<string?> cells) {
-				writer.Write(string.Join(schema.Delimiter, cells.Select(Cell)));
+			//true when a cell had to lose the delimiter or a line break
+			bool Row(IEnumerable<string?> cells) {
+				bool changed = false;
+				List<string> written = [];
+				foreach (string? text in cells) {
+					written.Add(Cell(text, ref changed));
+				}
+				writer.Write(string.Join(schema.Delimiter, written));
 				writer.Write("\r\n");
+				return changed;
 			}
 
-			string Cell(string? text) {
+			string Cell(string? text, ref bool changed) {
 				if (text is null) {
 					return "";
 				}
 				if (schema.Quote is not { } quote) {
-					if (text.IndexOfAny([schema.Delimiter, '\r', '\n']) < 0) {
+					//bare, as the schema wants: what would need a quote is a space
+					if (text.IndexOfAny([schema.Delimiter, '\n']) < 0) {
 						return text;
 					}
-					unquotable = true;
-					quote = '"';
+					changed = true;
+					return text.Replace(schema.Delimiter, ' ').Replace('\n', ' ');
 				}
 				string mark = quote.ToString();
 				return mark + text.Replace(mark, mark + mark) + mark;
 			}
 		}
+
+		//every key's cells as written, before quoting
+		private static IEnumerable<string?> Cells(ExportSource source, CsvSchema schema)
+			=> source.Keys().SelectMany(key => Cells(key, schema));
+
+		//a key's cells, a line break in one LF, as a reader gives it back
+		private static IEnumerable<string?> Cells(WordsKey key, CsvSchema schema)
+			=> schema.Columns.Select(column => (column.IsKey ? key.BlockKey : column.Field is { } field ? Text(field, key) : null)?.Replace("\r\n", "\n").Replace('\r', '\n'));
 
 		//a field's cell: its text, and a stale mark with none its column's word
 		private static string? Text(WordsField field, WordsKey key) {
@@ -387,6 +463,42 @@ namespace PatTech.Localization.Authoring.Codecs {
 
 		//the word a stale mark with no text is written as: review for the review flag, stale for a language's
 		private static string MarkWord(WordsField field) => field.Language == "" ? "review" : "stale";
+
+		//the fields the file fills that no column carries: the default's, and those of each
+		//language with a value column, a language with none being left out (the editor's
+		//SPEC: Spreadsheets, Loss follows the columns). A mark with no text is filled
+		private static IEnumerable<WordsField> Missing(ExportSource source, IReadOnlyList<CsvColumn> columns) {
+			HashSet<string> carried = [.. columns.Select(column => column.Field?.ToString()).OfType<string>()];
+			List<string> languages = [.. columns.Select(column => column.Field).OfType<WordsField>()
+				.Where(field => field is { Type: "value", Form: "" } && field.Language != "").Select(field => field.Language).Distinct()];
+			foreach (WordsKey key in source.Keys()) {
+				List<WordsField> fields = [new("context", "", ""), new("comment", "", ""), new("stale", "", ""),
+					.. key.Forms.Keys.Select(form => new WordsField("value", "", form))];
+				foreach (string code in languages) {
+					if (key.Entries.TryGetValue(code, out WordsEntry? entry)) {
+						fields.AddRange([new("context", code, ""), new("comment", code, ""), new("stale", code, ""),
+							.. entry.Forms.Keys.Select(form => new WordsField("value", code, form))]);
+					}
+				}
+				foreach (WordsField field in fields) {
+					if (!carried.Contains(field.ToString()) && field.Read(key) is not null) {
+						yield return field;
+					}
+				}
+			}
+		}
+
+		//the feature a field that no column carries is lost from
+		private static WordsFeatures FeatureOf(WordsField field) => field switch {
+			{ Form: not "" } => WordsFeatures.PluralForms,
+			{ Type: "context", Language: "" } => WordsFeatures.Context,
+			{ Type: "comment", Language: "" } => WordsFeatures.Comment,
+			{ Type: "context" } => WordsFeatures.EntryContext,
+			{ Type: "comment" } => WordsFeatures.EntryComment,
+			{ Type: "stale", Language: "" } => WordsFeatures.NeedsReview,
+			{ Type: "stale" } => WordsFeatures.Stale,
+			_ => WordsFeatures.None,
+		};
 
 		/// <summary>
 		///     What a sheet keeps written with <paramref name="options"/>: what its
@@ -413,6 +525,23 @@ namespace PatTech.Localization.Authoring.Codecs {
 			Keep(WordsFeatures.Stale, field => field is { Type: "stale", Language: not "" });
 			Keep(WordsFeatures.NeedsReview, field => field is { Type: "stale", Language: "" });
 			Keep(WordsFeatures.PluralForms, field => field.Form != "");
+			return kept;
+		}
+
+		/// <summary>
+		///     What a sheet of <paramref name="source"/> keeps written with
+		///     <paramref name="options"/>, through the section it goes by
+		///     (<see cref="Effective"/>): a feature is kept when every field of it the
+		///     file fills, in the default and in each language with a value column, has
+		///     a column. A language with no value column is left out by choice, and loses
+		///     nothing (the editor's SPEC: Spreadsheets, Loss follows the columns).
+		/// </summary>
+		public WordsFeatures Keeps(ExportSource source, FormatOptions? options) {
+			FormatOptions effective = Effective(source, options ?? Options(source, CsvLayout.For(source)));
+			WordsFeatures kept = Info.Features;
+			foreach (WordsField missing in Missing(source, CsvSchema.Parse(effective, [], "").Columns)) {
+				kept &= ~FeatureOf(missing);
+			}
 			return kept;
 		}
 
@@ -557,10 +686,11 @@ namespace PatTech.Localization.Authoring.Codecs {
 			}
 			if (options.TryGetValue(CsvCodec.CharacterSetOption, out string? characterSet)) {
 				string trimmed = characterSet.Trim();
-				bool named = trimmed.ToUpperInvariant() is "ANSI" or "OEM" or "UNICODE"
-					|| int.TryParse(trimmed, NumberStyles.None, CultureInfo.InvariantCulture, out int page) && CodePages.Known(page);
-				if (named) {
+				if (CsvCodec.IsCharacterSet(trimmed)) {
 					schema.CharacterSet = trimmed;
+				}
+				else if (int.TryParse(trimmed, NumberStyles.None, CultureInfo.InvariantCulture, out int page) && CodePages.IsUtf32Page(page)) {
+					gripes.Add($"{file}: CharacterSet={trimmed}: UTF-32 is no sheet encoding, so it is taken as ANSI");
 				}
 				else {
 					gripes.Add($"{file}: CharacterSet={trimmed} names no code page here, so it is taken as ANSI");
@@ -620,15 +750,17 @@ namespace PatTech.Localization.Authoring.Codecs {
 		///     Splits a sheet's text into rows as Excel quotes them: a cell opening with
 		///     the quote runs to the quote that closes it, a doubled quote inside it is
 		///     one, and a line break inside it is a line feed; rows end with CRLF, LF or
-		///     CR. An empty cell is null and a quoted empty one empty.
+		///     CR. An empty cell is null and a quoted empty one empty. The
+		///     <paramref name="limit"/> counts rows with anything in them, so blank lines
+		///     never use it up.
 		/// </summary>
 		public static List<CsvRow> Split(string text, char delimiter, char? quote, int limit = int.MaxValue) {
 			List<CsvRow> rows = [];
 			List<string?> cells = [];
 			var cell = new StringBuilder();
 			bool quoted = false, inQuotes = false;
-			int line = 1, rowLine = 1;
-			for (int i = 0; i < text.Length && rows.Count < limit; i++) {
+			int line = 1, rowLine = 1, full = 0;
+			for (int i = 0; i < text.Length && full < limit; i++) {
 				char c = text[i];
 				if (inQuotes) {
 					if (c == quote) {
@@ -662,7 +794,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 						i++;
 					}
 					EndCell();
-					rows.Add(new CsvRow(rowLine, cells));
+					AddRow();
 					cells = [];
 					rowLine = ++line;
 				}
@@ -670,11 +802,19 @@ namespace PatTech.Localization.Authoring.Codecs {
 					cell.Append(c);
 				}
 			}
-			if ((cells.Count > 0 || cell.Length > 0 || quoted) && rows.Count < limit) {
+			if ((cells.Count > 0 || cell.Length > 0 || quoted) && full < limit) {
 				EndCell();
-				rows.Add(new CsvRow(rowLine, cells));
+				AddRow();
 			}
 			return rows;
+
+			void AddRow() {
+				var row = new CsvRow(rowLine, cells);
+				rows.Add(row);
+				if (!row.IsEmpty) {
+					full++;
+				}
+			}
 
 			void EndCell() {
 				cells.Add(quoted || cell.Length > 0 ? cell.ToString() : null);
@@ -718,13 +858,21 @@ namespace PatTech.Localization.Authoring.Codecs {
 			_ => Encoding.GetEncoding(page, EncoderFallback.ExceptionFallback, DecoderFallback.ReplacementFallback),
 		};
 
-		/// <summary>The code page a byte-order mark names: 65001, 1200 or 1201; none without one.</summary>
+		/// <summary>The code page a byte-order mark names: 65001, UTF-32's 12000 or 12001, which comes first as it starts as UTF-16 LE's does, 1200 or 1201; none without one.</summary>
 		public static int? Bom(byte[] bytes) => bytes switch {
 			[0xEF, 0xBB, 0xBF, ..] => 65001,
+			[0xFF, 0xFE, 0x00, 0x00, ..] => 12000,
+			[0x00, 0x00, 0xFE, 0xFF, ..] => 12001,
 			[0xFF, 0xFE, ..] => 1200,
 			[0xFE, 0xFF, ..] => 1201,
 			_ => null,
 		};
+
+		/// <summary>UTF-32, little-endian or big: no sheet's encoding, nor a <c>schema.ini</c>'s.</summary>
+		public static bool IsUtf32Page(int page) => page is 12000 or 12001;
+
+		/// <summary>True when the bytes' byte-order mark says UTF-32.</summary>
+		public static bool IsUtf32(byte[] bytes) => Bom(bytes) is { } page && IsUtf32Page(page);
 
 		/// <summary>True when the bytes read as UTF-8 without a fault.</summary>
 		public static bool IsUtf8(byte[] bytes) {
