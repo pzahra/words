@@ -35,6 +35,8 @@ public sealed class FakeDialogs : IDialogs {
 	/// <summary>Each save dialog's filter, in order.</summary>
 	public List<string> SaveFilters { get; } = [];
 	public Action<IDialogViewModel>? OnShow { get; set; }
+	/// <summary>What was put on the clipboard, in order.</summary>
+	public List<string> Copied { get; } = [];
 
 	/// <summary>The text as the user would read it: resolved, no key showing through.</summary>
 	public static string Rendered(string text) {
@@ -60,6 +62,8 @@ public sealed class FakeDialogs : IDialogs {
 	}
 
 	public void Tell(string message) => Notices.Add(Rendered(message));
+
+	public void Copy(string text) => Copied.Add(text);
 
 	public bool TryOpenFiles(string title, string filter, [NotNullWhen(true)] out string[]? fileNames) {
 		Rendered(title);

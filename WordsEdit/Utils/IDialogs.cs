@@ -26,4 +26,6 @@ public interface IDialogs {
 		=> TrySaveFile(title, filter, null, out fileName);
 	/// <summary>The save dialog, proposing <paramref name="proposed"/>: a name, or a path whose folder it opens in.</summary>
 	bool TrySaveFile([Localized] string title, [Localized] string filter, string? proposed, [NotNullWhen(true)] out string? fileName);
+	/// <summary>Puts <paramref name="text"/> on the clipboard.</summary>
+	void Copy(string text);
 }

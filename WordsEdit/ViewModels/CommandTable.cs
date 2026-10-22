@@ -6,10 +6,18 @@ using WordsEdit.Utils;
 
 namespace WordsEdit.ViewModels;
 
-/// <summary>A row of the command table: a command, a toggle, a choice, or the break between two runs.</summary>
+/// <summary>A row of the command table: a command, a toggle, a choice, or the break between two runs; or an entry pinned to a toolbar.</summary>
 public abstract class MenuRow : ViewModelBase {
 	/// <summary>The help bubble that points at the row on a toolbar (SPEC: Help bubbles), if any.</summary>
 	public string? Topic { get; init; }
+	/// <summary>
+	///     What a toolbar's line and a help page's <c>wordsmith:</c> link call it: the tail of
+	///     its caption's key, <c>menu.stale-all</c> as <c>stale-all</c>, set by the table
+	///     (SPEC: The toolbar editor, Rows by name). A break has none.
+	/// </summary>
+	public string Name { get; internal set; } = "";
+	/// <summary>Takes the room its toolbar's other entries leave: the search box, the node's name.</summary>
+	public virtual bool Fills => false;
 }
 
 /// <summary>The line between two runs of a menu.</summary>
@@ -223,36 +231,42 @@ public sealed class MenuGroup([Localized] string caption, IReadOnlyList<MenuRow>
 /// <summary>
 ///     The command table (SPEC: Menu and toolbars). The menu is the inventory —
 ///     every command the editor has, grouped the usual way; the toolbars carry
-///     only what is convenient and the tree's context menu is the Edit menu
-///     again, all drawn from the same rows. The words are looked up here, by
-///     literal key, so the editor's file names every one of them.
+///     what the user puts on them, shipping with what is convenient (SPEC: The
+///     toolbar editor), and the tree's context menu is the Edit menu again, all
+///     drawn from the same rows. The words are looked up here, by literal key,
+///     so the editor's file names every one of them.
 /// </summary>
 public sealed class CommandTable {
 	public IReadOnlyList<MenuGroup> Menu { get; }
 	/// <summary>The Edit menu's rows: the tree's context menu.</summary>
 	public IReadOnlyList<MenuRow> EditRows { get; }
-	/// <summary>The node operations, under the tree.</summary>
-	public IReadOnlyList<CommandItem> NodeTools { get; }
-	/// <summary>The key operations, under the baseline pane.</summary>
-	public IReadOnlyList<CommandItem> KeyTools { get; }
-	/// <summary>The filters: a vertical toolbar in the popup beside the search box.</summary>
-	public IReadOnlyList<CommandItem> FilterTools { get; }
-	/// <summary>Beside the selected node's name: Rename.</summary>
-	public IReadOnlyList<CommandItem> NameTools { get; }
-	/// <summary>The baseline pane's header: the form, the key's flags, its preview.</summary>
-	public IReadOnlyList<MenuRow> DefaultTools { get; }
-	/// <summary>The translation pane's header: the form, the stale flag, its preview.</summary>
-	public IReadOnlyList<MenuRow> TranslationTools { get; }
+	/// <summary>The toolbars, in the order a row's first place on one wins.</summary>
+	public IReadOnlyList<Toolbar> Toolbars { get; }
+	/// <summary>Over the tree: Back and Forward, the search box, the filter button.</summary>
+	public Toolbar SearchTools { get; }
+	/// <summary>Over the default pane: the selected node's name, Rename, Copy Key Name.</summary>
+	public Toolbar NameTools { get; }
+	/// <summary>The default pane's header: the form, the key's flags, its preview.</summary>
+	public Toolbar DefaultTools { get; }
 	/// <summary>Above the translation pane: the languages, and the one selected as a combo box.</summary>
-	public IReadOnlyList<MenuRow> LanguageTools { get; }
-	/// <summary>By the search: Back and Forward, which move through the document as it does.</summary>
-	public IReadOnlyList<CommandItem> NavigationTools { get; }
+	public Toolbar LanguageTools { get; }
+	/// <summary>The translation pane's header: the form, the stale flag, its preview.</summary>
+	public Toolbar TranslationTools { get; }
+	/// <summary>The node operations, under the tree.</summary>
+	public Toolbar NodeTools { get; }
+	/// <summary>The key operations, under the default pane.</summary>
+	public Toolbar KeyTools { get; }
+	/// <summary>The filters, in the filter button's popup: no toolbar, so fixed.</summary>
+	public IReadOnlyList<CommandItem> FilterTools { get; }
+	/// <summary>Every row of the menu and every pinned entry, by name.</summary>
+	public IReadOnlyDictionary<string, MenuRow> Named { get; }
 	/// <summary>
-	///     Each command row by the tail of its caption key, <c>menu.stale-all</c> as
-	///     <c>stale-all</c>: what a help page's <c>wordsmith:</c> link names (SPEC:
-	///     Help bubbles, Links).
+	///     Each command row by name: what a help page's <c>wordsmith:</c> link names
+	///     (SPEC: Help bubbles, Links).
 	/// </summary>
 	public IReadOnlyDictionary<string, CommandItem> Links { get; }
+	/// <summary>The rows none of which warrants a button: they are the menu's alone.</summary>
+	public static IReadOnlySet<string> MenuOnly { get; } = new HashSet<string> { "ui-language", "exit", "reset", "tips-again" };
 
 	/// <summary>Every command row, in menu order.</summary>
 	public IEnumerable<CommandItem> Rows => Menu.SelectMany(group => group.Items).OfType<CommandItem>();
@@ -263,7 +277,8 @@ public sealed class CommandTable {
 	/// <summary>The rows a mouse button runs too, which the window binds with its keys.</summary>
 	public IEnumerable<CommandItem> MouseShortcuts => Rows.Where(row => row.Button is not null);
 
-	public CommandTable(MainWindowViewModel vm) {
+	/// <param name="toolbars">What the toolbars remember: each one changed from how it ships.</param>
+	public CommandTable(MainWindowViewModel vm, IToolbarMemory toolbars) {
 		TreeViewModel tree = vm.Tree;
 		//File: in, out, and away
 		var create = new CommandItem(Words.Known["menu.new"], PackIconKind.FilePlus, vm.NewFileCommand, Ctrl(Key.N));
@@ -283,6 +298,8 @@ public sealed class CommandTable {
 		var addKey = new CommandItem(Words.Known["menu.add-key"], PackIconKind.KeyPlus, vm.AddKeyCommand);
 		var addComment = new CommandItem(Words.Known["menu.add-comment"], PackIconKind.CommentPlus, vm.AddOrganizerCommand);
 		var rename = new CommandItem(Words.Known["menu.rename"], PackIconKind.RenameBox, vm.RenameNodeCommand, new KeyGesture(Key.F2));
+		//no key: Ctrl+C is the boxes'
+		var copyKey = new CommandItem(Words.Known["menu.copy-key"], PackIconKind.ContentCopy, vm.CopyKeyCommand);
 		var remove = new CommandItem(Words.Known["menu.remove"], PackIconKind.Delete, vm.RemoveNodeCommand, new KeyGesture(Key.Delete));
 		var toggleReview = new ToggleItem(Words.Known["menu.toggle-review"], PackIconKind.HandFrontLeft, () => tree.SelectedNeedsReview, vm.ToggleNeedsReviewCommand) { Topic = HelpTopics.Review.Id };
 		var toggleConstant = new ToggleItem(Words.Known["menu.toggle-constant"], PackIconKind.TranslateOff, () => tree.SelectedIsConstant, vm.ToggleConstantCommand);
@@ -319,7 +336,7 @@ public sealed class CommandTable {
 		var tips = new ToggleItem(Words.Known["menu.tips"], PackIconKind.CommentQuestionOutline, () => vm.Help.Tips, new DelegateCommand(() => vm.Help.Tips = !vm.Help.Tips));
 		var tipsAgain = new CommandItem(Words.Known["menu.tips-again"], PackIconKind.CommentArrowLeftOutline, new DelegateCommand(vm.Help.ShowAgain));
 
-		MenuGroup edit = new(Words.Known["menu.edit"], [undo, redo, new MenuBreak(), addNode, addKey, addComment, rename, remove, new MenuBreak(), toggleReview, toggleConstant, toggleStale, staleAll, removeKey]);
+		MenuGroup edit = new(Words.Known["menu.edit"], [undo, redo, new MenuBreak(), addNode, addKey, addComment, rename, copyKey, remove, new MenuBreak(), toggleReview, toggleConstant, toggleStale, staleAll, removeKey]);
 		Menu = [
 			new MenuGroup(Words.Known["menu.file"], [create, load, import, merge, new MenuBreak(), save, saveAs, export, new MenuBreak(), reset, exit], HelpTopics.Start.Id),
 			edit,
@@ -328,25 +345,73 @@ public sealed class CommandTable {
 			new MenuGroup(Words.Known["menu.help"], [tips, tipsAgain]),
 		];
 		EditRows = edit.Items;
-		NodeTools = [addNode, remove, addComment];
-		KeyTools = [addKey, removeKey, staleAll];
 		FilterTools = [staleView, reviewView, missingView, mismatchView, clearFilters];
-		NameTools = [rename];
-		DefaultTools = [defaultForm, toggleConstant, toggleReview, defaultPreview];
-		TranslationTools = [translationForm, toggleStale, translationPreview];
-		LanguageTools = [languages, translationLanguage];
-		NavigationTools = [back, forward];
-		Links = new Dictionary<string, CommandItem> {
+		//the entries pinned to a toolbar: the window draws them, the table names their place
+		var searchBox = new SearchBoxEntry(tree);
+		var filters = new FiltersEntry(tree, FilterTools);
+		var nodeName = new NodeNameEntry(tree);
+		var named = new Dictionary<string, MenuRow>(StringComparer.OrdinalIgnoreCase) {
 			["new"] = create, ["load"] = load, ["import"] = import, ["merge"] = merge, ["save"] = save, ["save-as"] = saveAs,
 			["export"] = export, ["reset"] = reset, ["exit"] = exit,
 			["undo"] = undo, ["redo"] = redo, ["add-node"] = addNode, ["add-key"] = addKey, ["add-comment"] = addComment,
-			["rename"] = rename, ["remove"] = remove, ["toggle-review"] = toggleReview, ["toggle-constant"] = toggleConstant,
+			["rename"] = rename, ["copy-key"] = copyKey, ["remove"] = remove, ["toggle-review"] = toggleReview, ["toggle-constant"] = toggleConstant,
 			["toggle-stale"] = toggleStale, ["stale-all"] = staleAll, ["remove-key"] = removeKey,
 			["stale-view"] = staleView, ["review-view"] = reviewView, ["missing-view"] = missingView, ["mismatch-view"] = mismatchView,
 			["clear-filters"] = clearFilters, ["default-preview"] = defaultPreview, ["translation-preview"] = translationPreview,
 			["back"] = back, ["forward"] = forward, ["find"] = find,
+			["default-form"] = defaultForm, ["translation-form"] = translationForm,
+			["translation-language"] = translationLanguage, ["ui-language"] = uiLanguage,
 			["languages"] = languages, ["settings"] = settings, ["tips"] = tips, ["tips-again"] = tipsAgain,
+			["search-box"] = searchBox, ["filters"] = filters, ["node-name"] = nodeName,
 		};
+		foreach (var (name, row) in named) {
+			row.Name = name;
+		}
+		Named = named;
+		Links = named.Where(pair => pair.Value is CommandItem).ToDictionary(pair => pair.Key, pair => (CommandItem)pair.Value);
+		SearchTools = new Toolbar("search", [back, forward, searchBox, filters], searchBox, filters);
+		NameTools = new Toolbar("name", [nodeName, rename, copyKey], nodeName);
+		DefaultTools = new Toolbar("default", [defaultForm, toggleConstant, toggleReview, defaultPreview]);
+		LanguageTools = new Toolbar("languages", [languages, translationLanguage], translationLanguage);
+		TranslationTools = new Toolbar("translation", [translationForm, toggleStale, translationPreview]);
+		NodeTools = new Toolbar("node", [addNode, remove, addComment]);
+		KeyTools = new Toolbar("key", [addKey, removeKey, staleAll]);
+		Toolbars = [SearchTools, NameTools, DefaultTools, LanguageTools, TranslationTools, NodeTools, KeyTools];
+		Arrange(toolbars);
+	}
+
+	//each toolbar from its line, in order, a row's first place winning (SPEC: The toolbar
+	//editor, Saved). What a line names that the editor does not know, or may not put there,
+	//is ignored; a pinned entry left out goes back at its place as shipped. A line that
+	//came out otherwise is written back so, and one that came out as shipped goes
+	private void Arrange(IToolbarMemory memory) {
+		HashSet<MenuRow> placed = [];
+		HashSet<MenuRow> pinned = [.. Toolbars.SelectMany(toolbar => toolbar.Pinned)];
+		foreach (Toolbar toolbar in Toolbars) {
+			string? line = memory.Line(toolbar.Name);
+			List<MenuRow> entries = [];
+			foreach (string name in line?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries) ?? toolbar.Shipped.Select(Toolbar.Spell)) {
+				if (name == Toolbar.Break) {
+					entries.Add(new MenuBreak());
+				}
+				else if (Named.TryGetValue(name, out MenuRow? row) && !MenuOnly.Contains(row.Name) && !placed.Contains(row)
+						&& !entries.Contains(row) && (!pinned.Contains(row) || toolbar.Pinned.Contains(row))) {
+					entries.Add(row);
+				}
+			}
+			foreach (MenuRow pin in toolbar.Pinned.Where(pin => !entries.Contains(pin))) {
+				entries.Insert(Math.Min(toolbar.Shipped.ToList().IndexOf(pin), entries.Count), pin);
+			}
+			placed.UnionWith(entries.Where(entry => entry is not MenuBreak));
+			toolbar.Entries.Clear();
+			foreach (MenuRow entry in entries) {
+				toolbar.Entries.Add(entry);
+			}
+			string? kept = toolbar.Line == toolbar.ShippedLine ? null : toolbar.Line;
+			if (kept != line) {
+				memory.Keep(toolbar.Name, kept);
+			}
+		}
 	}
 
 	/// <summary>A state, a selection or a language changed somewhere other than its row: every toggle and choice re-reads. Always true, to chain.</summary>

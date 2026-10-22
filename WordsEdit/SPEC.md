@@ -836,11 +836,13 @@ keyboard, not only by icon. The toolbars are toolbar controls populated from
 the same commands and carry only what is convenient: the node operations
 under the tree, the key operations under the baseline pane, the filters as
 a vertical toolbar in the popup beside the search box, Back and Forward on
-the box's other side, Rename at the right of the selected node's name, each pane's header (its plural form, the key's
+the box's other side, Rename and Copy Key Name at the right of the selected node's name, each pane's header (its plural form, the key's
 flags, its preview) and, above the translation pane, Languages beside the
 translation language as a combo box.
 Files in and out, Merge, Reset and Project Settings live in the menu alone,
 the files with their keys (Ctrl+N, Ctrl+O, Ctrl+I, Ctrl+S, Ctrl+E).
+That is how they ship: a line in the config's `[toolbars]` puts a toolbar's
+rows otherwise (Planned upgrades: The toolbar editor, its first step built).
 
 **One row per command.** A command is defined once — its `ICommand`, its
 caption, its icon and its gesture — as a `CommandItem` in the command table
@@ -2378,24 +2380,25 @@ writes `[toolbars]` a line at a time. Nothing in Core, Wpf or Ava changes.
 
 **Order.** Two steps. First the toolbars as lists: every row named, the
 pinned entries among them, each toolbar read from the config, breaks drawn,
-and the copy row, so a hand-edited `[toolbars]` already works. Then the
-dialog, its context-menu door and its help topic.
+and the copy row, so a hand-edited `[toolbars]` already works (built). Then
+the dialog, its context-menu door and its help topic.
 
-**Tests.**
+**Tests.** The first step's are built, in `ToolbarTests` and
+`CommandTableTests`, and marked so.
 - Every menu row has one name, and a `wordsmith:` link reaches a command
-  by it.
+  by it (built).
 - Each toolbar ships as it is today. A `[toolbars]` line reads back, breaks
-  included; a toolbar put back as it ships loses its line.
+  included; a toolbar put back as it ships loses its line (built).
 - A hand-edited line: an unknown name, a row of the menu's own and a row
   placed twice are ignored, and the line is written back without them;
   a pinned entry left out of its own line or put on another's goes back at
   its place as shipped, and the lines are written back so; a line that
-  comes out as shipped goes.
+  comes out as shipped goes (built).
 - Pinned entries: one moves along its toolbar; the filter popup holds the
-  View menu's filters whatever the config says.
-- A row is on one toolbar at most, and a row on none is in the bucket. The
-  menu's own rows (Wordsmith's language, Exit, Reset, Show the tips again)
-  are on no toolbar and never in the bucket.
+  View menu's filters whatever the config says (built).
+- A row is on one toolbar at most (built), and a row on none is in the
+  bucket. The menu's own rows (Wordsmith's language, Exit, Reset, Show the
+  tips again) are on no toolbar (built) and never in the bucket.
 - Odd places: a translation row on the default pane's toolbars warns, and a
   default row on the translation pane's; a row at home anywhere never does;
   the warning goes when the chip moves back, and OK writes an odd place as
@@ -2406,10 +2409,10 @@ dialog, its context-menu door and its help topic.
   refused elsewhere; OK writes the lines, Cancel puts back, Reset ships;
   a toolbar's context menu opens the dialog with its row marked.
 - Copy: the selected node's name reaches the clipboard, greyed on a file's
-  node and on a comment, the row in the Edit menu and on `name`.
+  node and on a comment, the row in the Edit menu and on `name` (built).
 - The view, headless: the board, chips with icons and with captions; a
   toolbar carrying a choice and a break, and rows either side of the search
-  box, which takes the room left.
+  box, which takes the room left (checked).
 
 ## Import and export, next
 

@@ -5,9 +5,10 @@ namespace WordsEdit.Utils;
 
 /// <summary>
 ///     Wordsmith's own settings — the language it speaks, the main window as it
-///     last closed, and the help bubbles — in <c>%LocalAppData%\Wordsmith\config.ini</c>,
+///     last closed, the help bubbles and the toolbars — in <c>%LocalAppData%\Wordsmith\config.ini</c>,
 ///     in sections: <c>[editor]</c> for the language and the tips switch,
-///     <c>[window]</c> for the window, <c>[seen]</c> for each bubble closed, each a
+///     <c>[window]</c> for the window, <c>[seen]</c> for each bubble closed,
+///     <c>[toolbars]</c> for each toolbar changed, each a
 ///     group of <c>key=value</c> lines, their names matched without case. Read on
 ///     demand, written as soon as a value is set, missing file allowed; a file
 ///     that won't read or write costs the settings, never the editor.
@@ -20,6 +21,7 @@ public static class EditorConfig {
 	private const string EditorSection = "editor";
 	private const string WindowSection = "window";
 	private const string SeenSection = "seen";
+	private const string ToolbarsSection = "toolbars";
 
 	/// <summary>The language Wordsmith speaks, or null when the OS decides.</summary>
 	public static string? Language {
@@ -57,6 +59,12 @@ public static class EditorConfig {
 	/// <summary>Forgets every help bubble closed: the <c>[seen]</c> section goes.</summary>
 	public static void ForgetSeen() => Remove(SeenSection);
 
+	/// <summary>The line <c>[toolbars]</c> gives <paramref name="toolbar"/>, its entries by name; null when it has none, the toolbar as it ships, and empty for a toolbar emptied.</summary>
+	public static string? Toolbar(string toolbar) => Read(ToolbarsSection).GetValueOrDefault(toolbar);
+
+	/// <summary>Keeps <paramref name="toolbar"/>'s line under <c>[toolbars]</c>; null drops it.</summary>
+	public static void KeepToolbar(string toolbar, string? line) => Write(ToolbarsSection, (toolbar, line));
+
 	private static double? Number(Dictionary<string, string> values, string key)
 		=> double.TryParse(values.GetValueOrDefault(key), NumberStyles.Float, CultureInfo.InvariantCulture, out double number) && number > 0 ? number : null;
 
@@ -77,7 +85,8 @@ public static class EditorConfig {
 	}
 
 	//each change replaces its key's line in its section where it stands, or joins the
-	//section's last value; a cleared one goes. A section the file lacks is appended
+	//section's last value; a null one goes, and an empty one stays, empty (a toolbar
+	//emptied: SPEC: The toolbar editor). A section the file lacks is appended
 	//after a blank line. Comments, lines that name no key and other sections stay as
 	//they were. A config that won't write (read-only, locked) keeps what it had: the
 	//setting is lost, never the close it was saved on
@@ -85,7 +94,7 @@ public static class EditorConfig {
 		try {
 			List<string> lines = [.. Lines()];
 			if (Find(lines, section) is null) {
-				if (changes.All(change => string.IsNullOrWhiteSpace(change.Value))) {
+				if (changes.All(change => change.Value is null)) {
 					return; //nothing to clear, and no section to make for it
 				}
 				if (lines.Count > 0 && lines[^1].Trim() != "") {
@@ -102,7 +111,7 @@ public static class EditorConfig {
 						at = i;
 					}
 				}
-				if (!string.IsNullOrWhiteSpace(value)) {
+				if (value is not null) {
 					lines.Insert(at < 0 ? LastValue(lines, section) + 1 : at, $"{key}={value.Trim()}");
 				}
 			}

@@ -28,9 +28,10 @@ public class CommandTableTests {
 	private static ToggleItem ToggleOf(MainWindowViewModel vm, string key) => vm.Commands.Rows.OfType<ToggleItem>().Single(toggle => toggle.Caption == Words.Known[key]);
 	private static ChoiceItem ChoiceOf(MainWindowViewModel vm, string key) => vm.Commands.Choices.Single(choice => choice.Caption == Words.Known[key]);
 
+	//the menu's rows on the toolbars and in the filter popup; the pinned entries are the window's own
 	private static IEnumerable<MenuRow> Tools(CommandTable table)
-		=> table.NodeTools.Concat(table.KeyTools).Concat(table.FilterTools).Concat(table.NameTools)
-			.Concat(table.DefaultTools).Concat(table.TranslationTools).Concat(table.NavigationTools).Concat<MenuRow>(table.LanguageTools);
+		=> table.Toolbars.SelectMany(toolbar => toolbar.Entries).Except(table.Toolbars.SelectMany(toolbar => toolbar.Pinned))
+			.Concat(table.FilterTools).Concat(table.Toolbars.SelectMany(toolbar => toolbar.Pinned).OfType<ChoiceItem>());
 
 	[Fact]
 	public void TheMenuIsTheInventory() {
@@ -99,11 +100,11 @@ public class CommandTableTests {
 		//each pane header toggles its own preview and leads with its own plural form, a popup;
 		//the parameters are the baseline pane's, so no row tests them (SPEC: Parameters)
 		Assert.DoesNotContain(rows.OfType<CommandItem>(), row => row.Caption.Contains("Parameters", StringComparison.Ordinal));
-		Assert.Contains(vm.Commands.DefaultTools.OfType<CommandItem>(), tool => tool.Caption == Words.Known["menu.default-preview"]);
-		Assert.Contains(vm.Commands.TranslationTools.OfType<CommandItem>(), tool => tool.Caption == Words.Known["menu.translation-preview"]);
-		Assert.Equal(Words.Known["menu.default-form"], Assert.IsType<ChoiceItem>(vm.Commands.DefaultTools[0]).Caption);
-		Assert.Equal(Words.Known["menu.translation-form"], Assert.IsType<ChoiceItem>(vm.Commands.TranslationTools[0]).Caption);
-		Assert.All([vm.Commands.DefaultTools[0], vm.Commands.TranslationTools[0]], tool => Assert.True(((ChoiceItem)tool).IsPopup));
+		Assert.Contains(vm.Commands.DefaultTools.Entries.OfType<CommandItem>(), tool => tool.Caption == Words.Known["menu.default-preview"]);
+		Assert.Contains(vm.Commands.TranslationTools.Entries.OfType<CommandItem>(), tool => tool.Caption == Words.Known["menu.translation-preview"]);
+		Assert.Equal(Words.Known["menu.default-form"], Assert.IsType<ChoiceItem>(vm.Commands.DefaultTools.Entries[0]).Caption);
+		Assert.Equal(Words.Known["menu.translation-form"], Assert.IsType<ChoiceItem>(vm.Commands.TranslationTools.Entries[0]).Caption);
+		Assert.All([vm.Commands.DefaultTools.Entries[0], vm.Commands.TranslationTools.Entries[0]], tool => Assert.True(((ChoiceItem)tool).IsPopup));
 		Assert.False(ChoiceOf(vm, "menu.translation-language").IsPopup);
 		//the filter popup: the four views, the mismatch beside the missing, and the clear; Rename alone beside the name
 		Assert.Equal(new[] { "menu.stale-view", "menu.review-view", "menu.missing-view", "menu.mismatch-view" }.Select(key => Words.Known[key]),
@@ -114,12 +115,13 @@ public class CommandTableTests {
 		vm.ClearFiltersCommand.Execute(null);
 		Assert.False(vm.Tree.MismatchFilter);
 		Assert.Contains(vm.Commands.FilterTools, tool => tool.Command == vm.ClearFiltersCommand);
-		Assert.Equal(vm.RenameNodeCommand, Assert.Single(vm.Commands.NameTools).Command);
+		//beside the name: Rename and Copy Key Name
+		Assert.Equal([vm.RenameNodeCommand, vm.CopyKeyCommand], vm.Commands.NameTools.Entries.OfType<CommandItem>().Select(tool => tool.Command));
 		//by the search: Back and Forward
-		Assert.Equal([vm.Tree.BackCommand, vm.Tree.ForwardCommand], vm.Commands.NavigationTools.Select(tool => tool.Command));
+		Assert.Equal([vm.Tree.BackCommand, vm.Tree.ForwardCommand], vm.Commands.SearchTools.Entries.OfType<CommandItem>().Select(tool => tool.Command));
 		//the language strip: the manager, and the translation language as a combo box
-		Assert.Contains(vm.Commands.LanguageTools, tool => tool is CommandItem { Command: var command } && command == vm.ManageLanguagesCommand);
-		Assert.Contains(vm.Commands.LanguageTools, tool => tool is ChoiceItem choice && choice.Caption == Words.Known["menu.translation-language"]);
+		Assert.Contains(vm.Commands.LanguageTools.Entries, tool => tool is CommandItem { Command: var command } && command == vm.ManageLanguagesCommand);
+		Assert.Contains(vm.Commands.LanguageTools.Entries, tool => tool is ChoiceItem choice && choice.Caption == Words.Known["menu.translation-language"]);
 	}
 
 	[Fact]

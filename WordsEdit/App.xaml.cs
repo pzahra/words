@@ -22,7 +22,7 @@ public partial class App : Application {
 		EditorWords.Load(EditorWords.StartupLanguage(e.Args), MainWindowViewModel.Gripes, formats);
 		base.OnStartup(e);
 
-		var viewModel = new MainWindowViewModel(new WpfDialogs(), formats, help: new ConfigHelpMemory());
+		var viewModel = new MainWindowViewModel(new WpfDialogs(), formats, help: new ConfigHelpMemory(), toolbars: new ConfigToolbarMemory());
 		//a help bubble's links are the editor's own: their handler goes ahead of the library's,
 		//so it takes them first, and every hyperlink the previews render lands in the second
 		Bubble.HandleLinks(viewModel.FollowHelpLink);

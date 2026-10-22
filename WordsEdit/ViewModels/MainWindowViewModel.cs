@@ -85,6 +85,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public ICommand ClearFiltersCommand { get; }
 	public ICommand RemoveNodeCommand { get; }
 	public ICommand RenameNodeCommand { get; }
+	public ICommand CopyKeyCommand { get; }
 	public ICommand AddNodeCommand { get; }
 	public ICommand AddKeyCommand { get; }
 	public ICommand AddOrganizerCommand { get; }
@@ -134,7 +135,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	private readonly TimeProvider time;
 
 	/// <param name="help">What the bubbles remember between runs: the config's, or this run's alone when null.</param>
-	public MainWindowViewModel(IDialogs? dialogs = null, WordsFormats? formats = null, Func<string, bool>? spellCheckers = null, TimeProvider? time = null, IHelpMemory? help = null) {
+	/// <param name="toolbars">What the toolbars remember between runs: the config's, or this run's alone when null.</param>
+	public MainWindowViewModel(IDialogs? dialogs = null, WordsFormats? formats = null, Func<string, bool>? spellCheckers = null, TimeProvider? time = null,
+			IHelpMemory? help = null, IToolbarMemory? toolbars = null) {
 		Dialogs = dialogs ?? new WpfDialogs();
 		this.time = time ?? TimeProvider.System;
 		UndoStack = new UndoStack(this.time);
@@ -189,6 +192,9 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		//the structure edits say whether they apply, so a menu or a key can offer them all
 		RemoveNodeCommand = new DelegateCommand(DoRemoveNode, () => Tree.SelectedKeyNode is not null);
 		RenameNodeCommand = new DelegateCommand(DoRenameNode, () => CanRename(Tree.SelectedKeyNode));
+		//the name a program passes to {l:Words}: a file's own node and a comment have none
+		CopyKeyCommand = new DelegateCommand(() => Dialogs.Copy(Tree.SelectedKeyNode!.Path),
+			() => Tree.SelectedKeyNode is { IsFile: false } and not OrganizerNode);
 		AddNodeCommand = new DelegateCommand(DoAddNode, () => Tree.SelectedKeyNode is { IsConstant: false } and not OrganizerNode);
 		AddKeyCommand = new DelegateCommand(DoAddKey, () => Tree.SelectedKeyNode is { IsFile: false } and not OrganizerNode && Tree.SelectedKey is null);
 		AddOrganizerCommand = new DelegateCommand(DoAddOrganizer, () => Tree.SelectedKeyNode is { IsFile: false } and not OrganizerNode);
@@ -201,7 +207,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		RedoCommand = new DelegateCommand(() => Step(undoing: false), () => UndoStack.CanRedo);
 		ExitCommand = new DelegateCommand(() => ExitRequested?.Invoke());
 		//the table last: it holds the commands above
-		Commands = new CommandTable(this);
+		Commands = new CommandTable(this, toolbars ?? new ToolbarMemory());
 		//and only now the tree reaches the table: its toggles re-read on every change
 		Tree.PropertyChanged += (_, e) => {
 			if (e.PropertyName is nameof(TreeViewModel.SelectedKeyNode)) {

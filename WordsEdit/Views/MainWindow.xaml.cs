@@ -105,10 +105,26 @@ public partial class MainWindow : Window {
 		}
 	}
 
-	//Ctrl+F (ApplicationCommands.Find): the search box
+	//Ctrl+F (ApplicationCommands.Find): the search box, found by its name wherever its
+	//toolbar put it (SPEC: The toolbar editor, Pinned entries)
 	private void FocusSearch(object sender, ExecutedRoutedEventArgs e) {
-		SearchBox.Focus();
-		SearchBox.SelectAll();
+		if (Descendant(this, element => element is TextBox { Name: "SearchBox" }) is TextBox box) {
+			box.Focus();
+			box.SelectAll();
+		}
+	}
+
+	private static DependencyObject? Descendant(DependencyObject parent, Func<DependencyObject, bool> match) {
+		for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++) {
+			DependencyObject child = VisualTreeHelper.GetChild(parent, i);
+			if (match(child)) {
+				return child;
+			}
+			if (Descendant(child, match) is { } found) {
+				return found;
+			}
+		}
+		return null;
 	}
 
 	//answered synchronously: the close then proceeds or is cancelled, so there

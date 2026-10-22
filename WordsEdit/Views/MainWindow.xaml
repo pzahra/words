@@ -69,6 +69,70 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+        <!-- the entries pinned to a toolbar (SPEC: The toolbar editor, Pinned entries): the window's own
+             controls, each where the table puts it along its toolbar -->
+        <!-- the search box and its magnifier; Ctrl+F finds the box by its name -->
+        <DataTemplate DataType="{x:Type vm:SearchBoxEntry}">
+            <DockPanel VerticalAlignment="Center">
+                <md:PackIcon DockPanel.Dock="Left" Kind="Magnify" Height="20" Width="20" VerticalAlignment="Center"/>
+                <TextBox x:Name="SearchBox"
+                         Text="{Binding Tree.SearchFilterText, UpdateSourceTrigger=PropertyChanged}"
+                         md:HintAssist.Hint="{l:Words main.search-hint}"
+                         VerticalAlignment="Center"
+                         Margin="2.5px"/>
+            </DockPanel>
+        </DataTemplate>
+        <!-- the filters (SPEC: Filters): a vertical toolbar of the View menu's filters, in a popup whose
+             button wears the hidden count -->
+        <DataTemplate DataType="{x:Type vm:FiltersEntry}">
+            <md:Badged BadgeColorZoneMode="SecondaryMid" VerticalAlignment="Center">
+                <md:Badged.Style>
+                    <Style TargetType="md:Badged" BasedOn="{StaticResource {x:Type md:Badged}}">
+                        <Setter Property="Badge" Value="{Binding Tree.HiddenCount}"/>
+                        <Style.Triggers>
+                            <!-- nothing hidden, no badge; a DataTrigger compares the count as a number -->
+                            <DataTrigger Binding="{Binding Tree.HiddenCount}" Value="0">
+                                <Setter Property="Badge" Value="{x:Null}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </md:Badged.Style>
+                <Grid>
+                    <!-- a toolbar toggle opens a plain popup; it closes on a click anywhere else, and
+                         PopupToggle keeps the click that closed it from reopening it -->
+                    <ToggleButton x:Name="FilterToggle"
+                                  Style="{StaticResource ToolToggle}"
+                                  IsChecked="{Binding IsOpen, ElementName=FilterPopup, Mode=TwoWay}"
+                                  ToolTip="{l:Words main.filters}"
+                                  uc:PopupToggle.Popup="{Binding ElementName=FilterPopup}">
+                        <md:PackIcon Kind="FilterVariant"/>
+                    </ToggleButton>
+                    <Popup x:Name="FilterPopup"
+                           PlacementTarget="{Binding ElementName=FilterToggle}"
+                           Placement="Bottom"
+                           StaysOpen="False"
+                           AllowsTransparency="True"
+                           PopupAnimation="Fade">
+                        <md:Card Padding="2" Margin="6" UniformCornerRadius="3" md:ElevationAssist.Elevation="Dp4">
+                            <ToolBarTray Orientation="Vertical" IsLocked="True" Background="Transparent">
+                                <ToolBar ItemsSource="{Binding Filters}" Background="Transparent"/>
+                            </ToolBarTray>
+                        </md:Card>
+                    </Popup>
+                </Grid>
+            </md:Badged>
+        </DataTemplate>
+        <!-- the selected node's name -->
+        <DataTemplate DataType="{x:Type vm:NodeNameEntry}">
+            <TextBlock Margin="2.5px"
+                       FontWeight="SemiBold"
+                       FontSize="18"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       Text="{Binding Tree.SelectedKeyNode.Path, Mode=OneWay}"
+                       ToolTip="{Binding Tree.SelectedKeyNode.Path}"/>
+        </DataTemplate>
     </Window.Resources>
 
     <DockPanel>
@@ -90,72 +154,14 @@
 
 			<md:ColorZone Mode="PrimaryLight" Grid.Row="0" Grid.ColumnSpan="3" VerticalAlignment="Stretch" />
 
-			<Grid   Grid.Column="0"
-                    Grid.Row="0"
-                    Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
-                    Margin="3 0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <!-- Back and Forward by the search (SPEC: Navigation): both move through the document -->
-                <ToolBar Grid.Column="0"
-                         ItemsSource="{Binding Commands.NavigationTools}"
-                         ToolBarTray.IsLocked="True"
-                         Background="Transparent"
-                         VerticalAlignment="Center"/>
-                <md:PackIcon Grid.Column="1"
-                             Kind="Magnify"
-                             Height="20"
-                             Width="20"
-                             VerticalAlignment="Center"/>
-                <TextBox x:Name="SearchBox"
-                         Text="{Binding Tree.SearchFilterText, UpdateSourceTrigger=PropertyChanged}"
-                         md:HintAssist.Hint="{l:Words main.search-hint}"
-                         Grid.Column="2"
-                         VerticalAlignment="Center"
-                         Margin="2.5px"/>
-                <!-- the filters (SPEC: Filters): a vertical toolbar from the table, in a popup whose button wears the hidden count -->
-                <md:Badged Grid.Column="3" BadgeColorZoneMode="SecondaryMid" VerticalAlignment="Center">
-                    <md:Badged.Style>
-                        <Style TargetType="md:Badged" BasedOn="{StaticResource {x:Type md:Badged}}">
-                            <Setter Property="Badge" Value="{Binding Tree.HiddenCount}"/>
-                            <Style.Triggers>
-                                <!-- nothing hidden, no badge; a DataTrigger compares the count as a number -->
-                                <DataTrigger Binding="{Binding Tree.HiddenCount}" Value="0">
-                                    <Setter Property="Badge" Value="{x:Null}"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </md:Badged.Style>
-                    <Grid>
-                        <!-- a toolbar toggle opens a plain popup; it closes on a click anywhere else, and
-                             PopupToggle keeps the click that closed it from reopening it -->
-                        <ToggleButton x:Name="FilterToggle"
-                                      Style="{StaticResource ToolToggle}"
-                                      IsChecked="{Binding IsOpen, ElementName=FilterPopup, Mode=TwoWay}"
-                                      ToolTip="{l:Words main.filters}"
-                                      uc:PopupToggle.Popup="{Binding ElementName=FilterPopup}">
-                            <md:PackIcon Kind="FilterVariant"/>
-                        </ToggleButton>
-                        <Popup x:Name="FilterPopup"
-                               PlacementTarget="{Binding ElementName=FilterToggle}"
-                               Placement="Bottom"
-                               StaysOpen="False"
-                               AllowsTransparency="True"
-                               PopupAnimation="Fade">
-                            <md:Card Padding="2" Margin="6" UniformCornerRadius="3" md:ElevationAssist.Elevation="Dp4">
-                                <ToolBarTray Orientation="Vertical" IsLocked="True" Background="Transparent">
-                                    <ToolBar ItemsSource="{Binding Commands.FilterTools}" Background="Transparent"/>
-                                </ToolBarTray>
-                            </md:Card>
-                        </Popup>
-                    </Grid>
-                </md:Badged>
-            </Grid>
+            <!-- over the tree (SPEC: The toolbar editor): Back and Forward, the search box and the filter
+                 button, the box taking the room the rest leave -->
+            <ItemsControl Grid.Column="0"
+                          Grid.Row="0"
+                          ItemsSource="{Binding Commands.SearchTools.Entries}"
+                          Style="{StaticResource FillBar}"
+                          Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                          Margin="3 0"/>
             <!-- the first file's bubble points at the tree (SPEC: Help bubbles); the empty editor's, at the File menu -->
             <Grid Grid.Column="0"
                   Grid.Row="1"
@@ -258,22 +264,14 @@
                     </TreeView>
                 </Border>
             </Grid>
-            <!-- the selected node's name, Rename at its right (SPEC: Menu and toolbars) -->
-            <DockPanel Grid.Column="1" Grid.Row="0" Margin="3 0">
-                <ToolBar DockPanel.Dock="Right"
-                         ItemsSource="{Binding Commands.NameTools}"
-                         ToolBarTray.IsLocked="True"
-                         Background="Transparent"
-                         Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"/>
-                <TextBlock Margin="2.5px"
-                           FontWeight="SemiBold"
-                           FontSize="18"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis"
-                           Text="{Binding Tree.SelectedKeyNode.Path, Mode=OneWay}"
-                           ToolTip="{Binding Tree.SelectedKeyNode.Path}"/>
-            </DockPanel>
+            <!-- over the default pane (SPEC: The toolbar editor): the selected node's name, taking the room
+                 its rows leave, and Rename and Copy Key Name at its right -->
+            <ItemsControl Grid.Column="1"
+                          Grid.Row="0"
+                          ItemsSource="{Binding Commands.NameTools.Entries}"
+                          Style="{StaticResource FillBar}"
+                          Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                          Margin="3 0"/>
             <ScrollViewer VerticalScrollBarVisibility="Auto"
                           Grid.Row="1"
                           Grid.Column="1"
@@ -493,7 +491,8 @@
                     </md:Badged>
                     <!-- the header's commands, from the table (SPEC: Menu and toolbars): the form, the key's
                          flags, the eye; unclipped, so the form's badge shows above its button -->
-                    <ToolBar ItemsSource="{Binding Commands.DefaultTools}"
+                    <ToolBar ItemsSource="{Binding Commands.DefaultTools.Entries}"
+                             Visibility="{Binding Commands.DefaultTools.IsEmpty, Converter={StaticResource IsFalse}}"
                              ToolBarTray.IsLocked="True"
                              ClipToBounds="False"
                              Background="Transparent"/>
@@ -536,7 +535,7 @@
                         Grid.Row="0"
                         Orientation="Horizontal"
                         Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}">
-                <ToolBar ItemsSource="{Binding Commands.LanguageTools}"
+                <ToolBar ItemsSource="{Binding Commands.LanguageTools.Entries}"
                          ToolBarTray.IsLocked="True"
                          Background="Transparent"
                          Margin="3 0"/>
@@ -648,7 +647,8 @@
                             Margin="2.5px" />
                 </md:Badged>
                     <!-- the form, the stale flag in the selected language, the eye -->
-                    <ToolBar ItemsSource="{Binding Commands.TranslationTools}"
+                    <ToolBar ItemsSource="{Binding Commands.TranslationTools.Entries}"
+                             Visibility="{Binding Commands.TranslationTools.IsEmpty, Converter={StaticResource IsFalse}}"
                              ToolBarTray.IsLocked="True"
                              ClipToBounds="False"
                              Background="Transparent"/>
@@ -691,13 +691,15 @@
             <!-- the toolbars (SPEC: Menu and toolbars): what is convenient, drawn from the command table; the menu has the rest -->
             <ToolBar Grid.Column="0"
                      Grid.Row="3"
-                     ItemsSource="{Binding Commands.NodeTools}"
+                     ItemsSource="{Binding Commands.NodeTools.Entries}"
+                     Visibility="{Binding Commands.NodeTools.IsEmpty, Converter={StaticResource IsFalse}}"
                      ToolBarTray.IsLocked="True"
                      Background="Transparent"
                      VerticalAlignment="Bottom"/>
             <ToolBar Grid.Column="1"
                      Grid.Row="3"
-                     ItemsSource="{Binding Commands.KeyTools}"
+                     ItemsSource="{Binding Commands.KeyTools.Entries}"
+                     Visibility="{Binding Commands.KeyTools.IsEmpty, Converter={StaticResource IsFalse}}"
                      ToolBarTray.IsLocked="True"
                      Background="Transparent"
                      HorizontalAlignment="Center"

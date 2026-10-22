@@ -68,6 +68,15 @@ public sealed class WpfDialogs : IDialogs {
 		return true;
 	}
 
+	//another program holding the clipboard costs the copy, never the editor
+	public void Copy(string text) {
+		try {
+			Clipboard.SetText(text);
+		}
+		catch (System.Runtime.InteropServices.ExternalException) {
+		}
+	}
+
 	private static bool? Run(CommonDialog dialog)
 		=> MainWindow is { } owner ? dialog.ShowDialog(owner) : dialog.ShowDialog();
 }

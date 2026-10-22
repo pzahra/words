@@ -139,6 +139,30 @@
     <Style TargetType="ToolBar" BasedOn="{StaticResource MaterialDesignToolBar}">
         <Setter Property="uc:ToolBarOverflow.Collapse" Value="True" />
     </Style>
+    <!-- a toolbar with an entry that fills (SPEC: The toolbar editor, Pinned entries): its entries in a
+         row, drawn as a toolbar draws them, the search box or the node's name taking the room the rest leave -->
+    <Style x:Key="FillBar" TargetType="ItemsControl">
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="ItemsPanel">
+            <Setter.Value>
+                <ItemsPanelTemplate>
+                    <uc:FillPanel/>
+                </ItemsPanelTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="ItemContainerStyle">
+            <Setter.Value>
+                <Style TargetType="ContentPresenter">
+                    <Setter Property="VerticalAlignment" Value="Center"/>
+                    <Setter Property="uc:FillPanel.Fill" Value="{Binding Fills}"/>
+                </Style>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <!-- a break on a toolbar: a thin upright line between two runs -->
+    <DataTemplate DataType="{x:Type vm:MenuBreak}">
+        <Rectangle Width="1" Height="20" Margin="4 2" VerticalAlignment="Center" Fill="{DynamicResource MaterialDesignDivider}"/>
+    </DataTemplate>
 
     <!-- a row a help bubble points at carries its topic on a toolbar, where the bubble finds it -->
     <DataTemplate DataType="{x:Type vm:CommandItem}">
