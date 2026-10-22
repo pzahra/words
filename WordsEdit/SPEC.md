@@ -2339,13 +2339,6 @@ working. Then the rest of the topics, each with its trigger.
 - The view, headless as the dialogs are checked: the bubble on each side of
   its control, and its page's markdown.
 
-## Save as a patch
-
-Undecided: whether Wordsmith's Save patches just the fields that changed, the
-way the command line does, which would answer the hand-written-formatting
-question for the editor too. The patcher could do it field by field today;
-what it cannot do yet is move a key, which the tree does by drag.
-
 ## Import and export, next
 
 **Third-party formats.** A second repository, pinned as a submodule and
@@ -2384,6 +2377,256 @@ room, undecided between:
   answers the crowding by letting a user drop what they don't use, and the
   growing number of commands besides — but it is a feature of its own, not
   a layout fix.
+
+## Save as a patch
+
+Wordsmith's Save rewrites a whole file in the writer's canonical form, while
+the command line patches only the fields it changes; every other ini the
+project writes has a writer of its own, each with its own idea of atomic.
+Save as a patch answers both at once: one transactional driver for every ini
+the project writes, which edits a file where it changed and leaves every
+other byte, checks the result before it lands, and lands a set of files
+together or not at all, journalled in a temporary file so a failure or a
+crash partway is put right.
+
+**What writes today.** Each of these moves onto the driver:
+
+| Writer | Writes | Today |
+|---|---|---|
+| Wordsmith's Save, Save As, New's first Save | a `words.ini`, whole | `WordsSession.Save` through `IniWriter.WriteAtomic`: canonical, a temporary sibling moved over it, one file at a time |
+| Merge and Split | the file they make | the same |
+| `words set`, `remove`, `apply` | a `words.ini`, field by field | `IniPatcher`: surgical, checked by reading back, a temporary sibling, a link followed, a Unix mode kept, a held file tried again |
+| The Project Settings dialog | a settings file's two tables | `ProjectSettings.Save`: a plain `StreamWriter`, not atomic, comments lost |
+| Spreadsheet Import and Export | a sheet's section of `schema.ini` | `SchemaIni.Write`: one section replaced, line breaks kept, ANSI or UTF-8 with no byte-order mark |
+| Export to a sheet | `schema.ini` and the sheet, together | the section first, a snapshot of its bytes put back by hand when the sheet fails (*Spreadsheets*, Export) |
+| Export to a format of several files | each planned file | one `WriteAtomic` each: a failure partway leaves the earlier ones written |
+| Wordsmith's config | `config.ini`'s sections | `EditorConfig`: `File.WriteAllLines`, not atomic |
+
+Eight writers, three ideas of what atomic means, two of how much of a file
+an edit may touch, and one rollback made by hand. The driver is one of each.
+
+**The driver.** `IniTransaction`, in Authoring, beside `IniWriter`:
+
+```csharp
+using var transaction = new IniTransaction();
+IniDocument words = transaction.Open(path, IniDialect.Words);
+words.Set("greeting", "value-fr", "Bonjour");
+IniDocument schema = transaction.Open(SchemaIni.For(sheet), IniDialect.Sections(SchemaIni.Rules));
+schema.ReplaceSection("Out.csv", options);
+transaction.Write(sheet, writer => codec.Write(source, unit, writer, gripes, options), unit.Encoding);
+transaction.Commit();
+```
+
+A transaction holds members, each a file. An ini member is an
+`IniDocument`, opened from the file's bytes and edited in memory; any other
+file (a sheet, a resx, an XLIFF) joins whole, as a writer or bytes. Nothing
+touches the disk before `Commit`, and a transaction disposed without one
+leaves every file as it was. A file is a member once: opening it twice hands
+back the same document, by `WordsSession.SamePath`, so a link or a junction
+to it is the same member.
+
+**A document.** An `IniDocument` is the file as lines, each with its own
+break (CR, LF or CRLF, as read, and a last line without one left so), in its
+own encoding and byte-order mark, located by its dialect into sections or
+blocks and their fields. An edit names what it changes and replaces only the
+lines that hold it; every other line stays, byte for byte. Its dialect is
+the file's grammar and its rules:
+- `IniDialect.Words`: a `words.ini`, as the parser reads it and `IniWriter`
+  writes it. Its edits are the patcher's (command line spec: *Surgical
+  edits*): set or remove a field, add a key where the writer would put it,
+  remove a key, each folded and escaped as Save would write it. It gains the
+  two a tree needs: move a key's block after another key, and rename one,
+  its header and the `[.child]` headers it bases. `IniPatcher` becomes this
+  dialect's document, its checks unchanged.
+- `IniDialect.Sections(rules)`: a plain file of `[section]` headers and
+  `key=value` lines, names matched without case: set or clear a key in a
+  section, replace a section whole in an order the rules give, add a section
+  at the end after a blank line, remove one. The rules say which encodings
+  the file may be in and whether it carries a byte-order mark: `schema.ini`
+  is ANSI or UTF-8 with none, and refuses one in UTF-16 or UTF-32 (the
+  driver reads none); the config is UTF-8 with none; a settings file keeps
+  the encoding it was read in.
+
+**Checked before it lands.** Each document, edited, is parsed again by its
+dialect and compared with what it read, the edits applied: for `words.ini`
+every key's fields, the language table, the settings references and the
+comments in order, as the patcher compares them now; for a plain file every
+section's pairs. Anything else refuses the edit with what would have
+changed, and leaves the document as it was before that edit, so a caller can
+try another way or give up. A file that will not encode in its encoding (a
+lone surrogate, a character an ANSI page lacks) is refused at `Commit`,
+before a byte lands.
+
+**The commit.** Three phases, and a journal that names each step before it
+is taken:
+1. **Prepare.** For each member, check the file on disk is still what was
+   read: the same bytes by hash, or still absent for a new file. A file
+   changed since (another editor, a checkout, the command line in another
+   window) refuses the whole transaction, naming it, and nothing is written.
+   Then each member's new bytes go to a temporary sibling,
+   `.<name>.<id>.new`, flushed to disk, carrying the original's Unix mode.
+   The journal is written, naming every member, its temporary file, its
+   backup, its hash before and after, and the state `prepared`.
+2. **Swap.** The journal says `swapping`. Each member in turn takes its new
+   bytes: `File.Replace` swaps the temporary file in and keeps the original
+   as its backup, `.<name>.<id>.old`, so the file never stops existing and
+   keeps its attributes (a hidden file stays hidden); a new file is moved
+   in. A swap refused while something holds the file a moment, an editor or
+   a scanner reading it, is tried again a few times over half a second, as
+   the patcher does now.
+3. **Settle.** The journal says `committed`, and the backups and the journal
+   are deleted. A leftover that will not delete is no failure: the commit
+   stands, and the next recovery sweeps it.
+
+A failure while preparing deletes the temporary files and the journal, and
+nothing on disk has changed. A failure while swapping rolls back: each
+member already swapped gets its backup back by `File.Replace` the other way,
+a new one is deleted, and the transaction throws with what failed. A rollback
+that fails too leaves the journal in `swapping`, and the exception names each
+member's state: which files hold the new bytes, which the old, and where the
+backup of each sits, so the caller can tell the user exactly where things
+stand (*Spreadsheets*, Export, now says it by hand).
+
+**The journal.** A temporary ini of its own, written through a temporary
+sibling and moved over itself at each change of state, flushed, so a crash
+leaves the last state whole:
+
+```ini
+[transaction]
+id=4f1c…
+state=swapping
+started=2026-10-22T21:14:03Z
+
+[member.1]
+path=C:\work\Strings.csv
+new=C:\work\.Strings.csv.4f1c.new
+old=C:\work\.Strings.csv.4f1c.old
+before=sha256:…
+after=sha256:…
+
+[member.2]
+path=C:\work\schema.ini
+before=none
+after=sha256:…
+```
+
+It lives in the one place all of a user's runs share,
+`%LocalAppData%\Words\journal\<id>.ini`, so a transaction spanning folders
+needs no marker in each, and the command line and Wordsmith find each other's.
+Tests point it elsewhere, as they do the config. The temporary files and
+backups sit beside their members, where a swap is a rename on one volume,
+hidden on Windows, named so a person who finds one knows whose it is.
+
+**Recovery.** Opening any file, through any transaction, first reads the
+journals, and finishes any that no running transaction holds before the file
+is read: a transaction keeps its journal open, shared with none, from
+prepare to settle, so a journal that opens is one whose run has ended. By its
+state:
+- `prepared`: nothing was swapped. Its temporary files go, and the journal.
+- `swapping`: each member is rolled back by its hashes. A file whose bytes
+  are the `after` hash gets its backup back; one still at `before` was never
+  swapped; a new file at `after` is deleted. A file at neither was changed
+  since by someone else: it is left as it is, its backup kept, and the
+  recovery says so.
+- `committed`: the swap finished; only the leftovers go.
+
+Recovery that cannot finish (a file still held) leaves the journal for the
+next time and lets the open go on: the file it was asked to open is read as
+it stands, unless it is one of the journal's members, which is refused
+until the journal settles, naming it. Wordsmith runs a recovery at startup,
+so a crash mid-Save is put right before the first load.
+
+**Saving as a patch.** Each file Wordsmith loads keeps what it was read as:
+the document the driver opened, and the model as it read. Save diffs each
+dirty file's model against that, and patches: a field changed is set, one
+emptied removed, a key added, removed, moved by drag or renamed is that edit,
+the language table's lines and the settings references theirs. So a
+hand-written file keeps its own formatting everywhere but the fields edited,
+a file Save wrote still reads as Save writes it, and Wordsmith's own words
+keep their byte-for-byte round trip, as the command line already guarantees.
+A file with no bytes of its own to patch is written whole, canonically: a
+new one, one imported from another format, one a Merge or a Split makes.
+Save As at another path writes canonically too, it being a new file; at its
+own path it is still the way to rewrite a file in the writer's form. An edit
+the dialect refuses to patch, its check failing, falls back to the whole
+file written canonically, in the same transaction, which is today's Save;
+the tests pin which edits patch. Once a file lands, what it was read as
+becomes what was written.
+
+**The writers, each on the driver.**
+- Save writes each dirty file in a transaction of its own, so one that fails
+  is told and stays dirty while the others save (*Dirty by file*). A file
+  changed on disk since it was read is the new refusal: Save tells it,
+  leaves it dirty, and asks nothing yet; reloading it or saving over it is a
+  later question.
+- Merge and Split write the file they make as a transaction of one.
+- The command line's edits are each one transaction, and `apply`'s batch one
+  patch saved once, as now. A file changed between its read and its write,
+  the editor saving it in between, is refused, exit 2, where now it is
+  written over.
+- The Project Settings dialog patches the settings file's two tables, row by
+  row, so a hand-written one keeps its comments; the file and nothing else,
+  as the dictionary's slots are the dictionary's unsaved work.
+- Spreadsheet Import writes its section as a transaction of one. Export
+  writes the section and the sheet as one transaction: both land or
+  neither, and the snapshot and its put-back go. A section locked against
+  quoting fails the transaction at prepare; Export then writes the sheet
+  bare under the section as it stands, in a second, as it does now.
+- Export to a format of several files writes them all in one transaction,
+  so a failure partway leaves none of them written.
+- `EditorConfig` writes each setting as a transaction of one in the sections
+  dialect, its failures still swallowed: the setting is lost, never the
+  close it was saved on.
+- `IniWriter.WriteAtomic` stays for a caller with one plain file to write,
+  as a transaction of one with no document.
+
+**What lands.** As with Save now, what lands is a new file: a hard link to
+the old one keeps the old text. A symbolic link is followed to its file and
+the file is written, as the command line follows it now; Save, which
+replaces the link with the file today, follows it too. The attributes stay,
+`File.Replace` keeping them, so a hidden file stays hidden.
+
+**Where it lives.** `IniTransaction`, `IniDocument`, `IniDialect` and the
+journal in Authoring. `IniPatcher`'s parsing, placing and checking become
+the words dialect's, and its `Save` a transaction of one. `SchemaIni`,
+`ProjectSettings.Save` and `EditorConfig` keep their surfaces and write
+through the sections dialect. `WordsSession` keeps what each file was read
+as, beside its model, and gains the diff Save patches from. The runtime and
+Core do not change: they only read.
+
+**Order.** Four steps, each shippable alone:
+1. The transaction, the journal and recovery, with raw members only: Export
+   of several files and of a sheet with its section move onto it, and the
+   hand-made put-back goes.
+2. The sections dialect: `schema.ini`, the config and the settings file.
+3. The words dialect: `IniPatcher` behind it, the command line on the
+   transaction, and the move and rename edits.
+4. Save as a patch: the diff, Save, Save As, and the canonical fallback.
+
+**Tests.**
+- The commit: two files land together; a failure at prepare leaves both as
+  they were and no temporary file; a failure at the second swap rolls the
+  first back byte for byte, and a new file is removed; a rollback that
+  fails names each member's state and leaves the journal.
+- A file changed after it was read refuses the transaction, nothing written.
+- Recovery, from a journal left in each state, by hand and by a killed
+  process: `prepared` sweeps, `swapping` rolls back by hash and leaves a file
+  changed since with its backup, `committed` sweeps; a member is refused
+  while its journal cannot settle.
+- A file held a moment is swapped once it lets go; one held for good fails
+  and rolls back.
+- The documents: every line outside an edit kept byte for byte, each with
+  its break; a refused edit leaves the document as it was; the sections
+  dialect's encodings refused as their rules say.
+- Saving as a patch: a hand-formatted file keeps its formatting but for the
+  fields edited; a key dragged and one renamed patch as the writer would
+  place them; Wordsmith's own words and the fixtures keep their round trip;
+  a new, imported, merged or split file is written canonically; an edit the
+  check refuses falls back to the canonical write; undo after a save still
+  marks the right files dirty.
+- The writers: Export's sheet and section, and a set of resx files, land
+  together or not at all; the Project Settings dialog keeps a settings
+  file's comments; the config's write still never stops a close.
 
 ## Machine translation
 
