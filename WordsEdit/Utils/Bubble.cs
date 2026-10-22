@@ -1,9 +1,11 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Navigation;
 using WordsEdit.ViewModels;
 using WordsEdit.Views;
@@ -48,12 +50,18 @@ public static class Bubble {
 	//each topic's controls on screen, the latest last: both previews carry theirs, and the
 	//bubble points at the one that came last
 	private static readonly Dictionary<string, List<FrameworkElement>> anchors = [];
+	//every loaded control carrying a topic, on screen or scrolled away, looked at again as its scrolling area scrolls
+	private static readonly List<FrameworkElement> carriers = [];
 	private static HelpBubbles? bubbles;
 	private static Popup? popup;
 	private static HelpBubbleView? view;
 	//the window the open bubble's control is in, followed while it moves
 	private static Window? window;
 	private static Action<Uri>? follow;
+
+	static Bubble() {
+		EventManager.RegisterClassHandler(typeof(ScrollViewer), ScrollViewer.ScrollChangedEvent, new ScrollChangedEventHandler(OnScrolled));
+	}
 
 	/// <summary>The bubbles the controls report to and the popup shows: the editor's, set once at startup.</summary>
 	public static HelpBubbles? Bubbles {
@@ -124,6 +132,7 @@ public static class Bubble {
 			element.Loaded -= OnAnchorChanged;
 			element.Unloaded -= OnAnchorChanged;
 			element.IsVisibleChanged -= OnAnchorVisibleChanged;
+			carriers.Remove(element);
 			Report(element, old, onScreen: false);
 		}
 		if (e.NewValue is string) {
@@ -139,9 +148,52 @@ public static class Bubble {
 
 	private static void Report(FrameworkElement element) {
 		if (GetTopic(element) is { } id) {
-			Report(element, id, element.IsLoaded && element.IsVisible);
+			carriers.Remove(element);
+			if (element.IsLoaded) {
+				carriers.Add(element);
+			}
+			Report(element, id, OnScreen(element));
 		}
 	}
+
+	//a scrolling area moved, or its content or size changed: its controls scrolled into view
+	//anchor their topics, and those scrolled away let go
+	private static void OnScrolled(object sender, ScrollChangedEventArgs e) {
+		if (sender != e.OriginalSource) {
+			return; //heard again by each scrolling area round it
+		}
+		var scroll = (ScrollViewer)sender;
+		foreach (FrameworkElement element in carriers.ToList()) {
+			if (element.Dispatcher == scroll.Dispatcher && scroll.IsAncestorOf(element) && GetTopic(element) is { } id) {
+				bool onScreen = OnScreen(element);
+				if (onScreen != (anchors.TryGetValue(id, out List<FrameworkElement>? controls) && controls.Contains(element))) {
+					Report(element, id, onScreen);
+				}
+			}
+		}
+	}
+
+	//loaded and shown, and some of it inside each scrolling area it is in: the parameters'
+	//heading scrolled away below the pane's fold is not on screen
+	private static bool OnScreen(FrameworkElement element) {
+		if (!element.IsLoaded || !element.IsVisible) {
+			return false;
+		}
+		var bounds = new Rect(element.RenderSize);
+		for (DependencyObject parent = VisualTreeHelper.GetParent(element); parent is not null; parent = VisualTreeHelper.GetParent(parent)) {
+			if (parent is ScrollViewer scroll) {
+				Rect shown = element.TransformToAncestor(scroll).TransformBounds(bounds);
+				shown.Intersect(new Rect(scroll.RenderSize));
+				if (shown.IsEmpty || shown.Width <= 0 || shown.Height <= 0) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	/// <summary>Whether a control carrying <paramref name="topic"/> is on screen now.</summary>
+	internal static bool Anchored(string topic) => anchors.ContainsKey(topic);
 
 	//a control on screen anchors its topic; the topic lets go once its last control leaves
 	private static void Report(FrameworkElement element, string id, bool onScreen) {
@@ -170,11 +222,16 @@ public static class Bubble {
 		if (bubbles?.Open is not { } topic || !anchors.TryGetValue(topic.Id, out List<FrameworkElement>? controls) || controls.Count == 0) {
 			if (popup is not null) {
 				popup.IsOpen = false;
+				popup.PlacementTarget = null; //nor holds on to the control, its window or its view model
 			}
 			Follow(null);
 			return;
 		}
-		view ??= new HelpBubbleView();
+		if (view is null) {
+			view = new HelpBubbleView();
+			//its page laid out at its new size, the bubble moves to stay centred on its control
+			view.SizeChanged += (_, _) => Reposition();
+		}
 		view.DataContext = bubbles;
 		popup ??= new Popup { Child = view, AllowsTransparency = true, StaysOpen = true, Focusable = false, PopupAnimation = PopupAnimation.Fade };
 		FrameworkElement target = controls[^1];
@@ -182,7 +239,7 @@ public static class Bubble {
 		Window? owner = Window.GetWindow(target);
 		Follow(owner);
 		Position();
-		popup.IsOpen = owner?.IsActive ?? true;
+		popup.IsOpen = owner?.IsActive == true;
 	}
 
 	//the window the bubble follows: as it moves or resizes, and as it gains and loses the focus
@@ -205,7 +262,9 @@ public static class Bubble {
 		}
 	}
 
-	private static void OnWindowMoved(object? sender, EventArgs e) {
+	private static void OnWindowMoved(object? sender, EventArgs e) => Reposition();
+
+	private static void Reposition() {
 		if (popup is { IsOpen: true }) {
 			Position();
 			//a popup moves only when its offsets change: a nudge there and back moves it with its control
@@ -225,8 +284,7 @@ public static class Bubble {
 		if (popup?.PlacementTarget is not FrameworkElement target || view is null || PresentationSource.FromVisual(target) is not { CompositionTarget: { } composition } source) {
 			return;
 		}
-		view.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-		Size size = view.DesiredSize;
+		Size size = view.Fit();
 		var fromDevice = composition.TransformFromDevice;
 		Point topLeft = fromDevice.Transform(target.PointToScreen(new Point(0, 0)));
 		var rect = new Rect(topLeft, new Size(target.ActualWidth, target.ActualHeight));

@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Interop;
 using System.Windows.Navigation;
 using PatTech.Localization;
 using PatTech.Localization.Authoring;
@@ -381,6 +382,63 @@ value={0} items
 			Assert.Equal((VerticalAlignment.Top, new Thickness(0, 17, 0, 0)), (tail.VerticalAlignment, tail.Margin));
 			view.TailOffset = double.NaN;
 			Assert.Equal((VerticalAlignment.Center, new Thickness(0)), (tail.VerticalAlignment, tail.Margin));
+		});
+	}
+
+	//a bubble opens as its topic does, before its page's binding hears of the page: it measures the page it opens with, not the last
+	[Fact]
+	public void TheBubbleMeasuresThePageItOpensWith() {
+		NavigationTests.RunSta(() => {
+			var help = new HelpBubbles(new HelpMemory());
+			help.Anchor("start", onScreen: true);
+			help.Anchor("sheet", onScreen: true);
+			help.Arise(HelpTopics.Start);
+			var view = new HelpBubbleView { DataContext = help };
+			view.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background); //the bindings settle
+			Size start = view.Fit();
+			Size? opened = null;
+			help.PropertyChanged += (_, e) => {
+				if (e.PropertyName == nameof(HelpBubbles.Open) && help.Open is not null) {
+					opened = view.Fit();
+				}
+			};
+
+			help.GotIt();
+			help.Arise(HelpTopics.Sheet);
+			view.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+			view.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+			Assert.NotEqual(start, view.DesiredSize);
+			Assert.Equal(view.DesiredSize, opened);
+		});
+	}
+
+	//the parameters' heading scrolled away below its pane's fold is not on screen, till it scrolls into view
+	[Fact]
+	public void AControlScrolledAwayIsNotOnScreen_TillItScrollsIntoView() {
+		NavigationTests.RunSta(() => {
+			var heading = new TextBlock { Text = "Parameters", Height = 30 };
+			var stack = new StackPanel();
+			stack.Children.Add(new Border { Height = 400 });
+			stack.Children.Add(heading);
+			var scroll = new ScrollViewer { Height = 100, Content = stack, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+			//a window that is never shown: no WS_VISIBLE
+			using var source = new HwndSource(new HwndSourceParameters("bubble-test") { Width = 300, Height = 200, WindowStyle = unchecked((int)0x80000000) }) { RootVisual = scroll };
+			void Settle() => scroll.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+			Bubble.SetTopic(heading, "parameters");
+			try {
+				Settle();
+				Assert.True(heading.IsLoaded && heading.IsVisible);
+				Assert.False(Bubble.Anchored("parameters"));
+				scroll.ScrollToEnd();
+				Settle();
+				Assert.True(Bubble.Anchored("parameters"));
+				scroll.ScrollToHome();
+				Settle();
+				Assert.False(Bubble.Anchored("parameters"));
+			}
+			finally {
+				Bubble.SetTopic(heading, null);
+			}
 		});
 	}
 

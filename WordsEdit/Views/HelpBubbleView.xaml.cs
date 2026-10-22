@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Media;
 using WordsEdit.Utils;
 
@@ -31,6 +32,18 @@ public partial class HelpBubbleView : UserControl {
 	public HelpBubbleView() {
 		InitializeComponent();
 		PlaceTail();
+	}
+
+	/// <summary>
+	///     The bubble's size with the page open now: a bubble opens as its topic does, before
+	///     its page's binding has heard of the new page, so the page is read afresh, and laid
+	///     out, first.
+	/// </summary>
+	public Size Fit() {
+		BindingOperations.GetBindingExpression(PageText, MarkdownPreview.TextProperty)?.UpdateTarget();
+		UpdateLayout();
+		Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+		return DesiredSize;
 	}
 
 	//beside a control on its right, the tail is on the bubble's left, pointing left; and so on round
