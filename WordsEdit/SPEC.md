@@ -172,7 +172,8 @@ One tree presents every loaded file:
   search reads what a translator searches for: a key's name, its default and
   selected-language words, the context and comments around them, and a
   comment node's text. The four toggles and the clear button are a vertical
-  toolbar from the command table, in a popup beside the search box; while a
+  toolbar from the command table, in the popup of a button that ships beside
+  the search box (*The toolbar editor*); while a
   filter narrows the tree the popup's button wears the number of hidden rows
   as a badge and the clear button clears the lot in one click; a selection
   the filter hides moves up to the nearest row still showing, unless Back or
@@ -830,7 +831,7 @@ File (New, Open, Import, Merge, Save, Save As, Export, Reset, Exit), Edit (Undo 
 the node and key operations, then the flags), View (the filters, the previews, Find, then each
 pane's plural form, then the translation language and Wordsmith's own, all
 four submenus), Tools (Languages,
-Project Settings), Help (Tips, Show the tips again: *Help bubbles*) — with an access key on each menu and
+Project Settings, Customize Toolbars), Help (Tips, Show the tips again: *Help bubbles*) — with an access key on each menu and
 gesture text on each entry, so everything is reachable by name and by
 keyboard, not only by icon. The toolbars are toolbar controls populated from
 the same commands and carry only what is convenient: the node operations
@@ -842,7 +843,8 @@ translation language as a combo box.
 Files in and out, Merge, Reset and Project Settings live in the menu alone,
 the files with their keys (Ctrl+N, Ctrl+O, Ctrl+I, Ctrl+S, Ctrl+E).
 That is how they ship: a line in the config's `[toolbars]` puts a toolbar's
-rows otherwise (Planned upgrades: The toolbar editor, its first step built).
+rows otherwise, and a toolbar's own context menu opens the editor that
+writes it (The toolbar editor).
 
 **One row per command.** A command is defined once — its `ICommand`, its
 caption, its icon and its gesture — as a `CommandItem` in the command table
@@ -1142,9 +1144,9 @@ which are other windows.
 `CanExecute` from the stack (Redo's also from a run a box stepped part way
 back), as rows of the command table: Ctrl+Z and Ctrl+Y outside the editing
 boxes, entries at the head of the Edit menu (and so in the tree's context
-menu), their captions in `words.ini`. They have no toolbar buttons: beside
-Back and Forward they left the search box too little room (Planned
-upgrades: The toolbar editor, which lets a user place them).
+menu), their captions in `words.ini`. They ship with no toolbar buttons:
+beside Back and Forward they left the search box too little room. A user
+can place them (The toolbar editor).
 
 **Tests.** Every kind of entry has an undo twin, in one run through the
 example file: adding a node, a key and a comment; typing a default, a
@@ -2223,7 +2225,8 @@ moments: the tree empty (the File menu), the first file (the tree), the
 translation pane showing (the language box), the selected key stale (the
 stale toggle), its hand raised (the hand), plural forms (the default pane's
 form picker), a parameter (the parameters' heading), a preview turned on
-(that preview), and the sheet's dialog (its role row). The bubble opens on
+(that preview), the sheet's dialog (its role row) and the toolbar editor
+(its bucket). The bubble opens on
 the side with room, a top menu's below it, centred on its control and kept on
 screen, its tail toward the control; it follows the window and hides while
 the window is inactive.
@@ -2242,91 +2245,60 @@ rendering clean, linking only real rows; showing, passing unremembered, one
 at a time, Tips off and Show the tips again; each of the editor's moments;
 links in a bubble and in a preview; the side chosen and the tail.
 
----
-
-# Planned upgrades
-
-Not built yet. Each section here is the shape the feature takes when it is.
-
 ## The toolbar editor
 
-Which rows sit on which toolbar becomes the user's choice, and the selected
-node's name gains a button that copies it.
+Which rows sit on which toolbar is the user's choice, and the selected node's
+name has a button that copies it.
 
-**The toolbars.** There are seven, each named by where it sits:
-- `search`, over the tree: Back and Forward, the search box, the filter
-  button;
-- `name`, over the default pane: the selected node's name, Rename, Copy Key
-  Name;
-- `default`, on the default pane's header;
-- `languages`, above the translation pane: Languages, the translation
-  language;
-- `translation`, on the translation pane's header;
-- `node`, under the tree;
-- `key`, under the default pane.
+**The toolbars.** Seven, each a `Toolbar` named for where it sits: `search`
+over the tree (Back, Forward, the search box, the filter button), `name`
+over the default pane (the node's name, Rename, Copy Key Name), `default`
+and `translation` on the panes' headers, `languages` above the translation
+pane (Languages, the translation language), `node` under the tree and `key`
+under the default pane. The window binds each one's entries, so a change
+shows at once; an emptied toolbar takes no room.
 
-Each ships as it is today. `CommandTable` keeps each as a `Toolbar`: its
-name, the entries it ships with, and its entries, an observable list the
-window binds, so a change shows at once. An emptied toolbar takes no room.
+**Rows by name.** Every row of the menu is named by its caption key's tail
+(`stale-all`, `default-form`), the name a help page's `wordsmith:` link
+calls (`CommandTable.Named`, `Links`). A row sits on one toolbar at most,
+with breaks where the user puts them. Wordsmith's own language, Exit, Reset
+and Show the tips again are the menu's alone (`CommandTable.MenuOnly`).
 
-**Pinned entries.** The search box, the filter button, the selected node's
-name and the translation language are entries of their toolbars too, so a
-row can go on either side of them. They belong where they are: each moves
-along its own toolbar, never off it, and none can be taken away. The box and
-the name are wide: each takes the room its toolbar's other entries leave.
-The language keeps the width it has. The filter popup is the filter
-button's own list, the View menu's filters, and no toolbar: changing what is
-in it would change what the button means.
+**Pinned entries.** The search box, the node's name and the translation
+language are entries too (`search-box`, `node-name`,
+`translation-language`), so a row can sit either side of them. Each moves
+along its own toolbar only. The box and the name take the room the rest
+leave (`FillPanel`); the language keeps its width. The box has no magnifier
+beside it, which would read as the Find row's button.
 
-**Rows by name.** Every row of the menu has a name, the tail of its caption
-key: `new`, `stale-all`, `translation-language`, `default-form`. A help
-page's `wordsmith:` link already calls a command by it (`CommandTable.Links`);
-the name moves onto the row, and the choices get one too. The pinned
-entries are named the same way: `search-box`, `filters`, `node-name`, and
-`translation-language` for the language box, the menu's choice pinned.
-A row of the menu sits on one toolbar at most, with breaks between rows
-where the user puts them, and a row on none is the menu's alone. A row works
-wherever it sits, since its command acts on the selection, not on the
-toolbar. A few rows are the menu's alone, since none warrants a button:
-Wordsmith's own language (`ui-language`), a pick that restarts the editor;
-Exit and Reset, which end the work in hand; and Show the tips again
-(`tips-again`), wanted once in a while. The bucket never holds them, and a
-line naming one has it ignored (below, Saved).
+**The filter button.** `filters` is the window's to draw, like the box and
+the name (`WindowEntry`), but not pinned: each filter can go on a toolbar
+of its own, so the button goes anywhere, the bucket included, where it
+comes before the filters (`CommandTable.Placeable`). Its popup holds the
+View menu's filters, whatever the toolbars say.
 
-**Odd places.** A few rows are about one pane, and read wrong over the
-other: a toolbar sits with the tree (`search`, `node`), the default pane
-(`name`, `default`, `key`) or the translation pane (`languages`,
-`translation`).
+**Odd places.** A toolbar sits with the tree, the default pane or the
+translation pane (`Toolbar.Side`), and a few rows are about one pane
+(`MenuRow.About`): `default-form` and `default-preview` read wrong on
+`languages` and `translation`; `translation-form`, `translation-preview` and
+`toggle-stale` on `name`, `default` and `key`. An odd place is allowed: its
+chip wears orange, its tooltip says which pane it is about, and a line
+under the board names it (*Translation Preview is over the default pane*).
 
-| Rows | Belong with | Odd on |
-|---|---|---|
-| `default-form`, `default-preview` | the default pane | `languages`, `translation` |
-| `translation-form`, `translation-preview`, `toggle-stale` | the translation pane | `name`, `default`, `key` |
+**The dialog.** Tools > Customize Toolbars, or a toolbar's context menu,
+which marks that toolbar's row (`ToolbarsViewModel`, `ToolbarsView`). One
+board: a row of chips for each toolbar, and under it a bucket of the entries
+on none, in menu order, a break first. A chip shows its icon, or its
+caption where it has none; its caption is its tooltip. Chips drag along a
+row, between rows, and to and from the bucket (`ToolbarDrag`); a break out
+of the bucket is a new one, and one dropped in it is gone. A pinned chip
+wears a pin and is refused off its row. The window follows each move. OK
+keeps the lines; Cancel and the window's own close put back what was; Reset
+ships every toolbar.
 
-Every other row is at home anywhere. An odd place is allowed but warned
-about: in the dialog, the chip wears the orange of a gripe, its tooltip
-saying which pane it is about, and a line under the board names each one
-(*Translation preview is over the default pane*). The warning goes when the
-chip moves to a place it suits; OK writes the toolbars as they are, odd
-places included.
-
-**The dialog.** Tools > Toolbars opens it, and so does a toolbar's own
-context menu (Customize toolbars), with that toolbar's row marked. It is one
-board: seven rows, each named as its toolbar is and holding that toolbar's
-entries as chips in their order, and a bucket below them holding every row
-of the menu that is on no toolbar, in menu order. A chip shows its row's
-icon, its caption as the tooltip, or its caption where it has no icon (the
-search box, the node's name). A chip is dragged along its row, from one row
-to another, out of the bucket onto a row, or off a row into the bucket,
-which takes it off its toolbar. A break is a chip too: the bucket always
-has one to drag out, and a break dropped in the bucket is gone. A pinned
-chip moves along its own row and nowhere else; it wears a pin, and the
-other rows and the bucket refuse it. A change shows in the window behind as
-it is made. OK keeps the changes, Cancel puts back what was, and Reset puts
-every toolbar back as it ships.
-
-**Saved.** `config.ini` gets a `[toolbars]` section, a line for each toolbar
-changed from how it ships, its entries by name and `-` for a break:
+**Saved.** `config.ini`'s `[toolbars]` has a line for each toolbar changed
+from how it ships, its entries by name and `-` for a break; an emptied one
+keeps an empty line:
 
 ```ini
 [toolbars]
@@ -2334,85 +2306,31 @@ search=undo,redo,search-box,filters
 key=add-key,remove-key,-,stale-all
 ```
 
-A toolbar as it ships has no line, so a later Wordsmith's change to the
-shipped rows reaches whoever left that toolbar alone; Reset drops the lines.
-A hand-edited line can name what the editor does not know (a row since
-renamed or gone) or put an entry where it may not go (a row of the menu's
-own, a row a line before it already placed). Such an entry is ignored, and
-the line is written back without it. A pinned entry left out of its own
-toolbar's line, or put on another's, goes back where it belongs, at its
-place as shipped, and the lines are written back so. A line that comes out
-as its toolbar ships goes. A row a later Wordsmith adds to a shipped toolbar
-the user changed lands in the bucket.
+The toolbars are read in order, a row's first place winning. An unknown
+name, a row of the menu's own, a row already placed or another toolbar's
+pinned entry is ignored, and a pinned entry left out goes back at its place
+as shipped. A line is written back as it came out, and one that comes out as
+shipped goes. A row a later Wordsmith adds to a changed toolbar is in the
+bucket.
 
-**Copy the key's name.** A row of its own, `copy-key`, copies the selected
-node's name as the header shows it (`main.search-hint`): what a program
-passes to `{l:Words}`. It sits in the Edit menu after Rename and ships on
-the `name` toolbar beside it. It is greyed on a file's own node and on a
-comment. The clipboard is reached through the dialogs seam (`IDialogs.Copy`),
-so the tests see what was copied. It has no key, since Ctrl+C belongs to
-the boxes.
+**Copy Key Name.** `copy-key`, after Rename in the Edit menu and beside it on
+`name`, copies the selected node's name, what a program passes to
+`{l:Words}` (`IDialogs.Copy`). Greyed on a file's node and on a comment; no
+key, Ctrl+C being the boxes'.
 
-**The search strip.** The editor settles the search strip's crowding, once a
-question of its own. Undo and Redo left the strip so the search box had room
-to read; now they go on whichever toolbar a user gives them, and the box
-has whatever room the entries beside it leave.
+**Help.** The `toolbars` topic, on the bucket when the dialog opens.
 
-**Help.** One more topic, `toolbars`, when the dialog first opens, pointing
-at the bucket: dragging chips between the rows and the bucket, the break,
-the pins, and Reset.
+**Tests.** `ToolbarTests`: the names, the toolbars as shipped, lines and
+breaks, hand edits, the config, Copy Key Name. `ToolbarEditorTests`: the
+board and the bucket, moves along, between and out, breaks, pins refused,
+odd places, OK, Cancel and Reset, the marked row. `HelpBubblesTests`: the
+dialog's moment.
 
-**Where it lives.** `Toolbar`, the pinned entries and the toolbars' memory
-in `Toolbars.cs`. `CommandTable` reads each toolbar's line through
-`IToolbarMemory` when it is made: the config's (`ConfigToolbarMemory`), or
-one for a run alone in the tests. A pinned entry is an entry the window
-draws itself (a template by its type), the table naming its place. A
-toolbar with a wide entry lays its entries out on a `FillPanel`, which
-gives the wide ones the rest of the room; the others stay toolbar controls.
-The dialog is `ToolbarsViewModel` and `ToolbarsView`: the dialogs'
-shell, with a board of chips in place of their lists with a trash and a +,
-since every entry has a place to go; the drag is the view's, and the view
-model takes each drop as a move of a named entry to a toolbar and an index,
-or to the bucket, says which drops it refuses, and which places are odd: a
-row knows the pane it is about, if any, and a toolbar the part of the window
-it sits with. `EditorConfig` reads and
-writes `[toolbars]` a line at a time. Nothing in Core, Wpf or Ava changes.
+---
 
-**Order.** Two steps. First the toolbars as lists: every row named, the
-pinned entries among them, each toolbar read from the config, breaks drawn,
-and the copy row, so a hand-edited `[toolbars]` already works (built). Then
-the dialog, its context-menu door and its help topic.
+# Planned upgrades
 
-**Tests.** The first step's are built, in `ToolbarTests` and
-`CommandTableTests`, and marked so.
-- Every menu row has one name, and a `wordsmith:` link reaches a command
-  by it (built).
-- Each toolbar ships as it is today. A `[toolbars]` line reads back, breaks
-  included; a toolbar put back as it ships loses its line (built).
-- A hand-edited line: an unknown name, a row of the menu's own and a row
-  placed twice are ignored, and the line is written back without them;
-  a pinned entry left out of its own line or put on another's goes back at
-  its place as shipped, and the lines are written back so; a line that
-  comes out as shipped goes (built).
-- Pinned entries: one moves along its toolbar; the filter popup holds the
-  View menu's filters whatever the config says (built).
-- A row is on one toolbar at most (built), and a row on none is in the
-  bucket. The menu's own rows (Wordsmith's language, Exit, Reset, Show the
-  tips again) are on no toolbar (built) and never in the bucket.
-- Odd places: a translation row on the default pane's toolbars warns, and a
-  default row on the translation pane's; a row at home anywhere never does;
-  the warning goes when the chip moves back, and OK writes an odd place as
-  it is.
-- The dialog: a chip moved along a row, to another row, into the bucket
-  and out of it shows in the window's toolbar at once; a break comes out of
-  the bucket and goes back gone; a pinned chip moves along its row and is
-  refused elsewhere; OK writes the lines, Cancel puts back, Reset ships;
-  a toolbar's context menu opens the dialog with its row marked.
-- Copy: the selected node's name reaches the clipboard, greyed on a file's
-  node and on a comment, the row in the Edit menu and on `name` (built).
-- The view, headless: the board, chips with icons and with captions; a
-  toolbar carrying a choice and a break, and rows either side of the search
-  box, which takes the room left (checked).
+Not built yet. Each section here is the shape the feature takes when it is.
 
 ## Import and export, next
 

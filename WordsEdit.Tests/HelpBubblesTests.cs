@@ -151,9 +151,9 @@ value={0} items
 ";
 
 	//each of the selection's moments arises as it comes true and passes as the selection moves
-	//to a key it is not about; a preview turned on, and the sheet's dialog, have theirs
+	//to a key it is not about; a preview turned on, the sheet's dialog and the toolbar editor have theirs
 	[Fact]
-	public void TheSelectionsMoments_ThePreviews_AndTheSheetsDialog() {
+	public void TheSelectionsMoments_ThePreviews_AndTheDialogs() {
 		var memory = new HelpMemory();
 		memory.Remember("start", HelpTopics.Start.Revision);
 		memory.Remember("tree", HelpTopics.Tree.Revision);
@@ -190,7 +190,16 @@ value={0} items
 		Closes(HelpTopics.Parameters);
 		vm.ShowDefaultPreview = true;
 		Closes(HelpTopics.Preview);
-		Assert.All(HelpTopics.All.Where(topic => topic != HelpTopics.Sheet), topic => Assert.Equal(topic.Revision, memory.Seen(topic.Id)));
+		Assert.All(HelpTopics.All.Where(topic => topic != HelpTopics.Sheet && topic != HelpTopics.Toolbars), topic => Assert.Equal(topic.Revision, memory.Seen(topic.Id)));
+
+		//the toolbar editor's, on the bucket while it is open, gone unremembered with it
+		dialogs.OnShow = dialog => {
+			Assert.IsType<ToolbarsViewModel>(dialog);
+			Assert.Same(HelpTopics.Toolbars, vm.Help.Open);
+		};
+		vm.CustomizeToolbarsCommand.Execute(null);
+		Assert.Null(vm.Help.Open);
+		Assert.Equal(0, memory.Seen("toolbars"));
 
 		//the sheet's dialog: its bubble while it is open, gone unremembered with it
 		string folder = Path.Combine(Path.GetTempPath(), $"WordsEditHelp-{Guid.NewGuid():N}");

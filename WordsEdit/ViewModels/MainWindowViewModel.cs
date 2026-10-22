@@ -80,6 +80,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public ICommand MergeFilesCommand { get; }
 	public ICommand ManageLanguagesCommand { get; }
 	public ICommand SettingsCommand { get; }
+	/// <summary>The toolbar editor; a toolbar's context menu passes the toolbar, which the board marks.</summary>
+	public ICommand CustomizeToolbarsCommand { get; }
 	public ICommand ShowGripesCommand { get; }
 	public ICommand ShowFileGripesCommand { get; }
 	public ICommand ClearFiltersCommand { get; }
@@ -177,6 +179,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		MergeFilesCommand = new DelegateCommand(DoMergeFiles);
 		ManageLanguagesCommand = new DelegateCommand(DoManageLanguages, () => LanguagesFile is not null);
 		SettingsCommand = new DelegateCommand(DoSettings, () => Tree.SelectedFile is not null);
+		CustomizeToolbarsCommand = new DelegateCommand<Toolbar?>(toolbar => Dialogs.Show(new ToolbarsViewModel(this, toolbar)));
 		ShowGripesCommand = new DelegateCommand<PreviewPane>(
 			pane => Dialogs.Show(new GripesViewModel(Words.Known["gripes.preview"], pane.Gripes)),
 			static pane => pane is { GripeCount: > 0 });

@@ -28,10 +28,9 @@ public class CommandTableTests {
 	private static ToggleItem ToggleOf(MainWindowViewModel vm, string key) => vm.Commands.Rows.OfType<ToggleItem>().Single(toggle => toggle.Caption == Words.Known[key]);
 	private static ChoiceItem ChoiceOf(MainWindowViewModel vm, string key) => vm.Commands.Choices.Single(choice => choice.Caption == Words.Known[key]);
 
-	//the menu's rows on the toolbars and in the filter popup; the pinned entries are the window's own
+	//the menu's rows on the toolbars and in the filter popup; the entries the window draws are its own
 	private static IEnumerable<MenuRow> Tools(CommandTable table)
-		=> table.Toolbars.SelectMany(toolbar => toolbar.Entries).Except(table.Toolbars.SelectMany(toolbar => toolbar.Pinned))
-			.Concat(table.FilterTools).Concat(table.Toolbars.SelectMany(toolbar => toolbar.Pinned).OfType<ChoiceItem>());
+		=> table.Toolbars.SelectMany(toolbar => toolbar.Entries).Where(entry => entry is not WindowEntry).Concat(table.FilterTools);
 
 	[Fact]
 	public void TheMenuIsTheInventory() {

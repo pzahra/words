@@ -16,6 +16,8 @@ public abstract class MenuRow : ViewModelBase {
 	///     (SPEC: The toolbar editor, Rows by name). A break has none.
 	/// </summary>
 	public string Name { get; internal set; } = "";
+	/// <summary>The pane the row is about, if one: over the other pane's toolbars its place is odd (SPEC: The toolbar editor).</summary>
+	public Side? About { get; internal set; }
 	/// <summary>Takes the room its toolbar's other entries leave: the search box, the node's name.</summary>
 	public virtual bool Fills => false;
 }
@@ -258,8 +260,10 @@ public sealed class CommandTable {
 	public Toolbar KeyTools { get; }
 	/// <summary>The filters, in the filter button's popup: no toolbar, so fixed.</summary>
 	public IReadOnlyList<CommandItem> FilterTools { get; }
-	/// <summary>Every row of the menu and every pinned entry, by name.</summary>
+	/// <summary>Every row of the menu and every entry the window draws, by name.</summary>
 	public IReadOnlyDictionary<string, MenuRow> Named { get; }
+	/// <summary>Every entry a toolbar may hold but a pinned one, in menu order, the filter button before the filters it holds.</summary>
+	public IReadOnlyList<MenuRow> Placeable { get; }
 	/// <summary>
 	///     Each command row by name: what a help page's <c>wordsmith:</c> link names
 	///     (SPEC: Help bubbles, Links).
@@ -267,6 +271,8 @@ public sealed class CommandTable {
 	public IReadOnlyDictionary<string, CommandItem> Links { get; }
 	/// <summary>The rows none of which warrants a button: they are the menu's alone.</summary>
 	public static IReadOnlySet<string> MenuOnly { get; } = new HashSet<string> { "ui-language", "exit", "reset", "tips-again" };
+
+	private readonly IToolbarMemory memory;
 
 	/// <summary>Every command row, in menu order.</summary>
 	public IEnumerable<CommandItem> Rows => Menu.SelectMany(group => group.Items).OfType<CommandItem>();
@@ -332,6 +338,7 @@ public sealed class CommandTable {
 		//Tools
 		var languages = new CommandItem(Words.Known["menu.languages"], PackIconKind.Translate, vm.ManageLanguagesCommand);
 		var settings = new CommandItem(Words.Known["menu.settings"], PackIconKind.Cog, vm.SettingsCommand);
+		var customize = new CommandItem(Words.Known["menu.toolbars"], PackIconKind.ToolboxOutline, vm.CustomizeToolbarsCommand);
 		//Help: the bubbles' switch, and their memory forgotten
 		var tips = new ToggleItem(Words.Known["menu.tips"], PackIconKind.CommentQuestionOutline, () => vm.Help.Tips, new DelegateCommand(() => vm.Help.Tips = !vm.Help.Tips));
 		var tipsAgain = new CommandItem(Words.Known["menu.tips-again"], PackIconKind.CommentArrowLeftOutline, new DelegateCommand(vm.Help.ShowAgain));
@@ -341,12 +348,12 @@ public sealed class CommandTable {
 			new MenuGroup(Words.Known["menu.file"], [create, load, import, merge, new MenuBreak(), save, saveAs, export, new MenuBreak(), reset, exit], HelpTopics.Start.Id),
 			edit,
 			new MenuGroup(Words.Known["menu.view"], [staleView, reviewView, missingView, mismatchView, clearFilters, new MenuBreak(), defaultPreview, translationPreview, new MenuBreak(), back, forward, find, new MenuBreak(), defaultForm, translationForm, new MenuBreak(), translationLanguage, uiLanguage]),
-			new MenuGroup(Words.Known["menu.tools"], [languages, settings]),
+			new MenuGroup(Words.Known["menu.tools"], [languages, settings, customize]),
 			new MenuGroup(Words.Known["menu.help"], [tips, tipsAgain]),
 		];
 		EditRows = edit.Items;
 		FilterTools = [staleView, reviewView, missingView, mismatchView, clearFilters];
-		//the entries pinned to a toolbar: the window draws them, the table names their place
+		//the entries the window draws, the table naming their place: the box and the name pinned to theirs
 		var searchBox = new SearchBoxEntry(tree);
 		var filters = new FiltersEntry(tree, FilterTools);
 		var nodeName = new NodeNameEntry(tree);
@@ -361,7 +368,7 @@ public sealed class CommandTable {
 			["back"] = back, ["forward"] = forward, ["find"] = find,
 			["default-form"] = defaultForm, ["translation-form"] = translationForm,
 			["translation-language"] = translationLanguage, ["ui-language"] = uiLanguage,
-			["languages"] = languages, ["settings"] = settings, ["tips"] = tips, ["tips-again"] = tipsAgain,
+			["languages"] = languages, ["settings"] = settings, ["toolbars"] = customize, ["tips"] = tips, ["tips-again"] = tipsAgain,
 			["search-box"] = searchBox, ["filters"] = filters, ["node-name"] = nodeName,
 		};
 		foreach (var (name, row) in named) {
@@ -369,22 +376,52 @@ public sealed class CommandTable {
 		}
 		Named = named;
 		Links = named.Where(pair => pair.Value is CommandItem).ToDictionary(pair => pair.Key, pair => (CommandItem)pair.Value);
-		SearchTools = new Toolbar("search", [back, forward, searchBox, filters], searchBox, filters);
-		NameTools = new Toolbar("name", [nodeName, rename, copyKey], nodeName);
-		DefaultTools = new Toolbar("default", [defaultForm, toggleConstant, toggleReview, defaultPreview]);
-		LanguageTools = new Toolbar("languages", [languages, translationLanguage], translationLanguage);
-		TranslationTools = new Toolbar("translation", [translationForm, toggleStale, translationPreview]);
-		NodeTools = new Toolbar("node", [addNode, remove, addComment]);
-		KeyTools = new Toolbar("key", [addKey, removeKey, staleAll]);
+		//the rows about one value pane, which read wrong over the other's (SPEC: The toolbar editor, Odd places)
+		defaultForm.About = defaultPreview.About = Side.Default;
+		translationForm.About = translationPreview.About = toggleStale.About = Side.Translation;
+		SearchTools = new Toolbar("search", Words.Known["toolbars.search"], Words.Known["toolbars.search-place"], Side.Tree,
+			[back, forward, searchBox, filters], searchBox);
+		NameTools = new Toolbar("name", Words.Known["toolbars.name"], Words.Known["toolbars.name-place"], Side.Default,
+			[nodeName, rename, copyKey], nodeName);
+		DefaultTools = new Toolbar("default", Words.Known["toolbars.default"], Words.Known["toolbars.default-place"], Side.Default,
+			[defaultForm, toggleConstant, toggleReview, defaultPreview]);
+		LanguageTools = new Toolbar("languages", Words.Known["toolbars.languages"], Words.Known["toolbars.languages-place"], Side.Translation,
+			[languages, translationLanguage], translationLanguage);
+		TranslationTools = new Toolbar("translation", Words.Known["toolbars.translation"], Words.Known["toolbars.translation-place"], Side.Translation,
+			[translationForm, toggleStale, translationPreview]);
+		NodeTools = new Toolbar("node", Words.Known["toolbars.node"], Words.Known["toolbars.node-place"], Side.Tree,
+			[addNode, remove, addComment]);
+		KeyTools = new Toolbar("key", Words.Known["toolbars.key"], Words.Known["toolbars.key-place"], Side.Default,
+			[addKey, removeKey, staleAll]);
 		Toolbars = [SearchTools, NameTools, DefaultTools, LanguageTools, TranslationTools, NodeTools, KeyTools];
-		Arrange(toolbars);
+		HashSet<MenuRow> pinned = [.. Toolbars.SelectMany(toolbar => toolbar.Pinned)];
+		List<MenuRow> placeable = [.. Menu.SelectMany(group => group.Items).Where(row => row is not MenuBreak && !MenuOnly.Contains(row.Name) && !pinned.Contains(row))];
+		placeable.Insert(placeable.IndexOf(staleView), filters);
+		Placeable = placeable;
+		memory = toolbars;
+		Arrange();
+	}
+
+	/// <summary>Keeps every toolbar as it stands: a line for each one changed from how it ships, none for the rest.</summary>
+	public void Keep() {
+		foreach (Toolbar toolbar in Toolbars) {
+			Keep(toolbar, memory.Line(toolbar.Name));
+		}
+	}
+
+	//a toolbar's line written only where it changed from the one kept; a toolbar as it ships keeps none
+	private void Keep(Toolbar toolbar, string? kept) {
+		string? line = toolbar.Line == toolbar.ShippedLine ? null : toolbar.Line;
+		if (line != kept) {
+			memory.Keep(toolbar.Name, line);
+		}
 	}
 
 	//each toolbar from its line, in order, a row's first place winning (SPEC: The toolbar
 	//editor, Saved). What a line names that the editor does not know, or may not put there,
 	//is ignored; a pinned entry left out goes back at its place as shipped. A line that
 	//came out otherwise is written back so, and one that came out as shipped goes
-	private void Arrange(IToolbarMemory memory) {
+	private void Arrange() {
 		HashSet<MenuRow> placed = [];
 		HashSet<MenuRow> pinned = [.. Toolbars.SelectMany(toolbar => toolbar.Pinned)];
 		foreach (Toolbar toolbar in Toolbars) {
@@ -407,10 +444,7 @@ public sealed class CommandTable {
 			foreach (MenuRow entry in entries) {
 				toolbar.Entries.Add(entry);
 			}
-			string? kept = toolbar.Line == toolbar.ShippedLine ? null : toolbar.Line;
-			if (kept != line) {
-				memory.Keep(toolbar.Name, kept);
-			}
+			Keep(toolbar, line);
 		}
 	}
 

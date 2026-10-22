@@ -22,8 +22,9 @@ public static class HelpTopics {
 	public static HelpTopic Parameters { get; } = new("parameters", 1, () => Words.Known["help.parameters"]);
 	public static HelpTopic Preview { get; } = new("preview", 1, () => Words.Known["help.preview"]);
 	public static HelpTopic Sheet { get; } = new("sheet", 1, () => Words.Known["help.sheet"]);
+	public static HelpTopic Toolbars { get; } = new("toolbars", 1, () => Words.Known["help.toolbars"]);
 
-	public static IReadOnlyList<HelpTopic> All { get; } = [Start, Tree, Translation, Stale, Review, Forms, Parameters, Preview, Sheet];
+	public static IReadOnlyList<HelpTopic> All { get; } = [Start, Tree, Translation, Stale, Review, Forms, Parameters, Preview, Sheet, Toolbars];
 
 	/// <summary>The topic named <paramref name="id"/>, or null when the catalogue has none.</summary>
 	public static HelpTopic? Find(string id) => All.FirstOrDefault(topic => topic.Id == id);

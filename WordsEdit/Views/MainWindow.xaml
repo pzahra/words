@@ -72,15 +72,14 @@
         <!-- the entries pinned to a toolbar (SPEC: The toolbar editor, Pinned entries): the window's own
              controls, each where the table puts it along its toolbar -->
         <!-- the search box and its magnifier; Ctrl+F finds the box by its name -->
+        <!-- the search box, bare: a magnifier beside it would read as the Find row's button, which a
+             user may put there -->
         <DataTemplate DataType="{x:Type vm:SearchBoxEntry}">
-            <DockPanel VerticalAlignment="Center">
-                <md:PackIcon DockPanel.Dock="Left" Kind="Magnify" Height="20" Width="20" VerticalAlignment="Center"/>
-                <TextBox x:Name="SearchBox"
-                         Text="{Binding Tree.SearchFilterText, UpdateSourceTrigger=PropertyChanged}"
-                         md:HintAssist.Hint="{l:Words main.search-hint}"
-                         VerticalAlignment="Center"
-                         Margin="2.5px"/>
-            </DockPanel>
+            <TextBox x:Name="SearchBox"
+                     Text="{Binding Tree.SearchFilterText, UpdateSourceTrigger=PropertyChanged}"
+                     md:HintAssist.Hint="{l:Words main.search-hint}"
+                     VerticalAlignment="Center"
+                     Margin="2.5px"/>
         </DataTemplate>
         <!-- the filters (SPEC: Filters): a vertical toolbar of the View menu's filters, in a popup whose
              button wears the hidden count -->
@@ -133,6 +132,13 @@
                        Text="{Binding Tree.SelectedKeyNode.Path, Mode=OneWay}"
                        ToolTip="{Binding Tree.SelectedKeyNode.Path}"/>
         </DataTemplate>
+        <!-- a toolbar's own context menu (SPEC: The toolbar editor): the editor, that toolbar marked;
+             each toolbar carries its own in its Tag -->
+        <ContextMenu x:Key="ToolbarMenu" x:Shared="False">
+            <MenuItem Header="{l:Words menu.toolbars}"
+                      Command="{Binding CustomizeToolbarsCommand}"
+                      CommandParameter="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+        </ContextMenu>
     </Window.Resources>
 
     <DockPanel>
@@ -159,6 +165,8 @@
             <ItemsControl Grid.Column="0"
                           Grid.Row="0"
                           ItemsSource="{Binding Commands.SearchTools.Entries}"
+                          Tag="{Binding Commands.SearchTools}"
+                          ContextMenu="{StaticResource ToolbarMenu}"
                           Style="{StaticResource FillBar}"
                           Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
                           Margin="3 0"/>
@@ -269,6 +277,8 @@
             <ItemsControl Grid.Column="1"
                           Grid.Row="0"
                           ItemsSource="{Binding Commands.NameTools.Entries}"
+                          Tag="{Binding Commands.NameTools}"
+                          ContextMenu="{StaticResource ToolbarMenu}"
                           Style="{StaticResource FillBar}"
                           Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
                           Margin="3 0"/>
@@ -492,6 +502,8 @@
                     <!-- the header's commands, from the table (SPEC: Menu and toolbars): the form, the key's
                          flags, the eye; unclipped, so the form's badge shows above its button -->
                     <ToolBar ItemsSource="{Binding Commands.DefaultTools.Entries}"
+                             Tag="{Binding Commands.DefaultTools}"
+                             ContextMenu="{StaticResource ToolbarMenu}"
                              Visibility="{Binding Commands.DefaultTools.IsEmpty, Converter={StaticResource IsFalse}}"
                              ToolBarTray.IsLocked="True"
                              ClipToBounds="False"
@@ -536,6 +548,8 @@
                         Orientation="Horizontal"
                         Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}">
                 <ToolBar ItemsSource="{Binding Commands.LanguageTools.Entries}"
+                         Tag="{Binding Commands.LanguageTools}"
+                         ContextMenu="{StaticResource ToolbarMenu}"
                          ToolBarTray.IsLocked="True"
                          Background="Transparent"
                          Margin="3 0"/>
@@ -648,6 +662,8 @@
                 </md:Badged>
                     <!-- the form, the stale flag in the selected language, the eye -->
                     <ToolBar ItemsSource="{Binding Commands.TranslationTools.Entries}"
+                             Tag="{Binding Commands.TranslationTools}"
+                             ContextMenu="{StaticResource ToolbarMenu}"
                              Visibility="{Binding Commands.TranslationTools.IsEmpty, Converter={StaticResource IsFalse}}"
                              ToolBarTray.IsLocked="True"
                              ClipToBounds="False"
@@ -692,6 +708,8 @@
             <ToolBar Grid.Column="0"
                      Grid.Row="3"
                      ItemsSource="{Binding Commands.NodeTools.Entries}"
+                     Tag="{Binding Commands.NodeTools}"
+                     ContextMenu="{StaticResource ToolbarMenu}"
                      Visibility="{Binding Commands.NodeTools.IsEmpty, Converter={StaticResource IsFalse}}"
                      ToolBarTray.IsLocked="True"
                      Background="Transparent"
@@ -699,6 +717,8 @@
             <ToolBar Grid.Column="1"
                      Grid.Row="3"
                      ItemsSource="{Binding Commands.KeyTools.Entries}"
+                     Tag="{Binding Commands.KeyTools}"
+                     ContextMenu="{StaticResource ToolbarMenu}"
                      Visibility="{Binding Commands.KeyTools.IsEmpty, Converter={StaticResource IsFalse}}"
                      ToolBarTray.IsLocked="True"
                      Background="Transparent"

@@ -1,7 +1,19 @@
 using System.Collections.ObjectModel;
+using MaterialDesignThemes.Wpf;
 using WordsEdit.Utils;
 
 namespace WordsEdit.ViewModels;
+
+/// <summary>
+///     The part of the window a toolbar sits with, and the pane a row is about
+///     (SPEC: The toolbar editor, Odd places): a row about one value pane reads
+///     wrong on a toolbar of the other's.
+/// </summary>
+public enum Side {
+	Tree,
+	Default,
+	Translation,
+}
 
 /// <summary>
 ///     One toolbar (SPEC: The toolbar editor): its name, the entries it ships with, and
@@ -13,6 +25,14 @@ public sealed class Toolbar : ViewModelBase {
 	public const string Break = "-";
 
 	public string Name { get; }
+	/// <summary>What the toolbar editor calls it.</summary>
+	[Localized]
+	public string Caption { get; }
+	/// <summary>Where it sits, under its caption in the toolbar editor.</summary>
+	[Localized]
+	public string Place { get; }
+	/// <summary>The part of the window it sits with.</summary>
+	public Side Side { get; }
 	public IReadOnlyList<MenuRow> Shipped { get; }
 	public IReadOnlyList<MenuRow> Pinned { get; }
 	public ObservableCollection<MenuRow> Entries { get; }
@@ -23,8 +43,11 @@ public sealed class Toolbar : ViewModelBase {
 	/// <summary>Its line as it ships.</summary>
 	public string ShippedLine => Join(Shipped);
 
-	public Toolbar(string name, IReadOnlyList<MenuRow> shipped, params MenuRow[] pinned) {
+	public Toolbar(string name, [Localized] string caption, [Localized] string place, Side side, IReadOnlyList<MenuRow> shipped, params MenuRow[] pinned) {
 		Name = name;
+		Caption = caption;
+		Place = place;
+		Side = side;
 		Shipped = shipped;
 		Pinned = pinned;
 		Entries = [.. shipped];
@@ -37,22 +60,38 @@ public sealed class Toolbar : ViewModelBase {
 	private static string Join(IEnumerable<MenuRow> entries) => string.Join(",", entries.Select(Spell));
 }
 
-/// <summary>The search box over the tree, pinned to its toolbar, taking the room the toolbar's rows leave.</summary>
-public sealed class SearchBoxEntry(TreeViewModel tree) : MenuRow {
+/// <summary>
+///     An entry the window draws itself rather than a row of the menu: the search box and the
+///     node's name, pinned to their toolbars, and the filter button, which goes anywhere. What
+///     the toolbar editor calls it, and its icon if it has one.
+/// </summary>
+public abstract class WindowEntry(TreeViewModel tree) : MenuRow {
 	public TreeViewModel Tree { get; } = tree;
+	[Localized]
+	public abstract string Caption { get; }
+	public virtual PackIconKind? Icon => null;
+}
+
+/// <summary>The search box over the tree, pinned to its toolbar, taking the room the toolbar's rows leave.</summary>
+public sealed class SearchBoxEntry(TreeViewModel tree) : WindowEntry(tree) {
+	public override string Caption => Words.Known["toolbars.search-box"];
 	public override bool Fills => true;
 }
 
-/// <summary>The filter button, pinned beside the search box: the View menu's filters in a popup, and the count of the rows they hide.</summary>
-public sealed class FiltersEntry(TreeViewModel tree, IReadOnlyList<CommandItem> filters) : MenuRow {
-	public TreeViewModel Tree { get; } = tree;
+/// <summary>
+///     The filter button: the View menu's filters in a popup, and the count of the rows they hide.
+///     Not pinned: each filter goes on a toolbar of its own as well, so the button may go anywhere.
+/// </summary>
+public sealed class FiltersEntry(TreeViewModel tree, IReadOnlyList<CommandItem> filters) : WindowEntry(tree) {
+	public override string Caption => Words.Known["main.filters"];
+	public override PackIconKind? Icon => PackIconKind.FilterVariant;
 	/// <summary>The popup's rows: fixed, whatever the toolbars say, since they are what the button means.</summary>
 	public IReadOnlyList<CommandItem> Filters { get; } = filters;
 }
 
 /// <summary>The selected node's name, pinned to the toolbar over the default pane, taking the room its rows leave.</summary>
-public sealed class NodeNameEntry(TreeViewModel tree) : MenuRow {
-	public TreeViewModel Tree { get; } = tree;
+public sealed class NodeNameEntry(TreeViewModel tree) : WindowEntry(tree) {
+	public override string Caption => Words.Known["toolbars.node-name"];
 	public override bool Fills => true;
 }
 

@@ -31,8 +31,14 @@ public class ToolbarTests {
 		Assert.All(rows.OfType<CommandItem>(), row => Assert.Equal(Words.Known["menu." + row.Name], row.Caption));
 		Assert.All(rows.OfType<ChoiceItem>(), row => Assert.Equal(Words.Known["menu." + row.Name], row.Caption));
 		List<MenuRow> pinned = [.. table.Toolbars.SelectMany(toolbar => toolbar.Pinned)];
-		Assert.Equal(["search-box", "filters", "node-name", "translation-language"], pinned.Select(pin => pin.Name));
+		Assert.Equal(["search-box", "node-name", "translation-language"], pinned.Select(pin => pin.Name));
 		Assert.All(pinned, pin => Assert.Same(pin, table.Named[pin.Name]));
+		//the filter button is the window's to draw too, and not pinned: it goes anywhere, the filters it holds
+		//after it in the bucket's order
+		Assert.IsType<FiltersEntry>(table.Named["filters"]);
+		List<MenuRow> placeable = [.. table.Placeable];
+		Assert.Equal(placeable.IndexOf(table.Named["stale-view"]) - 1, placeable.IndexOf(table.Named["filters"]));
+		Assert.DoesNotContain(table.Placeable, entry => pinned.Contains(entry) || entry is MenuBreak || CommandTable.MenuOnly.Contains(entry.Name));
 		//the menu's rows and the three the window draws, nothing else
 		Assert.Equal(rows.Count + 3, table.Named.Count);
 		Assert.Equal(rows.OfType<CommandItem>().ToHashSet(), table.Links.Values.ToHashSet());
@@ -100,7 +106,7 @@ public class ToolbarTests {
 	[Fact]
 	public void APinnedEntryLeftOutOrPutElsewhere_GoesBackAtItsPlaceAsShipped() {
 		var memory = new ToolbarMemory();
-		//the box and the filters left out: back at their places, the rest after them
+		//the box left out: back at its place, the rest after it; the filter button, not pinned, stays out
 		memory.Keep("search", "back,forward,add-node,remove");
 		//the language put on the toolbar before its own, and its own left empty
 		memory.Keep("name", "node-name,translation-language,rename,copy-key");
@@ -109,16 +115,32 @@ public class ToolbarTests {
 		memory.Keep("translation", "translation-form,toggle-stale,translation-preview,node-name");
 		CommandTable table = Table(memory);
 
-		Assert.Equal("back,forward,search-box,filters,add-node,remove", table.SearchTools.Line);
+		Assert.Equal("back,forward,search-box,add-node,remove", table.SearchTools.Line);
 		Assert.Equal("node-name,rename,copy-key", table.NameTools.Line);
 		Assert.Equal("translation-language", table.LanguageTools.Line);
 		Assert.Equal("translation-form,toggle-stale,translation-preview", table.TranslationTools.Line);
 		Assert.Equal("add-comment", table.NodeTools.Line);
-		Assert.Equal("back,forward,search-box,filters,add-node,remove", memory.Line("search"));
+		Assert.Equal("back,forward,search-box,add-node,remove", memory.Line("search"));
 		Assert.Null(memory.Line("name"));
 		Assert.Equal("translation-language", memory.Line("languages"));
 		Assert.Null(memory.Line("translation"));
 		Assert.Equal("add-comment", memory.Line("node"));
+	}
+
+	[Fact]
+	public void TheFilterButton_GoesWhereALinePutsIt_OrOnNone() {
+		var memory = new ToolbarMemory();
+		memory.Keep("search", "back,forward,search-box");
+		memory.Keep("key", "add-key,remove-key,stale-all,filters");
+		CommandTable table = Table(memory);
+		Assert.Equal("add-key,remove-key,stale-all,filters", table.KeyTools.Line);
+		Assert.Equal("back,forward,search-box", memory.Line("search"));
+
+		memory.Keep("key", null);
+		table = Table(memory);
+		Assert.DoesNotContain("filters", Placed(table));
+		//its filters stay in its popup, whichever toolbar it is on, or none
+		Assert.Equal(5, Assert.IsType<FiltersEntry>(table.Named["filters"]).Filters.Count);
 	}
 
 	[Fact]
@@ -158,8 +180,8 @@ public class ToolbarTests {
 			File.WriteAllLines(EditorConfig.Path, ["[editor]", "language=it", "", "[toolbars]", "node=add-node,exit,remove", "search=forward,back", "key=add-key,remove-key,stale-all"]);
 			CommandTable table = Table(memory);
 			Assert.Equal("add-node,remove", table.NodeTools.Line);
-			Assert.Equal("forward,back,search-box,filters", table.SearchTools.Line);
-			Assert.Equal(["[editor]", "language=it", "", "[toolbars]", "node=add-node,remove", "search=forward,back,search-box,filters"], File.ReadAllLines(EditorConfig.Path));
+			Assert.Equal("forward,back,search-box", table.SearchTools.Line);
+			Assert.Equal(["[editor]", "language=it", "", "[toolbars]", "node=add-node,remove", "search=forward,back,search-box"], File.ReadAllLines(EditorConfig.Path));
 		}
 		finally {
 			if (File.Exists(EditorConfig.Path)) {

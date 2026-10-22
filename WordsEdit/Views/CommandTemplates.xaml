@@ -143,6 +143,8 @@
          row, drawn as a toolbar draws them, the search box or the node's name taking the room the rest leave -->
     <Style x:Key="FillBar" TargetType="ItemsControl">
         <Setter Property="Focusable" Value="False"/>
+        <!-- the strip between its entries takes a right click too: the toolbar's context menu -->
+        <Setter Property="Background" Value="Transparent"/>
         <Setter Property="ItemsPanel">
             <Setter.Value>
                 <ItemsPanelTemplate>
