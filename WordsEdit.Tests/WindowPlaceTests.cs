@@ -22,18 +22,18 @@ public class WindowPlaceTests {
 			EditorConfig.Window = new WindowPlace(1234.4, 777.6, Maximized: true);
 			Assert.Equal(new WindowPlace(1234, 778, Maximized: true), EditorConfig.Window); //whole pixels
 			Assert.Equal("it", EditorConfig.Language);
-			Assert.Contains("window-state=maximized", File.ReadAllLines(EditorConfig.Path));
+			Assert.Equal(["[editor]", "language=it", "", "[window]", "width=1234", "height=778", "state=maximized"], File.ReadAllLines(EditorConfig.Path));
 
 			EditorConfig.Window = new WindowPlace(900, 500, Maximized: false);
 			Assert.Equal(new WindowPlace(900, 500, Maximized: false), EditorConfig.Window);
 
 			//a hand-edited size that is not one is no size at all
-			File.WriteAllLines(EditorConfig.Path, ["language=it", "window-width=wide", "window-height=500"]);
+			File.WriteAllLines(EditorConfig.Path, ["[editor]", "language=it", "[window]", "width=wide", "height=500"]);
 			Assert.Null(EditorConfig.Window);
 			Assert.Equal("it", EditorConfig.Language);
 
 			EditorConfig.Window = null;
-			Assert.Equal(["language=it"], File.ReadAllLines(EditorConfig.Path));
+			Assert.Equal(["[editor]", "language=it", "[window]"], File.ReadAllLines(EditorConfig.Path));
 		}
 		finally {
 			if (File.Exists(EditorConfig.Path)) {
@@ -49,11 +49,11 @@ public class WindowPlaceTests {
 		EditorConfig.Path = Path.Combine(Path.GetTempPath(), $"wordsmith-{Guid.NewGuid():N}", "config.ini");
 		try {
 			Directory.CreateDirectory(Path.GetDirectoryName(EditorConfig.Path)!);
-			File.WriteAllLines(EditorConfig.Path, ["; Wordsmith's own", "language=it", "not a setting", "window-width=900"]);
+			File.WriteAllLines(EditorConfig.Path, ["; Wordsmith's own", "[Editor]", "Language=it", "not a setting", "", "[mine]", "width=1", "", "[WINDOW]", "width=900"]);
 
-			EditorConfig.Language = "fr";
+			EditorConfig.Language = "fr"; //sections and keys matched without case
 			EditorConfig.Window = null;
-			Assert.Equal(["; Wordsmith's own", "language=fr", "not a setting"], File.ReadAllLines(EditorConfig.Path));
+			Assert.Equal(["; Wordsmith's own", "[Editor]", "language=fr", "not a setting", "", "[mine]", "width=1", "", "[WINDOW]"], File.ReadAllLines(EditorConfig.Path));
 
 			File.SetAttributes(EditorConfig.Path, FileAttributes.ReadOnly);
 			EditorConfig.Language = "de"; //the close this runs on still closes
@@ -63,6 +63,37 @@ public class WindowPlaceTests {
 		finally {
 			if (File.Exists(EditorConfig.Path)) {
 				File.SetAttributes(EditorConfig.Path, FileAttributes.Normal);
+				Directory.Delete(Path.GetDirectoryName(EditorConfig.Path)!, recursive: true);
+			}
+			EditorConfig.Path = configured;
+		}
+	}
+
+	//each value in its own section: a line above the first is in none, so a config from
+	//before the sections opens at the defaults once, and a section the file lacks joins
+	//its end after a blank line, a new value its section's last
+	[Fact]
+	public void TheConfigReadsEachValueFromItsSection_AndAppendsASectionItLacks() {
+		string configured = EditorConfig.Path;
+		EditorConfig.Path = Path.Combine(Path.GetTempPath(), $"wordsmith-{Guid.NewGuid():N}", "config.ini");
+		try {
+			Directory.CreateDirectory(Path.GetDirectoryName(EditorConfig.Path)!);
+			File.WriteAllLines(EditorConfig.Path, ["language=it", "window-width=900", "window-height=500"]);
+			Assert.Null(EditorConfig.Language);
+			Assert.Null(EditorConfig.Window);
+
+			File.WriteAllLines(EditorConfig.Path, ["language=it", "[window]", "language=de", "width=900", "height=500", "", "[seen]", "start=1"]);
+			Assert.Null(EditorConfig.Language); //not the editor section's
+			Assert.Equal(new WindowPlace(900, 500, Maximized: false), EditorConfig.Window);
+
+			EditorConfig.Language = "fr";
+			EditorConfig.Window = new WindowPlace(900, 500, Maximized: true);
+			Assert.Equal(["language=it", "[window]", "language=de", "width=900", "height=500", "state=maximized", "", "[seen]", "start=1", "", "[editor]", "language=fr"],
+				File.ReadAllLines(EditorConfig.Path));
+			Assert.Equal("fr", EditorConfig.Language);
+		}
+		finally {
+			if (File.Exists(EditorConfig.Path)) {
 				Directory.Delete(Path.GetDirectoryName(EditorConfig.Path)!, recursive: true);
 			}
 			EditorConfig.Path = configured;

@@ -619,10 +619,18 @@ remembers the state it would come back to, so maximized, then minimized, then
 closed opens maximized. A close the save question cancels
 is no close; a language restart remembers the window before the new editor
 reads it, and tells the new editor its language on the command line too.
-Where the window sits is still the system's choice. A setting changes its own
-line of the config and leaves the rest, comments included; a config that
-will not read or write (locked, read-only) costs the settings, never a close
-or a restart.
+Where the window sits is still the system's choice. The config is in
+sections, each a group of values: `[editor]` holds `language`, and
+`[window]` holds `width`, `height` and `state` (`normal` or `maximized`). A
+value is read from its section, the section's name and its own matched
+without case. A setting changes its own line in its section and leaves the
+rest as it was, comments, other sections and keys the editor does not know
+included; a new key joins its section's last value, and a section the file
+lacks is appended after a blank line. A config from before the sections is
+not read: its lines sit above the first section, in none, so the window
+opens at its default size once and the language is the system's until one
+is picked. A config that will not read or write (locked, read-only) costs
+the settings, never a close or a restart.
 
 ## Import and export
 
@@ -2312,7 +2320,7 @@ opens it when `HelpBubbles` names a topic its element carries. Nothing in
 Core, Wpf or Ava changes.
 
 **Order.** Three steps. First the config in sections, the language and the
-window moved into theirs. Then the bubble, the catalogue, the seen
+window moved into theirs: built (Wordsmith's own words, The window). Then the bubble, the catalogue, the seen
 revisions, the Help menu and the links, with `start` and `tree` to show it
 working. Then the rest of the topics, each with its trigger.
 
