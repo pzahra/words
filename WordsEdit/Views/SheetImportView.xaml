@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:vm="clr-namespace:WordsEdit.ViewModels"
+             xmlns:uc="clr-namespace:WordsEdit.Utils"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:SheetImportViewModel}"
              Padding="10">
@@ -45,7 +46,8 @@
         <!-- a column a fixed width, so the roles line up over the cells they name -->
         <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="2.5px">
             <StackPanel>
-                <ItemsControl ItemsSource="{Binding Columns}">
+                <!-- the role row: the sheet's help bubble points at it (SPEC: Help bubbles) -->
+                <ItemsControl ItemsSource="{Binding Columns}" uc:Bubble.Topic="sheet">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <StackPanel Orientation="Horizontal"/>

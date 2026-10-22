@@ -15,8 +15,15 @@ public sealed record HelpTopic(string Id, int Revision, Func<string> Page);
 public static class HelpTopics {
 	public static HelpTopic Start { get; } = new("start", 1, () => Words.Known["help.start"]);
 	public static HelpTopic Tree { get; } = new("tree", 1, () => Words.Known["help.tree"]);
+	public static HelpTopic Translation { get; } = new("translation", 1, () => Words.Known["help.translation"]);
+	public static HelpTopic Stale { get; } = new("stale", 1, () => Words.Known["help.stale"]);
+	public static HelpTopic Review { get; } = new("review", 1, () => Words.Known["help.review"]);
+	public static HelpTopic Forms { get; } = new("forms", 1, () => Words.Known["help.forms"]);
+	public static HelpTopic Parameters { get; } = new("parameters", 1, () => Words.Known["help.parameters"]);
+	public static HelpTopic Preview { get; } = new("preview", 1, () => Words.Known["help.preview"]);
+	public static HelpTopic Sheet { get; } = new("sheet", 1, () => Words.Known["help.sheet"]);
 
-	public static IReadOnlyList<HelpTopic> All { get; } = [Start, Tree];
+	public static IReadOnlyList<HelpTopic> All { get; } = [Start, Tree, Translation, Stale, Review, Forms, Parameters, Preview, Sheet];
 
 	/// <summary>The topic named <paramref name="id"/>, or null when the catalogue has none.</summary>
 	public static HelpTopic? Find(string id) => All.FirstOrDefault(topic => topic.Id == id);

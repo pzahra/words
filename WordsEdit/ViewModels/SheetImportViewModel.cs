@@ -105,6 +105,7 @@ public sealed class SheetImportViewModel : DialogViewModel {
 		Codec = codec;
 		Sheet = sheet;
 		utf32 = CsvCodec.IsUtf32(sheet);
+		parent.Help.Arise(HelpTopics.Sheet); //its bubble opens on the role row, once the dialog shows it
 		ImportCommand = new DelegateCommand(DoImport, () => CanImport);
 		CancelCommand = new DelegateCommand(Close);
 
@@ -342,4 +343,7 @@ public sealed class SheetImportViewModel : DialogViewModel {
 		Options = Current();
 		Close();
 	}
+
+	//the dialog gone, its bubble's moment with it
+	public override void Closed() => parent.Help.Pass(HelpTopics.Sheet);
 }

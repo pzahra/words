@@ -140,8 +140,10 @@
         <Setter Property="uc:ToolBarOverflow.Collapse" Value="True" />
     </Style>
 
+    <!-- a row a help bubble points at carries its topic on a toolbar, where the bubble finds it -->
     <DataTemplate DataType="{x:Type vm:CommandItem}">
         <Button Command="{Binding Command}"
+                uc:Bubble.Topic="{Binding Topic}"
                 ToolTip="{Binding Tip}"
                 Style="{StaticResource ToolButton}">
             <md:PackIcon Kind="{Binding Icon}"/>
@@ -151,6 +153,7 @@
         <ToggleButton IsChecked="{Binding IsChecked}"
                       IsEnabled="{Binding IsEnabled}"
                       ToolTip="{Binding Tip}"
+                      uc:Bubble.Topic="{Binding Topic}"
                       Style="{StaticResource ToolToggle}">
             <md:PackIcon Kind="{Binding Icon}"/>
         </ToggleButton>
@@ -162,6 +165,7 @@
                   SelectedItem="{Binding Selected}"
                   IsEnabled="{Binding IsEnabled}"
                   ToolTip="{Binding Caption}"
+                  uc:Bubble.Topic="{Binding Topic}"
                   MinWidth="180"
                   Style="{DynamicResource {x:Static ToolBar.ComboBoxStyleKey}}"/>
     </DataTemplate>
@@ -176,6 +180,7 @@
                               IsChecked="{Binding IsOpen, ElementName=Rows, Mode=TwoWay}"
                               IsEnabled="{Binding IsEnabled}"
                               ToolTip="{Binding Caption}"
+                              uc:Bubble.Topic="{Binding Topic}"
                               uc:PopupToggle.Popup="{Binding ElementName=Rows}">
                     <md:PackIcon Kind="{Binding Icon}"/>
                 </ToggleButton>

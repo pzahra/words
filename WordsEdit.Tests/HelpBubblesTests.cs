@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Navigation;
 using PatTech.Localization;
+using PatTech.Localization.Authoring;
 using PatTech.Localization.Wpf;
 using Hyperlink = System.Windows.Documents.Hyperlink;
 using WordsEdit.Utils;
@@ -123,6 +124,94 @@ public class HelpBubblesTests {
 		Assert.Equal(0, memory.Seen("tree"));
 	}
 
+	private const string Moments = @"
+value-en=English
+value-fr=Français
+
+[plain]
+value=Hello
+value-fr=Bonjour
+
+[stale]
+value=Hi
+value-fr=Salut
+stale-fr=2026-01-01
+
+[hand]
+value=Look
+stale=check the link
+
+[counted]
+value#one=one file
+value#other=many files
+
+[param]
+value={0} items
+";
+
+	//each of the selection's moments arises as it comes true and passes as the selection moves
+	//to a key it is not about; a preview turned on, and the sheet's dialog, have theirs
+	[Fact]
+	public void TheSelectionsMoments_ThePreviews_AndTheSheetsDialog() {
+		var memory = new HelpMemory();
+		memory.Remember("start", HelpTopics.Start.Revision);
+		memory.Remember("tree", HelpTopics.Tree.Revision);
+		var dialogs = new FakeDialogs();
+		var vm = new MainWindowViewModel(dialogs, help: memory);
+		foreach (HelpTopic topic in HelpTopics.All) {
+			vm.Help.Anchor(topic.Id, onScreen: true);
+		}
+		vm.LoadFile(new StringReader(Moments), "Example");
+		WordsFile file = Assert.Single(vm.Session.Files);
+		void Select(string key) => vm.Tree.Select(vm.Tree.NodeAt(file, key));
+		void Closes(HelpTopic topic) {
+			Assert.Same(topic, vm.Help.Open);
+			vm.Help.GotIt();
+		}
+
+		vm.Tree.SelectedLanguage = vm.Tree.FileLanguages.First(language => language.Code == "fr");
+		Select("plain");
+		Closes(HelpTopics.Translation);
+
+		Select("stale");
+		Assert.Same(HelpTopics.Stale, vm.Help.Open);
+		Select("plain"); //a key it is not about: it goes, unremembered
+		Assert.Null(vm.Help.Open);
+		Assert.Equal(0, memory.Seen("stale"));
+		Select("stale");
+		Closes(HelpTopics.Stale);
+
+		Select("hand");
+		Closes(HelpTopics.Review);
+		Select("counted");
+		Closes(HelpTopics.Forms);
+		Select("param");
+		Closes(HelpTopics.Parameters);
+		vm.ShowDefaultPreview = true;
+		Closes(HelpTopics.Preview);
+		Assert.All(HelpTopics.All.Where(topic => topic != HelpTopics.Sheet), topic => Assert.Equal(topic.Revision, memory.Seen(topic.Id)));
+
+		//the sheet's dialog: its bubble while it is open, gone unremembered with it
+		string folder = Path.Combine(Path.GetTempPath(), $"WordsEditHelp-{Guid.NewGuid():N}");
+		Directory.CreateDirectory(folder);
+		try {
+			string sheet = Path.Combine(folder, "Strings.csv");
+			File.WriteAllText(sheet, "key,value\r\ngreeting,Hello\r\n");
+			dialogs.FilesToOpen = [sheet];
+			dialogs.OnShow = dialog => {
+				Assert.IsType<SheetImportViewModel>(dialog);
+				Assert.Same(HelpTopics.Sheet, vm.Help.Open);
+				((SheetImportViewModel)dialog).CancelCommand.Execute(null);
+			};
+			vm.ImportCommand.Execute(null);
+			Assert.Null(vm.Help.Open);
+			Assert.Equal(0, memory.Seen("sheet"));
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
 	[Fact]
 	public void TheConfigKeepsTheTipsSwitchAndEachBubbleClosedInTheirSections() {
 		string configured = EditorConfig.Path;
@@ -179,6 +268,7 @@ public class HelpBubblesTests {
 		});
 		Assert.Empty(gripes);
 		FakeDialogs.Rendered(Words.Known["help.got-it"]);
+		Assert.Contains("the {0} an app", HelpTopics.Parameters.Page()); //a brace written twice is one, read literally
 
 		//every command row is a link, by the tail of its caption's key
 		Assert.Equal(vm.Commands.Rows.Count(), vm.Commands.Links.Count);

@@ -50,8 +50,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	//current while shown, each with what went wrong along the way. The default
 	//pane goes by the file's own settings, the translation pane by the selected
 	//language's layered over them
-	public bool ShowDefaultPreview { get; set => _ = ChangeProperty(ref field, value) && RenderPreviews() && Commands.Refresh(); }
-	public bool ShowLocalizationPreview { get; set => _ = ChangeProperty(ref field, value) && RenderPreviews() && Commands.Refresh(); }
+	public bool ShowDefaultPreview { get; set => _ = ChangeProperty(ref field, value) && RenderPreviews() && Commands.Refresh() && KeyMoments(); }
+	public bool ShowLocalizationPreview { get; set => _ = ChangeProperty(ref field, value) && RenderPreviews() && Commands.Refresh() && KeyMoments(); }
 	public PreviewPane DefaultPreview { get; } = new();
 	public PreviewPane TranslationPreview { get; } = new();
 
@@ -106,6 +106,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	internal Action<Uri> OpenBrowser { get; set; } = uri => Process.Start(new ProcessStartInfo { FileName = uri.AbsoluteUri, UseShellExecute = true });
 	//whether the tree was empty when the bubbles last heard: null before they ever have
 	private bool? treeWasEmpty;
+	//the selection's moments as the bubbles last heard them: a moment arises as it comes true, and passes as it goes
+	private readonly Dictionary<HelpTopic, bool> moments = [];
 
 	//Undo (SPEC: Undo)
 	/// <summary>The edits made, to take back, and the edits taken back, to put back.</summary>
@@ -214,6 +216,12 @@ public class MainWindowViewModel : ViewModelSaveBase {
 				AffectProperty(nameof(SpellCheckerNote));
 			}
 			Commands.Refresh(); //a filter or a selection changed under a toggle's row
+			KeyMoments();
+		};
+		ParametersPane.PropertyChanged += (_, e) => {
+			if (e.PropertyName is nameof(ParametersPane.HasThread)) {
+				KeyMoments();
+			}
 		};
 
 		UpdateTitle();
@@ -230,6 +238,31 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		treeWasEmpty = empty;
 		Help.Pass(empty ? HelpTopics.Tree : HelpTopics.Start);
 		Help.Arise(empty ? HelpTopics.Start : HelpTopics.Tree);
+	}
+
+	//the moments the selection and the previews make (SPEC: Help bubbles, When one shows): each
+	//arises as it comes true, and passes as it goes, the selection moving to a key it is not about
+	private bool KeyMoments() {
+		Moment(HelpTopics.Translation, Tree.SelectedEntry is not null);
+		Moment(HelpTopics.Stale, Tree.SelectedIsStale);
+		Moment(HelpTopics.Review, Tree.SelectedNeedsReview);
+		Moment(HelpTopics.Forms, Tree.SelectedKey is { } key && (key.Forms.HasWords() || key.Entries.Values.Any(entry => entry.Forms.HasWords())));
+		Moment(HelpTopics.Parameters, ParametersPane.HasThread);
+		Moment(HelpTopics.Preview, ShowDefaultPreview || ShowLocalizationPreview);
+		return true;
+	}
+
+	private void Moment(HelpTopic topic, bool now) {
+		if (moments.GetValueOrDefault(topic) == now) {
+			return;
+		}
+		moments[topic] = now;
+		if (now) {
+			Help.Arise(topic);
+		}
+		else {
+			Help.Pass(topic);
+		}
 	}
 
 	/// <summary>

@@ -328,7 +328,8 @@
                                    Text="{l:Words parameters.heading}"
                                    FontWeight="SemiBold"
                                    FontSize="14"
-                                   Visibility="{Binding ParametersPane.HasThread, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                   Visibility="{Binding ParametersPane.HasThread, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                   uc:Bubble.Topic="parameters"/>
                         <ItemsControl x:Name="DefinitionsList" ItemsSource="{Binding ParametersPane.Definitions}" Focusable="False">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type vm:DefinitionRow}">
@@ -517,7 +518,8 @@
                                      Visibility="{Binding ShowDefaultPreview, Converter={StaticResource IsFalse}}"
                                      Margin="2.5px"/>
                         <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                      Visibility="{Binding ShowDefaultPreview, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                      Visibility="{Binding ShowDefaultPreview, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                      uc:Bubble.Topic="preview">
                             <StackPanel Margin="3.5 7 0 0">
                                 <TextBlock uc:MarkdownPreview.Text="{Binding DefaultPreview.Text}"
                                            uc:MarkdownPreview.Settings="{Binding DefaultPreview.Settings}"
@@ -671,7 +673,8 @@
                                      Visibility="{Binding ShowLocalizationPreview, Converter={StaticResource IsFalse}}"
                                      Margin="2.5px"/>
                         <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                      Visibility="{Binding ShowLocalizationPreview, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                      Visibility="{Binding ShowLocalizationPreview, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                      uc:Bubble.Topic="preview">
                             <StackPanel Margin="3.5 7 0 0">
                                 <TextBlock uc:MarkdownPreview.Text="{Binding TranslationPreview.Text}"
                                            uc:MarkdownPreview.Settings="{Binding TranslationPreview.Settings}"

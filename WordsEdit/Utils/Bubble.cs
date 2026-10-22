@@ -45,8 +45,9 @@ public static class Bubble {
 	//the room kept between a bubble's tail and its control
 	private const double Gap = 2;
 
-	//each topic's control while it is on screen
-	private static readonly Dictionary<string, FrameworkElement> anchors = [];
+	//each topic's controls on screen, the latest last: both previews carry theirs, and the
+	//bubble points at the one that came last
+	private static readonly Dictionary<string, List<FrameworkElement>> anchors = [];
 	private static HelpBubbles? bubbles;
 	private static Popup? popup;
 	private static HelpBubbleView? view;
@@ -142,18 +143,19 @@ public static class Bubble {
 		}
 	}
 
-	//a control on screen anchors its topic; one leaving it lets go, if it was the one anchoring
+	//a control on screen anchors its topic; the topic lets go once its last control leaves
 	private static void Report(FrameworkElement element, string id, bool onScreen) {
-		if (onScreen) {
-			anchors[id] = element;
+		if (!anchors.TryGetValue(id, out List<FrameworkElement>? controls)) {
+			anchors[id] = controls = [];
 		}
-		else {
-			if (!anchors.TryGetValue(id, out FrameworkElement? anchor) || anchor != element) {
-				return;
-			}
+		controls.Remove(element);
+		if (onScreen) {
+			controls.Add(element);
+		}
+		else if (controls.Count == 0) {
 			anchors.Remove(id);
 		}
-		bubbles?.Anchor(id, onScreen);
+		bubbles?.Anchor(id, controls.Count > 0);
 		Place();
 	}
 
@@ -165,7 +167,7 @@ public static class Bubble {
 
 	//the open topic's bubble beside its control, or none
 	private static void Place() {
-		if (bubbles?.Open is not { } topic || !anchors.TryGetValue(topic.Id, out FrameworkElement? target)) {
+		if (bubbles?.Open is not { } topic || !anchors.TryGetValue(topic.Id, out List<FrameworkElement>? controls) || controls.Count == 0) {
 			if (popup is not null) {
 				popup.IsOpen = false;
 			}
@@ -175,6 +177,7 @@ public static class Bubble {
 		view ??= new HelpBubbleView();
 		view.DataContext = bubbles;
 		popup ??= new Popup { Child = view, AllowsTransparency = true, StaysOpen = true, Focusable = false, PopupAnimation = PopupAnimation.Fade };
+		FrameworkElement target = controls[^1];
 		popup.PlacementTarget = target;
 		Window? owner = Window.GetWindow(target);
 		Follow(owner);

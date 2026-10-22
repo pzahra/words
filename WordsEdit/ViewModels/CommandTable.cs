@@ -7,7 +7,10 @@ using WordsEdit.Utils;
 namespace WordsEdit.ViewModels;
 
 /// <summary>A row of the command table: a command, a toggle, a choice, or the break between two runs.</summary>
-public abstract class MenuRow : ViewModelBase;
+public abstract class MenuRow : ViewModelBase {
+	/// <summary>The help bubble that points at the row on a toolbar (SPEC: Help bubbles), if any.</summary>
+	public string? Topic { get; init; }
+}
 
 /// <summary>The line between two runs of a menu.</summary>
 public sealed class MenuBreak : MenuRow;
@@ -145,8 +148,8 @@ public sealed class ChoiceItem : MenuRow {
 	}
 
 	/// <summary>A choice among <typeparamref name="T"/>s, read and written as the owner holds them.</summary>
-	public static ChoiceItem Of<T>([Localized] string caption, PackIconKind icon, Func<IEnumerable<T>> options, Func<T, string> label, Func<T?> current, Action<T> pick, ChoiceLook? look = null) where T : notnull
-		=> new(caption, icon, () => options().Cast<object>(), value => label((T)value), () => current(), value => pick((T)value), look);
+	public static ChoiceItem Of<T>([Localized] string caption, PackIconKind icon, Func<IEnumerable<T>> options, Func<T, string> label, Func<T?> current, Action<T> pick, ChoiceLook? look = null, string? topic = null) where T : notnull
+		=> new(caption, icon, () => options().Cast<object>(), value => label((T)value), () => current(), value => pick((T)value), look) { Topic = topic };
 
 	internal string LabelOf(object value) => label(value);
 	internal bool IsCurrent(object value) => Equals(value, current());
@@ -281,9 +284,9 @@ public sealed class CommandTable {
 		var addComment = new CommandItem(Words.Known["menu.add-comment"], PackIconKind.CommentPlus, vm.AddOrganizerCommand);
 		var rename = new CommandItem(Words.Known["menu.rename"], PackIconKind.RenameBox, vm.RenameNodeCommand, new KeyGesture(Key.F2));
 		var remove = new CommandItem(Words.Known["menu.remove"], PackIconKind.Delete, vm.RemoveNodeCommand, new KeyGesture(Key.Delete));
-		var toggleReview = new ToggleItem(Words.Known["menu.toggle-review"], PackIconKind.HandFrontLeft, () => tree.SelectedNeedsReview, vm.ToggleNeedsReviewCommand);
+		var toggleReview = new ToggleItem(Words.Known["menu.toggle-review"], PackIconKind.HandFrontLeft, () => tree.SelectedNeedsReview, vm.ToggleNeedsReviewCommand) { Topic = HelpTopics.Review.Id };
 		var toggleConstant = new ToggleItem(Words.Known["menu.toggle-constant"], PackIconKind.TranslateOff, () => tree.SelectedIsConstant, vm.ToggleConstantCommand);
-		var toggleStale = new ToggleItem(Words.Known["menu.toggle-stale"], PackIconKind.ClockAlertOutline, () => tree.SelectedIsStale, vm.ToggleStaleLanguageCommand);
+		var toggleStale = new ToggleItem(Words.Known["menu.toggle-stale"], PackIconKind.ClockAlertOutline, () => tree.SelectedIsStale, vm.ToggleStaleLanguageCommand) { Topic = HelpTopics.Stale.Id };
 		var staleAll = new CommandItem(Words.Known["menu.stale-all"], PackIconKind.ClockAlert, vm.StaleAllLanguagesCommand, new KeyGesture(Key.S, ModifierKeys.Control | ModifierKeys.Shift));
 		var removeKey = new CommandItem(Words.Known["menu.remove-key"], PackIconKind.KeyRemove, vm.RemoveKeyCommand);
 		//View: the filters and the previews flip a property of their own; Back and Forward step the tree's history,
@@ -299,13 +302,13 @@ public sealed class CommandTable {
 		var forward = new CommandItem(Words.Known["menu.forward"], PackIconKind.ArrowRight, tree.ForwardCommand, new KeyGesture(Key.Right, ModifierKeys.Alt), MouseButton.XButton2);
 		var find = new CommandItem(Words.Known["menu.find"], PackIconKind.Magnify, ApplicationCommands.Find, Ctrl(Key.F));
 		ChoiceItem translationLanguage = ChoiceItem.Of(Words.Known["menu.translation-language"], PackIconKind.Earth,
-			() => tree.FileLanguages, language => language.DisplayName, () => tree.SelectedLanguage, language => tree.SelectedLanguage = language);
+			() => tree.FileLanguages, language => language.DisplayName, () => tree.SelectedLanguage, language => tree.SelectedLanguage = language, topic: HelpTopics.Translation.Id);
 		ChoiceItem uiLanguage = ChoiceItem.Of(Words.Known["menu.ui-language"], PackIconKind.Web,
 			() => vm.UiLanguages, pair => pair.Value, () => vm.UiLanguages.FirstOrDefault(pair => pair.Key == vm.UiLanguage), pair => vm.UiLanguage = pair.Key);
 		//each value pane's plural form (SPEC: Plural forms): CLDR's six rows, a popup on the pane's header
 		ChoiceItem defaultForm = ChoiceItem.Of(Words.Known["menu.default-form"], PackIconKind.Counter,
 			() => PluralRules.Names, tree.DefaultForms.Label, () => tree.DefaultForms.Form, tree.PickDefaultForm,
-			Forms(tree.DefaultForms, () => tree.DefaultFormsEnabled, tree.DefaultMisses));
+			Forms(tree.DefaultForms, () => tree.DefaultFormsEnabled, tree.DefaultMisses), HelpTopics.Forms.Id);
 		ChoiceItem translationForm = ChoiceItem.Of(Words.Known["menu.translation-form"], PackIconKind.Counter,
 			() => PluralRules.Names, tree.TranslationForms.Label, () => tree.TranslationForms.Form, tree.PickTranslationForm,
 			Forms(tree.TranslationForms, () => tree.TranslationFormsEnabled, tree.EntryMisses));
