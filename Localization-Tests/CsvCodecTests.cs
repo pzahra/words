@@ -708,6 +708,16 @@ public class CsvCodecTests {
 			Assert.Equal(none.Keys.Order(), quoted.Keys.Order());
 			file.Keys["mid"].DefaultValue = "one\ntwo";
 			Assert.Equal("\"", codec.Quoting(source, none)[CsvCodec.TextDelimiterOption]);
+
+			//a header's names count too, where they name the columns: value-fr split by a -
+			file.Keys["mid"].DefaultValue = "plain";
+			FormatOptions dashed = Options((CsvCodec.HeaderOption, "True"), (CsvCodec.FormatOption, "Delimited(-)"), (CsvCodec.TextDelimiterOption, "none"));
+			Assert.Equal("\"", codec.Quoting(source, dashed)[CsvCodec.TextDelimiterOption]);
+			string bare = Path.Combine(folder, "Dashed.csv");
+			ExportUnit dashedUnit = Assert.Single(codec.Plan(source, bare, dashed));
+			IniWriter.WriteAtomic(bare, writer => codec.Write(source, dashedUnit, writer, gripes, dashed), dashedUnit.Encoding);
+			Assert.StartsWith("key-value-value fr\r\n", File.ReadAllText(bare));
+			Assert.Contains(gripes, gripe => gripe.Contains("header's column names"));
 		}
 		finally {
 			Directory.Delete(folder, recursive: true);

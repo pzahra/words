@@ -39,8 +39,8 @@ public sealed class SheetColumnsViewModel : ViewModelBase {
 	private readonly ExportViewModel parent;
 	private readonly CsvCodec codec;
 	private readonly ExportSource source;
-	//the target's section, when it has one, and what the export goes by with it: the
-	//section, or the columns the file uses where it names none (CsvCodec.Effective)
+	//the target's section, when it has one, and the columns it comes to: its own, or
+	//those the file uses where it names none (CsvCodec.Effective)
 	private readonly FormatOptions? section;
 	private readonly FormatOptions? effective;
 
@@ -48,8 +48,6 @@ public sealed class SheetColumnsViewModel : ViewModelBase {
 	public KeyNode Node { get; }
 	/// <summary>The sheet the export writes.</summary>
 	public string Sheet { get; }
-	/// <summary>The target's section as <c>schema.ini</c> has it; <see langword="null"/> for a new table.</summary>
-	internal FormatOptions? Section => section;
 	/// <summary>No section yet: a new table, its columns ticked.</summary>
 	public bool IsNew => section is null;
 	/// <summary>A table that exists can have its columns changed.</summary>
@@ -66,11 +64,15 @@ public sealed class SheetColumnsViewModel : ViewModelBase {
 	public IReadOnlyList<SheetFeatureTick> Features { get; }
 	public bool LanguageChannelsOpen => Languages.Any(language => language.IsTicked);
 
-	/// <summary>The section the export goes by: the table's as it is, or one made from the ticks, the rest of a changed table's kept.</summary>
-	public FormatOptions Options => ShowTicks ? codec.Options(source, Layout(), section) : effective!;
+	/// <summary>
+	///     The section the export goes by: the table's as it is, or one made from the
+	///     ticks, the rest of a changed table's kept. As it is, it may name no columns:
+	///     the codec goes by those the file uses, and says what that leaves unread.
+	/// </summary>
+	public FormatOptions Options => ShowTicks ? codec.Options(source, Layout(), section) : section!;
 	/// <summary>The target's columns, by name, in their order.</summary>
 	public string Columns
-		=> Words.Known.Format("export.sheet-columns", string.Join(", ", Options
+		=> Words.Known.Format("export.sheet-columns", string.Join(", ", (ShowTicks ? Options : effective!)
 			.Select(pair => (Number: SchemaIni.ColumnNumber(pair.Key), pair.Value))
 			.Where(column => column.Number is not null)
 			.OrderBy(column => column.Number)

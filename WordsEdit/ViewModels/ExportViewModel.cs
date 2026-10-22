@@ -238,10 +238,8 @@ public class ExportViewModel : DialogViewModel {
 				schema = SchemaIni.For(sheet.Sheet);
 				try {
 					before = File.Exists(schema) ? File.ReadAllBytes(schema) : null;
-					//a table not opened for change has only its text delimiter changed, so a
-					//section naming no columns still names none
-					WriteSection(sheet.Sheet, sheet.WritesSection ? wanted : codec.Quoting(source, sheet.Section!));
-					if (!sheet.WritesSection) {
+					WriteSection(sheet.Sheet, wanted);
+					if (!ReferenceEquals(wanted, options)) {
 						gripes.Add(Words.Known.Format("export.quoted", schema));
 					}
 					options = wanted;
@@ -272,6 +270,7 @@ public class ExportViewModel : DialogViewModel {
 					}
 					catch (Exception again) when (again is IOException or UnauthorizedAccessException) {
 						Parent.Dialogs.Tell(Words.Known.Format("export.schema-changed", schema, row.Path, again.Message));
+						Sheet = null; //the section is what Export wrote: the plan reads it afresh, ticks and all
 					}
 				}
 				Replan(); //the files written so far now exist

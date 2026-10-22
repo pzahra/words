@@ -320,7 +320,7 @@ value-fr=Bonjour
 				[CsvCodec.HeaderOption] = "True", [CsvCodec.FormatOption] = "Delimited(;)", [CsvCodec.CharacterSetOption] = "65001",
 			});
 			byte[] schema = File.ReadAllBytes(SchemaIni.For(target));
-			var (_, export) = Export(folder, target);
+			var (dialogs, export) = Export(folder, target);
 
 			SheetColumnsViewModel sheet = export.Sheet!;
 			Assert.False(sheet.IsNew);
@@ -333,6 +333,15 @@ value-fr=Bonjour
 			export.ExportCommand.Execute(null);
 			Assert.Equal("\"key\";\"value\";\"context\";\"comment\";\"value-en\";\"value-fr\"\r\n\"greeting\";\"Hello\";\"Said on arrival\";\"Keep it short\";;\"Bonjour\"\r\n", File.ReadAllText(target));
 			Assert.Equal(schema, File.ReadAllBytes(SchemaIni.For(target))); //still naming none
+
+			//with no header either, nothing names the columns, and Export says the sheet won't read back
+			CsvCodec.SaveSchema(target, new FormatOptions {
+				[CsvCodec.HeaderOption] = "False", [CsvCodec.FormatOption] = "Delimited(;)", [CsvCodec.CharacterSetOption] = "65001",
+			});
+			(dialogs, export) = Export(folder, target);
+			export.ExportCommand.Execute(null);
+			GripesViewModel gripes = Assert.IsType<GripesViewModel>(Assert.Single(dialogs.Shown));
+			Assert.Contains(gripes.Gripes, gripe => gripe.Contains("names no columns"));
 		}
 		finally {
 			Directory.Delete(folder, recursive: true);
@@ -382,6 +391,15 @@ value-fr=Bonjour\
 			WordsKey read = ReadBack(target);
 			Assert.Equal("Hello; you", read.DefaultValue);
 			Assert.Equal("Bonjour\nà vous", read.Entries["fr"].Value);
+
+			//the ticks changed too: the switch to a quote is said all the same
+			SaveBare(target);
+			(dialogs, export) = Export(folder, target, Awkward);
+			export.Sheet!.Change = true;
+			export.ExportCommand.Execute(null);
+			Assert.Equal("\"", SchemaIni.Read(target)![CsvCodec.TextDelimiterOption]);
+			gripes = Assert.IsType<GripesViewModel>(Assert.Single(dialogs.Shown));
+			Assert.Equal(Words.Known.Format("export.quoted", SchemaIni.For(target)), Assert.Single(gripes.Gripes));
 		}
 		finally {
 			Directory.Delete(folder, recursive: true);
@@ -494,17 +512,28 @@ value-fr=Bonjour\
 			Assert.Single(dialogs.Notices);
 			Assert.False(File.Exists(schema));
 
-			//putting it back failing too: both are said
-			(dialogs, export) = Export(folder, target);
+			//putting it back failing too: both are said, and the plan goes by what Export wrote
+			SaveBare(target);
+			(dialogs, export) = Export(folder, target, Awkward);
 			export.WriteFile = (_, _, _) => throw new IOException("the sheet is open elsewhere");
 			export.PutBackSchema = (_, _) => throw new IOException("the schema is open elsewhere");
 			export.ExportCommand.Execute(null);
 			Assert.Equal(2, dialogs.Notices.Count);
 			Assert.Contains(target, dialogs.Notices[0]);
 			Assert.Equal(Words.Known.Format("export.schema-changed", schema, target, "the schema is open elsewhere"), dialogs.Notices[1]);
-			Assert.True(File.Exists(schema)); //what Export wrote, as it says
+			Assert.Equal("\"", SchemaIni.Read(target)![CsvCodec.TextDelimiterOption]); //what Export wrote, as it says
+			Assert.Equal("\"", export.Sheet!.Options[CsvCodec.TextDelimiterOption]);
+
+			//so trying again, the schema.ini now locked, quotes the sheet as its section says
+			File.SetAttributes(schema, FileAttributes.ReadOnly);
+			export.WriteFile = IniWriter.WriteAtomic;
+			export.ExportCommand.Execute(null);
+			Assert.Equal("\"key\";\"value\";\"value-fr\"\r\n\"greeting\";\"Hello; you\";\"Bonjour\nà vous\"\r\n", File.ReadAllText(target));
 		}
 		finally {
+			foreach (string file in Directory.GetFiles(folder)) {
+				File.SetAttributes(file, FileAttributes.Normal);
+			}
 			Directory.Delete(folder, recursive: true);
 		}
 	}

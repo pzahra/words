@@ -2052,7 +2052,9 @@ file's order, and the review flag last. The header row is their names.
   section can't be changed, someone has locked the sheet to unquoted cells:
   it goes by its section as it is, the delimiter and line breaks in such a
   cell written as spaces, so the row keeps its columns, and a gripe names
-  the keys. A table opened for change has no such way out: its sheet is
+  the keys. A header's column names count as cells, since a section naming
+  no columns reads its roles from them: one holding the delimiter switches
+  the section too, or, locked, is written with a space and griped. A table opened for change has no such way out: its sheet is
   never written under columns its section doesn't say.
 - A field the file fills, in the default or in a language with a value
   column, that no column carries is a gripe, a field at a time: its words

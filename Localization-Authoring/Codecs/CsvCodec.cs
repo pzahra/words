@@ -361,13 +361,15 @@ namespace PatTech.Localization.Authoring.Codecs {
 		/// <summary>
 		///     <paramref name="options"/> as an export of <paramref name="source"/> must
 		///     have them to keep every cell as it is: unchanged, unless under
-		///     <c>TextDelimiter=none</c> some cell holds the delimiter or a line break,
-		///     when they say <c>TextDelimiter="</c> instead (the editor's SPEC:
+		///     <c>TextDelimiter=none</c> some cell, or a header's column name, holds the
+		///     delimiter or a line break, when they say <c>TextDelimiter="</c> instead (the editor's SPEC:
 		///     Spreadsheets, Export).
 		/// </summary>
 		public FormatOptions Quoting(ExportSource source, FormatOptions options) {
 			CsvSchema schema = CsvSchema.Parse(Effective(source, options), [], "");
-			if (schema.Quote is not null || !Cells(source, schema).Any(cell => cell?.IndexOfAny([schema.Delimiter, '\n']) >= 0)) {
+			//the header's names too: with no ColN, they are what names the columns on the way back
+			IEnumerable<string?> cells = schema.Header ? schema.Columns.Select(column => (string?)column.Name).Concat(Cells(source, schema)) : Cells(source, schema);
+			if (schema.Quote is not null || !cells.Any(cell => cell?.IndexOfAny([schema.Delimiter, '\n']) >= 0)) {
 				return options;
 			}
 			FormatOptions quoted = [];
@@ -383,7 +385,8 @@ namespace PatTech.Localization.Authoring.Codecs {
 		///     in the tree's order, a cell a column, a column read past left empty, rows
 		///     ending CRLF and a line break in a cell LF. Every cell with words is quoted;
 		///     under <c>TextDelimiter=none</c> none is, and a cell holding the delimiter
-		///     or a line break has each written as a space, with a gripe naming its key.
+		///     or a line break has each written as a space, with a gripe naming its key, and
+		///     a header's name the same, with a gripe.
 		///     A stale mark with no text is its column's word. A field the file fills, in
 		///     the default or a language with a value column, that no column carries is a
 		///     gripe; a language with no value column is left out, and no gripe.
@@ -406,8 +409,8 @@ namespace PatTech.Localization.Authoring.Codecs {
 				gripes.Add($"{file}: no column carries {missing}, so its words were not written");
 			}
 			List<string> spaced = [];
-			if (schema.Header) {
-				Row(schema.Columns.Select(column => (string?)column.Name));
+			if (schema.Header && Row(schema.Columns.Select(column => (string?)column.Name))) {
+				gripes.Add($"{file}: {TextDelimiterOption}=none, so the delimiter in the header's column names was written as a space, and a reader going by the header will not know those columns");
 			}
 			foreach (WordsKey key in source.Keys()) {
 				if (Row(Cells(key, schema))) {

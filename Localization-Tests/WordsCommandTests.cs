@@ -510,7 +510,7 @@ public sealed class WordsCommandTests : IDisposable {
 	//review flag's text)
 	[Fact]
 	public void Apply_AChangedLinkTarget_LeavesAHandUpAlready_ItsWordsAndAll() {
-		File.WriteAllText(path, Ini("value=!en", "value-it=Italiano", "", "[help]", "value=See [the docs](https://example.com/docs)", "stale=check the wording with Sam"));
+		File.WriteAllText(path, Ini("value=!en", "value-it=Italiano", "", "[help]", "value=See [the docs](https://example.com/docs)", "stale=check the wording\\", "with Sam"));
 		var answer = Requested("--missing", "it");
 		answer["items"]![0]!["translation"]!["value"] = "Vedi [la guida](https://example.com/it/docs)";
 
@@ -518,7 +518,7 @@ public sealed class WordsCommandTests : IDisposable {
 
 		Assert.Equal(0, code);
 		Assert.Contains("help: written, its hand raised", error);
-		Assert.EndsWith("[help]\nvalue=See [the docs](https://example.com/docs)\nstale=check the wording with Sam\nvalue-it=Vedi [la guida](https://example.com/it/docs)\nstale-it=machine translated\n", File.ReadAllText(path));
+		Assert.EndsWith("[help]\nvalue=See [the docs](https://example.com/docs)\nstale=check the wording\\\nwith Sam\nvalue-it=Vedi [la guida](https://example.com/it/docs)\nstale-it=machine translated\n", File.ReadAllText(path));
 	}
 
 	[Fact]
