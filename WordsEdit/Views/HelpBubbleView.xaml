@@ -1,0 +1,53 @@
+<UserControl x:Class="WordsEdit.Views.HelpBubbleView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="https://github.com/pzahra/words"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:vm="clr-namespace:WordsEdit.ViewModels"
+             xmlns:uc="clr-namespace:WordsEdit.Utils"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:HelpBubbles}"
+             uc:Bubble.InBubble="True"
+             Focusable="False"
+             FontFamily="Montserrat">
+    <!-- a help bubble (SPEC: Help bubbles): the page, rendered as the previews render it, and Got it;
+         the tail sits on the side toward the control, which the code-behind moves with Side -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <Path x:Name="Tail"
+              Grid.Row="1"
+              Grid.Column="0"
+              Fill="{DynamicResource PrimaryHueMidBrush}"
+              VerticalAlignment="Center"/>
+        <Border Grid.Row="1"
+                Grid.Column="1"
+                Background="{DynamicResource MaterialDesignPaper}"
+                BorderBrush="{DynamicResource PrimaryHueMidBrush}"
+                BorderThickness="1.5"
+                CornerRadius="6"
+                Padding="12 10 12 4"
+                MaxWidth="340">
+            <StackPanel>
+                <TextBlock x:Name="PageText"
+                           TextWrapping="Wrap"
+                           uc:MarkdownPreview.Text="{Binding Page}"/>
+                <Button Content="{l:Words help.got-it}"
+                        Command="{Binding GotItCommand}"
+                        Focusable="False"
+                        HorizontalAlignment="Right"
+                        Margin="0 6 0 0"
+                        Style="{DynamicResource MaterialDesignFlatButton}"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

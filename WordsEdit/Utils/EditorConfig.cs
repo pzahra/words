@@ -4,9 +4,10 @@ using System.IO;
 namespace WordsEdit.Utils;
 
 /// <summary>
-///     Wordsmith's own settings — the language it speaks, and the main window as it
-///     last closed — in <c>%LocalAppData%\Wordsmith\config.ini</c>, in sections:
-///     <c>[editor]</c> for the language, <c>[window]</c> for the window, each a
+///     Wordsmith's own settings — the language it speaks, the main window as it
+///     last closed, and the help bubbles — in <c>%LocalAppData%\Wordsmith\config.ini</c>,
+///     in sections: <c>[editor]</c> for the language and the tips switch,
+///     <c>[window]</c> for the window, <c>[seen]</c> for each bubble closed, each a
 ///     group of <c>key=value</c> lines, their names matched without case. Read on
 ///     demand, written as soon as a value is set, missing file allowed; a file
 ///     that won't read or write costs the settings, never the editor.
@@ -18,6 +19,7 @@ public static class EditorConfig {
 
 	private const string EditorSection = "editor";
 	private const string WindowSection = "window";
+	private const string SeenSection = "seen";
 
 	/// <summary>The language Wordsmith speaks, or null when the OS decides.</summary>
 	public static string? Language {
@@ -38,6 +40,22 @@ public static class EditorConfig {
 			("height", value?.Height.ToString("0", CultureInfo.InvariantCulture)),
 			("state", value is null ? null : value.Value.Maximized ? "maximized" : "normal"));
 	}
+
+	/// <summary>Whether the help bubbles show: on unless <c>[editor]</c> says <c>tips=off</c>.</summary>
+	public static bool Tips {
+		get => !string.Equals(Read(EditorSection).GetValueOrDefault("tips"), "off", StringComparison.OrdinalIgnoreCase);
+		set => Write(EditorSection, ("tips", value ? null : "off"));
+	}
+
+	/// <summary>The revision of the help bubble <paramref name="topic"/> last closed, from <c>[seen]</c>; 0 when it never was.</summary>
+	public static int Seen(string topic)
+		=> int.TryParse(Read(SeenSection).GetValueOrDefault(topic), NumberStyles.None, CultureInfo.InvariantCulture, out int revision) ? revision : 0;
+
+	/// <summary>Remembers the help bubble <paramref name="topic"/> closed at <paramref name="revision"/>.</summary>
+	public static void Remember(string topic, int revision) => Write(SeenSection, (topic, revision.ToString(CultureInfo.InvariantCulture)));
+
+	/// <summary>Forgets every help bubble closed: the <c>[seen]</c> section goes.</summary>
+	public static void ForgetSeen() => Remove(SeenSection);
 
 	private static double? Number(Dictionary<string, string> values, string key)
 		=> double.TryParse(values.GetValueOrDefault(key), NumberStyles.Float, CultureInfo.InvariantCulture, out double number) && number > 0 ? number : null;
@@ -89,6 +107,26 @@ public static class EditorConfig {
 				}
 			}
 			Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path) ?? "");
+			File.WriteAllLines(Path, lines);
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+		}
+	}
+
+	//a section gone whole, its header to the next; one that ended the file takes the blank
+	//lines before it too
+	private static void Remove(string section) {
+		try {
+			List<string> lines = [.. Lines()];
+			if (Find(lines, section) is not { } found) {
+				return;
+			}
+			lines.RemoveRange(found.Start, found.End - found.Start);
+			if (found.Start == lines.Count) {
+				while (lines.Count > 0 && lines[^1].Trim() == "") {
+					lines.RemoveAt(lines.Count - 1);
+				}
+			}
 			File.WriteAllLines(Path, lines);
 		}
 		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {

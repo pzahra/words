@@ -208,11 +208,13 @@ public sealed class Choice(ChoiceItem owner, object value) : ViewModelBase {
 	}
 }
 
-/// <summary>A top menu: its caption, the access key marked with an underscore, and its rows.</summary>
-public sealed class MenuGroup([Localized] string caption, IReadOnlyList<MenuRow> items) {
+/// <summary>A top menu: its caption, the access key marked with an underscore, its rows, and the help topic that points at it, if any.</summary>
+public sealed class MenuGroup([Localized] string caption, IReadOnlyList<MenuRow> items, string? topic = null) {
 	[Localized]
 	public string Caption { get; } = caption;
 	public IReadOnlyList<MenuRow> Items { get; } = items;
+	/// <summary>The help bubble that points at this menu (SPEC: Help bubbles): File's is the empty editor's.</summary>
+	public string? Topic { get; } = topic;
 }
 
 /// <summary>
@@ -242,6 +244,12 @@ public sealed class CommandTable {
 	public IReadOnlyList<MenuRow> LanguageTools { get; }
 	/// <summary>By the search: Back and Forward, which move through the document as it does.</summary>
 	public IReadOnlyList<CommandItem> NavigationTools { get; }
+	/// <summary>
+	///     Each command row by the tail of its caption key, <c>menu.stale-all</c> as
+	///     <c>stale-all</c>: what a help page's <c>wordsmith:</c> link names (SPEC:
+	///     Help bubbles, Links).
+	/// </summary>
+	public IReadOnlyDictionary<string, CommandItem> Links { get; }
 
 	/// <summary>Every command row, in menu order.</summary>
 	public IEnumerable<CommandItem> Rows => Menu.SelectMany(group => group.Items).OfType<CommandItem>();
@@ -304,13 +312,17 @@ public sealed class CommandTable {
 		//Tools
 		var languages = new CommandItem(Words.Known["menu.languages"], PackIconKind.Translate, vm.ManageLanguagesCommand);
 		var settings = new CommandItem(Words.Known["menu.settings"], PackIconKind.Cog, vm.SettingsCommand);
+		//Help: the bubbles' switch, and their memory forgotten
+		var tips = new ToggleItem(Words.Known["menu.tips"], PackIconKind.CommentQuestionOutline, () => vm.Help.Tips, new DelegateCommand(() => vm.Help.Tips = !vm.Help.Tips));
+		var tipsAgain = new CommandItem(Words.Known["menu.tips-again"], PackIconKind.CommentArrowLeftOutline, new DelegateCommand(vm.Help.ShowAgain));
 
 		MenuGroup edit = new(Words.Known["menu.edit"], [undo, redo, new MenuBreak(), addNode, addKey, addComment, rename, remove, new MenuBreak(), toggleReview, toggleConstant, toggleStale, staleAll, removeKey]);
 		Menu = [
-			new MenuGroup(Words.Known["menu.file"], [create, load, import, merge, new MenuBreak(), save, saveAs, export, new MenuBreak(), reset, exit]),
+			new MenuGroup(Words.Known["menu.file"], [create, load, import, merge, new MenuBreak(), save, saveAs, export, new MenuBreak(), reset, exit], HelpTopics.Start.Id),
 			edit,
 			new MenuGroup(Words.Known["menu.view"], [staleView, reviewView, missingView, mismatchView, clearFilters, new MenuBreak(), defaultPreview, translationPreview, new MenuBreak(), back, forward, find, new MenuBreak(), defaultForm, translationForm, new MenuBreak(), translationLanguage, uiLanguage]),
 			new MenuGroup(Words.Known["menu.tools"], [languages, settings]),
+			new MenuGroup(Words.Known["menu.help"], [tips, tipsAgain]),
 		];
 		EditRows = edit.Items;
 		NodeTools = [addNode, remove, addComment];
@@ -321,6 +333,17 @@ public sealed class CommandTable {
 		TranslationTools = [translationForm, toggleStale, translationPreview];
 		LanguageTools = [languages, translationLanguage];
 		NavigationTools = [back, forward];
+		Links = new Dictionary<string, CommandItem> {
+			["new"] = create, ["load"] = load, ["import"] = import, ["merge"] = merge, ["save"] = save, ["save-as"] = saveAs,
+			["export"] = export, ["reset"] = reset, ["exit"] = exit,
+			["undo"] = undo, ["redo"] = redo, ["add-node"] = addNode, ["add-key"] = addKey, ["add-comment"] = addComment,
+			["rename"] = rename, ["remove"] = remove, ["toggle-review"] = toggleReview, ["toggle-constant"] = toggleConstant,
+			["toggle-stale"] = toggleStale, ["stale-all"] = staleAll, ["remove-key"] = removeKey,
+			["stale-view"] = staleView, ["review-view"] = reviewView, ["missing-view"] = missingView, ["mismatch-view"] = mismatchView,
+			["clear-filters"] = clearFilters, ["default-preview"] = defaultPreview, ["translation-preview"] = translationPreview,
+			["back"] = back, ["forward"] = forward, ["find"] = find,
+			["languages"] = languages, ["settings"] = settings, ["tips"] = tips, ["tips-again"] = tipsAgain,
+		};
 	}
 
 	/// <summary>A state, a selection or a language changed somewhere other than its row: every toggle and choice re-reads. Always true, to chain.</summary>

@@ -100,6 +100,12 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public CommandTable Commands { get; }
 	/// <summary>The user asked to leave: the window closes, asking about unsaved changes on the way.</summary>
 	public event Action? ExitRequested;
+	/// <summary>The help bubbles (SPEC: Help bubbles): the editor says when a moment comes, the view where.</summary>
+	public HelpBubbles Help { get; }
+	/// <summary>How a help page's <c>https:</c> link opens: the browser, or a test's.</summary>
+	internal Action<Uri> OpenBrowser { get; set; } = uri => Process.Start(new ProcessStartInfo { FileName = uri.AbsoluteUri, UseShellExecute = true });
+	//whether the tree was empty when the bubbles last heard: null before they ever have
+	private bool? treeWasEmpty;
 
 	//Undo (SPEC: Undo)
 	/// <summary>The edits made, to take back, and the edits taken back, to put back.</summary>
@@ -125,7 +131,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	//the clock typing reads: when a keystroke landed, and the stale stamps it writes
 	private readonly TimeProvider time;
 
-	public MainWindowViewModel(IDialogs? dialogs = null, WordsFormats? formats = null, Func<string, bool>? spellCheckers = null, TimeProvider? time = null) {
+	/// <param name="help">What the bubbles remember between runs: the config's, or this run's alone when null.</param>
+	public MainWindowViewModel(IDialogs? dialogs = null, WordsFormats? formats = null, Func<string, bool>? spellCheckers = null, TimeProvider? time = null, IHelpMemory? help = null) {
 		Dialogs = dialogs ?? new WpfDialogs();
 		this.time = time ?? TimeProvider.System;
 		UndoStack = new UndoStack(this.time);
@@ -133,11 +140,13 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		Formats = formats ?? WordsFormats.BuiltIn();
 		this.spellCheckers = spellCheckers ?? SpellCheckers.IsInstalled;
 		Tree = new TreeViewModel(Session);
+		Help = new HelpBubbles(help ?? new HelpMemory());
 		ParametersPane = new ParametersPane(this);
 		Tree.Edited += () => AfterTyping(Tree.SelectedFile);
 		Tree.FieldEdited += OnFieldEdited;
 		Tree.KeyNodes.CollectionChanged += (_, e) => {
 			UpdateTitle();
+			TreeMoments();
 			//a file gone, removed or loaded again, takes its history and its mark with it,
 			//and the others keep theirs; a file coming in starts with none, and a reorder is
 			//only precedence (SPEC: Dirty by file, Each file's history)
@@ -208,7 +217,36 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		};
 
 		UpdateTitle();
+		TreeMoments();
 		KeyDrag = new KeyDrag { Vm = this };
+	}
+
+	//the empty editor's moment, and the first file's: the tree empty, or holding files
+	private void TreeMoments() {
+		bool empty = Tree.KeyNodes.Count == 0;
+		if (empty == treeWasEmpty) {
+			return;
+		}
+		treeWasEmpty = empty;
+		Help.Pass(empty ? HelpTopics.Tree : HelpTopics.Start);
+		Help.Arise(empty ? HelpTopics.Start : HelpTopics.Tree);
+	}
+
+	/// <summary>
+	///     A help page's link (SPEC: Help bubbles, Links): <c>wordsmith:&lt;row&gt;</c>
+	///     runs the command row its caption key names when it applies, and does nothing
+	///     when it does not; <c>https:</c> opens the browser without asking; anything
+	///     else does nothing. A preview's links never come here.
+	/// </summary>
+	public void FollowHelpLink(Uri uri) {
+		if (uri.Scheme == "wordsmith") {
+			if (Commands.Links.TryGetValue(uri.AbsolutePath, out CommandItem? row) && row.Command.CanExecute(null)) {
+				row.Command.Execute(null);
+			}
+		}
+		else if (uri.Scheme == Uri.UriSchemeHttps) {
+			OpenBrowser(uri);
+		}
 	}
 
 	//the window title names the loaded files, as their roots show them; TitleMarked stars it while dirty

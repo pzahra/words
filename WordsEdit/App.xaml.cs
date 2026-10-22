@@ -22,9 +22,12 @@ public partial class App : Application {
 		EditorWords.Load(EditorWords.StartupLanguage(e.Args), MainWindowViewModel.Gripes, formats);
 		base.OnStartup(e);
 
-		var viewModel = new MainWindowViewModel(new WpfDialogs(), formats);
-		//every hyperlink the previews render lands here, whichever pane it is in
+		var viewModel = new MainWindowViewModel(new WpfDialogs(), formats, help: new ConfigHelpMemory());
+		//a help bubble's links are the editor's own: their handler goes ahead of the library's,
+		//so it takes them first, and every hyperlink the previews render lands in the second
+		Bubble.HandleLinks(viewModel.FollowHelpLink);
 		Hyperlink.RegisterGlobalNavigateHandler(viewModel.FollowLink);
+		Bubble.Bubbles = viewModel.Help;
 		foreach (string file in e.Args.Where(File.Exists)) {
 			viewModel.LoadFile(file);
 		}

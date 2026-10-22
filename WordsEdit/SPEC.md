@@ -830,7 +830,7 @@ File (New, Open, Import, Merge, Save, Save As, Export, Reset, Exit), Edit (Undo 
 the node and key operations, then the flags), View (the filters, the previews, Find, then each
 pane's plural form, then the translation language and Wordsmith's own, all
 four submenus), Tools (Languages,
-Project Settings) — with an access key on each menu and
+Project Settings), Help (Tips, Show the tips again: *Help bubbles*) — with an access key on each menu and
 gesture text on each entry, so everything is reachable by name and by
 keyboard, not only by icon. The toolbars are toolbar controls populated from
 the same commands and carry only what is convenient: the node operations
@@ -2233,7 +2233,11 @@ old one; a typo fix leaves the revision alone.
 (`HelpBubbles.Arise(topic)`), and the view says where. The control a topic
 points at carries it (`Bubble.Topic="stale"`, an attached property), and the
 bubble opens beside that control with its tail toward it, on whichever side
-the screen has room, never covering it. It follows the control as the window
+the screen has room, never covering it: the right, the left, below, above,
+or the side the control prefers when it has room there (`Bubble.Prefer`; a
+top menu's bubble drops below it, off the bar). It is centred along its
+control but kept on the screen, its tail sliding to meet the control's
+middle. It follows the control as the window
 moves or resizes, and hides while its window is not the active one. A topic
 shows when four things hold: its moment arises, its control is on screen,
 tips are on, and the revision the config remembers for it is below the
@@ -2243,7 +2247,7 @@ a few sentences:
 
 | Topic | Arises when | Points at, and says |
 |---|---|---|
-| `start` | the editor opens with no file | the empty tree: New, Open, Import |
+| `start` | the editor opens with no file | the File menu: New, Open, Import |
 | `tree` | the first file loads | the tree: groups and keys, dragging to move, the search and the filters |
 | `translation` | the translation pane first shows a language | the language box: the pane is one language at a time, and Languages manages the list |
 | `stale` | a selected key is stale in the translation language | the pane's stale toggle: what stale means, how it clears, Stale All, the Stale filter |
@@ -2322,7 +2326,7 @@ Core, Wpf or Ava changes.
 **Order.** Three steps. First the config in sections, the language and the
 window moved into theirs: built (Wordsmith's own words, The window). Then the bubble, the catalogue, the seen
 revisions, the Help menu and the links, with `start` and `tree` to show it
-working. Then the rest of the topics, each with its trigger.
+working: built. Then the rest of the topics, each with its trigger.
 
 **Tests.**
 - The config: each value read from its section and written into it, a line

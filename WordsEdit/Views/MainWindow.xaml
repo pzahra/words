@@ -156,14 +156,16 @@
                     </Grid>
                 </md:Badged>
             </Grid>
-            <Grid Grid.Column="0" 
-                  Grid.Row="1" 
-                  Grid.RowSpan="2" 
+            <!-- the first file's bubble points at the tree (SPEC: Help bubbles); the empty editor's, at the File menu -->
+            <Grid Grid.Column="0"
+                  Grid.Row="1"
+                  Grid.RowSpan="2"
                   Margin="3 0">
-                <Border CornerRadius="3" 
-                        BorderThickness="1" 
+                <Border CornerRadius="3"
+                        BorderThickness="1"
                         BorderBrush="{DynamicResource PrimaryHueDarkBrush}"
-                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}">
+                        Visibility="{Binding Tree.KeyNodes.Count, Converter={StaticResource NotZeroToVisibilityConverter}}"
+                        uc:Bubble.Topic="tree">
                     <TreeView ItemsSource="{Binding Tree.KeyNodes}"
 					          SelectedItemChanged="TreeView_OnSelectedItemChanged"
                               PreviewMouseRightButtonDown="TreeView_OnPreviewMouseRightButtonDown"

@@ -11,8 +11,11 @@
     <uc:PackIconConverter x:Key="PackIconConverter"/>
     <v:MenuRowTemplateSelector x:Key="MenuRowSelector"/>
 
+    <!-- a top menu a help bubble points at carries its topic; the bubble drops below it, off the bar -->
     <ItemContainerTemplate x:Key="MenuGroupTemplate">
         <MenuItem Header="{Binding Caption}"
+                  uc:Bubble.Topic="{Binding Topic}"
+                  uc:Bubble.Prefer="Below"
                   ItemsSource="{Binding Items}"
                   UsesItemContainerTemplate="True"
                   ItemContainerTemplateSelector="{StaticResource MenuRowSelector}"/>

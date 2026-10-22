@@ -50,7 +50,7 @@ public class CommandTableTests {
 		foreach (ICommand command in commands) {
 			Assert.Single(rows, row => ReferenceEquals(row.Command, command));
 		}
-		Assert.Equal(4, vm.Commands.Menu.Count);
+		Assert.Equal(5, vm.Commands.Menu.Count); //File, Edit, View, Tools and Help
 		Assert.All(vm.Commands.Menu, group => Assert.Contains('_', FakeDialogs.Rendered(group.Caption))); //an access key each
 		//the flags on the selected key are toggles: a tick in the menu, a state on the toolbar
 		Assert.IsType<ToggleItem>(rows.Single(row => row.Command == vm.ToggleConstantCommand));
