@@ -192,11 +192,14 @@ public class ExportViewModel : DialogViewModel {
 		if (Format is not { } picked) {
 			return;
 		}
-		string filter = string.Join("|", Formats.OrderBy(row => row != picked).Select(row => row.Filter));
-		if (Parent.Dialogs.TrySaveFile(Words.Known["file.export-title"], filter, Target.Trim() is { Length: > 0 } proposed ? proposed : null, out string? target)) {
+		if (Parent.Dialogs.TrySaveFile(Words.Known["file.export-title"], BrowseFilter(picked), Target.Trim() is { Length: > 0 } proposed ? proposed : null, out string? target)) {
 			Target = target;
 		}
 	}
+
+	//the formats' filters, each in its own words, joined
+	[return: Localized]
+	private string BrowseFilter(ExportFormatRow picked) => string.Join("|", Formats.OrderBy(row => row != picked).Select(row => row.Filter));
 
 	//a schema.ini as it was before Export wrote its section: its bytes, through a file beside
 	//it moved over it, or no file, when Export made it
