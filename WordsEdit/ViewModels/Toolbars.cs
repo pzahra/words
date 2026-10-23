@@ -99,8 +99,8 @@ public sealed class NodeNameEntry(TreeViewModel tree) : WindowEntry(tree) {
 public interface IToolbarMemory {
 	/// <summary>The toolbar's line, its entries by name; null when it is as it ships.</summary>
 	string? Line(string toolbar);
-	/// <summary>Keeps the toolbar's line; null forgets it, so the toolbar ships.</summary>
-	void Keep(string toolbar, string? line);
+	/// <summary>Keeps each toolbar's line, all at once; a null line forgets it, so the toolbar ships.</summary>
+	void Keep(IReadOnlyList<KeyValuePair<string, string?>> lines);
 }
 
 /// <summary>The toolbars' memory for one run alone: what a test, or an editor built without the config, keeps.</summary>
@@ -109,6 +109,13 @@ public sealed class ToolbarMemory : IToolbarMemory {
 
 	public string? Line(string toolbar) => lines.GetValueOrDefault(toolbar);
 
+	public void Keep(IReadOnlyList<KeyValuePair<string, string?>> lines) {
+		foreach ((string toolbar, string? line) in lines) {
+			Keep(toolbar, line);
+		}
+	}
+
+	/// <summary>Keeps one toolbar's line.</summary>
 	public void Keep(string toolbar, string? line) {
 		if (line is null) {
 			lines.Remove(toolbar);
@@ -119,8 +126,8 @@ public sealed class ToolbarMemory : IToolbarMemory {
 	}
 }
 
-/// <summary>The toolbars' memory in the editor's config: a line each under <c>[toolbars]</c>.</summary>
+/// <summary>The toolbars' memory in the editor's config: a line each under <c>[toolbars]</c>, kept in one write.</summary>
 public sealed class ConfigToolbarMemory : IToolbarMemory {
 	public string? Line(string toolbar) => EditorConfig.Toolbar(toolbar);
-	public void Keep(string toolbar, string? line) => EditorConfig.KeepToolbar(toolbar, line);
+	public void Keep(IReadOnlyList<KeyValuePair<string, string?>> lines) => EditorConfig.KeepToolbars(lines);
 }

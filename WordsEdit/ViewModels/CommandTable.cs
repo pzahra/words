@@ -403,29 +403,35 @@ public sealed class CommandTable {
 	}
 
 	/// <summary>Keeps every toolbar as it stands: a line for each one changed from how it ships, none for the rest.</summary>
-	public void Keep() {
-		foreach (Toolbar toolbar in Toolbars) {
-			Keep(toolbar, memory.Line(toolbar.Name));
-		}
-	}
+	public void Keep() => Keep([.. Toolbars.Select(toolbar => (toolbar, memory.Line(toolbar.Name)))]);
 
-	//a toolbar's line written only where it changed from the one kept; a toolbar as it ships keeps none
-	private void Keep(Toolbar toolbar, string? kept) {
-		string? line = toolbar.Line == toolbar.ShippedLine ? null : toolbar.Line;
-		if (line != kept) {
-			memory.Keep(toolbar.Name, line);
+	//the lines of the toolbars changed from the ones kept, written at once; a toolbar as it
+	//ships keeps none
+	private void Keep(IEnumerable<(Toolbar Toolbar, string? Kept)> toolbars) {
+		List<KeyValuePair<string, string?>> changed = [];
+		foreach ((Toolbar toolbar, string? kept) in toolbars) {
+			string? line = toolbar.Line == toolbar.ShippedLine ? null : toolbar.Line;
+			if (line != kept) {
+				changed.Add(new(toolbar.Name, line));
+			}
+		}
+		if (changed.Count > 0) {
+			memory.Keep(changed);
 		}
 	}
 
 	//each toolbar from its line, in order, a row's first place winning (SPEC: The toolbar
 	//editor, Saved). What a line names that the editor does not know, or may not put there,
 	//is ignored; a pinned entry left out goes back at its place as shipped. A line that
-	//came out otherwise is written back so, and one that came out as shipped goes
+	//came out otherwise is written back so, and one that came out as shipped goes, all
+	//in one write
 	private void Arrange() {
 		HashSet<MenuRow> placed = [];
 		HashSet<MenuRow> pinned = [.. Toolbars.SelectMany(toolbar => toolbar.Pinned)];
+		List<(Toolbar, string?)> read = [];
 		foreach (Toolbar toolbar in Toolbars) {
 			string? line = memory.Line(toolbar.Name);
+			read.Add((toolbar, line));
 			List<MenuRow> entries = [];
 			foreach (string name in line?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries) ?? toolbar.Shipped.Select(Toolbar.Spell)) {
 				if (name == Toolbar.Break) {
@@ -444,8 +450,8 @@ public sealed class CommandTable {
 			foreach (MenuRow entry in entries) {
 				toolbar.Entries.Add(entry);
 			}
-			Keep(toolbar, line);
 		}
+		Keep(read);
 	}
 
 	/// <summary>A state, a selection or a language changed somewhere other than its row: every toggle and choice re-reads. Always true, to chain.</summary>

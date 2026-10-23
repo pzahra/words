@@ -9,6 +9,9 @@ using WordsEdit.Views;
 
 namespace WordsEdit;
 public partial class App : Application {
+	//the language the window closes to restart in; null for any other close
+	private string? restartIn;
+
 	protected override void OnStartup(StartupEventArgs e) {
 		//a greyed button still says what it would do: tooltips show on disabled
 		//controls everywhere, set before the first element exists
@@ -40,22 +43,23 @@ public partial class App : Application {
 		Func<WindowPlace> place = WindowPlace.Track(window);
 		window.Closing += (_, e) => {
 			if (!e.Cancel) {
-				EditorConfig.Window = place();
+				EditorConfig.KeepClosing(place(), restartIn);
 			}
 		};
 		window.Show();
 	}
 
 	//{l:Words} resolves when a window loads, so a change of language is a new
-	//process: unsaved changes are asked about first, the choice is saved, and
-	//the same files are opened again. The window has had its question answered
-	//and retires without asking twice, before the new process reads its place.
-	//The new process is told the language too, in case the config won't keep it
+	//process: unsaved changes are asked about first, and the same files are opened
+	//again. The window has had its question answered and retires without asking
+	//twice, keeping its place and the choice in one write, before the new process
+	//reads them. The new process is told the language too, in case the config won't
+	//keep it
 	private void Restart(MainWindowViewModel viewModel, string languageCode) {
 		if (!viewModel.TryClose() || Environment.ProcessPath is not { } exe) {
 			return;
 		}
-		EditorConfig.Language = languageCode;
+		restartIn = languageCode;
 		var start = new ProcessStartInfo(exe) { UseShellExecute = false };
 		start.ArgumentList.Add(EditorWords.LanguageSwitch + languageCode);
 		//a file never saved was saved by now, or let go

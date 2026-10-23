@@ -33,10 +33,16 @@ namespace PatTech.Localization.Authoring.Codecs {
 			LineBreak = "\r\n",
 		});
 
+		/// <summary>The <c>schema.ini</c> beside <paramref name="sheet"/>, read once, to read as many of its sections as asked.</summary>
+		/// <exception cref="IniCommitException">The file is held, or a write to it is under way or will not settle.</exception>
+		public static SchemaFile Load(string sheet) {
+			using IniTransaction schema = IniTransaction.Open(For(sheet), Dialect);
+			return new SchemaFile(schema.Document.IsNew || !schema.Document.IsText ? null : schema.Document);
+		}
+
 		/// <summary>The sections the <c>schema.ini</c> beside <paramref name="sheet"/> has, in its order; none when there is no file, or none the driver reads.</summary>
 		/// <exception cref="IniCommitException">The file is held, or a write to it is under way or will not settle.</exception>
-		public static IReadOnlyList<string> Sections(string sheet)
-			=> Load(sheet) is { } schema ? [.. schema.Sections.Where(name => name.Length > 0)] : [];
+		public static IReadOnlyList<string> Sections(string sheet) => Load(sheet).Sections;
 
 		/// <summary>
 		///     The section of the <c>schema.ini</c> beside <paramref name="sheet"/> named
@@ -45,17 +51,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 		///     in UTF-16 or UTF-32, which the driver does not read.
 		/// </summary>
 		/// <exception cref="IniCommitException">The file is held, or a write to it is under way or will not settle.</exception>
-		public static FormatOptions? Read(string sheet, string? section = null) {
-			string name = section ?? Path.GetFileName(sheet);
-			if (Load(sheet) is not { } schema || !schema.HasSection(name)) {
-				return null;
-			}
-			FormatOptions options = [];
-			foreach (string key in schema.Keys(name)) {
-				options[key] = schema.Get(name, key)!;
-			}
-			return options;
-		}
+		public static FormatOptions? Read(string sheet, string? section = null) => Load(sheet).Read(section ?? Path.GetFileName(sheet));
 
 		/// <summary>Writes <paramref name="options"/> as <paramref name="sheet"/>'s section, making the file when there is none.</summary>
 		/// <exception cref="IniException">Refused, the file as it was: one in UTF-16 or UTF-32 among them (<see cref="IniEncodingException"/>); or left pending (<see cref="IniPendingException"/>).</exception>
@@ -83,12 +79,6 @@ namespace PatTech.Localization.Authoring.Codecs {
 			}
 		}
 
-		//the schema.ini beside sheet; none when there is no file, or none the driver reads
-		private static IniDocument? Load(string sheet) {
-			using IniTransaction schema = IniTransaction.Open(For(sheet), Dialect);
-			return schema.Document.IsNew || !schema.Document.IsText ? null : schema.Document;
-		}
-
 		//the driver's order: the header, the format and the character set, the text
 		//delimiter, the columns by number, and then whatever else the section holds
 		private static IEnumerable<KeyValuePair<string, string>> Ordered(FormatOptions options)
@@ -107,5 +97,29 @@ namespace PatTech.Localization.Authoring.Codecs {
 
 		[GeneratedRegex(@"^col(\d+)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
 		private static partial Regex RxColumn();
+	}
+
+	/// <summary>A <c>schema.ini</c> as it read once (<see cref="SchemaIni.Load"/>): its sections, each read from memory as often as asked.</summary>
+	public sealed class SchemaFile {
+		private readonly IniDocument? document;
+
+		//null for no file, or none the driver reads
+		internal SchemaFile(IniDocument? document) => this.document = document;
+
+		/// <summary>Its sections, in its order; none when there is no file, or none the driver reads.</summary>
+		public IReadOnlyList<string> Sections => document is null ? [] : [.. document.Sections.Where(name => name.Length > 0)];
+
+		/// <summary>The section named <paramref name="section"/>; <see langword="null"/> when there is none.</summary>
+		public FormatOptions? Read(string section) {
+			ArgumentNullException.ThrowIfNull(section);
+			if (document is null || !document.HasSection(section)) {
+				return null;
+			}
+			FormatOptions options = [];
+			foreach (string key in document.Keys(section)) {
+				options[key] = document.Get(section, key)!;
+			}
+			return options;
+		}
 	}
 }

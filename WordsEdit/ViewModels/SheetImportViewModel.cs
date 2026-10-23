@@ -59,6 +59,8 @@ public sealed class SheetImportViewModel : DialogViewModel {
 	private string? declaredUnder;
 	//a sheet in UTF-32, which is not read, whatever the choices
 	private readonly bool utf32;
+	//the folder's schema.ini, read once when the dialog opens, each layout then read from it
+	private readonly SchemaFile schema;
 
 	public override string Title => Words.Known["sheet.title"];
 	public CsvCodec Codec { get; }
@@ -110,7 +112,8 @@ public sealed class SheetImportViewModel : DialogViewModel {
 		CancelCommand = new DelegateCommand(Close);
 
 		string own = Path.GetFileName(sheet);
-		IReadOnlyList<string> sections = SchemaIni.Sections(sheet);
+		schema = SchemaIni.Load(sheet);
+		IReadOnlyList<string> sections = schema.Sections;
 		List<SheetChoice> layouts = [];
 		if (sections.FirstOrDefault(section => string.Equals(section, own, StringComparison.OrdinalIgnoreCase)) is { } mine) {
 			layouts.Add(new(mine, Words.Known["sheet.layout-own"]));
@@ -137,7 +140,7 @@ public sealed class SheetImportViewModel : DialogViewModel {
 	}
 
 	private FormatOptions OptionsOf(SheetChoice layout)
-		=> layout.Value == "" ? Codec.Sniff(Sheet) : SchemaIni.Read(Sheet, layout.Value) ?? Codec.Sniff(Sheet);
+		=> layout.Value == "" ? Codec.Sniff(Sheet) : schema.Read(layout.Value) ?? Codec.Sniff(Sheet);
 
 	//the choices a layout makes, and its columns by number: named by the layout, else by the
 	//header when the layout names none, as the reader names them

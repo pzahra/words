@@ -29,6 +29,7 @@ public class WindowPlaceTests {
 
 			//a hand-edited size that is not one is no size at all
 			File.WriteAllLines(EditorConfig.Path, ["[editor]", "language=it", "[window]", "width=wide", "height=500"]);
+			EditorConfig.Reload();
 			Assert.Null(EditorConfig.Window);
 			Assert.Equal("it", EditorConfig.Language);
 
@@ -84,6 +85,7 @@ public class WindowPlaceTests {
 			Assert.Null(EditorConfig.Window);
 
 			File.WriteAllLines(EditorConfig.Path, ["language=it", "[window]", "language=de", "width=900", "height=500", "", "[seen]", "start=1"]);
+			EditorConfig.Reload();
 			Assert.Null(EditorConfig.Language); //not the editor section's
 			Assert.Equal(new WindowPlace(900, 500, Maximized: false), EditorConfig.Window);
 
@@ -92,6 +94,28 @@ public class WindowPlaceTests {
 			Assert.Equal(["language=it", "[window]", "language=de", "width=900", "height=500", "state=maximized", "", "[seen]", "start=1", "", "[editor]", "language=fr"],
 				File.ReadAllLines(EditorConfig.Path));
 			Assert.Equal("fr", EditorConfig.Language);
+		}
+		finally {
+			if (File.Exists(EditorConfig.Path)) {
+				Directory.Delete(Path.GetDirectoryName(EditorConfig.Path)!, recursive: true);
+			}
+			EditorConfig.Path = configured;
+		}
+	}
+
+	//the close keeps the window, and the language a restart is for, in one write
+	[Fact]
+	public void TheCloseKeepsTheWindowAndTheLanguageItRestartsIn() {
+		string configured = EditorConfig.Path;
+		EditorConfig.Path = Path.Combine(Path.GetTempPath(), $"wordsmith-{Guid.NewGuid():N}", "config.ini");
+		try {
+			EditorConfig.KeepClosing(new WindowPlace(900, 500, Maximized: false), "de");
+			Assert.Equal(["[editor]", "language=de", "", "[window]", "width=900", "height=500", "state=normal"], File.ReadAllLines(EditorConfig.Path));
+
+			//a close for any other reason leaves the language as it was
+			EditorConfig.KeepClosing(new WindowPlace(1000, 600, Maximized: true));
+			Assert.Equal(["[editor]", "language=de", "", "[window]", "width=1000", "height=600", "state=maximized"], File.ReadAllLines(EditorConfig.Path));
+			Assert.Equal("de", EditorConfig.Language);
 		}
 		finally {
 			if (File.Exists(EditorConfig.Path)) {

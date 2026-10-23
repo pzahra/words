@@ -618,8 +618,9 @@ opens it so, cut to the screen's work area and no smaller than its minimum
 (`EditorConfig.Window`, a `WindowPlace`). A window closed from the taskbar
 remembers the state it would come back to, so maximized, then minimized, then
 closed opens maximized. A close the save question cancels
-is no close; a language restart remembers the window before the new editor
-reads it, and tells the new editor its language on the command line too.
+is no close; a language restart keeps the window and the language in the one
+write its close makes, before the new editor reads them, and tells the new
+editor its language on the command line too.
 Where the window sits is still the system's choice. The config is in
 sections, each a group of values: `[editor]` holds `language` and `tips`,
 `[window]` holds `width`, `height` and `state` (`normal` or `maximized`),
@@ -631,7 +632,11 @@ lacks is appended after a blank line. A config from before the sections is
 not read: its lines sit above the first section, in none, so the window
 opens at its default size once and the language is the system's until one
 is picked. A config that will not read or write (locked, read-only) costs
-the settings, never a close or a restart.
+the settings, never a close or a restart. The config is read once, at the
+first value asked, each value then read from memory; each moment that sets
+values (the toolbars written back at startup, the toolbar editor's OK, a
+bubble's Got it, the close) writes them in one transaction (*Save as a
+patch*), which reads the file as it then stands.
 
 ## Import and export
 
@@ -2310,8 +2315,8 @@ The toolbars are read in order, a row's first place winning. An unknown
 name, a row of the menu's own, a row already placed or another toolbar's
 pinned entry is ignored, and a pinned entry left out goes back at its place
 as shipped. A line is written back as it came out, and one that comes out as
-shipped goes. A row a later Wordsmith adds to a changed toolbar is in the
-bucket.
+shipped goes, every toolbar's in one write. A row a later Wordsmith adds to a
+changed toolbar is in the bucket.
 
 **Copy Key Name.** `copy-key`, after Rename in the Edit menu and beside it on
 `name`, copies the selected node's name, what a program passes to
@@ -2361,7 +2366,7 @@ Words uses it.
 | `words set`, `remove`, `apply` | a `words.ini`, field by field | `IniPatcher`: surgical, checked by reading back, a temporary sibling, a link followed, a Unix mode kept, a held file tried again |
 | The Project Settings dialog | a settings file's two tables | `ProjectSettings.Save`: a plain `StreamWriter`, not atomic, comments lost |
 | Spreadsheet Import and Export | a sheet's section of `schema.ini` | on the driver since step 1: Export prepares the section before the sheet and commits it after |
-| Wordsmith's config | `config.ini`'s sections | on the driver since step 1, each setting a transaction |
+| Wordsmith's config | `config.ini`'s sections | on the driver since step 1, read once, each moment's settings a transaction |
 
 Export's files, the native ini among them, are conversions out of
 Wordsmith, and keep `IniWriter.WriteAtomic`; a `words.ini` Wordsmith makes
@@ -2417,6 +2422,13 @@ loaded as a mess Wordsmith made sense of, and is rewritten as Wordsmith
 arranged it. Save As at its own path replaces its own document whole, still
 the way to rewrite a file in the writer's form.
 
+**A moment, a transaction.** Each commit writes a log and the file, each
+flushed, and deletes the log; each open reads the file and looks for a log.
+So a writer puts every edit one moment makes to a file (a command's edits, a
+dialog's OK, the close) into one transaction, committed once, and reads what
+it needs from a document it holds, not a fresh open for each value. A transaction is one
+file, so Save's files are still a transaction each.
+
 **Each writer, and what it does with each outcome.**
 - Save commits each dirty file in a transaction of its own, so one that
   fails stays dirty while the others save (*Dirty by file*). Landed, what
@@ -2435,9 +2447,10 @@ the way to rewrite a file in the writer's form.
   finishes it.
 - The Project Settings dialog edits the settings file's two tables row by
   row, so a hand-written one keeps its comments; refused or pending is told.
-- Spreadsheet Import commits its section: refused, it stops, as it does now
-  when the section will not write; pending, it is told and goes on with the
-  options it holds. Export edits the section and calls
+- Spreadsheet Import's dialog reads `schema.ini` once, as it opens, and
+  each layout it offers from that. Import commits its section: refused, it
+  stops, as it does now when the section will not write; pending, it is told
+  and goes on with the options it holds. Export edits the section and calls
   `Prepare` before it writes the sheet. Refused there, it does as it does now
   when the section will not write: a table whose section is new or whose
   columns changed is not written, and one whose section only wanted quoting
@@ -2446,8 +2459,9 @@ the way to rewrite a file in the writer's form.
   so the snapshot and its put-back go. Pending is told, and so is a commit
   refused by its log's own write, the sheet landed and its section as it
   was.
-- `EditorConfig` reads and writes through the driver, each setting a
-  transaction. It swallows a refused or pending commit as it swallows a
+- `EditorConfig` reads through the driver once, keeping the document, and
+  writes each moment's settings in a transaction, whose document it then
+  keeps; one that will not write is read again. It swallows a refused or pending commit as it swallows a
   failed write now, never stopping the close it was saved on, and a read
   the driver refuses gives the defaults, as a read that fails does now.
 

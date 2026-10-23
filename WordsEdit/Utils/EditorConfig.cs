@@ -10,15 +10,29 @@ namespace WordsEdit.Utils;
 ///     in sections: <c>[editor]</c> for the language and the tips switch,
 ///     <c>[window]</c> for the window, <c>[seen]</c> for each bubble closed,
 ///     <c>[toolbars]</c> for each toolbar changed, each a
-///     group of <c>key=value</c> lines, their names matched without case. Read on
-///     demand and written as soon as a value is set, each a transaction of the ini
-///     driver's (SPEC: Save as a patch), missing file allowed; a file that won't
-///     read or write costs the settings, never the editor.
+///     group of <c>key=value</c> lines, their names matched without case. Read
+///     once, each value then read from memory; written as soon as a value is set,
+///     every value a moment sets in one transaction of the ini driver's (SPEC: Save
+///     as a patch), missing file allowed; a file that won't read or write costs the
+///     settings, never the editor.
 /// </summary>
 public static class EditorConfig {
-	/// <summary>Where the settings live; tests point it elsewhere.</summary>
-	public static string Path { get; set; } = System.IO.Path.Combine(
+	private static string path = System.IO.Path.Combine(
 		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Wordsmith", "config.ini");
+	//the file as last read or written; null until it is read
+	private static IniDocument? read;
+
+	/// <summary>Where the settings live; tests point it elsewhere.</summary>
+	public static string Path {
+		get => path;
+		set {
+			path = value;
+			read = null;
+		}
+	}
+
+	/// <summary>Drops the settings read, so the next value read reads the file again: one changed behind Wordsmith's back.</summary>
+	public static void Reload() => read = null;
 
 	private const string EditorSection = "editor";
 	private const string WindowSection = "window";
@@ -42,11 +56,27 @@ public static class EditorConfig {
 				? new WindowPlace(width, height, string.Equals(values.GetValueOrDefault("state"), "maximized", StringComparison.OrdinalIgnoreCase))
 				: null;
 		}
-		set => Write(WindowSection,
-			("width", value?.Width.ToString("0", CultureInfo.InvariantCulture)),
-			("height", value?.Height.ToString("0", CultureInfo.InvariantCulture)),
-			("state", value is null ? null : value.Value.Maximized ? "maximized" : "normal"));
+		set => Write(WindowSection, Place(value));
 	}
+
+	/// <summary>
+	///     The main window as it closes, and the language Wordsmith restarts in when
+	///     that is why it closes, null when it is not: the close's one write.
+	/// </summary>
+	public static void KeepClosing(WindowPlace window, string? language = null)
+		=> Commit(file => {
+			if (language is not null) {
+				Set(file, EditorSection, ("language", language));
+			}
+			Set(file, WindowSection, Place(window));
+		});
+
+	//the window's values; each null for none, so the section goes
+	private static (string Key, string? Value)[] Place(WindowPlace? value) => [
+		("width", value?.Width.ToString("0", CultureInfo.InvariantCulture)),
+		("height", value?.Height.ToString("0", CultureInfo.InvariantCulture)),
+		("state", value is null ? null : value.Value.Maximized ? "maximized" : "normal"),
+	];
 
 	/// <summary>Whether the help bubbles show: on unless <c>[editor]</c> says <c>tips=off</c>.</summary>
 	public static bool Tips {
@@ -67,24 +97,35 @@ public static class EditorConfig {
 	/// <summary>The line <c>[toolbars]</c> gives <paramref name="toolbar"/>, its entries by name; null when it has none, the toolbar as it ships, and empty for a toolbar emptied.</summary>
 	public static string? Toolbar(string toolbar) => Read(ToolbarsSection).GetValueOrDefault(toolbar);
 
-	/// <summary>Keeps <paramref name="toolbar"/>'s line under <c>[toolbars]</c>; null drops it.</summary>
-	public static void KeepToolbar(string toolbar, string? line) => Write(ToolbarsSection, (toolbar, line));
+	/// <summary>Keeps each toolbar's line under <c>[toolbars]</c>, all in one write; a null line drops it.</summary>
+	public static void KeepToolbars(IEnumerable<KeyValuePair<string, string?>> lines)
+		=> Write(ToolbarsSection, [.. lines.Select(pair => (pair.Key, pair.Value))]);
 
 	private static double? Number(Dictionary<string, string> values, string key)
 		=> double.TryParse(values.GetValueOrDefault(key), NumberStyles.Float, CultureInfo.InvariantCulture, out double number) && number > 0 ? number : null;
 
-	//a section's values, the last line naming a key winning. Lines above the first
-	//section are in none of these, so a config from before the sections reads as
-	//empty; a file the driver won't read is no settings at all
+	//a section's values, the last line naming a key winning, from the file as last read
+	//or written. Lines above the first section are in none of these, so a config from
+	//before the sections reads as empty; a file the driver won't read is no settings at
+	//all, until the next write reads it again
 	private static Dictionary<string, string> Read(string section) {
 		var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-		try {
-			using IniTransaction file = IniTransaction.Open(Path, Dialect);
-			foreach (string key in file.Document.Keys(section)) {
-				values[key] = file.Get(section, key)!;
+		if (read is null) {
+			try {
+				using IniTransaction file = IniTransaction.Open(Path, Dialect);
+				read = file.Document;
+			}
+			catch (Exception ex) when (ex is IniException or IOException or UnauthorizedAccessException) {
+				read = IniDocument.New(Dialect);
 			}
 		}
-		catch (Exception ex) when (ex is IniException or IOException or UnauthorizedAccessException) {
+		try {
+			foreach (string key in read.Keys(section)) {
+				values[key] = read.Get(section, key)!;
+			}
+		}
+		catch (IniException) {
+			//a file that is no text
 		}
 		return values;
 	}
@@ -92,26 +133,34 @@ public static class EditorConfig {
 	//each change sets its key in its section where it stands, or after the section's last
 	//value; a null one goes, and an empty one stays, empty (a toolbar emptied: SPEC: The
 	//toolbar editor)
-	private static void Write(string section, params (string Key, string? Value)[] changes)
-		=> Commit(file => {
-			foreach ((string key, string? value) in changes) {
-				file.Set(section, key, value?.Trim());
-			}
-		});
+	private static void Write(string section, params (string Key, string? Value)[] changes) => Commit(file => Set(file, section, changes));
 
-	//one setting, one transaction. A config that won't write (read-only, held, a commit
-	//refused or left pending) keeps what it had: the setting is lost, never the close it
-	//was saved on
+	private static void Set(IniTransaction file, string section, params (string Key, string? Value)[] changes) {
+		foreach ((string key, string? value) in changes) {
+			file.Set(section, key, value?.Trim());
+		}
+	}
+
+	//one moment, one transaction, on the file as it now stands, which is then the file as
+	//read. A config that won't write (read-only, held, a commit refused) keeps what it had,
+	//and is read again: the setting is lost, never the close it was saved on. One left
+	//pending stands, and reads as written
 	private static void Commit(Action<IniTransaction> edit) {
+		IniDocument? written = null;
 		try {
 			using IniTransaction file = IniTransaction.Open(Path, Dialect);
+			written = file.Document;
 			edit(file);
 			if (file.Document.IsNew && file.Document.IsEdited) {
 				Directory.CreateDirectory(System.IO.Path.GetDirectoryName(file.Path) ?? "");
 			}
 			file.Commit();
 		}
-		catch (Exception ex) when (ex is IniException or IOException or UnauthorizedAccessException) {
+		catch (IniPendingException) {
 		}
+		catch (Exception ex) when (ex is IniException or IOException or UnauthorizedAccessException) {
+			written = null;
+		}
+		read = written;
 	}
 }

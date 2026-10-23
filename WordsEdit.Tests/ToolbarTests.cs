@@ -168,16 +168,17 @@ public class ToolbarTests {
 			var memory = new ConfigToolbarMemory();
 			Assert.Null(memory.Line("node")); //no file: as shipped
 			EditorConfig.Language = "it";
-			memory.Keep("node", "");
-			memory.Keep("search", "back,-,forward,search-box,filters");
+			memory.Keep([new("node", ""), new("search", "back,-,forward,search-box,filters")]);
 			Assert.Equal(["[editor]", "language=it", "", "[toolbars]", "node=", "search=back,-,forward,search-box,filters"], File.ReadAllLines(EditorConfig.Path));
 			Assert.Equal("", memory.Line("node"));
-			memory.Keep("node", null);
-			memory.Keep("search", null);
+			memory.Keep([new("node", null), new("search", null)]);
 			Assert.Null(memory.Line("search"));
 
-			//the editor reads the lines, and writes back what it corrected
+			//the editor reads the lines, and writes back what it corrected, in one write; a
+			//file changed behind its back reads as it was until it is read again
 			File.WriteAllLines(EditorConfig.Path, ["[editor]", "language=it", "", "[toolbars]", "node=add-node,exit,remove", "search=forward,back", "key=add-key,remove-key,stale-all"]);
+			Assert.Null(memory.Line("node"));
+			EditorConfig.Reload();
 			CommandTable table = Table(memory);
 			Assert.Equal("add-node,remove", table.NodeTools.Line);
 			Assert.Equal("forward,back,search-box", table.SearchTools.Line);

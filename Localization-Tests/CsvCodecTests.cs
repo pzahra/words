@@ -128,6 +128,28 @@ public class CsvCodecTests {
 	}
 
 	[Fact]
+	public void Schema_LoadedOnce_ReadsEachSectionFromMemory() {
+		string folder = Folder();
+		try {
+			string schema = Path.Combine(folder, SchemaIni.FileName);
+			File.WriteAllText(schema, "[A.csv]\nFormat=CSVDelimited\n\n[B.csv]\nFormat=TabDelimited\n");
+			SchemaFile file = SchemaIni.Load(Path.Combine(folder, "A.csv"));
+			File.Delete(schema);
+
+			//the file gone, what it read stands
+			Assert.Equal(["A.csv", "B.csv"], file.Sections);
+			Assert.Equal("TabDelimited", file.Read("b.csv")![CsvCodec.FormatOption]);
+			Assert.Null(file.Read("C.csv"));
+			//no file reads as one with no sections
+			Assert.Empty(SchemaIni.Load(Path.Combine(folder, "A.csv")).Sections);
+			Assert.Null(SchemaIni.Load(Path.Combine(folder, "A.csv")).Read("A.csv"));
+		}
+		finally {
+			Directory.Delete(folder, recursive: true);
+		}
+	}
+
+	[Fact]
 	public void Read_TakesEachColumnAsItsRole_QuotedAsExcelQuotes_AndGripesOnTheRowsItSkips() {
 		string folder = Folder();
 		try {
