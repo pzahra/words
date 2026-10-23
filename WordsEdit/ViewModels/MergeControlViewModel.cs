@@ -1,3 +1,4 @@
+using PatTech.Text.Ini;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Input;
@@ -183,8 +184,13 @@ public class MergeControlViewModel : DialogViewModel {
 			//trip SPEC guarantees, not the session union
 			merged = Parent.Session.Merge(baseFile.File, Sources, baseFile.Node, mergedFileName, out _);
 		}
-		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.EncoderFallbackException) {
-			Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", mergedFileName, ex.Message));
+		catch (IniPendingException ex) {
+			//the write stands, logged: the merged file is loaded as written
+			Parent.Dialogs.Tell(Words.Known.Format("file.write-pending", mergedFileName, ex.Log));
+			merged = Parent.Session.FileAt(mergedFileName);
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+			Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", mergedFileName, IniWords.Say(ex)));
 			return;
 		}
 		if (merged is null) {
@@ -203,14 +209,21 @@ public class MergeControlViewModel : DialogViewModel {
 		if (!Parent.Dialogs.TrySaveFile(Words.Known["file.split-title"], Words.Known["file.filter"], out string? splitFileName)) {
 			return;
 		}
-		WordsFile split;
+		WordsFile? split;
 		try {
 			//that language's entries with the defaults for reference, the source's
 			//shape, preamble and settings references: what Merge takes back
 			split = Parent.Session.Split(file.File, language.Code, file.Node, splitFileName);
 		}
-		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.EncoderFallbackException) {
-			Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", splitFileName, ex.Message));
+		catch (IniPendingException ex) {
+			Parent.Dialogs.Tell(Words.Known.Format("file.write-pending", splitFileName, ex.Log));
+			split = Parent.Session.FileAt(splitFileName);
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+			Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", splitFileName, IniWords.Say(ex)));
+			return;
+		}
+		if (split is null) {
 			return;
 		}
 		Parent.Tree.Present(split);

@@ -338,10 +338,14 @@ public class MainWindowViewModel : ViewModelSaveBase {
 
 	public void LoadFile(string fileName) {
 		try {
-			Tree.Present(Session.Load(fileName));
+			Tree.Present(Session.Load(fileName, out IniRecovery? recovery));
+			//a write left pending finished over a change made since: that change is set aside
+			if (recovery is { Kind: IniRecoveryKind.Kept, Kept: { } kept }) {
+				Dialogs.Tell(Words.Known.Format("file.recovered-kept", fileName, kept));
+			}
 		}
 		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-			Dialogs.Tell(Words.Known.Format("file.load-failed", fileName, ex.Message));
+			Dialogs.Tell(Words.Known.Format("file.load-failed", fileName, IniWords.Say(ex)));
 		}
 	}
 
@@ -419,7 +423,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			}
 		}
 		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-			Dialogs.Tell(Words.Known.Format("file.load-failed", fileName, ex.Message));
+			Dialogs.Tell(Words.Known.Format("file.load-failed", fileName, IniWords.Say(ex)));
 		}
 	}
 
@@ -482,39 +486,45 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			|| AskWhere(file, Words.Known.Format("file.save-as-title", Tree.NodeOf(file).Label), file.Path ?? file.Name + ".ini") is not { } path) {
 			return;
 		}
-		SaveFile(file, file.Path is { } own && SamePath(path, own) ? own : path);
+		SaveFile(file, file.Path is { } own && SamePath(path, own) ? own : path, whole: true);
 	}
 
 	//writes the file at path, or where it is, which it takes once written there; a file
-	//never saved asks where first. True when written; false when the write failed, which
-	//is told and moves nothing; null when the dialog was cancelled
-	private bool? SaveFile(WordsFile file, string? path = null) {
+	//never saved asks where first. Where it is, it is patched (SPEC: Save as a patch), and
+	//anywhere else, or whole, written in the writer's form. True when written: landed, it is
+	//clean; left pending, that is told and it stays dirty. False when the write was refused,
+	//which is told and moves nothing; null when the dialog was cancelled
+	private bool? SaveFile(WordsFile file, string? path = null, bool whole = false) {
 		KeyNode node = Tree.NodeOf(file);
 		path ??= file.Path ?? AskWhere(file, Words.Known.Format("file.save-title", node.Label), file.Name + ".ini");
 		if (path is null) {
 			return null;
 		}
-		if (!TryWrite(file, node, path)) {
+		bool pending = false;
+		try {
+			if (!whole && path == file.Path) {
+				Session.Save(file, node);
+			}
+			else {
+				Session.Save(file, node, path);
+			}
+		}
+		catch (IniPendingException ex) {
+			Dialogs.Tell(Words.Known.Format("file.write-pending", path, ex.Log));
+			pending = true;
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+			Dialogs.Tell(Words.Known.Format("file.save-failed", path, IniWords.Say(ex)));
 			return false;
 		}
 		if (path != file.Path) {
 			Locate(file, path);
 		}
-		MarkClean(file);
-		UndoStack.Saved(file);
+		if (!pending) {
+			MarkClean(file);
+			UndoStack.Saved(file);
+		}
 		return true;
-	}
-
-	//writes the file at path, its own path left as it is: a failure is told and moves nothing
-	private bool TryWrite(WordsFile file, KeyNode node, string path) {
-		try {
-			Session.Save(file, node, path);
-			return true;
-		}
-		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.EncoderFallbackException) {
-			Dialogs.Tell(Words.Known.Format("file.save-failed", path, ex.Message));
-			return false;
-		}
 	}
 
 	//where the file goes: the save dialog, proposing proposed, and asking again

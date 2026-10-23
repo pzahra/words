@@ -549,7 +549,8 @@ New over a path already loaded, which replaced that file's unsaved work.
 ## Saving
 
 Save writes the files with unsaved work (*Dirty by file*) through
-`WordsSession.Save` — `IniWriter.WriteFile`
+`WordsSession.Save`, as a patch (*Save as a patch*), to read as the writer's
+text — `IniWriter.WriteFile`
 with the file's own language table, preamble and settings references, in the
 order its tree node walks — and with its own line break, `\n` or `\r\n`, the
 first one it was read with (the system's for a file imported from another
@@ -560,11 +561,11 @@ for byte whichever its checkout or editor gave it; merge and split write with
 their source's. The encoder refuses what it can't encode, such as a lone surrogate,
 rather than writing a replacement character. A file that cannot be written,
 for either reason, is reported, left as it was on disk, and the others still
-save. Each file is written to a temporary sibling and moved over the original,
-so a failure partway leaves it whole; what lands is a new file, so a Windows
-hidden attribute does not carry over, a hard link to the old file keeps the
-old text, and a symbolic link is replaced by the file rather than followed (the
-command line follows it). Merge and split check the tree covers the file's
+save. Each file is committed through the ini driver (*Ini files through the
+driver*), written in place behind a hidden log, so a failure partway is
+finished by the next read; a Windows hidden attribute stays, a hard link reads
+the new text, and a symbolic link is followed to its file, as the command
+line follows it. Merge and split check the tree covers the file's
 keys, as Save does. The editor tracks each file's unsaved work (*Dirty by
 file*): the window title names the loaded files and stars while any has
 some, a dirty file's root stars too, and closing names the dirty files.
@@ -574,9 +575,9 @@ Reset returns to the empty session (one default `en` language).
 the dialog picks, proposing its own, as the first Save of a new file does
 (*New*, Saving it): the dialog's overwrite ask covers a file on disk, a path
 another file in the session has is refused and the dialog asks again, a path
-that reaches that file through a folder link or a junction too
-(`WordsSession.SamePath`), and the file is written before it takes the path,
-so a write that fails is told and leaves it where it was. Every other file
+that reaches that file through a folder link, a junction or a link to the
+file too (`WordsSession.SamePath`), and the file is written before it takes
+the path, so a write refused is told and leaves it where it was. Every other file
 keeps its mark and what it has on disk (*Dirty by file*). Once written, the
 selected file is at the new path, clean, its root follows the name, and later
 Saves go there. The file at the old path is left as it was on disk; Save As
@@ -1679,8 +1680,8 @@ not know its file does not compile.
 
 **Saving.** Save writes the dirty files, in the tree's order, each where it
 is, and leaves the clean ones alone on disk: a file loaded and never edited
-is not rewritten, so the formatting it was written with stays until an edit
-(*Save as a patch* asks the same of the files edited). It greys while no
+is not rewritten, and a file edited keeps it but for what was edited (*Save as
+a patch*). It greys while no
 file is dirty. A file never saved asks where, as it does now; cancelled, the
 Save stops there, the files written before it clean, and it and the rest
 dirty. A file that fails to write is told and stays dirty, and the others
@@ -2336,10 +2337,10 @@ dialog's moment.
 Every ini Wordsmith and the command line edit in place goes through the ini
 driver, `PatTech.Text.Ini` ([../Text-Ini/SPEC.md](../Text-Ini/SPEC.md)):
 read once, edited in memory, and committed once a moment (a command's edits,
-a dialog's OK, the close) through a hidden log beside the file. Wordsmith's
-own Save, Save As, Merge and Split still write a `words.ini` whole (*Saving*;
-*Save as a patch* is planned), and Export's files, conversions out, are
-written whole.
+a dialog's OK, the close, a Save) through a hidden log beside the file.
+Wordsmith's Save patches a `words.ini`, and its Save As, Merge and Split
+write one whole, through it (*Save as a patch*); Export's files, conversions
+out, are written whole.
 
 **The dialects.**
 - `schema.ini`: sections, names without case, `=`, `;` comments; ANSI or
@@ -2359,7 +2360,7 @@ written whole.
   language table is the section `""`; a `[]` and the lines under it, which
   Core reads past, are left as they stand. Fields are written as the writer
   writes them, a new one where it would put it, and chains are cut by
-  `GroupCuts`, as the writer cuts them. Each edit is read back through Core:
+  `GroupCuts`, as the writer cuts them. Each edit, or batch, is read back through Core:
   every key's fields, the language table, the settings references and the
   comments in order. Core is the grammar's authority: a case the two read
   apart is pinned as Core reads it and settled with Core's next change.
@@ -2398,6 +2399,67 @@ its comments, and a new one is written whole. `WordsCorpusTests`: Core, the
 words dialect and the writer read a shared corpus alike, and the writer
 saves what the dialect adds to the same bytes.
 
+## Save as a patch
+
+Save keeps a hand-formatted `words.ini` as it was but for what was edited.
+A file loaded from its path keeps what it was read as: its bytes, and each
+key's name then. Save makes the writer's text for the file (*Saving*) out of
+edits to that document, through the words dialect, as one batch checked once
+(the driver's *A batch*):
+
+- a key renamed renames its section; a key gone removes it; a new key is
+  added where the writer would put it;
+- a key whose fields read otherwise has those fields set and removed;
+- the language table's and the settings references' fields are set and
+  removed, and the table replaced where its languages then read in another
+  order;
+- keys out of the writer's order move after the key before them there, the
+  longest run already in order staying;
+- each comment run that reads otherwise is set in place, added above its
+  block's header (the preamble above the table, the trailer at the end), or
+  removed.
+
+The document must then read through Core as the writer's text does: every
+key's fields and parameter order, the table, the default's language, the
+settings references, the preamble, each block's comments, the trailer, the
+parser's gripes and the tree a load builds. Otherwise, or where the dialect
+refuses an edit, the writer's text replaces it whole in the same transaction;
+so a file Core gripes about, say a field declared twice, saves whole, as the
+writer writes it.
+
+**Written whole**, in the writer's form and the file's encoding: a new file,
+an imported one, one read as no text or gone from its path since, the file a
+Merge or a Split makes, and Save As's, at its own path too, over a file there
+or none.
+
+**Outcomes.** Each file commits in a transaction of its own (*Dirty by
+file*). Landed, it is clean, and what it was read as is what was written.
+Refused, it is told in Wordsmith's words and stays dirty; a file changed on
+disk since it was read is refused, and Save As at its own path writes over
+it. Pending, it is told and stays dirty, so closing asks, and what it was
+read as is what was committed, so the next Save, which finishes the write
+first, refuses nothing. Save As, Merge and Split, landed or pending, leave
+the file at its new path, Save As's dirty when pending; refused, nothing
+moves. A load that finishes a pending write over a change made since says
+where that change is kept.
+
+**Tests.** `SaveAsPatchTests`: a field set, emptied and added, a key removed,
+renamed and dragged, a comment edited, added and removed, the preamble and
+the trailer, a language and a settings reference, each changing its own
+lines; `[A]` and `[a]` two keys; an unedited file keeps its bytes;
+Wordsmith's words and the fixtures read back as the writer writes them, a
+value set changing its lines alone but in a file Core gripes about; a byte
+the encoding does not read, and a field declared twice, saving whole; a file
+changed on disk refused, and one gone written whole; a pending Save finished
+by the next; Save As, Merge and Split over an absent and an existing file in
+the source's encoding, and left pending, loaded as written; Save As at its
+own path and an import written whole. `SavePatchTests`: Save patching and
+Save As at its own path rewriting; a change on disk refused in Wordsmith's
+words; a pending Save and Save As told, dirty and finished by the next Save;
+fourteen edits, each saved reading as written and, undone and saved, giving
+back the file; a load finishing a pending write over a change saying where
+it is kept. `UndoTests`: a save keeps each file to its own saved point.
+
 ---
 
 # Planned upgrades
@@ -2413,51 +2475,6 @@ through one entry point the app calls at startup, into the registry
 `App.OnStartup` already builds; changing the set is a rebuild, not a hot-swap.
 Runtime plugins stay a later question, and the interface is shaped so it could
 answer it without changing.
-
-## Save as a patch
-
-Wordsmith's Save, Save As, Merge and Split move onto the driver (*Ini files
-through the driver*), so a hand-formatted `words.ini` keeps its formatting
-but for what was edited.
-
-**The diff.** Each file Wordsmith loads keeps what it was read as: the
-transaction's document, and the model as it read. Save diffs each dirty
-file's model against that into edits: a field changed is set, one emptied
-removed; a key added, removed or dragged is that edit; a key renamed is a
-rename of its section and of each descendant's (a group with no header of
-its own has none); a comment added, edited, moved or removed is that edit;
-the language table's lines, the settings references, the preamble and the
-trailer theirs. An edit the check refuses falls back to the canonical text,
-replaced whole in the same transaction. `WordsSession` keeps what each file
-was read as, beside its model, and gains the diff.
-
-**Replaced whole**, canonically, in the source file's encoding: a new file,
-an imported one, the file a Merge or a Split makes, Save As's destination,
-there or not, and a file the driver will not patch. Save As at its own path
-still rewrites a file in the writer's form.
-
-**Outcomes.** Save commits each dirty file in a transaction of its own
-(*Dirty by file*). Landed, what the file was read as becomes what was
-written, and it is clean. Refused, it is told and stays dirty; a file
-changed on disk since it was read is the new refusal, and reloading it or
-saving over it is a later question. Pending, it is told; what it was read as
-becomes what was committed, so the next Save does not refuse its own; and it
-stays dirty, so closing asks. Save As, Merge and Split: landed or pending,
-the file is at its new path, Save As moving the open file there and staying
-dirty when pending; refused, nothing moves.
-
-**Tests.** A hand-formatted file keeps its formatting but for what was
-edited; a key dragged and one renamed, its descendants with it, patch as
-the writer would place them; a comment, the preamble, the trailer, the
-language table and a settings reference each edited alone save and undo; a
-file with a byte its encoding does not read saves whole; `[A]` and `[a]`
-patch as two keys; Wordsmith's own words and the fixtures keep their round
-trip; a new or imported file, and Save As, Merge and Split over an absent
-destination and an existing one, are written canonically in the source's
-encoding; an edit the check refuses falls back to the canonical write; undo
-after a save still marks the right files dirty; a pending Save stays dirty
-and the next Save does not refuse its own commit; a pending Save As has
-moved.
 
 ## Machine translation
 
