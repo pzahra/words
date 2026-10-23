@@ -3,7 +3,7 @@ using PatTech.Text.Ini;
 namespace WordsEdit.Utils;
 
 /// <summary>
-///     The ini driver's failures in Wordsmith's own words (SPEC: Save as a patch): the driver
+///     The ini driver's failures in Wordsmith's own words (SPEC: Ini files through the driver): the driver
 ///     has none of its own, only a type and its data. Anything else a file throws says itself.
 /// </summary>
 public static class IniWords {

@@ -1,3 +1,4 @@
+using PatTech.Text.Ini;
 using System.Text.RegularExpressions;
 
 namespace PatTech.Localization.Authoring {
@@ -132,9 +133,10 @@ namespace PatTech.Localization.Authoring {
 	///     <c>pack</c>, <c>resx</c>, <c>staticres</c>) need only a folder, their
 	///     shape being known; any other needs a decode rule, and a decode rule on a
 	///     built-in overrides its shape. The editor reads and writes this file, so
-	///     it is plainer than a dictionary: the two tables and nothing else —
-	///     comments in a hand-written one are read past, not kept. The runtime
-	///     never reads it. Nothing here touches the file system but
+	///     it is plainer than a dictionary: the two tables and nothing else. A
+	///     hand-written one's comments are read past, and kept where they stand
+	///     when it is saved. The runtime never reads it. Nothing here touches the
+	///     file system but
 	///     <see cref="Load(string)"/>, <see cref="Save(string)"/> and
 	///     <see cref="TryResolveImage"/>.
 	/// </summary>
@@ -220,30 +222,71 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>Writes the two tables in Words ini syntax.</summary>
 		public void Write(TextWriter writer) {
 			using var ini = new IniWriter(writer);
-			ini.WriteBlockHeader("images");
-			foreach (ImageRule rule in Images) {
-				ini.WritePair(rule.Scheme, rule.Folder);
-				if (rule.Decode is not null) {
-					ini.WritePair($"{rule.Scheme}-decode", rule.Decode);
+			foreach (string table in Tables) {
+				ini.WriteBlockHeader(table);
+				foreach (var (key, value) in Rows(table)) {
+					ini.WritePair(key, value);
 				}
+				ini.WriteLine();
 			}
-			ini.WriteLine();
-			ini.WriteBlockHeader("hyperlinks");
-			foreach (LinkRule rule in Links) {
-				if (rule.Mode is { } mode) {
-					ini.WritePair(rule.Scheme, mode == LinkMode.ShellExec ? "shellexec" : "popup");
-				}
-				if (rule.Decode is not null) {
-					ini.WritePair($"{rule.Scheme}-decode", rule.Decode);
-				}
-			}
-			ini.WriteLine();
 		}
 
-		/// <summary>Writes the settings to <paramref name="path"/>. I/O failures propagate.</summary>
+		/// <summary>
+		///     Writes the settings to <paramref name="path"/> through the ini driver (the editor's
+		///     SPEC: Ini files through the driver), one transaction committed through a log beside the file: each
+		///     table's rows set in place and the rows it no longer has removed, so a hand-written
+		///     file keeps its comments, its order and every row left as it was, in the encoding it
+		///     was read in. A file not there, or no text to edit, is written whole as
+		///     <see cref="Write"/> writes it.
+		/// </summary>
+		/// <exception cref="IniCommitException">Refused, nothing written: the file changed since it was read, is held or denied, or another write to it is running.</exception>
+		/// <exception cref="IniPendingException">The write stands, written ahead to its log, but the file's own failed: the next open finishes it.</exception>
+		/// <exception cref="IniEditException">A scheme no row can name so it reads back.</exception>
+		/// <exception cref="IniEncodingException">A character the file's encoding cannot write.</exception>
 		public void Save(string path) {
-			using var writer = new StreamWriter(path);
-			Write(writer);
+			using IniTransaction file = IniTransaction.Open(path, SettingsDialect.Instance);
+			IniDocument document = file.Document;
+			if (document.IsNew || !document.IsText) {
+				var whole = new StringWriter();
+				Write(whole);
+				file.Replace(whole.ToString(), document.IsText ? document.Encoding! : IniWriter.Utf8, document.IsText && document.ByteOrderMark);
+			}
+			else {
+				foreach (string table in Tables) {
+					StringComparer names = document.Dialect.KeyNames;
+					List<(string Key, string Value)> rows = [.. Rows(table)];
+					foreach (string gone in document.Keys(table).Where(key => !rows.Any(row => names.Equals(row.Key, key))).ToList()) {
+						document.Remove(table, gone);
+					}
+					foreach (var (key, value) in rows) {
+						document.Set(table, key, value);
+					}
+				}
+			}
+			file.Commit();
+		}
+
+		private static readonly string[] Tables = ["images", "hyperlinks"];
+
+		//a table's rows as the file holds them, in order
+		private IEnumerable<(string Key, string Value)> Rows(string table) {
+			if (table == "images") {
+				foreach (ImageRule rule in Images) {
+					yield return (rule.Scheme, rule.Folder);
+					if (rule.Decode is not null) {
+						yield return ($"{rule.Scheme}-decode", rule.Decode);
+					}
+				}
+				yield break;
+			}
+			foreach (LinkRule rule in Links) {
+				if (rule.Mode is { } mode) {
+					yield return (rule.Scheme, mode == LinkMode.ShellExec ? "shellexec" : "popup");
+				}
+				if (rule.Decode is not null) {
+					yield return ($"{rule.Scheme}-decode", rule.Decode);
+				}
+			}
 		}
 
 		/// <summary>

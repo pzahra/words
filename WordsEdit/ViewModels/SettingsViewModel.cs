@@ -1,3 +1,4 @@
+using PatTech.Text.Ini;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -108,10 +109,20 @@ public class SettingsDocument : ViewModelBase {
 
 	private void RowEdited(object? sender, PropertyChangedEventArgs e) => Edited();
 
-	/// <summary>Writes the rows to <see cref="Path"/>; once there, they are no longer an edit. I/O failures propagate.</summary>
+	/// <summary>
+	///     Writes the rows to <see cref="Path"/>; once there, they are no longer an edit, nor once
+	///     left pending (<see cref="IniPendingException"/>), the next open finishing the write. I/O
+	///     failures propagate.
+	/// </summary>
 	public void Save() {
 		Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path) ?? "");
-		ToSettings().Save(Path);
+		try {
+			ToSettings().Save(Path);
+		}
+		catch (IniPendingException) {
+			IsEdited = false;
+			throw;
+		}
 		IsEdited = false;
 	}
 
@@ -214,14 +225,18 @@ public class SettingsViewModel : DialogViewModel {
 		//the tables go to their own files first, touched ones only; a file that will
 		//not write is told and the rest still save, and the dialog stays open with
 		//its edits so OK can be tried again. The slots wait for that, so a Cancel
-		//after a failed OK leaves them as they were
+		//after a failed OK leaves them as they were. One left pending is told, and
+		//stands as written
 		bool written = true;
 		foreach (SettingsDocument document in documents.Values.Where(document => document.IsEdited)) {
 			try {
 				document.Save();
 			}
+			catch (IniPendingException ex) {
+				Parent.Dialogs.Tell(Words.Known.Format("file.write-pending", document.Path, ex.Log));
+			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-				Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", document.Path, ex.Message));
+				Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", document.Path, IniWords.Say(ex)));
 				written = false;
 			}
 		}

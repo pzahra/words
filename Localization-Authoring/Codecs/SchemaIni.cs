@@ -9,7 +9,7 @@ namespace PatTech.Localization.Authoring.Codecs {
 	///     a bag of key=value pairs. A sheet's section is its options
 	///     (<see cref="FormatOptions"/>); its names are matched without case, as the
 	///     driver matches them. It is read and written through the ini driver (the
-	///     editor's SPEC: Save as a patch): writing one section replaces its pairs, in
+	///     editor's SPEC: Ini files through the driver): writing one section replaces its pairs, in
 	///     the driver's order, where they stood, and leaves every other line, comment
 	///     and blank as it was, each with its own line break, in ANSI or UTF-8 with no
 	///     byte-order mark, which is all the driver reads, a line added breaking CRLF

@@ -242,6 +242,33 @@ help-decode=/^help:(\w+)$//https://example.com/help/$1.html
 	}
 
 	[Fact]
+	public void Save_EditsTheTablesRowByRow_KeepingAHandWrittenFilesComments_AndWritesANewFileWhole() {
+		string example = Example.Replace("\r\n", "\n");
+		string path = Path.Combine(Path.GetTempPath(), $"settings-{Guid.NewGuid():N}.ini");
+		string fresh = Path.ChangeExtension(path, ".new.ini");
+		try {
+			File.WriteAllText(path, example);
+			var settings = Load(example, path);
+			//the dialog's rows: a folder changed, a decode dropped, a mode added
+			var edited = new ProjectSettings(path,
+				[new ImageRule("pack", "../Pictures", null), new ImageRule("shot", "../Captures", null)],
+				[.. settings.Links, new LinkRule("mailto", LinkMode.ShellExec, null)]);
+
+			edited.Save(path);
+
+			Assert.Equal(example.Replace("pack=../Images", "pack=../Pictures").Replace("shot-decode=/^shot:(\\w+)$/i/$1.png\n", "") + "mailto=shellexec\n", File.ReadAllText(path));
+			edited.Save(fresh);
+			var whole = new StringWriter();
+			edited.Write(whole);
+			Assert.Equal(whole.ToString(), File.ReadAllText(fresh));
+		}
+		finally {
+			File.Delete(path);
+			File.Delete(fresh);
+		}
+	}
+
+	[Fact]
 	public void Write_EscapesLikeAnyIni() {
 		//a rule with the characters the ini escapes (an underscore, a quote) and
 		//one long enough to wrap comes back exactly, decode and folder alike
