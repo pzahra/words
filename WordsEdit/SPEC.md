@@ -2360,7 +2360,7 @@ Words uses it.
 | Merge and Split | the file they make | the same |
 | `words set`, `remove`, `apply` | a `words.ini`, field by field | `IniPatcher`: surgical, checked by reading back, a temporary sibling, a link followed, a Unix mode kept, a held file tried again |
 | The Project Settings dialog | a settings file's two tables | `ProjectSettings.Save`: a plain `StreamWriter`, not atomic, comments lost |
-| Spreadsheet Import and Export | a sheet's section of `schema.ini` | `SchemaIni.Write`: one section replaced, line breaks kept; Export snapshots the whole file first and puts it back by hand when the sheet fails |
+| Spreadsheet Import and Export | a sheet's section of `schema.ini` | on the driver since step 1: Export prepares the section before the sheet and commits it after |
 | Wordsmith's config | `config.ini`'s sections | on the driver since step 1, each setting a transaction |
 
 Export's files, the native ini among them, are conversions out of
@@ -2370,10 +2370,11 @@ for itself is a Merge's or a Split's.
 **The dialects.**
 - `schema.ini`: the sections dialect, names without case, `=`, `;`
   comments, ANSI or UTF-8 with
-  no byte-order mark and UTF-16 and UTF-32 refused (the ODBC driver reads
-  none), and a new line breaking CRLF wherever it is written, as the ODBC
-  driver is Windows'. `SchemaIni` replacing a section keeps the comments
-  ending it above the next, as it does now.
+  no byte-order mark, a UTF-8 one read past and never written, and UTF-16
+  and UTF-32 refused (the ODBC driver reads none), and a new line breaking
+  CRLF wherever it is written, as the ODBC driver is Windows'. `SchemaIni`
+  replacing a section keeps its comments where they stand, those ending it
+  above the next among them.
 - The config: the sections dialect, names without case, `=`, `;`
   comments, UTF-8 with no byte-order mark.
 - A `words.ini`: the words dialect, Authoring's, on the dotted one, with
@@ -2464,7 +2465,7 @@ once the driver is a package Core can read through it with nothing changed.
 
 **Order.** Each step shippable alone:
 1. The driver's first step; the config and `schema.ini` move onto it, and
-   Export's put-back goes.
+   Export's put-back goes. Built.
 2. The driver's dotted dialect; the words dialect on it, `IniPatcher`
    behind it, the command line on the transaction, and the settings file.
 3. Save as a patch: the diff, Save, Save As, Merge and Split, and the

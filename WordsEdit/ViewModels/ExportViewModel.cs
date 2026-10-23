@@ -2,6 +2,7 @@ using System.IO;
 using System.Text;
 using System.Windows.Input;
 using PatTech.Localization.Authoring.Codecs;
+using PatTech.Text.Ini;
 using PatTech.Utils;
 using WordsEdit.Utils;
 
@@ -77,11 +78,11 @@ public class ExportViewModel : DialogViewModel {
 	public string PlanProblem { get; private set => _ = ChangeProperty(ref field, value) && AffectProperty(nameof(HasPlanProblem)); } = "";
 	public bool HasPlanProblem => PlanProblem != "";
 
-	//how Export writes a file, and a sheet's section, and puts a schema.ini back as it was
-	//(its bytes, or none): seams a test fails a write through
+	//how Export writes a file, prepares a sheet's section, and commits it once the sheet is
+	//written: seams a test fails a write through
 	internal Action<string, Action<TextWriter>, Encoding?> WriteFile { get; set; } = IniWriter.WriteAtomic;
-	internal Action<string, FormatOptions> WriteSection { get; set; } = CsvCodec.SaveSchema;
-	internal Action<string, byte[]?> PutBackSchema { get; set; } = PutBack;
+	internal Func<string, FormatOptions, IniTransaction> PrepareSection { get; set; } = SchemaIni.Prepare;
+	internal Func<IniTransaction, IniLanded> CommitSection { get; set; } = section => section.Commit();
 
 	public ICommand BrowseCommand { get; }
 	public ICommand ExportCommand { get; }
@@ -122,7 +123,7 @@ public class ExportViewModel : DialogViewModel {
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
 				Plan = [];
 				Loss = "";
-				PlanProblem = Words.Known.Format("export.plan-failed", SchemaIni.For(Target.Trim()), ex.Message);
+				PlanProblem = Words.Known.Format("export.plan-failed", SchemaIni.For(Target.Trim()), IniWords.Say(ex));
 			}
 		}
 		if (Plan.Count == 0) {
@@ -201,24 +202,6 @@ public class ExportViewModel : DialogViewModel {
 	[return: Localized]
 	private string BrowseFilter(ExportFormatRow picked) => string.Join("|", Formats.OrderBy(row => row != picked).Select(row => row.Filter));
 
-	//a schema.ini as it was before Export wrote its section: its bytes, through a file beside
-	//it moved over it, or no file, when Export made it
-	private static void PutBack(string path, byte[]? bytes) {
-		if (bytes is null) {
-			File.Delete(path);
-			return;
-		}
-		string temp = path + $".{Guid.NewGuid():N}.tmp";
-		try {
-			File.WriteAllBytes(temp, bytes);
-			File.Move(temp, path, overwrite: true);
-		}
-		catch {
-			try { File.Delete(temp); } catch { /* the move's own error is the one worth raising */ }
-			throw;
-		}
-	}
-
 	private void DoExport() {
 		if (!CanExport || FileNode is null || Format is null) {
 			return;
@@ -230,54 +213,58 @@ public class ExportViewModel : DialogViewModel {
 		ExportSource source = Source(FileNode);
 		FormatOptions? options = Sheet?.Options;
 		List<string> gripes = [];
-		//a sheet's section goes first, so a schema.ini that refuses it is known before a byte
-		//of the sheet lands: a new table's, a changed one's, or one whose cells need quoting
-		//that TextDelimiter=none would not give them
+		//a sheet's section is prepared first, so a schema.ini that refuses it is known before a
+		//byte of the sheet lands: a new table's, a changed one's, or one whose cells need
+		//quoting that TextDelimiter=none would not give them. It commits once the sheet is
+		//written, and a sheet that fails leaves it as it was
 		string? schema = null;
-		byte[]? before = null;
+		IniTransaction? section = null;
 		if (Sheet is { } sheet && Format.Format is CsvCodec codec && options is not null) {
 			FormatOptions wanted = codec.Quoting(source, options);
 			if (sheet.WritesSection || !ReferenceEquals(wanted, options)) {
 				schema = SchemaIni.For(sheet.Sheet);
 				try {
-					before = File.Exists(schema) ? File.ReadAllBytes(schema) : null;
-					WriteSection(sheet.Sheet, wanted);
+					section = PrepareSection(sheet.Sheet, wanted);
 					if (!ReferenceEquals(wanted, options)) {
 						gripes.Add(Words.Known.Format("export.quoted", schema));
 					}
 					options = wanted;
 				}
-				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException) {
+				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
 					if (sheet.WritesSection) {
 						//the sheet is not written under columns its section does not say
-						Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", schema, ex.Message));
+						Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", schema, IniWords.Say(ex)));
 						return;
 					}
 					//the section is locked: the sheet goes by it as it is, its cells unquoted
-					gripes.Add(Words.Known.Format("export.schema-locked", schema, ex.Message));
-					schema = null;
+					gripes.Add(Words.Known.Format("export.schema-locked", schema, IniWords.Say(ex)));
 				}
 			}
 		}
-		foreach (ExportUnitRow row in Plan) {
-			try {
-				//each file atomic: a failure partway leaves what was there
-				WriteFile(row.Path, writer => Format.Format.Write(source, row.Unit, writer, gripes, options), row.Unit.Encoding);
-			}
-			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EncoderFallbackException) {
-				Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", row.Path, ex.Message));
-				//the section written for a sheet that wasn't goes back as it was
-				if (schema is not null) {
-					try {
-						PutBackSchema(schema, before);
-					}
-					catch (Exception again) when (again is IOException or UnauthorizedAccessException) {
-						Parent.Dialogs.Tell(Words.Known.Format("export.schema-changed", schema, row.Path, again.Message));
-						Sheet = null; //the section is what Export wrote: the plan reads it afresh, ticks and all
-					}
+		using (section) {
+			foreach (ExportUnitRow row in Plan) {
+				try {
+					//each file atomic: a failure partway leaves what was there
+					WriteFile(row.Path, writer => Format.Format.Write(source, row.Unit, writer, gripes, options), row.Unit.Encoding);
 				}
-				Replan(); //the files written so far now exist
-				return;
+				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EncoderFallbackException) {
+					Parent.Dialogs.Tell(Words.Known.Format("file.write-failed", row.Path, ex.Message));
+					section?.Dispose(); //let go before the plan reads the schema.ini again
+					Replan(); //the files written so far now exist
+					return;
+				}
+			}
+			if (section is not null) {
+				try {
+					CommitSection(section);
+				}
+				catch (IniPendingException ex) {
+					Parent.Dialogs.Tell(Words.Known.Format("export.schema-pending", schema!, Plan[0].Path, ex.Log));
+				}
+				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+					//only the log's own write refuses here: the sheet landed, its section as it was
+					Parent.Dialogs.Tell(Words.Known.Format("export.schema-unwritten", schema!, Plan[0].Path, IniWords.Say(ex)));
+				}
 			}
 		}
 		if (gripes.Count > 0) {

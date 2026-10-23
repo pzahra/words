@@ -1,5 +1,6 @@
 using PatTech.Localization.Authoring;
 using PatTech.Localization.Authoring.Codecs;
+using PatTech.Text.Ini;
 using System.Globalization;
 using System.Text;
 using Xunit;
@@ -764,8 +765,9 @@ public class CsvCodecTests {
 		}
 	}
 
-	//a schema.ini as the driver reads it: each other line kept with its own line break, a
-	//file's end without one kept, and never a byte-order mark; one in UTF-16 is none
+	//a schema.ini as the ini driver reads it: each other line kept with its own line break,
+	//a line added taking the file's first, a file's end without one kept, and never a
+	//byte-order mark; one in UTF-16 is none
 	[Fact]
 	public void Schema_KeepsEachLinesBreak_WritesNoByteOrderMark_AndLeavesAUtf16OneAlone() {
 		string folder = Folder();
@@ -780,11 +782,11 @@ public class CsvCodecTests {
 			File.WriteAllText(schema, head + "[B.csv]\nFormat=CSVDelimited\n" + tail, new UTF8Encoding(false));
 			CsvCodec.SaveSchema(sheet, mine);
 			string written = File.ReadAllText(schema);
-			Assert.Equal(head + "[B.csv]\nColNameHeader=True\nCol1=key Text\nCol2=value Memo\n" + tail, written);
+			Assert.Equal(head + "[B.csv]\nColNameHeader=True\r\nCol1=key Text\r\nCol2=value Memo\r\n" + tail, written);
 
-			//appended after a last line with no break: that line gets one, and the section the file's last
+			//appended after a last line with no break: that line gets one, and the section's last goes without
 			CsvCodec.SaveSchema(Path.Combine(folder, "D.csv"), mine);
-			Assert.Equal(written + "\r\r[D.csv]\rColNameHeader=True\rCol1=key Text\rCol2=value Memo\r", File.ReadAllText(schema));
+			Assert.Equal(written + "\r\n\r\n[D.csv]\r\nColNameHeader=True\r\nCol1=key Text\r\nCol2=value Memo", File.ReadAllText(schema));
 
 			//a byte-order mark is read past, and not written back
 			File.WriteAllText(schema, "[B.csv]\r\nFormat=CSVDelimited\r\n", new UTF8Encoding(true));
@@ -803,7 +805,7 @@ public class CsvCodecTests {
 			byte[] before = File.ReadAllBytes(schema);
 			Assert.Null(SchemaIni.Read(sheet));
 			Assert.Empty(SchemaIni.Sections(sheet));
-			Assert.Throws<InvalidDataException>(() => CsvCodec.SaveSchema(sheet, mine));
+			Assert.Equal(IniEncodingFailure.MarkRefused, Assert.Throws<IniEncodingException>(() => CsvCodec.SaveSchema(sheet, mine)).Failure);
 			Assert.Equal(before, File.ReadAllBytes(schema));
 		}
 		finally {

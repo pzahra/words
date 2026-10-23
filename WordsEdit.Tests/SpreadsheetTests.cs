@@ -1,7 +1,9 @@
 using PatTech.Localization;
 using PatTech.Localization.Authoring;
 using PatTech.Localization.Authoring.Codecs;
+using PatTech.Text.Ini;
 using PatTech.Utils;
+using WordsEdit.Utils;
 using WordsEdit.ViewModels;
 using Xunit;
 
@@ -481,7 +483,7 @@ value-fr=Bonjour\
 	}
 
 	[Fact]
-	public void Export_TheSheetsWriteFailing_PutsTheSchemaBack_OrSaysItCouldNot() {
+	public void Export_TheSectionLandsOnlyWithItsSheet_AndACommitThatFailsAfterTheSheetIsSaid() {
 		string folder = Folder();
 		try {
 			string target = Path.Combine(folder, "Out.csv");
@@ -489,22 +491,23 @@ value-fr=Bonjour\
 			string schema = SchemaIni.For(target);
 			byte[] before = File.ReadAllBytes(schema);
 			var (dialogs, export) = Export(folder, target, Awkward);
-			string? seen = null;
+			bool prepared = false;
 			export.WriteFile = (_, _, _) => {
-				seen = SchemaIni.Read(target)![CsvCodec.TextDelimiterOption];
+				prepared = File.Exists(Path.Combine(folder, ".schema.ini.tmp")); //the section prepared, its log taken
 				throw new IOException("the sheet is open elsewhere");
 			};
 			bool closed = false;
 			export.CloseRequested += () => closed = true;
 			export.ExportCommand.Execute(null);
 
-			Assert.Equal("\"", seen); //the section went first
+			Assert.True(prepared);
 			Assert.False(closed);
 			Assert.Contains(target, Assert.Single(dialogs.Notices));
-			Assert.Equal(before, File.ReadAllBytes(schema)); //and back, byte for byte
+			Assert.Equal(before, File.ReadAllBytes(schema)); //never touched
+			Assert.Equal(["schema.ini"], Directory.GetFiles(folder).Select(Path.GetFileName)); //and no log left
 			Assert.False(File.Exists(target));
 
-			//a new table's schema.ini, made by Export, goes again
+			//a new table's schema.ini is not made
 			File.Delete(schema);
 			(dialogs, export) = Export(folder, target);
 			export.WriteFile = (_, _, _) => throw new IOException("the sheet is open elsewhere");
@@ -512,23 +515,22 @@ value-fr=Bonjour\
 			Assert.Single(dialogs.Notices);
 			Assert.False(File.Exists(schema));
 
-			//putting it back failing too: both are said, and the plan goes by what Export wrote
+			//the sheet written and its section's commit left pending, or refused by its log's own
+			//write: each is said, and Export is done
 			SaveBare(target);
+			string pendingLog = Path.Combine(folder, ".schema.ini.tmp");
 			(dialogs, export) = Export(folder, target, Awkward);
-			export.WriteFile = (_, _, _) => throw new IOException("the sheet is open elsewhere");
-			export.PutBackSchema = (_, _) => throw new IOException("the schema is open elsewhere");
+			export.CommitSection = section => throw new IniPendingException(section.Path, pendingLog);
 			export.ExportCommand.Execute(null);
-			Assert.Equal(2, dialogs.Notices.Count);
-			Assert.Contains(target, dialogs.Notices[0]);
-			Assert.Equal(Words.Known.Format("export.schema-changed", schema, target, "the schema is open elsewhere"), dialogs.Notices[1]);
-			Assert.Equal("\"", SchemaIni.Read(target)![CsvCodec.TextDelimiterOption]); //what Export wrote, as it says
-			Assert.Equal("\"", export.Sheet!.Options[CsvCodec.TextDelimiterOption]);
-
-			//so trying again, the schema.ini now locked, quotes the sheet as its section says
-			File.SetAttributes(schema, FileAttributes.ReadOnly);
-			export.WriteFile = IniWriter.WriteAtomic;
-			export.ExportCommand.Execute(null);
+			Assert.Equal(Words.Known.Format("export.schema-pending", schema, target, pendingLog), Assert.Single(dialogs.Notices));
 			Assert.Equal("\"key\";\"value\";\"value-fr\"\r\n\"greeting\";\"Hello; you\";\"Bonjour\nà vous\"\r\n", File.ReadAllText(target));
+
+			(dialogs, export) = Export(folder, target, Awkward);
+			var full = new IniCommitException(IniCommitFailure.LogWrite, schema, inner: new IOException("the disk is full"));
+			export.CommitSection = _ => throw full;
+			export.ExportCommand.Execute(null);
+			Assert.Equal(Words.Known.Format("export.schema-unwritten", schema, target, IniWords.Say(full)), Assert.Single(dialogs.Notices));
+			Assert.Equal(before, File.ReadAllBytes(schema)); //its section as it was
 		}
 		finally {
 			foreach (string file in Directory.GetFiles(folder)) {

@@ -1,5 +1,6 @@
 using PatTech.Localization;
 using PatTech.Localization.Authoring.Codecs;
+using PatTech.Text.Ini;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
@@ -397,12 +398,16 @@ public class MainWindowViewModel : ViewModelSaveBase {
 					return;
 				}
 				//the sheet is read only as a section on disk says: one that can't be saved
-				//(locked, or a schema.ini in UTF-16 the driver doesn't read) imports nothing
+				//(locked, or a schema.ini in UTF-16 the driver doesn't read) imports nothing,
+				//and one left pending goes on with the options it holds
 				try {
 					CsvCodec.SaveSchema(set[0], sheet.Options);
 				}
-				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException) {
-					Dialogs.Tell(Words.Known.Format("file.write-failed", SchemaIni.For(set[0]), ex.Message));
+				catch (IniPendingException ex) {
+					Dialogs.Tell(Words.Known.Format("file.write-pending", SchemaIni.For(set[0]), ex.Log));
+				}
+				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+					Dialogs.Tell(Words.Known.Format("file.write-failed", SchemaIni.For(set[0]), IniWords.Say(ex)));
 					return;
 				}
 				options = sheet.Options;
