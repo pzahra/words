@@ -19,6 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- tests reach in rather than the tooling layer growing public surface for them -->
+    <InternalsVisibleTo Include="Localization-Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Localization-Core\Localization-Core.csproj" />
     <!-- the ini driver every ini the project writes goes through (Text-Ini/SPEC.md) -->
     <ProjectReference Include="..\Text-Ini\Text-Ini.csproj" />

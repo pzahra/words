@@ -18,7 +18,7 @@ namespace PatTech.Localization.Authoring {
 	///     file back through Core: every key's fields, the language table, the settings references
 	///     and the comments in order.
 	/// </summary>
-	public sealed class WordsDialect : IniDottedDialect {
+	internal sealed class WordsDialect : IniDottedDialect {
 		//ahead of Instance, which is made with them
 		private static readonly IniRules WordsRules = WordsValues.Rules with {
 			Names = StringComparer.Ordinal,

@@ -330,7 +330,7 @@ public class IniDialect {
 	}
 
 	/// <summary>Whether <paramref name="value"/>, written in <paramref name="form"/>, reads back as itself.</summary>
-	public bool CanHold(IniValueForm form, string value) {
+	internal bool CanHold(IniValueForm form, string value) {
 		ArgumentNullException.ThrowIfNull(value);
 		return form switch {
 			IniValueForm.Plain => LineHolds(value, first: true, last: true),
@@ -345,7 +345,7 @@ public class IniDialect {
 
 	/// <summary>The form a new value takes, or one its own form cannot hold: plain, else run on, else quoted.</summary>
 	/// <exception cref="IniEditException">No form of the dialect's holds <paramref name="value"/>.</exception>
-	public IniValueForm FirstChoice(string value) => TryFirstChoice(value) ?? throw new IniEditException(IniEditFailure.Unwritable, value);
+	internal IniValueForm FirstChoice(string value) => TryFirstChoice(value) ?? throw new IniEditException(IniEditFailure.Unwritable, value);
 
 	internal IniValueForm? TryFirstChoice(string value) {
 		ArgumentNullException.ThrowIfNull(value);
@@ -418,7 +418,7 @@ public class IniDialect {
 	}
 
 	/// <summary>The separator a new field takes: the rules' first.</summary>
-	public char Separator => Rules.Separators.HasFlag(IniSeparators.EqualsSign) ? '=' : ':';
+	internal char Separator => Rules.Separators.HasFlag(IniSeparators.EqualsSign) ? '=' : ':';
 
 	//the first separator on the line, whichever the rules take
 	private int SeparatorIn(string text) {
