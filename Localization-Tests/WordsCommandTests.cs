@@ -185,12 +185,26 @@ public sealed class WordsCommandTests : IDisposable {
 			var (code, _, error) = Run("set", "FILE", "menu.edit", "value-it", "Modifica");
 
 			Assert.Equal(2, code);
-			Assert.Contains($"{path}: can't be written", error);
+			Assert.Contains($"{path}: can't be written: it is read-only, or not yours to write", error);
 			Assert.Equal(Sample, File.ReadAllText(path));
 		}
 		finally {
 			File.SetAttributes(path, FileAttributes.Normal);
 		}
+	}
+
+	[Fact]
+	public void AWriteACallBeforeBrokeOff_BeforeItsLogWasWhole_IsDroppedFirst_AndSaid() {
+		File.WriteAllText(path, Sample);
+		string log = Path.Combine(Path.GetDirectoryName(path)!, $".{Path.GetFileName(path)}.tmp");
+		File.WriteAllText(log, "half a log");
+
+		var (code, _, error) = Run("set", "FILE", "menu.edit", "value-it", "Modifica");
+
+		Assert.Equal(0, code);
+		Assert.Equal($"words: {path}: a write a call before broke off before it was logged, and was dropped\n", error);
+		Assert.False(File.Exists(log));
+		Assert.Contains("value-it=Modifica", File.ReadAllText(path));
 	}
 
 	[Fact]

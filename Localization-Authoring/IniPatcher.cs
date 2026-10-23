@@ -1,104 +1,107 @@
 using PatTech.Localization;
-using System.Text;
+using PatTech.Text.Ini;
 
 namespace PatTech.Localization.Authoring {
 	/// <summary>
-	///     A <c>words.ini</c> edited in place (command line SPEC: Surgical edits).
-	///     A change replaces only the lines of the field it names with what
-	///     <see cref="IniWriter"/> writes for that one pair, in the file's own line
-	///     ending, encoding and BOM, and every other byte stays. Each change is read
-	///     back and compared with the model before it: anything but the asked-for
-	///     change refuses it, with an <see cref="IniPatchException"/>, and leaves the
-	///     patcher as it was. Keys are the file's own, without a session's label.
+	///     A <c>words.ini</c> edited in place (command line SPEC: Surgical edits), through the
+	///     ini driver's words dialect (<see cref="WordsDialect"/>). A change replaces only the
+	///     lines of the field it names with what <see cref="IniWriter"/> writes for that one
+	///     pair, in the file's own line ending, encoding and BOM, and every other byte stays but
+	///     the headers the cut of a group it touched changes. Each change is read back and
+	///     compared with the file before it: anything but the asked-for change refuses it, with
+	///     an <see cref="IniPatchException"/>, and leaves the patcher as it was. Opened from a
+	///     file, it holds that file's transaction, and <see cref="Save"/> commits it. Keys are the
+	///     file's own, without a session's label.
 	/// </summary>
-	public sealed class IniPatcher {
-		private readonly Encoding encoding;
-		private readonly byte[] bom;
-		private readonly string newLine;
-		private readonly bool endsWithBreak;
-		private List<Line> lines;
-		private Reading reading;
+	public sealed class IniPatcher : IDisposable {
+		private readonly IniTransaction? file;
+		private readonly IniDocument document;
+		private WordsReading reading;
 
-		private IniPatcher(Encoding encoding, byte[] bom, string text) {
-			this.encoding = encoding;
-			this.bom = bom;
-			lines = Split(text);
-			newLine = lines.Select(line => line.Break).FirstOrDefault(lineBreak => lineBreak != "") ?? Environment.NewLine;
-			endsWithBreak = lines.Count == 0 || lines[^1].Break != "";
-			reading = Read(lines);
+		private IniPatcher(IniTransaction? file, IniDocument document) {
+			this.file = file;
+			this.document = document;
+			reading = WordsReading.Of(document.Text);
 		}
 
-		/// <summary>Reads the file at <paramref name="path"/>.</summary>
-		/// <exception cref="InvalidDataException">The file is not UTF-8, UTF-16 or UTF-32 text, or does not parse.</exception>
-		public static IniPatcher Open(string path) => FromBytes(File.ReadAllBytes(path));
+		/// <summary>Reads the file at <paramref name="path"/>, a link at its end followed, a write left pending on it finished first.</summary>
+		/// <exception cref="InvalidDataException">The file is not UTF-8, UTF-16 or UTF-32 text.</exception>
+		/// <exception cref="IniCommitException">The file is held, another write to it is running, or one left pending will not settle.</exception>
+		public static IniPatcher Open(string path) {
+			IniTransaction opened = IniTransaction.Open(path, WordsDialect.Instance);
+			try {
+				Readable(opened.Document);
+				return new IniPatcher(opened, opened.Document);
+			}
+			catch {
+				opened.Dispose();
+				throw;
+			}
+		}
 
 		/// <summary>
 		///     Reads a file's bytes: UTF-8, with or without a BOM, or UTF-16 or UTF-32
 		///     with one, by the BOMs Wordsmith reads. Text holding a NUL is none:
 		///     UTF-16 without its BOM reads as UTF-8 with a NUL in every other byte.
 		/// </summary>
-		/// <exception cref="InvalidDataException">The bytes are no such text, or do not parse.</exception>
+		/// <exception cref="InvalidDataException">The bytes are no such text.</exception>
 		public static IniPatcher FromBytes(byte[] bytes) {
-			var encoding = WordsSession.EncodingOf(bytes);
-			int bomLength = encoding.Preamble.Length;
-			string name = bomLength == 0 ? "UTF-8" : encoding.WebName;
-			string text;
-			try {
-				text = encoding.GetString(bytes, bomLength, bytes.Length - bomLength);
-			}
-			catch (DecoderFallbackException) {
-				throw new InvalidDataException($"not {name} text");
-			}
-			if (text.Contains('\0')) {
-				throw new InvalidDataException(bomLength == 0 ? "not UTF-8 text: it holds NULs, as UTF-16 without a BOM does" : $"not {name} text: it holds a NUL");
-			}
-			return new IniPatcher(encoding, bytes[..bomLength], text);
+			IniDocument read = IniDocument.Read(bytes, WordsDialect.Instance);
+			Readable(read);
+			return new IniPatcher(null, read);
 		}
 
+		//a document the patcher reads, or why it is none
+		private static void Readable(IniDocument read) {
+			if (read.IsText) {
+				return;
+			}
+			if (!read.ByteOrderMark) {
+				throw new InvalidDataException(read.ToBytes().Contains((byte)0) ? "not UTF-8 text: it holds NULs, as UTF-16 without a BOM does" : "not UTF-8 text");
+			}
+			throw new InvalidDataException($"not {read.Encoding?.WebName ?? "its BOM's"} text, or it holds a NUL");
+		}
+
+		/// <summary>What opening the file did to a write left pending on it; null for nothing.</summary>
+		public IniRecovery? Recovery => file?.Recovery;
+
 		/// <summary>The file as it now reads, BOM first.</summary>
-		public byte[] ToBytes() => [.. bom, .. encoding.GetBytes(Text)];
+		public byte[] ToBytes() => document.ToBytes();
 
 		/// <summary>The file's text as it now reads.</summary>
-		public string Text => string.Concat(lines.Select(line => line.Text + line.Break));
+		public string Text => document.Text;
 
 		/// <summary>
-		///     Writes the file to <paramref name="path"/>: to a temporary sibling first,
-		///     moved over the original once written, so a failure leaves it whole. A
-		///     link is followed to its file, and a Unix file keeps its mode.
+		///     Writes the file to <paramref name="path"/>: the file it was opened from by committing
+		///     its transaction, written ahead to a hidden log beside it, so a failure partway is
+		///     finished by the next open (the ini driver's SPEC: The commit); any other, or one read
+		///     from bytes, replaced whole the same way. Committed, its transaction ends: the patcher
+		///     reads on, but takes no more changes.
 		/// </summary>
+		/// <exception cref="IniCommitException">Refused, nothing written: the file changed since it was read, is held or denied, or another write to it is running.</exception>
+		/// <exception cref="IniPendingException">The write stands, written ahead to its log, but the file's own failed: the next open finishes it.</exception>
+		/// <exception cref="IniEncodingException">Refused: a character the file's encoding cannot write.</exception>
 		public void Save(string path) {
+			if (file is not null && IsOwn(path)) {
+				file.Commit();
+				return;
+			}
+			using IniTransaction other = IniTransaction.Open(path, WordsDialect.Instance);
+			other.Replace(document.Text, document.Encoding!, document.ByteOrderMark);
+			other.Commit();
+		}
+
+		//whether path is the file the patcher was opened from, a link followed
+		private bool IsOwn(string path) {
 			string full = Path.GetFullPath(path);
 			if (File.Exists(full) && File.ResolveLinkTarget(full, returnFinalTarget: true) is { } target) {
 				full = target.FullName;
 			}
-			string temp = Path.Combine(Path.GetDirectoryName(full) ?? ".", $".{Path.GetFileName(full)}.{Guid.NewGuid():N}.tmp");
-			try {
-				File.WriteAllBytes(temp, ToBytes());
-				if (!OperatingSystem.IsWindows() && File.Exists(full)) {
-					File.SetUnixFileMode(temp, File.GetUnixFileMode(full));
-				}
-				MoveOver(temp, full);
-			}
-			catch {
-				try { File.Delete(temp); } catch { /* the write's own error is the one worth raising */ }
-				throw;
-			}
+			return string.Equals(full, file!.Path, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
 		}
 
-		//a program that holds the file a moment, a scanner or an editor watching it,
-		//refuses the move on Windows: it is tried again over half a second, and only
-		//then does the write fail
-		private static void MoveOver(string temp, string full) {
-			for (int attempt = 1; ; attempt++) {
-				try {
-					File.Move(temp, full, overwrite: true);
-					return;
-				}
-				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && attempt < 5 && OperatingSystem.IsWindows()) {
-					Thread.Sleep(50 * attempt);
-				}
-			}
-		}
+		/// <summary>Lets go of the file without writing, where it was opened from one.</summary>
+		public void Dispose() => file?.Dispose();
 
 		/// <summary>What the parser gripes about in the file as it now reads.</summary>
 		public IReadOnlyList<string> Errors => reading.Words.Errors;
@@ -137,12 +140,11 @@ namespace PatTech.Localization.Authoring {
 		///     missing. A field already holding the text is left alone; a field declared
 		///     more than once keeps its first place, and its others go. A new field goes
 		///     where the writer puts it among fields already in the writer's order, and
-		///     last in a block in none (<see cref="NewFieldLine"/>); a new key goes into
-		///     the chain whose full header it extends, as a <c>[.child]</c>, else after
-		///     the chain holding its nearest sibling, as a full header
-		///     (<see cref="NewKeyLines"/>). A parameter's text is written as given: the
-		///     reader keeps a text whose words before the first <c>:</c> name no type
-		///     whole.
+		///     last in a block in none; a new key goes beside its nearest sibling, into the
+		///     chain whose full header it extends as a <c>[.child]</c>, and a group it makes
+		///     worth a header gains one, its keys chained off it (<see cref="WordsDialect"/>).
+		///     A parameter's text is written as given: the reader keeps a text whose words
+		///     before the first <c>:</c> name no type whole.
 		/// </summary>
 		/// <returns>The gripes the change adds to the file's.</returns>
 		/// <exception cref="ArgumentException"><paramref name="key"/> is no key name (<see cref="WordsParser.IsKeyName"/>), or <paramref name="text"/> holds a NUL.</exception>
@@ -153,35 +155,12 @@ namespace PatTech.Localization.Authoring {
 				throw new ArgumentException($"{key}: {field} can't hold a NUL, which would leave the file no text");
 			}
 			text = Kept(text);
-			List<string> notes = [];
-			var own = Declarations(key, field);
-			if (own.Count == 1 && Find(key) is { } found && field.Read(found) == text) {
-				return notes;
+			int declared = Declarations(key, field);
+			if (declared == 1 && Find(key) is { } found && field.Read(found) == text) {
+				return [];
 			}
-			var edit = new Edit(lines);
-			List<Line> pair = Pair(field.ToString(), text);
-			if (own.Count != 0) {
-				edit.Replace(own[0].Start, own[0].End, pair);
-				foreach (var other in own.Skip(1)) {
-					edit.Delete(other.Start, other.End);
-				}
-				if (own.Count > 1) {
-					notes.Add($"{key}: {field} was declared {own.Count} times, now once");
-				}
-			}
-			else if (reading.Headers.Any(header => header.Key == key)) {
-				edit.Insert(NewFieldLine(key, field), pair);
-			}
-			else {
-				var (at, added) = NewKeyLines(key, pair, field is { Type: "value", Language: "", Form: "" } && text != "");
-				edit.Insert(at, added);
-			}
-			return [.. notes, .. Commit(edit.Apply(), keys => {
-				if (!keys.TryGetValue(key, out var changed)) {
-					keys[key] = changed = new WordsKey(key) { IsConstant = key[0] == '$' };
-				}
-				field.Write(changed, text);
-			})];
+			List<string> notes = declared > 1 ? [$"{key}: {field} was declared {declared} times, now once"] : [];
+			return [.. notes, .. Edit(() => document.Set(key, field.ToString(), text))];
 		}
 
 		/// <summary>
@@ -191,20 +170,15 @@ namespace PatTech.Localization.Authoring {
 		/// </summary>
 		public static string Kept(string text) => text.Replace("\r\n", "\n").Replace('\r', '\n');
 
-		/// <summary>Drops <paramref name="field"/> of <paramref name="key"/>, every declaration of it, with words or empty.</summary>
+		/// <summary>Drops <paramref name="field"/> of <paramref name="key"/>, every declaration of it, with words or empty; a block it leaves with no field goes, but a header that bases <c>[.child]</c> headers, which stays bare.</summary>
 		/// <returns>The gripes the change adds to the file's.</returns>
 		/// <exception cref="KeyNotFoundException">The key's blocks declare no such field.</exception>
 		/// <exception cref="IniPatchException">The change would change anything else.</exception>
 		public IReadOnlyList<string> Remove(string key, WordsField field) {
-			var own = Declarations(key, field);
-			if (own.Count == 0) {
+			if (Declarations(key, field) == 0) {
 				throw new KeyNotFoundException($"{key} has no {field}");
 			}
-			var edit = new Edit(lines);
-			foreach (var declaration in own) {
-				edit.Delete(declaration.Start, declaration.End);
-			}
-			return Commit(Collapse(edit), keys => field.Write(keys[key], null));
+			return Edit(() => document.Remove(key, field.ToString()));
 		}
 
 		/// <summary>
@@ -212,7 +186,7 @@ namespace PatTech.Localization.Authoring {
 		///     <paramref name="field"/>, with words or empty: an empty field reads as
 		///     none (<see cref="WordsField.Read"/>), but its line is there to remove.
 		/// </summary>
-		public bool Declares(string key, WordsField field) => Declarations(key, field).Count != 0;
+		public bool Declares(string key, WordsField field) => Declarations(key, field) != 0;
 
 		/// <summary>
 		///     Drops the whole of <paramref name="key"/>: its headers and its fields. A
@@ -226,25 +200,11 @@ namespace PatTech.Localization.Authoring {
 			if (Find(key) is null) {
 				throw new KeyNotFoundException($"no key {key}");
 			}
-			var edit = new Edit(lines);
-			var headers = reading.Headers;
-			for (int i = 0; i < headers.Count; i++) {
-				bool bases = headers[i].IsFull && i + 1 < headers.Count && !headers[i + 1].IsFull;
-				if (headers[i].Key != key) {
-					continue;
-				}
-				if (bases && key.StartsWith('$')) {
-					//its bare header would still be the constant, and without it the children re-base
-					throw new IniPatchException($"refused: {key} bases [.child] headers, which no constant can; give them full headers first");
-				}
-				if (!bases) {
-					edit.Delete(headers[i].Line, headers[i].Line);
-				}
+			if (key.StartsWith('$') && Bases(key)) {
+				//its bare header would still be the constant, and without it the children re-base
+				throw new IniPatchException($"refused: {key} bases [.child] headers, which no constant can; give them full headers first");
 			}
-			foreach (var declaration in reading.Declarations.Where(declaration => declaration.InBlock && declaration.Key == key)) {
-				edit.Delete(declaration.Start, declaration.End);
-			}
-			return Commit(Collapse(edit), keys => keys.Remove(key));
+			return Edit(() => document.RemoveSection(key));
 		}
 
 		//a key's name, which a runtime reads (runtime SPEC: Key names); a file's own
@@ -255,407 +215,40 @@ namespace PatTech.Localization.Authoring {
 			}
 		}
 
-		private List<Declaration> Declarations(string key, WordsField field)
-			=> [.. reading.Declarations.Where(declaration => declaration.InBlock && declaration.Key == key && declaration.Field == field)];
+		//how many times the key's blocks declare the field
+		private int Declarations(string key, WordsField field)
+			=> document.Elements.OfType<IniField>().Count(declared => declared.Section == key && document.Dialect.KeyNames.Equals(declared.Key, field.ToString()));
 
-		//the pair's lines as the writer writes them, folded and escaped
-		private List<Line> Pair(string name, string text) {
-			var writer = new StringWriter { NewLine = newLine };
-			using var ini = new IniWriter(writer);
-			ini.WritePair(name, text);
-			return Split(writer.ToString());
+		//whether a full header of the key bases [.child] headers
+		private bool Bases(string key) {
+			List<IniHeader> headers = [.. document.Elements.OfType<IniHeader>()];
+			return headers.Index().Any(header => header.Item.Name == key && !header.Item.IsChained && header.Index + 1 < headers.Count && headers[header.Index + 1].IsChained);
 		}
 
-		/// <summary>
-		///     Where a new key's block goes, and its lines (command line SPEC: Surgical
-		///     edits). A key that extends a chain's full header goes into that chain as
-		///     a <c>[.child]</c>, as the writer chains it: after the block of the header
-		///     in it sharing the most leading segments, the last of them. A
-		///     <c>[.child]</c> header extends the chain's full header and not the one
-		///     above it, so the headers after it keep their base. A key that extends
-		///     none goes after the chain holding its nearest sibling, as a full header,
-		///     since a full header inside a chain would re-base the <c>[.child]</c>
-		///     headers after it; after the last chain when no key shares a segment, and
-		///     at the end of a file with no blocks. Either way it is spaced as the
-		///     blocks around it are (<see cref="After"/>). The cut a writer makes at a
-		///     group a second key now fills would re-base headers already written, and
-		///     no line but the key's own changes.
-		/// </summary>
-		private (int At, List<Line> Lines) NewKeyLines(string key, List<Line> pair, bool valued) {
-			var headers = reading.Headers;
-			if (headers.Count == 0) {
-				//under the languages, after their blank line or with one, and with one
-				//of its own when the file ends in one, as the writer ends it
-				bool ends = lines.Count != 0 && IsBlank(lines.Count - 1);
-				List<Line> added = [.. lines.Count == 0 || ends ? [] : (Line[])[new("", newLine)], new($"[{key}]", newLine), .. pair];
-				if (ends && valued) {
-					added.Add(new("", newLine));
-				}
-				return (lines.Count, added);
+		//an edit made and read back: refused, the file stays as it was; made, the gripes it adds
+		private List<string> Edit(Action edit) {
+			try {
+				edit();
 			}
-			//each header's chain: the index of the full header it runs from
-			var bases = new int[headers.Count];
-			for (int i = 0; i < headers.Count; i++) {
-				bases[i] = headers[i].IsFull || i == 0 ? i : bases[i - 1];
+			catch (IniCheckException refused) {
+				throw new IniPatchException($"refused: the edit would also change {Say(refused.Differences[0])}; the file is left as it was");
 			}
-			int chained = -1, longest = 0, most = 0;
-			for (int i = 0; i < headers.Count; i++) {
-				string based = headers[bases[i]].Key;
-				if (!headers[bases[i]].IsFull || !key.StartsWith(based + ".", StringComparison.Ordinal) || based.Length < longest) {
-					continue;
-				}
-				int shared = Shared(key, headers[i].Key);
-				if (based.Length > longest || shared >= most) {
-					(chained, longest, most) = (i, based.Length, shared);
-				}
-			}
-			if (chained >= 0) {
-				return After(chained, BlockEnd(chained, chained), $"[{key[longest..]}]", pair, valued);
-			}
-			int nearest = headers.Count - 1;
-			most = 0;
-			for (int i = 0; i < headers.Count; i++) {
-				int shared = Shared(key, headers[i].Key);
-				if (shared > 0 && shared >= most) {
-					(nearest, most) = (i, shared);
-				}
-			}
-			//the chain runs from its full header to the next one; it ends at its last
-			//header or field line, so the comments above the next block stay with it
-			int last = nearest + 1;
-			while (last < headers.Count && !headers[last].IsFull) {
-				last++;
-			}
-			return After(last - 1, BlockEnd(bases[nearest], last - 1), $"[{key}]", pair, valued);
-		}
-
-		/// <summary>
-		///     A new block after the block of <paramref name="header"/>, whose last
-		///     line is <paramref name="end"/>, spaced as the writer spaces blocks in a
-		///     file spaced so: the writer writes a blank line after each block with a
-		///     value, so a blank line there is that block's own, and the new block goes
-		///     past it and has one of its own when it has a value. A block with a value
-		///     and no blank line after it is a file written without them, and the new
-		///     block gets none.
-		/// </summary>
-		private (int At, List<Line> Lines) After(int header, int end, string name, List<Line> pair, bool valued) {
-			bool blank = end + 1 < lines.Count && IsBlank(end + 1);
-			bool spaced = blank || !(reading.Words.WordKeys.TryGetValue(reading.Headers[header].Key, out var above) && above.DefaultValue != "");
-			int at = blank ? end + 2 : end + 1;
-			List<Line> added = [new(name, newLine), .. pair];
-			if (spaced && valued && (at == lines.Count || !IsBlank(at))) {
-				added.Add(new("", newLine));
-			}
-			return (at, added);
-		}
-
-		private bool IsBlank(int line) => lines[line].Text.Trim() == "";
-
-		//the last line of the blocks under headers first..last: the last header, or a field's last line
-		private int BlockEnd(int first, int last) {
-			int end = reading.Headers[last].Line;
-			foreach (var declaration in reading.Declarations) {
-				if (declaration.Header >= first && declaration.Header <= last) {
-					end = Math.Max(end, declaration.End);
-				}
-			}
-			return end;
-		}
-
-		/// <summary>
-		///     Where a new field of a key the file has goes: where the writer puts it,
-		///     when the key's fields stand in the writer's order (<see cref="Rank"/>),
-		///     ahead of the first that ranks after it and of the comment lines right
-		///     above that one; else, in a block written in no order, after the last of
-		///     its fields, or right under its header when it has none.
-		/// </summary>
-		private int NewFieldLine(string key, WordsField field) {
-			var own = reading.Declarations.Where(declaration => declaration.InBlock && declaration.Key == key).ToList();
-			if (own.Count == 0) {
-				return reading.Headers.Last(header => header.Key == key).Line + 1;
-			}
-			//a block of nothing but empty fields reads as a group, no key
-			List<string> languages = [], parameters = [];
-			if (reading.Words.WordKeys.TryGetValue(key, out var found)) {
-				languages = [.. found.Entries.Keys];
-				parameters = [.. found.Parameters.Select(parameter => parameter.Key)];
-			}
-			var ranks = own.Select(declaration => Rank(declaration.Field, languages, parameters)).ToList();
-			bool ordered = ranks.Zip(ranks.Skip(1)).All(pair => pair.First.CompareTo(pair.Second) <= 0);
-			var rank = Rank(field, languages, parameters);
-			int later = ordered ? ranks.FindIndex(other => other.CompareTo(rank) > 0) : -1;
-			if (later < 0) {
-				return own.Max(declaration => declaration.End) + 1;
-			}
-			int at = own[later].Start;
-			while (at > 0 && lines[at - 1].Text.TrimStart().StartsWith(';') && !reading.Declarations.Any(declaration => at - 1 >= declaration.Start && at - 1 <= declaration.End)) {
-				at--;
-			}
-			return at;
-		}
-
-		//CLDR's categories, in the order the writer writes a key's forms
-		private static readonly List<string> categories = [.. PluralRules.Names];
-
-		/// <summary>
-		///     A field's place as the writer writes a block (<see cref="IniWriter"/>):
-		///     the context, the comment, the value and its forms in CLDR's order, the
-		///     parameters in the key's order, the default's stale mark; then each
-		///     language in the order the key's entries came in, its value, its forms,
-		///     its stale mark, its context and its comment. A language or a parameter
-		///     the key does not have yet comes after the ones it has.
-		/// </summary>
-		private static (int Group, int Index, int Place) Rank(WordsField field, List<string> languages, List<string> parameters) {
-			int form = field.Form == "" ? 0 : 1 + categories.IndexOf(field.Form);
-			if (field.Type == "param") {
-				int index = parameters.IndexOf(field.Language);
-				return (3, index < 0 ? parameters.Count : index, 0);
-			}
-			if (field.Language == "") {
-				return field.Type switch {
-					"context" => (0, 0, 0),
-					"comment" => (1, 0, 0),
-					"value" => (2, 0, form),
-					_ => (4, 0, 0),
-				};
-			}
-			int language = languages.IndexOf(field.Language);
-			return (5, language < 0 ? languages.Count : language, field.Type switch {
-				"value" => form,
-				"stale" => 10,
-				"context" => 11,
-				_ => 12,
-			});
-		}
-
-		//the dotted segments two keys start with alike
-		private static int Shared(string a, string b) {
-			string[] left = a.Split('.'), right = b.Split('.');
-			int count = 0;
-			while (count < left.Length && count < right.Length && left[count] == right[count]) {
-				count++;
-			}
-			return count;
-		}
-
-		//a removal leaves no doubled blank line where its lines were, nor a blank
-		//one at the end of the file; a blank line inside a kept field is its text
-		private List<Line> Collapse(Edit edit) {
-			var (result, origins, gaps) = edit.ApplyTracked();
-			bool Blank(int index) => origins[index] >= 0 && result[index].Text.Trim() == ""
-				&& !reading.Declarations.Any(declaration => origins[index] >= declaration.Start && origins[index] <= declaration.End);
-			foreach (int gap in gaps.OrderDescending()) {
-				if (gap < result.Count && Blank(gap) && (gap == 0 || Blank(gap - 1))) {
-					result.RemoveAt(gap);
-					origins.RemoveAt(gap);
-				}
-				else if (gap == result.Count && gap > 0 && Blank(gap - 1)) {
-					result.RemoveAt(gap - 1);
-					origins.RemoveAt(gap - 1);
-				}
-			}
-			return result;
-		}
-
-		//reads the edit back and compares it with the change asked for; only a match is kept
-		private List<string> Commit(List<Line> edited, Action<Dictionary<string, WordsKey>> change) {
-			for (int i = 0; i < edited.Count; i++) {
-				bool last = i == edited.Count - 1;
-				string lineBreak = last && !endsWithBreak ? "" : edited[i].Break == "" ? newLine : edited[i].Break;
-				edited[i] = edited[i] with { Break = lineBreak };
-			}
-			var after = Read(edited);
-			var expected = reading.Words.WordKeys.ToDictionary(pair => pair.Key, pair => new WordsKey(pair.Value));
-			change(expected);
-			if (Difference(reading, after, expected) is { } difference) {
-				throw new IniPatchException($"refused: the edit would also change {difference}; the file is left as it was");
-			}
+			WordsReading after = WordsReading.Of(document.Text);
 			List<string> gripes = [.. after.Words.Errors];
 			foreach (string known in reading.Words.Errors) {
 				gripes.Remove(known);
 			}
-			(lines, reading) = (edited, after);
+			reading = after;
 			return gripes;
 		}
 
-		//the first way the read-back differs from what was asked, or null
-		private static string? Difference(Reading before, Reading after, Dictionary<string, WordsKey> expected) {
-			var wanted = Flatten(expected);
-			var got = Flatten(after.Words.WordKeys);
-			foreach (string key in wanted.Keys.Concat(got.Keys).Distinct()) {
-				if (!got.TryGetValue(key, out var gotFields)) {
-					return $"{key}, which would vanish";
-				}
-				if (!wanted.TryGetValue(key, out var wantedFields)) {
-					return $"{key}, which would appear";
-				}
-				foreach (string field in wantedFields.Keys.Concat(gotFields.Keys).Distinct()) {
-					string? want = wantedFields.GetValueOrDefault(field), have = gotFields.GetValueOrDefault(field);
-					if (want != have) {
-						return $"{key} {field}, which would read {(have is null ? "nothing" : $"'{have}'")}";
-					}
-				}
-			}
-			var (was, now) = (before.Words, after.Words);
-			if (!was.DeclaredLanguages.SequenceEqual(now.DeclaredLanguages)
-				|| was.DeclaredLanguages.Any(code => was.KnownLanguages[code].NativeName != now.KnownLanguages[code].NativeName
-					|| was.KnownLanguages[code].EnglishName != now.KnownLanguages[code].EnglishName)) {
-				return "the language table";
-			}
-			if (was.DefaultLanguage != now.DefaultLanguage || was.Settings != now.Settings
-				|| !was.LanguageSettings.OrderBy(pair => pair.Key).SequenceEqual(now.LanguageSettings.OrderBy(pair => pair.Key))) {
-				return "the file's settings";
-			}
-			if (!before.Comments.SequenceEqual(after.Comments)) {
-				return "a comment";
-			}
-			return null;
-		}
-
-		//key → field → text, for every key that is not a bare group
-		private static Dictionary<string, Dictionary<string, string>> Flatten(IReadOnlyDictionary<string, WordsKey> keys) {
-			Dictionary<string, Dictionary<string, string>> flat = [];
-			foreach (var (name, key) in keys) {
-				if (!key.IsEmpty()) {
-					flat[name] = WordsField.All(key).ToDictionary(pair => pair.Field.ToString(), pair => pair.Text);
-				}
-			}
-			return flat;
-		}
-
-		private static Reading Read(List<Line> lines) {
-			var reading = new Reading();
-			try {
-				new WordsParser(reading).Load(new StringReader(string.Concat(lines.Select(line => line.Text + "\n"))));
-			}
-			catch (Exception ex) when (ex is not OutOfMemoryException) {
-				throw new InvalidDataException($"does not parse: {ex.Message}", ex);
-			}
-			return reading;
-		}
-
-		//lines as a TextReader reads them, each with its own break: \r\n, \n or \r,
-		//and none on a last line that has none
-		private static List<Line> Split(string text) {
-			List<Line> lines = [];
-			int start = 0;
-			for (int i = 0; i < text.Length; i++) {
-				if (text[i] is '\r' or '\n') {
-					int width = text[i] == '\r' && i + 1 < text.Length && text[i + 1] == '\n' ? 2 : 1;
-					lines.Add(new(text[start..i], text.Substring(i, width)));
-					i += width - 1;
-					start = i + 1;
-				}
-			}
-			if (start < text.Length) {
-				lines.Add(new(text[start..], ""));
-			}
-			return lines;
-		}
-
-		private readonly record struct Line(string Text, string Break);
-
-		/// <summary>A <c>[header]</c> line: the key it opens, and whether it is a full one or <c>[.child]</c>.</summary>
-		private readonly record struct Header(int Line, string Key, bool IsFull);
-
-		/// <summary>A field's lines, its declaration and its continuations; <see cref="Header"/> is the one it sits under, -1 in the language section.</summary>
-		private readonly record struct Declaration(string Key, int Header, WordsField Field, int Start, int End) {
-			public bool InBlock => Header >= 0;
-		}
-
-		//the ini reader's model, with where each header and field sits
-		private sealed class Reading : IWordsParserConsumer {
-			public WordsParserToLocalizationProvider Words { get; } = new();
-			public List<Header> Headers { get; } = [];
-			public List<Declaration> Declarations { get; } = [];
-			public List<string> Comments { get; } = [];
-			public List<string> Order { get; } = [];
-			private readonly HashSet<string> seen = [];
-			private int line;
-
-			public void VisitLine(int number) => line = number - 1;
-
-			public void VisitBlock(string baseKey, string key) {
-				string name = key.StartsWith('.') ? baseKey + key : key;
-				Headers.Add(new(line, name, !key.StartsWith('.')));
-				if (seen.Add(name)) {
-					Order.Add(name);
-				}
-				((IWordsParserConsumer)Words).VisitBlock(baseKey, key);
-			}
-
-			public void VisitFieldDeclaration(FieldKey key, string text) {
-				int mark = key.FieldType.IndexOf('#');
-				var field = mark < 0 ? new WordsField(key.FieldType, key.LanguageCode, "") : new WordsField(key.FieldType[..mark], key.LanguageCode, key.FieldType[(mark + 1)..]);
-				Declarations.Add(new(key.BlockKey, Headers.Count - 1, field, line, line));
-				Words.VisitFieldDeclaration(key, text);
-			}
-
-			public void VisitFieldContinuation(FieldKey key, string value) {
-				Declarations[^1] = Declarations[^1] with { End = line };
-				Words.VisitFieldContinuation(key, value);
-			}
-
-			public void VisitComment(string text) {
-				Comments.Add(text);
-				Words.VisitComment(text);
-			}
-		}
-
-		//changes to a file's lines, by their place in it, applied in one pass
-		private sealed class Edit(IReadOnlyList<Line> lines) {
-			private readonly Dictionary<int, List<Line>> inserts = [];
-			private readonly HashSet<int> deleted = [];
-
-			public void Insert(int at, IEnumerable<Line> added) {
-				if (!inserts.TryGetValue(at, out var list)) {
-					inserts[at] = list = [];
-				}
-				list.AddRange(added);
-			}
-
-			public void Delete(int start, int end) {
-				for (int i = start; i <= end; i++) {
-					deleted.Add(i);
-				}
-			}
-
-			public void Replace(int start, int end, IEnumerable<Line> added) {
-				Delete(start, end);
-				Insert(start, added);
-			}
-
-			public List<Line> Apply() => ApplyTracked().Lines;
-
-			//the lines, where each came from (-1 for a new one), and where a run of deleted ones was
-			public (List<Line> Lines, List<int> Origins, List<int> Gaps) ApplyTracked() {
-				List<Line> result = [];
-				List<int> origins = [], gaps = [];
-				bool skipping = false;
-				for (int i = 0; i <= lines.Count; i++) {
-					if (inserts.TryGetValue(i, out var added)) {
-						result.AddRange(added);
-						origins.AddRange(added.Select(_ => -1));
-						skipping = false;
-					}
-					if (i == lines.Count) {
-						break;
-					}
-					if (deleted.Contains(i)) {
-						if (!skipping) {
-							gaps.Add(result.Count);
-						}
-						skipping = true;
-					}
-					else {
-						result.Add(lines[i]);
-						origins.Add(i);
-						skipping = false;
-					}
-				}
-				return (result, origins, gaps);
-			}
-		}
+		//what an edit would have changed besides itself, as the refusal says it
+		private static string Say(IniDifference difference) => difference switch {
+			{ Key: { } phrase } when phrase.Contains(' ') => phrase,
+			{ Key: { } key } => $"{difference.Section} {key}, which would read {(difference.Actual is { } read ? $"'{read}'" : "nothing")}",
+			{ Actual: null } => $"{difference.Section}, which would vanish",
+			_ => $"{difference.Section}, which would appear",
+		};
 	}
 
 	/// <summary>An <see cref="IniPatcher"/> change refused: reading it back showed more than the change asked for.</summary>

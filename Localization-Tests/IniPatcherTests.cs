@@ -110,13 +110,14 @@ public class IniPatcherTests {
 	}
 
 	[Fact]
-	public void Set_ANewKey_ExtendingNoChain_GoesAfterItsNearestSiblingsChain_AsAFullHeader() {
+	public void Set_ANewKey_ThatMakesItsGroupWorthAHeader_CutsIt_AsTheWriterWould() {
 		var patcher = Patch(Ini("[app.title]", "value=Words", "", ";about", "[about]", "value=About", ""));
 
 		patcher.Set("app.version", F("value"), "1.0");
 
-		//[app.title] is no group to extend, and the cut at [app] a writer now makes would re-base it
-		Assert.Equal(Ini("[app.title]", "value=Words", "", "[app.version]", "value=1.0", "", ";about", "[about]", "value=About", ""), patcher.Text);
+		//two keys under [app] pay for its bare header: [app.title] chains off it, and no other line changes
+		Assert.Equal(Ini("[app]", "[.title]", "value=Words", "", "[.version]", "value=1.0", "", ";about", "[about]", "value=About", ""), patcher.Text);
+		Assert.Equal("Words", patcher.Find("app.title")!.DefaultValue);
 	}
 
 	[Fact]
@@ -253,9 +254,9 @@ public class IniPatcherTests {
 
 		Assert.True(patcher.Declares("a", F("context")));
 		patcher.Remove("a", F("context"));
-		patcher.Remove("b", F("comment")); //a block of nothing but the empty field, read as a group
+		patcher.Remove("b", F("comment")); //a block of nothing but the empty field, read as a group, goes with it
 
-		Assert.Equal(Ini("[a]", "value=A", "", "[b]"), patcher.Text);
+		Assert.Equal(Ini("[a]", "value=A"), patcher.Text);
 		Assert.False(patcher.Declares("a", F("context")));
 	}
 
@@ -381,16 +382,40 @@ public class IniPatcherTests {
 		string path = Path.Combine(Path.GetTempPath(), $"patch-{Guid.NewGuid():N}.ini");
 		try {
 			File.WriteAllText(path, Menu);
-			var patcher = IniPatcher.Open(path);
+			using var patcher = IniPatcher.Open(path);
 			patcher.Set("about", F("value-fr"), "À propos");
 
 			patcher.Save(path);
 
 			Assert.Equal(patcher.ToBytes(), File.ReadAllBytes(path));
-			Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(path)!, $".{Path.GetFileName(path)}.*")); //no temporary left
+			Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(path)!, $".{Path.GetFileName(path)}.*")); //no log left
+			Assert.Null(patcher.Recovery);
 		}
 		finally {
 			File.Delete(path);
+		}
+	}
+
+	[Fact]
+	public void Save_RefusesAFileChangedSinceItWasRead_AndWritesAnotherWhole() {
+		string path = Path.Combine(Path.GetTempPath(), $"patch-{Guid.NewGuid():N}.ini");
+		string other = Path.ChangeExtension(path, ".copy.ini");
+		try {
+			File.WriteAllText(path, Menu);
+			using var patcher = IniPatcher.Open(path);
+			patcher.Set("about", F("value-fr"), "À propos");
+			File.AppendAllText(path, "; another hand\n");
+
+			var refused = Assert.Throws<PatTech.Text.Ini.IniCommitException>(() => patcher.Save(path));
+
+			Assert.Equal(PatTech.Text.Ini.IniCommitFailure.Changed, refused.Failure);
+			Assert.Equal(Menu + "; another hand\n", File.ReadAllText(path));
+			patcher.Save(other);
+			Assert.Equal(patcher.ToBytes(), File.ReadAllBytes(other));
+		}
+		finally {
+			File.Delete(path);
+			File.Delete(other);
 		}
 	}
 

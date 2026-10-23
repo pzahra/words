@@ -1,4 +1,5 @@
 using PatTech.Localization.Authoring;
+using PatTech.Text.Ini;
 using System.Globalization;
 using System.Reflection;
 using System.Text;
@@ -119,7 +120,7 @@ namespace PatTech.Localization.Cli {
 		}
 
 		private static int Get(Call call, TextWriter output, TextWriter error) {
-			var patcher = Open(call.File);
+			using var patcher = Open(call.File, error);
 			string key = call.Positionals[1];
 			if (patcher.Find(key) is not { } found) {
 				error.WriteLine($"words: {call.File} has no key {key}");
@@ -139,7 +140,7 @@ namespace PatTech.Localization.Cli {
 		}
 
 		private static int Set(Call call, TextReader input, TextWriter error) {
-			var patcher = Open(call.File);
+			using var patcher = Open(call.File, error);
 			string key = call.Positionals[1];
 			var field = Field(call.Positionals[2]);
 			string text = call.Positionals[3];
@@ -212,7 +213,7 @@ namespace PatTech.Localization.Cli {
 		}
 
 		private static int Remove(Call call, TextWriter error) {
-			var patcher = Open(call.File);
+			using var patcher = Open(call.File, error);
 			string key = call.Positionals[1];
 			IReadOnlyList<string> gripes;
 			if (call.Positionals.Count == 2) {
@@ -237,7 +238,8 @@ namespace PatTech.Localization.Cli {
 		}
 
 		private static int List(Call call, TextWriter output, TextWriter error) {
-			foreach (var key in Selected(Open(call.File), call, error, out _)) {
+			using var patcher = Open(call.File, error);
+			foreach (var key in Selected(patcher, call, error, out _)) {
 				output.WriteLine(key.BlockKey);
 			}
 			return Done;
@@ -280,7 +282,7 @@ namespace PatTech.Localization.Cli {
 			if (call.Missing is null && call.StaleIn is null) {
 				throw new UsageException("request wants --missing <code>, --stale <code> or both");
 			}
-			var patcher = Open(call.File);
+			using var patcher = Open(call.File, error);
 			var keys = Selected(patcher, call, error, out string? code)
 				.Where(key => TranslationRequest.HasWords(key) && TranslationRequest.Asked(key, code!).Count != 0);
 			var selected = (call.Limit is { } limit ? keys.Take(limit) : keys).ToList();
@@ -296,7 +298,7 @@ namespace PatTech.Localization.Cli {
 		//a filled request's translations, each key's checked and written with its stale
 		//mark, in one patch saved once; what is skipped is named, and all is counted
 		private static int Apply(Call call, TextReader input, TextWriter error) {
-			var patcher = Open(call.File);
+			using var patcher = Open(call.File, error);
 			string document = call.Positionals[1] == "-" ? Stdin(input) : Read(call.Positionals[1]);
 			var answer = TranslationAnswer.Read(document);
 			string code = LanguageCode.TryParse(answer.Target, out var parsed) ? parsed.ToString()
@@ -343,21 +345,48 @@ namespace PatTech.Localization.Cli {
 			return skipped != 0 ? NotThere : Done;
 		}
 
-		//a file's failures name the file, which the system's messages may not
-		private static IniPatcher Open(string path) {
+		//a file's failures name the file, which the system's messages may not; a write a call
+		//before left pending is finished first, and said
+		private static IniPatcher Open(string path, TextWriter error) {
 			if (!File.Exists(path)) {
 				throw new FileNotFoundException($"{path}: no such file", path);
 			}
+			IniPatcher patcher;
 			try {
-				return IniPatcher.Open(path);
+				patcher = IniPatcher.Open(path);
 			}
 			catch (InvalidDataException ex) {
 				throw new InvalidDataException($"{path}: {ex.Message}", ex);
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-				throw new IOException($"{path}: can't be read: {ex.Message}", ex);
+				throw new IOException($"{path}: can't be read: {Say(ex)}", ex);
 			}
+			if (Recovered(patcher.Recovery) is { } note) {
+				error.WriteLine($"words: {path}: {note}");
+			}
+			return patcher;
 		}
+
+		//what settling a write a call before left pending did, when it changed the file or dropped a write
+		private static string? Recovered(IniRecovery? recovery) => recovery switch {
+			{ Kind: IniRecoveryKind.Replayed } => "a write a call before left pending was finished first",
+			{ Kind: IniRecoveryKind.Kept, Kept: { } kept } => $"a write a call before left pending was finished first, over a change made since; the file as it was is kept in {kept}",
+			{ Kind: IniRecoveryKind.Kept } => "a write a call before left pending was finished first, the file made again",
+			{ Kind: IniRecoveryKind.Unwhole } => "a write a call before broke off before it was logged, and was dropped",
+			_ => null,
+		};
+
+		//why a file was refused, in the command's words: the ini driver's are a type and its data
+		private static string Say(Exception failure) => failure switch {
+			IniCommitException { Failure: IniCommitFailure.Changed } => "it changed since it was read; run the call again",
+			IniCommitException { Failure: IniCommitFailure.Held } => "another program holds it",
+			IniCommitException { Failure: IniCommitFailure.Denied } => "it is read-only, or not yours to write",
+			IniCommitException { Failure: IniCommitFailure.Running } => "another write to it is running",
+			IniCommitException { Failure: IniCommitFailure.Unsettled, Log: var log } => $"a write a call before left pending in {log} will not finish, and is kept for the next call",
+			IniCommitException { Failure: IniCommitFailure.LogWrite } refused => $"its log would not write: {refused.InnerException?.Message}",
+			IniEncodingException { Failure: IniEncodingFailure.Unencodable, Encoding: var encoding } => $"its {encoding} has no bytes for a character the edit writes",
+			_ => failure.Message,
+		};
 
 		//a text file the call reads, by its BOM or as UTF-8, its failures naming it
 		private static string Read(string path) {
@@ -372,12 +401,16 @@ namespace PatTech.Localization.Cli {
 			}
 		}
 
+		//committed through the file's log: refused, the file is as it was; pending, the next call finishes it
 		private static void Save(IniPatcher patcher, string path) {
 			try {
 				patcher.Save(path);
 			}
+			catch (IniPendingException ex) {
+				throw new IOException($"{path}: the write stands in its log, {ex.Log}, but the file's own failed; the next call that opens it finishes it", ex);
+			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-				throw new IOException($"{path}: can't be written: {ex.Message}", ex);
+				throw new IOException($"{path}: can't be written: {Say(ex)}", ex);
 			}
 		}
 

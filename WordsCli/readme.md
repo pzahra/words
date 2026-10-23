@@ -122,15 +122,19 @@ that `{0}`, gets named on stderr so somebody looks.
 - A new field goes where Wordsmith would write it (context, comment, value,
   then each language), or last, if its block was never in that order anyway.
 - A new key joins the chain it belongs to as a `[.child]`, next to its nearest
-  sibling; with no chain to join it gets a full header after its sibling's
-  chain. Either way it never re-bases somebody's `[.child]` headers, and it
-  takes its blank lines from the blocks around it.
+  sibling; with no chain to join it goes after its sibling's chain. A key that
+  gives a group its second key gets the group a bare header to chain off,
+  just as Wordsmith would cut it: those headers are the only other lines that
+  move. It takes its blank lines from the blocks around it.
 - A removed key whose header bases `[.child]` headers keeps that header, bare.
+  A block left with no fields goes.
 
 Every edit is read back before the file is touched. If anything changed
 besides what you asked for, `words` refuses, says what would have moved, and
-leaves the file alone. It writes to a temporary file and moves it over the
-original, so a crash halfway leaves the original whole.
+leaves the file alone. The write goes into a hidden log beside the file first
+(`.words.ini.tmp`), then into the file itself, so a crash halfway gets
+finished the next time `words` opens it. And if somebody changed the file
+since `words` read it, `words` refuses rather than write over them.
 
 ## Getting it
 
@@ -152,5 +156,5 @@ the translation document (`TranslationRequest`, `TranslationAnswer`), and
 [Localization-Tests](../Localization-Tests) covers them and the calls:
 
 ```
-dotnet test Localization-Tests --filter "FullyQualifiedName~IniPatcherTests|FullyQualifiedName~WordsCommandTests|FullyQualifiedName~TranslationDocumentTests"
+dotnet test Localization-Tests --filter "FullyQualifiedName~IniPatcherTests|FullyQualifiedName~WordsCommandTests|FullyQualifiedName~TranslationDocumentTests|FullyQualifiedName~WordsCorpusTests"
 ```

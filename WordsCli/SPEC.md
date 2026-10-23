@@ -23,10 +23,9 @@ argument, or `-` for stdin with its last line break (`\r\n`, `\n` or `\r`)
 dropped, so a multi-line value needs no shell quoting. A redirected stdin is
 UTF-8 exactly: bytes that are no UTF-8 are a bad call, never replacement
 characters, and a leading U+FEFF is the value's own, so `get` piped into `set`
-carries it whole; since a tool writing a BOM puts one there too, a line on
-stderr says it was kept. A `param-` text is written as given, since its words
-before the first `:` are a type only where they name one (the editor spec's
-*Parameters*), so a text that names none reads back whole:
+carries it whole, and a line on
+stderr says it was kept. A `param-` text is written as given, one that
+names no type reading back whole (the editor spec's *Parameters*):
 
 - `get <file> <key> [field]` prints a field's value, unescaped, or the whole
   block as Save writes it, under a full header, when no field is named.
@@ -94,112 +93,94 @@ A key is the file's own, by the name the file writes, and a key's
 name (the runtime spec's *Key names*): `set` writes no other, exit 2, though
 `get` and `remove` reach a block the file already names otherwise, so it can
 be read and cleared. `remove` refuses a constant whose header bases
-`[.child]` headers, which no constant can: its bare header would still be the
-constant, and without one the children re-base. Values go
+`[.child]` headers. Values go
 to stdout and gripes to stderr: the reader's gripes the edit adds (a field in
 an undeclared language, a form the language never reads), and a note when a
 field declared twice is made one, or a translation drops or adds a parameter.
 The exit code is 0 for done, 1 when the key or field is not there, `request`
 finds nothing to ask or `apply` skips a key, 2 for a bad call, a file that is
-missing, can't be read or written, does not parse or is no text the patcher
+missing, can't be read or written (changed since the call read it, held,
+read-only, or its write left pending), does not parse or is no text the patcher
 reads, an answer that is no translation document, or a refused edit, one
-that would change more than asked or write a brace that opens nothing; a file's failure names the file, which the system's own message may not,
-and a missing one is no misuse, so the calls are not shown. Redirected streams
+that would change more than asked or write a brace that opens nothing; a file's failure
+names the file, and a missing one does not show the calls. Redirected streams
 speak UTF-8 with `\n`; a console keeps its own.
 
 ## Surgical edits
 
-`IniPatcher` reads the file's bytes by the BOMs
-Wordsmith's Load reads (the editor spec's *Saving*): UTF-8 with or without one,
-UTF-16 or UTF-32 with one, UTF-32 LE's checked first since it starts with
-UTF-16 LE's. Text holding a NUL is refused: UTF-16 without its BOM reads as
-UTF-8 with a NUL in every other byte, and would otherwise be written into. A
-value holding one is refused too, as it would leave the file unreadable. The
-text is parsed, noting where each header and field sits. The one field's lines (its declaration and its continuations) are
-replaced with what `IniWriter` writes for that one pair: escaping and folding
-as Save would, in the file's own line ending; every other line keeps its own
-break, and a file that ended without one still does. A field already holding
-the text is not touched. A field declared more than once keeps its first
+`IniPatcher` edits the file through the ini driver's words dialect (the
+editor spec's *Ini files through the driver*), one transaction a call.
+
+**Reading.** By the BOMs Wordsmith's Load reads: UTF-8 with or without one,
+UTF-16 or UTF-32 with one, UTF-32 LE's checked first. Text holding a NUL, as
+UTF-16 without its BOM reads, is refused, and so is a value holding one.
+
+**A field set** has its lines, its declaration and continuations, replaced
+with what `IniWriter` writes for that one pair, folded and escaped, in the
+file's own line ending; every other line keeps its break. A field already
+holding the text is not touched; one declared more than once keeps its first
 place and loses the others.
 
-A new field goes where the writer puts it, when its block's fields stand in
-the writer's order: the context, the comment, the value and its forms in
-CLDR's order, the parameters, the default's stale mark, then each language in
-the order the key's entries came in, with its value, its forms, its stale
-mark, its context and its comment; a language or a parameter the key does not
-have yet comes after the ones it has. It goes ahead of the first field that
-ranks after it, and of the comment lines right above that one. In a block
-written in no order, where there is no such place, it goes after the last
-field, and under its header when there is none.
+**A new field** goes where the writer puts it when its block stands in the
+writer's order: the context, the comment, the value and its forms in CLDR's
+order, the parameters, the default's stale mark, then each language in the
+order of the key's entries, with its value, forms, stale mark, context and
+comment; a language or a parameter new to the key comes after those it has.
+It goes ahead of the first field ranking after it and of the comment lines
+right above that one. In a block in no order it goes after the last field,
+or under the header when there is none.
 
-A new key that extends a chain's full header goes into that chain as a
-`[.child]`, as the writer chains it: after the block of the header in it
-sharing the most leading segments, the last of them. A `[.child]` header
-extends the chain's full header and not the one above it, so the headers
-after it keep their base. A key that extends none goes in as a full header
-after the end of the chain holding its nearest sibling (the key sharing the
-most leading segments, the last of them): after the chain's last header or
-field line, so the comments above the next block stay with it, since a full
-header between a base and its `[.child]` headers would re-base them. With no
-sibling it goes after the last chain. The writer cuts at a group once it
-holds two keys (`GroupCuts`), but cutting at the group a new key makes two of
-would rewrite headers already written, and no line but the new key's
-changes. A new key is spaced as the blocks around it are: the writer writes
-a blank line after each block with a value, so a blank line after the block
-it follows is that block's own, and the new key goes past it and gets one of
-its own when it has a value. A block with a value and no blank line after it
-is a file written without them, and the new key gets none. So a file Save
-wrote still reads as Save writes it, and Wordsmith's own words keep their
-byte-for-byte round trip. A value added to a key that had none, or removed
-from one, leaves the blank lines as they were.
+**A new key** goes into the chain whose full header it extends, as a
+`[.child]` after the header there sharing the most leading segments; else
+after the chain holding its nearest sibling; else after the last chain. It
+is then cut as the writer cuts (`GroupCuts`): a group it gives two keys
+gains a bare header, its keys re-headed to chain off it; a deeper group
+takes its keys from the chain they ran in; a bare header left basing nothing
+goes. Those headers are the only other lines that change. It is spaced as
+the writer spaces: past a blank line after the block it follows, with one of
+its own when it has a value, and none in a file written without them. A
+value added to or removed from a key already there leaves the blank lines as
+they were.
 
-A removed key whose header bases `[.child]` headers keeps that header bare,
-which reloads as a group (the tradeoff the writer already makes); a removal
-leaves no doubled blank line, and the comments above a removed block stand
-where they are, as in the tree. After the edit the result is parsed again and compared with the
-model before it, the asked-for change applied: every key's fields, the
-language table, the settings references and the comments in order. Anything
-else refuses the write, naming what would have changed. The file is written
-to a temporary sibling and moved over the original only once that passes; a
-link is followed to its file, and a Unix file keeps its mode. On Windows a
-move refused while something holds the file for a moment, as an editor or a
-virus scanner reading it does, is tried again a few times over half a second
-before the call fails. As with Save, what lands is a new file: a Windows
-hidden attribute does not carry over, and a hard link to the old one keeps the
-old text.
+**A removal** keeps bare a header that bases `[.child]` headers, which
+reloads as a group; a block it leaves with no field goes; it leaves no blank
+line that parts nothing; the comments above a removed block stand.
+
+**Checked.** Each edit is read back through Core and compared with the file
+before it, the change applied: every key's fields, the language table, the
+settings references and the comments in order. Anything else refuses the
+edit, naming what would have changed.
+
+**Written.** A call's edits, `apply`'s batch with them, commit once through
+the driver: to a hidden log beside the file, `.words.ini.tmp`, then to the
+file in place, which keeps its attributes, hard links and Unix mode; a link
+is followed. A file changed since the call read it, held by another program,
+read-only, or under another write is refused, exit 2, saying which. A commit
+whose log is whole but whose file write failed exits 2, saying the next call
+finishes it. A call whose open settles a log a call before left says so when
+that wrote the file or dropped a write.
 
 ## Where it lives
 
-The patcher and `WordsField` — a field's name, parsed,
-read and written on the model — are in Authoring, tested headless. The parser
-reports where it is through `IWordsParserConsumer.VisitLine`, a member with a
-default body, so existing consumers do not change. The command line itself,
-`WordsCli`, is a thin console project over it on plain `net10.0`, with
-invariant globalization: it runs wherever .NET does, references Authoring and
-Core and never the editor, and Authoring stays free of anything Windows-only.
+The patcher, the words dialect and `WordsField` (a field's name, parsed,
+read and written on the model) are in Authoring, tested headless, over the
+driver, `PatTech.Text.Ini`. `WordsCli` is a thin console project on plain
+`net10.0` with invariant globalization, referencing Authoring and Core and
+never the editor.
 
 ## How it ships
 
-With the editor, at its version (`WordsmithVersion`): each
-`editor/` release carries Wordsmith for Windows and the command line for
-Windows, Linux and macOS (x64, and Arm64 for macOS), each a self-contained,
-compressed single file, so nothing needs .NET installed. They are built and
-packed on a Linux runner: Windows's as a zip, the others as `.tar.gz`, which
-keeps the executable bit a zip made on Windows would lose. The SDK signs the
-macOS builds ad hoc, which Apple Silicon requires to run them at all; they
-are not notarized, so macOS quarantines a download until it is cleared
-(`xattr -d com.apple.quarantine`), and the release notes say so. They are
-trimmed, from about 37 MB to 11, and the trimmer warns about nothing. Named
-format arguments read off an object are reflection only the named path
-(`FormatByName`) reaches, which the command line never calls; an enum's
-description is read off its fields, which a trimmer keeps with any enum it
-keeps, so the describer every format reaches through `ICustomFormatter` says
-so where it reads them; and the markdown `apply` reads to check an answer
-reads its entity and emoji tables with `JsonDocument`, which needs none.
-Every platform's build is the same code as the Windows one, which runs
-every call trimmed as it does untrimmed. Trimming is the
-command line's own setting: passed on the command line it would reach Core's
-build too, whose trim analyzer flags those patterns whether reached or not.
+With the editor, at its version (`WordsmithVersion`): each `editor/` release
+carries Wordsmith for Windows and the command line for Windows, Linux and
+macOS (x64, and Arm64 for macOS), each a self-contained, compressed and
+trimmed single file of about 11 MB, so nothing needs .NET installed. They
+are built on a Linux runner and packed as a zip for Windows and `.tar.gz`
+for the others, which keeps the executable bit. The macOS builds are signed
+ad hoc and not notarized, so a download is cleared with `xattr -d
+com.apple.quarantine`, as the release notes say. The trimmer warns about
+nothing, and every call runs trimmed as it does untrimmed. Trimming is the
+command line's own project setting: passed on the command line it would
+reach Core's build too.
 
 ## The agent skill
 
@@ -213,55 +194,65 @@ continuation and escaping rules, only when it is not.
 
 ## Tests
 
-Headless: a changed field replaces its lines and nothing else; a
-new field lands where the writer puts it in a block in its order, ahead of the
-comment above the field after it, in a block of empty fields too, after the
-last in a block in none, and a group's under its header with the chain
-intact; a new key extending a chain
-lands in it as a `[.child]` after its nearest sibling, the `[.child]` headers
-after it keeping their base, one extending none after its sibling's chain as
-a full header, a lone one after the last block and before the trailer, and
-one in a file with no blocks at its end; a new key gets a blank line of its
-own only with a value, and none in a file written without them; the pair is
-written as the writer writes it, continued
-and folded, and reads back; a BOM, CRLF and a missing final break survive,
-each line of a mixed file keeps its own break, UTF-16 stays UTF-16 and UTF-32
-UTF-32, either way round; text that is not UTF-8 does not open, nor UTF-16
-without its BOM, and no value writes a NUL; the text a field already holds
-leaves its hand-written lines; a field declared twice keeps its first place; a
-parameter of no type is written as given; only the gripes an edit
-adds are reported; an edit that would spill into a continued last line is
-refused and changes nothing; a removal drops a field with its continuations,
-an empty one included, a block with one blank line, the last block with none
-left behind, a reopened key everywhere, and keeps bare a header that bases
-children; the parser numbers its visits. The command, in process: each call's
-output and exit code, a dash read from stdin, a lone `\r` its last break, a
-leading U+FEFF kept and said, bytes that are no UTF-8 refused, all through the
-reader the program puts on a pipe; `--stale` with words, without and before
-the value, a changed default staling its translations with words and keeping
-a mark there, a multi-line default set to its own text with `\r\n`, a lone
-`\r` or through stdin staling none, a translation that drops or adds a parameter written with a
-note and none for one that keeps them or refers out of the file, a value with
-a brace that opens nothing refused and the file left, its braces named, while
-an escaped brace, a context and a constant are written, gripes
-passed on, a refused edit leaving the file, BOM-less UTF-16
-left alone, a missing or read-only file named without the calls, an empty
-field removed though `get` calls it none, a `[.child]` header before any base
-listed, read and removed but never written, and `list` with a prefix and
-`--missing` by the badges' rule; `list --stale`, alone and beside
-`--missing`; `--stale-without` passing over marks by their start, as written,
-given twice, beside `--missing` narrowing `--stale` alone, refused alone or
-empty, and a loop of `request` and `apply` over it ending with nothing to
-ask; `request` for what `list` lists, under a prefix and up to a
-limit, with a brief, and exit 1 with nothing to ask; `apply` writing filled
-slots, fenced as a model answers, each key marked stale in the writer's
-order, with `--stale`'s words from a file, the request sent back untouched
-writing nothing, a changed link target written with the key's hand raised and
-the change named (exit 0), a hand already up keeping its text, a key with a broken token or a default changed since
-skipped and named (exit 1), and no document, an undeclared language or a
-refused edit leaving the file (exit 2). The document's own, headless, are
-the editor spec's *Machine translation*. The editor's: new keys and fields
-set in Wordsmith's own words read back through the editor byte for byte.
+Headless:
+- Fields: a changed field replaces only its lines, and the text it already
+  holds leaves them as written; a field declared twice keeps its first
+  place; a new field in the writer's order, ahead of the comment above the
+  next, in a block of empty fields too, last in a block in none, and a
+  group's under its header; the pair folded and continued as the writer
+  writes it, reading back; a parameter of no type written as given.
+- Keys: a new key joining its chain after its nearest sibling, the headers
+  after it keeping their base; a group's second key cutting it, a deeper
+  group's too, the writer saving the result to the same bytes; a lone key
+  after the last block and before the trailer, and at the end of a file with
+  no blocks; a blank line of its own only with a value, and none in a file
+  without them.
+- Removals: a field with its continuations, an empty one included; a block
+  with its blank line, the last with none left behind; a block it empties; a
+  reopened key everywhere; a header that bases children kept bare.
+- Bytes: a BOM, CRLF and a missing last break kept, each line of a mixed
+  file its own break, UTF-16 and UTF-32 kept either way round; text not
+  UTF-8, UTF-16 without its BOM and a NUL refused.
+- The check and the save: only the gripes an edit adds reported; an edit
+  spilling into a continued last line refused, nothing changed; a file
+  changed since it was read refused, and another path written whole; Core,
+  the words dialect and the writer reading a shared corpus alike; the parser
+  numbering its visits.
+
+The command, in process:
+- Each call's output and exit code; stdin through the reader a pipe gets: a
+  dash, a lone `\r` its last break, a leading U+FEFF kept and said, bytes
+  that are no UTF-8 refused.
+- `set`: `--stale` with words, without and before the value; a changed
+  default staling the translations with words, keeping a mark there; a
+  default set to its own text, with `\r\n`, a lone `\r` or through stdin,
+  staling none; a translation that drops or adds a parameter written with a
+  note, and none for one that keeps them or refers out of the file; a brace
+  that opens nothing refused, the file left and the braces named, while
+  `{{`, a context and a constant are written.
+- Files: gripes passed on; a refused edit leaving the file; BOM-less UTF-16
+  left alone; a missing or read-only file named without the calls, the
+  read-only one with why; a log a call before broke off dropped first and
+  said.
+- `remove` of an empty field `get` calls none; a `[.child]` header before
+  any base listed, read and removed but never written.
+- `list` under a prefix, `--missing` by the badges' rule, `--stale` alone and
+  beside `--missing`; `--stale-without` by a mark's start, given twice,
+  narrowing `--stale` alone, refused alone or empty, and a loop of `request`
+  and `apply` over it ending with nothing to ask.
+- `request` for what `list` lists, under a prefix, up to a limit and with a
+  brief; exit 1 with nothing to ask.
+- `apply`: filled slots written, fenced as a model answers, each key marked
+  stale in the writer's order, `--stale`'s words from a file; the request
+  sent back untouched writing nothing; a changed link target written with
+  the key's hand raised and named (exit 0), a hand already up keeping its
+  text; a broken token or a default changed since skipped and named (exit
+  1); no document, an undeclared language or a refused edit leaving the
+  file (exit 2).
+
+The translation document's own tests are the editor spec's *Machine
+translation*. The editor's: keys and fields set in Wordsmith's own words
+read back through the editor byte for byte.
 
 # Planned upgrades
 
@@ -279,17 +270,3 @@ gains the blank line after it, in a file spaced so, and one that loses it,
 by `remove` or an empty `set`, loses the line. Until then, a new key's value
 goes first; the keys the editor's *New* added to Wordsmith's own words went
 so.
-
-## A new group's keys chain
-
-`set` adding keys under a parent no key has yet writes each as a full header
-(`[sheet.title]`, `[sheet.blurb]`), as *Surgical edits* says it must: cutting
-at the group the second key makes would rewrite the first key's header. The
-editor cuts there (`GroupCuts`) and writes `[sheet]` and a `[.title]` chain,
-so Wordsmith's own words stop reading back byte for byte until a Save
-rewrites them. The fix: the second key under a new parent rewrites the
-first's full header as the bare group and its `[.child]`, the one edit that
-changes a line not its own, checked like any other by reading the result
-back. Until then, a new group of Wordsmith's words goes in through `set`,
-then once through the editor's Save, which changes only those headers; the
-spreadsheet dialog's `sheet.*` went so.
