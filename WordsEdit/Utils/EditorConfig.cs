@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO;
+using PatTech.Text.Ini;
 
 namespace WordsEdit.Utils;
 
@@ -10,8 +11,9 @@ namespace WordsEdit.Utils;
 ///     <c>[window]</c> for the window, <c>[seen]</c> for each bubble closed,
 ///     <c>[toolbars]</c> for each toolbar changed, each a
 ///     group of <c>key=value</c> lines, their names matched without case. Read on
-///     demand, written as soon as a value is set, missing file allowed; a file
-///     that won't read or write costs the settings, never the editor.
+///     demand and written as soon as a value is set, each a transaction of the ini
+///     driver's (SPEC: Save as a patch), missing file allowed; a file that won't
+///     read or write costs the settings, never the editor.
 /// </summary>
 public static class EditorConfig {
 	/// <summary>Where the settings live; tests point it elsewhere.</summary>
@@ -22,6 +24,9 @@ public static class EditorConfig {
 	private const string WindowSection = "window";
 	private const string SeenSection = "seen";
 	private const string ToolbarsSection = "toolbars";
+
+	//names without case, `=`, `;` comments, UTF-8 with no byte-order mark when it makes one
+	private static readonly IniDialect Dialect = IniDialect.Sections(new IniRules());
 
 	/// <summary>The language Wordsmith speaks, or null when the OS decides.</summary>
 	public static string? Language {
@@ -57,7 +62,7 @@ public static class EditorConfig {
 	public static void Remember(string topic, int revision) => Write(SeenSection, (topic, revision.ToString(CultureInfo.InvariantCulture)));
 
 	/// <summary>Forgets every help bubble closed: the <c>[seen]</c> section goes.</summary>
-	public static void ForgetSeen() => Remove(SeenSection);
+	public static void ForgetSeen() => Commit(file => file.RemoveSection(SeenSection));
 
 	/// <summary>The line <c>[toolbars]</c> gives <paramref name="toolbar"/>, its entries by name; null when it has none, the toolbar as it ships, and empty for a toolbar emptied.</summary>
 	public static string? Toolbar(string toolbar) => Read(ToolbarsSection).GetValueOrDefault(toolbar);
@@ -69,120 +74,44 @@ public static class EditorConfig {
 		=> double.TryParse(values.GetValueOrDefault(key), NumberStyles.Float, CultureInfo.InvariantCulture, out double number) && number > 0 ? number : null;
 
 	//a section's values, the last line naming a key winning. Lines above the first
-	//section are in none, so a config from before the sections reads as empty; a
-	//file that won't read is no settings at all
+	//section are in none of these, so a config from before the sections reads as
+	//empty; a file the driver won't read is no settings at all
 	private static Dictionary<string, string> Read(string section) {
 		var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-		string[] lines = Lines();
-		if (Find(lines, section) is { } found) {
-			for (int i = found.Start + 1; i < found.End; i++) {
-				if (KeyOf(lines[i]) is { } key) {
-					values[key] = lines[i][(lines[i].IndexOf('=') + 1)..].Trim();
-				}
+		try {
+			using IniTransaction file = IniTransaction.Open(Path, Dialect);
+			foreach (string key in file.Document.Keys(section)) {
+				values[key] = file.Get(section, key)!;
 			}
+		}
+		catch (Exception ex) when (ex is IniException or IOException or UnauthorizedAccessException) {
 		}
 		return values;
 	}
 
-	//each change replaces its key's line in its section where it stands, or joins the
-	//section's last value; a null one goes, and an empty one stays, empty (a toolbar
-	//emptied: SPEC: The toolbar editor). A section the file lacks is appended
-	//after a blank line. Comments, lines that name no key and other sections stay as
-	//they were. A config that won't write (read-only, locked) keeps what it had: the
-	//setting is lost, never the close it was saved on
-	private static void Write(string section, params (string Key, string? Value)[] changes) {
-		try {
-			List<string> lines = [.. Lines()];
-			if (Find(lines, section) is null) {
-				if (changes.All(change => change.Value is null)) {
-					return; //nothing to clear, and no section to make for it
-				}
-				if (lines.Count > 0 && lines[^1].Trim() != "") {
-					lines.Add("");
-				}
-				lines.Add($"[{section}]");
-			}
+	//each change sets its key in its section where it stands, or after the section's last
+	//value; a null one goes, and an empty one stays, empty (a toolbar emptied: SPEC: The
+	//toolbar editor)
+	private static void Write(string section, params (string Key, string? Value)[] changes)
+		=> Commit(file => {
 			foreach ((string key, string? value) in changes) {
-				var (start, end) = Find(lines, section)!.Value;
-				int at = -1;
-				for (int i = end - 1; i > start; i--) {
-					if (string.Equals(KeyOf(lines[i]), key, StringComparison.OrdinalIgnoreCase)) {
-						lines.RemoveAt(i);
-						at = i;
-					}
-				}
-				if (value is not null) {
-					lines.Insert(at < 0 ? LastValue(lines, section) + 1 : at, $"{key}={value.Trim()}");
-				}
+				file.Set(section, key, value?.Trim());
 			}
-			Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path) ?? "");
-			File.WriteAllLines(Path, lines);
-		}
-		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-		}
-	}
+		});
 
-	//a section gone whole, its header to the next; one that ended the file takes the blank
-	//lines before it too
-	private static void Remove(string section) {
+	//one setting, one transaction. A config that won't write (read-only, held, a commit
+	//refused or left pending) keeps what it had: the setting is lost, never the close it
+	//was saved on
+	private static void Commit(Action<IniTransaction> edit) {
 		try {
-			List<string> lines = [.. Lines()];
-			if (Find(lines, section) is not { } found) {
-				return;
+			using IniTransaction file = IniTransaction.Open(Path, Dialect);
+			edit(file);
+			if (file.Document.IsNew && file.Document.IsEdited) {
+				Directory.CreateDirectory(System.IO.Path.GetDirectoryName(file.Path) ?? "");
 			}
-			lines.RemoveRange(found.Start, found.End - found.Start);
-			if (found.Start == lines.Count) {
-				while (lines.Count > 0 && lines[^1].Trim() == "") {
-					lines.RemoveAt(lines.Count - 1);
-				}
-			}
-			File.WriteAllLines(Path, lines);
+			file.Commit();
 		}
-		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+		catch (Exception ex) when (ex is IniException or IOException or UnauthorizedAccessException) {
 		}
-	}
-
-	//the section's header line, and the line its section ends before: the next header's, or the end
-	private static (int Start, int End)? Find(IReadOnlyList<string> lines, string section) {
-		for (int start = 0; start < lines.Count; start++) {
-			if (string.Equals(SectionOf(lines[start]), section, StringComparison.OrdinalIgnoreCase)) {
-				int end = start + 1;
-				while (end < lines.Count && SectionOf(lines[end]) is null) {
-					end++;
-				}
-				return (start, end);
-			}
-		}
-		return null;
-	}
-
-	//the line a new key goes after: the section's last that isn't blank, so the blank
-	//line before the next section stays where it is
-	private static int LastValue(IReadOnlyList<string> lines, string section) {
-		var (start, end) = Find(lines, section)!.Value;
-		int last = end - 1;
-		while (last > start && lines[last].Trim() == "") {
-			last--;
-		}
-		return last;
-	}
-
-	private static string[] Lines() {
-		try {
-			return File.Exists(Path) ? File.ReadAllLines(Path) : [];
-		}
-		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-			return [];
-		}
-	}
-
-	private static string? SectionOf(string line) {
-		string trimmed = line.Trim();
-		return trimmed.Length > 1 && trimmed[0] == '[' && trimmed[^1] == ']' ? trimmed[1..^1].Trim() : null;
-	}
-
-	private static string? KeyOf(string line) {
-		int equals = line.IndexOf('=');
-		return equals > 0 && !line.TrimStart().StartsWith(';') && SectionOf(line) is null ? line[..equals].Trim() : null;
 	}
 }

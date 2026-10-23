@@ -2361,7 +2361,7 @@ Words uses it.
 | `words set`, `remove`, `apply` | a `words.ini`, field by field | `IniPatcher`: surgical, checked by reading back, a temporary sibling, a link followed, a Unix mode kept, a held file tried again |
 | The Project Settings dialog | a settings file's two tables | `ProjectSettings.Save`: a plain `StreamWriter`, not atomic, comments lost |
 | Spreadsheet Import and Export | a sheet's section of `schema.ini` | `SchemaIni.Write`: one section replaced, line breaks kept; Export snapshots the whole file first and puts it back by hand when the sheet fails |
-| Wordsmith's config | `config.ini`'s sections | `EditorConfig`: `File.WriteAllLines`, not atomic |
+| Wordsmith's config | `config.ini`'s sections | on the driver since step 1, each setting a transaction |
 
 Export's files, the native ini among them, are conversions out of
 Wordsmith, and keep `IniWriter.WriteAtomic`; a `words.ini` Wordsmith makes

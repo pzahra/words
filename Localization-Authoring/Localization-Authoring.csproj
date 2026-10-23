@@ -20,6 +20,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Localization-Core\Localization-Core.csproj" />
+    <!-- the ini driver every ini the project writes goes through (Text-Ini/SPEC.md) -->
+    <ProjectReference Include="..\Text-Ini\Text-Ini.csproj" />
   </ItemGroup>
 
 </Project>

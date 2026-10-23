@@ -4,6 +4,9 @@ using static PatTech.Localization.WordsPiece;
 
 namespace PatTech.Localization.Tests;
 
+//the piece, not the PatTech.Text namespace the ini driver brings in, which a using static loses to
+using Text = WordsPiece.Text;
+
 /// <summary>
 ///     A value read into its pieces, once, in the order it was written (runtime SPEC:
 ///     One pass for every brace).

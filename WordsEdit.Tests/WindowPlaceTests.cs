@@ -32,8 +32,9 @@ public class WindowPlaceTests {
 			Assert.Null(EditorConfig.Window);
 			Assert.Equal("it", EditorConfig.Language);
 
+			//a section the edits emptied goes
 			EditorConfig.Window = null;
-			Assert.Equal(["[editor]", "language=it", "[window]"], File.ReadAllLines(EditorConfig.Path));
+			Assert.Equal(["[editor]", "language=it"], File.ReadAllLines(EditorConfig.Path));
 		}
 		finally {
 			if (File.Exists(EditorConfig.Path)) {
@@ -51,9 +52,9 @@ public class WindowPlaceTests {
 			Directory.CreateDirectory(Path.GetDirectoryName(EditorConfig.Path)!);
 			File.WriteAllLines(EditorConfig.Path, ["; Wordsmith's own", "[Editor]", "Language=it", "not a setting", "", "[mine]", "width=1", "", "[WINDOW]", "width=900"]);
 
-			EditorConfig.Language = "fr"; //sections and keys matched without case
+			EditorConfig.Language = "fr"; //sections and keys matched without case, and kept as the file spells them
 			EditorConfig.Window = null;
-			Assert.Equal(["; Wordsmith's own", "[Editor]", "language=fr", "not a setting", "", "[mine]", "width=1", "", "[WINDOW]"], File.ReadAllLines(EditorConfig.Path));
+			Assert.Equal(["; Wordsmith's own", "[Editor]", "Language=fr", "not a setting", "", "[mine]", "width=1"], File.ReadAllLines(EditorConfig.Path));
 
 			File.SetAttributes(EditorConfig.Path, FileAttributes.ReadOnly);
 			EditorConfig.Language = "de"; //the close this runs on still closes
