@@ -18,11 +18,21 @@ public class IniDialect {
 	/// <summary>The sections dialect: <c>[section]</c> headers and <c>key=value</c> lines, read by <paramref name="rules"/>.</summary>
 	public static IniDialect Sections(IniRules rules) => new(rules);
 
+	/// <summary>
+	///     The dotted dialect: the sections dialect's lines, its section names in dotted segments,
+	///     a <c>[.child]</c> header chaining off the last full one, its chains cut by
+	///     <paramref name="cuts"/>, <see cref="GroupCuts"/> when none is given.
+	/// </summary>
+	public static IniDottedDialect Dotted(IniRules rules, ICutStrategy? cuts = null) => new(rules, cuts);
+
 	/// <summary>Its rules.</summary>
 	public IniRules Rules { get; }
 
-	/// <summary>How names compare among its sections and keys.</summary>
+	/// <summary>How names compare among its sections, and among a section's keys unless <see cref="KeyNames"/> says otherwise.</summary>
 	public StringComparer Names => Rules.Names;
+
+	/// <summary>How keys compare among a section's.</summary>
+	public StringComparer KeyNames => Rules.KeyNames ?? Rules.Names;
 
 	/// <summary>Whether <paramref name="line"/> is a comment line: a marker first, after any spaces.</summary>
 	public virtual bool IsComment(string line) {
@@ -31,23 +41,68 @@ public class IniDialect {
 		return trimmed.Length > 0 && IsCommentMarker(trimmed[0]);
 	}
 
+	/// <summary>
+	///     Whether <paramref name="key"/>, as a line writes it before its separator, is a key: any
+	///     is, unless a dialect that names its keys more narrowly says not. A line whose key is
+	///     none is no field.
+	/// </summary>
+	protected virtual bool IsKey(string key) => true;
+
+	/// <summary>
+	///     The section a header names, from the name it writes and the base the headers above
+	///     it left, and whether it chains off that base; the base it leaves for those below.
+	///     The sections dialect names each as written; the dotted one chains.
+	/// </summary>
+	internal virtual (string Name, bool Chained) Resolve(string written, ref string chainBase) => (written, false);
+
+	/// <summary>
+	///     Where a key new to <paramref name="section"/> goes: after its first occurrence's last
+	///     field, else under its header; the head with neither starts the file, a blank line after it.
+	/// </summary>
+	protected internal virtual IniPlacement PlaceKey(IniDocument document, string section, string key) {
+		ArgumentNullException.ThrowIfNull(document);
+		return document.KeyPlace(section);
+	}
+
+	/// <summary>Where <paramref name="section"/>, new to the document, goes with its <paramref name="pairs"/>: at the end after a blank line, the head at the head.</summary>
+	protected internal virtual IniPlacement PlaceSection(IniDocument document, string section, IReadOnlyList<KeyValuePair<string, string>> pairs) {
+		ArgumentNullException.ThrowIfNull(document);
+		return document.SectionPlace(section);
+	}
+
+	/// <summary>
+	///     A field's lines as the dialect writes it, key and all, each without its break, for a
+	///     new field and for one set anew; null to write it in the form it was written in while
+	///     that holds the value, else in the first form that does (SPEC.md, <i>Values and comments</i>).
+	/// </summary>
+	protected internal virtual IReadOnlyList<string>? WriteField(string key, string value) => null;
+
+	/// <summary>What the check finds beyond every section's pairs, for a dialect that compares more: nothing, here.</summary>
+	protected internal virtual IEnumerable<IniDifference> CheckMore(IniChange change) => [];
+
 	//every line of the document in exactly one element, in order
 	internal List<IniElement> Parse(IReadOnlyList<IniLine> lines) {
 		var elements = new List<IniElement>();
 		string section = "";
+		string chainBase = "";
 		//under a [] the dialect does not take, nothing is an element until the next header
 		bool readingPast = false;
 		int at = 0;
 		while (at < lines.Count) {
 			string text = lines[at].Text;
-			if (ReadHeader(lines, at) is { } header) {
-				readingPast = header.Name == "" && !Rules.EmptyHeader;
+			if (ReadBrackets(text) is { } brackets) {
+				string written = brackets.Written.Trim();
+				readingPast = written == "" && !Rules.EmptyHeader;
+				if (written == "") {
+					chainBase = "";
+				}
 				if (readingPast) {
-					elements.Add(new IniOther(at, 1, section, text));
+					elements.Add(new IniOther(at, 1, section, text, isEmptyHeader: true));
 				}
 				else {
-					section = header.Name;
-					elements.Add(header);
+					(string name, bool chained) = written == "" ? ("", false) : Resolve(written, ref chainBase);
+					section = name;
+					elements.Add(new IniHeader(at, name, chained, brackets.Written, brackets.Indent, brackets.Suffix, brackets.Comment, text));
 				}
 				at++;
 			}
@@ -83,29 +138,33 @@ public class IniDialect {
 		return elements;
 	}
 
-	//[name], any spaces either side, and a comment after it where the rules take one
-	private IniHeader? ReadHeader(IReadOnlyList<IniLine> lines, int at) {
-		string text = lines[at].Text;
+	//[name], any spaces either side where the rules let a header stand indented, and after it a
+	//comment where the rules take one, or anything where they read past it
+	private (string Written, string Indent, string Suffix, string? Comment)? ReadBrackets(string text) {
 		int open = 0;
 		while (open < text.Length && IsSpace(text[open])) {
 			open++;
 		}
-		if (open == text.Length || text[open] != '[') {
+		if (open == text.Length || text[open] != '[' || (open > 0 && !Rules.Indents)) {
 			return null;
 		}
 		int close = text.IndexOf(']', open + 1);
-		if (close < 0 || !TryReadSuffix(text[(close + 1)..], out string? comment)) {
+		if (close < 0) {
 			return null;
 		}
-		string written = text[(open + 1)..close];
-		return new IniHeader(at, written.Trim(), written, text[..open], text[(close + 1)..], comment, text);
+		string? comment = null;
+		if (!Rules.HeaderTails && !TryReadSuffix(text[(close + 1)..], out comment)) {
+			return null;
+		}
+		return (text[(open + 1)..close], text[..open], text[(close + 1)..], comment);
 	}
 
 	//key, separator, value: the value plain, run on, or quoted
 	private IniField? ReadField(IReadOnlyList<IniLine> lines, int at, string section) {
 		string text = lines[at].Text;
 		int separator = SeparatorIn(text);
-		if (separator <= 0 || text[..separator].Trim() is not { Length: > 0 } key || text.TrimStart()[0] == '[') {
+		if (separator <= 0 || text[..separator].Trim() is not { Length: > 0 } key || text.TrimStart()[0] == '['
+			|| (!Rules.Indents && IsSpace(text[0])) || !IsKey(key)) {
 			return null;
 		}
 		int start = separator + 1;
@@ -137,8 +196,8 @@ public class IniDialect {
 				part = lines[line].Text;
 				continue;
 			}
-			//spaces after the value are its line's, not the value's
-			string trimmed = body.TrimEnd(' ', '\t');
+			//spaces after the value are its line's, not the value's, unless the rules say they are
+			string trimmed = Rules.TrailingSpaces ? body : body.TrimEnd(' ', '\t');
 			value.Append(Unescape(trimmed));
 			int count = line - at + 1;
 			return new IniField(at, count, section, key, value.ToString(), form, prefix, body[trimmed.Length..] + suffix, comment, Snapshot(lines, at, count));
@@ -331,7 +390,7 @@ public class IniDialect {
 		if (line.Contains('\n') || line.Contains('\r')) {
 			return false;
 		}
-		if ((first && line.Length > 0 && (IsSpace(line[0]) || IsQuote(line[0]))) || (last && line.Length > 0 && IsSpace(line[^1]))) {
+		if ((first && line.Length > 0 && (IsSpace(line[0]) || IsQuote(line[0]))) || (last && line.Length > 0 && IsSpace(line[^1]) && !Rules.TrailingSpaces)) {
 			return false;
 		}
 		if (Rules.CommentsAfterEntries) {
@@ -349,10 +408,14 @@ public class IniDialect {
 		=> key.Length > 0 && key == key.Trim() && !key.Contains('\n') && !key.Contains('\r')
 			&& ReadField([new IniLine(key + Separator + "x", "")], 0, "") is { } field && field.Key == key && !IsComment(key);
 
-	//a section's name written in a header so it reads back as itself
-	internal bool CanHead(string name)
-		=> name == name.Trim() && !name.Contains(']') && !name.Contains('\n') && !name.Contains('\r')
-			&& ReadHeader([new IniLine($"[{name}]", "")], 0) is { } header && header.Name == name;
+	//a section's name written in a full header so it reads back as itself
+	internal bool CanHead(string name) {
+		if (name != name.Trim() || name.Contains(']') || name.Contains('\n') || name.Contains('\r') || ReadBrackets($"[{name}]") is not { } brackets || brackets.Written != name) {
+			return false;
+		}
+		string chainBase = "";
+		return Resolve(name, ref chainBase) == (name, false);
+	}
 
 	/// <summary>The separator a new field takes: the rules' first.</summary>
 	public char Separator => Rules.Separators.HasFlag(IniSeparators.EqualsSign) ? '=' : ':';
@@ -372,7 +435,7 @@ public class IniDialect {
 	///     (SPEC.md, <i>Checked before it lands</i>): every section's pairs. A dialect that compares
 	///     more extends it.
 	/// </summary>
-	internal virtual List<IniDifference> Check(IniContent expected, IniContent actual) => expected.Against(actual);
+	internal virtual List<IniDifference> Check(IniContent expected, IniContent actual, IniContent before) => expected.Against(actual);
 
 	private bool IsCommentMarker(char c)
 		=> (c == ';' && Rules.Comments.HasFlag(IniCommentMarkers.Semicolon)) || (c == '#' && Rules.Comments.HasFlag(IniCommentMarkers.Hash));

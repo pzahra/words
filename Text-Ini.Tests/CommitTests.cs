@@ -5,7 +5,7 @@ using Xunit;
 namespace PatTech.Text.Ini.Tests;
 
 /// <summary>
-///     The commit (SPEC: The commit, Outcomes, What lands): written ahead and then in place, the
+///     The commit (SPEC: The commit, Outcomes): written ahead and then in place, the
 ///     log gone; a file changed after it was read, held, or denied is refused at Prepare with no
 ///     log left; a second commit waits for the first's log; a read waits out a commit's write; a
 ///     log that will not write is refused and a file that will not write is pending; a log that

@@ -94,6 +94,14 @@ public enum IniValueForm {
 public sealed record IniRules {
 	/// <summary>How section names and keys compare: without case, or exactly.</summary>
 	public StringComparer Names { get; init; } = StringComparer.OrdinalIgnoreCase;
+	/// <summary>How keys compare, where they compare otherwise than section names; null for as <see cref="Names"/>.</summary>
+	public StringComparer? KeyNames { get; init; }
+	/// <summary>Whether a header or a field may stand indented; without, an indented one is a line the dialect does not recognise.</summary>
+	public bool Indents { get; init; } = true;
+	/// <summary>Whether anything may follow a header's closing bracket, read past; without, only spaces, and a comment where one may follow an entry.</summary>
+	public bool HeaderTails { get; init; }
+	/// <summary>Whether the spaces ending a value's last line are the value's own; without, they are its line's.</summary>
+	public bool TrailingSpaces { get; init; }
 	/// <summary>What parts a key from its value; a new field takes the first.</summary>
 	public IniSeparators Separators { get; init; } = IniSeparators.EqualsSign;
 	/// <summary>What starts a comment line.</summary>

@@ -111,9 +111,9 @@ public class ValueTests {
 		IniDocument document = Ini.Read("[s]\n; about x\nx=1\ny=2\n\n; about t\n[t]\nz=3\n\n[u]\nw=4\n");
 		document.Remove("s", "x");
 		Assert.Equal("[s]\n; about x\ny=2\n\n; about t\n[t]\nz=3\n\n[u]\nw=4\n", document.Text);
-		//which section a comment is about is its client's to say
+		//which section a comment is about is its client's to say; the blank line under t still parts it from u
 		document.MoveSection("t", "u");
-		Assert.Equal("[s]\n; about x\ny=2\n\n; about t\n[u]\nw=4\n\n[t]\nz=3\n", document.Text);
+		Assert.Equal("[s]\n; about x\ny=2\n\n; about t\n\n[u]\nw=4\n\n[t]\nz=3\n", document.Text);
 	}
 
 	[Fact]

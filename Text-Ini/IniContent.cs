@@ -8,16 +8,18 @@ namespace PatTech.Text.Ini;
 /// </summary>
 internal sealed class IniContent {
 	private readonly StringComparer names;
+	private readonly StringComparer keys;
 	private readonly List<Section> order = [];
 	private readonly Dictionary<string, Section> sections;
 
-	internal IniContent(StringComparer names) {
+	internal IniContent(StringComparer names, StringComparer keys) {
 		this.names = names;
+		this.keys = keys;
 		sections = new(names);
 	}
 
-	internal static IniContent Of(IEnumerable<IniElement> elements, StringComparer names) {
-		var content = new IniContent(names);
+	internal static IniContent Of(IEnumerable<IniElement> elements, StringComparer names, StringComparer keys) {
+		var content = new IniContent(names, keys);
 		foreach (IniElement element in elements) {
 			switch (element) {
 				case IniHeader header:
@@ -32,7 +34,7 @@ internal sealed class IniContent {
 	}
 
 	internal IniContent Clone() {
-		var clone = new IniContent(names);
+		var clone = new IniContent(names, keys);
 		foreach (Section section in order) {
 			Section copy = clone.Ensure(section.Name);
 			foreach (string key in section.Keys) {
@@ -89,7 +91,7 @@ internal sealed class IniContent {
 				differences.Add(new(section.Name, null, section.Name, null));
 				continue;
 			}
-			foreach (string key in section.Keys.Union(other.Keys, names)) {
+			foreach (string key in section.Keys.Union(other.Keys, keys)) {
 				string? expected = section.Values.GetValueOrDefault(key);
 				string? read = other.Values.GetValueOrDefault(key);
 				if (expected != read) {
@@ -105,17 +107,17 @@ internal sealed class IniContent {
 
 	private Section Ensure(string name) {
 		if (!sections.TryGetValue(name, out Section? section)) {
-			section = new Section(name, names);
+			section = new Section(name, keys);
 			sections[name] = section;
 			order.Add(section);
 		}
 		return section;
 	}
 
-	private sealed class Section(string name, StringComparer names) {
+	private sealed class Section(string name, StringComparer keys) {
 		public string Name { get; set; } = name;
 		public List<string> Keys { get; } = [];
-		public Dictionary<string, string> Values { get; } = new(names);
+		public Dictionary<string, string> Values { get; } = new(keys);
 
 		public void Set(string key, string value) {
 			if (!Values.ContainsKey(key)) {
@@ -128,7 +130,7 @@ internal sealed class IniContent {
 			if (!Values.Remove(key)) {
 				return false;
 			}
-			Keys.RemoveAt(Keys.FindIndex(known => names.Equals(known, key)));
+			Keys.RemoveAt(Keys.FindIndex(known => keys.Equals(known, key)));
 			return true;
 		}
 

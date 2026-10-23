@@ -7,7 +7,8 @@ namespace PatTech.Text.Ini.Tests;
 ///     break; a line added takes the file's first break, and one after an unbroken last line gives
 ///     it the break and goes without; the section <c>""</c> at the head and under <c>[]</c>; a line
 ///     no element stays where it stands; a refused edit leaves the document as it was; names with
-///     and without case; a section named twice; trimming.
+///     and without case, keys by a rule of their own; indents, a header's tail and the spaces
+///     ending a value, each rule on and off; a section named twice; trimming.
 /// </summary>
 public class DocumentTests {
 	[Fact]
@@ -154,6 +155,57 @@ public class DocumentTests {
 		Assert.Equal(["S", "s"], exact.Sections);
 		Assert.Equal("1", exact.Get("S", "X"));
 		Assert.Null(exact.Get("S", "x"));
+	}
+
+	[Fact]
+	public void Keys_CompareByTheirOwnRule_ApartFromSectionNames() {
+		IniDocument document = Ini.Read("[S]\nX=1\n[s]\nx=2\n", new IniRules { Names = StringComparer.Ordinal, KeyNames = StringComparer.OrdinalIgnoreCase });
+		Assert.Equal(["S", "s"], document.Sections);
+		Assert.Equal("1", document.Get("S", "x"));
+		document.Set("s", "X", "3");
+		Assert.Equal("3", document.Get("s", "x"));
+		Assert.Equal(["x"], document.Keys("s"));
+	}
+
+	[Fact]
+	public void AnIndentedLine_IsAnElement_OnlyWhereTheRulesTakeIndents() {
+		const string Text = "[s]\n  x=1\n  [t]\ny=2\n";
+		IniDocument indented = Ini.Read(Text);
+		Assert.Equal(["s", "t"], indented.Sections);
+		Assert.Equal("1", indented.Get("s", "x"));
+
+		IniDocument flush = Ini.Read(Text, new IniRules { Indents = false });
+		Assert.Equal(["s"], flush.Sections);
+		Assert.Null(flush.Get("s", "x"));
+		Assert.Equal("2", flush.Get("s", "y"));
+		flush.Set("s", "y", "3");
+		Assert.Equal("[s]\n  x=1\n  [t]\ny=3\n", flush.Text);
+	}
+
+	[Fact]
+	public void AHeadersTail_IsReadPast_OnlyWhereTheRulesTakeIt() {
+		const string Text = "x=0\n[s] the tail\nx=1\n";
+		IniDocument tails = Ini.Read(Text, new IniRules { HeaderTails = true });
+		Assert.Equal(["", "s"], tails.Sections);
+		Assert.Equal("1", tails.Get("s", "x"));
+
+		//without, it is no header, and its fields are the head's
+		IniDocument none = Ini.Read(Text);
+		Assert.Equal([""], none.Sections);
+		Assert.Equal("1", none.Get("", "x"));
+	}
+
+	[Fact]
+	public void TheSpacesEndingAValue_AreItsOwn_OnlyWhereTheRulesSay() {
+		const string Text = "[s]\nx=a  \n";
+		IniDocument trimmed = Ini.Read(Text);
+		Assert.Equal("a", trimmed.Get("s", "x"));
+		Assert.Equal(IniEditFailure.Unwritable, Assert.Throws<IniEditException>(() => trimmed.Set("s", "y", "b ")).Failure);
+
+		IniDocument kept = Ini.Read(Text, new IniRules { TrailingSpaces = true });
+		Assert.Equal("a  ", kept.Get("s", "x"));
+		kept.Set("s", "y", "b ");
+		Assert.Equal("[s]\nx=a  \ny=b \n", kept.Text);
 	}
 
 	[Fact]

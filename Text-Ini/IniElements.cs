@@ -45,16 +45,19 @@ public sealed class IniComment : IniElement {
 
 /// <summary>A section's header.</summary>
 public sealed class IniHeader : IniElement {
-	internal IniHeader(int line, string name, string written, string indent, string suffix, string? comment, string snapshot)
+	internal IniHeader(int line, string name, bool isChained, string written, string indent, string suffix, string? comment, string snapshot)
 		: base(line, 1, name, snapshot) {
+		IsChained = isChained;
 		Written = written;
 		Indent = indent;
 		Suffix = suffix;
 		Comment = comment;
 	}
 
-	/// <summary>The section it names.</summary>
+	/// <summary>The section it names: in the dotted dialect, a <c>[.child]</c> resolved off the last full header.</summary>
 	public string Name => Section;
+	/// <summary>Whether it is a <c>[.child]</c> chained off the last full header, in the dotted dialect.</summary>
+	public bool IsChained { get; }
 	/// <summary>The comment after it on its line, from its marker; null when none.</summary>
 	public string? Comment { get; }
 	//the name between the brackets as written, and what stands either side of them
@@ -90,6 +93,10 @@ public sealed class IniField : IniElement {
 
 /// <summary>Lines the dialect does not recognise: no element, kept where they stand.</summary>
 internal sealed class IniOther : IniElement {
-	internal IniOther(int line, int count, string section, string snapshot) : base(line, count, section, snapshot) {
+	internal IniOther(int line, int count, string section, string snapshot, bool isEmptyHeader = false) : base(line, count, section, snapshot) {
+		IsEmptyHeader = isEmptyHeader;
 	}
+
+	//a [] the dialect takes no section from, which still ends a chain
+	internal bool IsEmptyHeader { get; }
 }
