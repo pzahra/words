@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net8.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>PatTech.Text.Ini</RootNamespace>
+    <AssemblyName>PatTech.Text.Ini</AssemblyName>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <!-- a package of its own one day, with a version line of its own (SPEC.md); not packed yet -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Text-Ini.Tests" />
+  </ItemGroup>
+
+</Project>

@@ -5,12 +5,16 @@ elements asked for, holds the edits until they are committed, checks the
 result, and writes it once, written ahead to a hidden log beside it so a
 failure or a crash partway is finished on the next open. A library of its own,
 with a version line of its own, so it can ship as its own package; it knows
-nothing of Words.
+nothing of Words. It targets what Core does (`net10.0`, `net8.0`). It is not
+packaged yet; when it is, it follows the others: a version in
+`Versions.props` and a tag of its own (`ini/`) that its release runs on.
 
 Words is its first user: Authoring references it for every ini the project
 writes, and Core, a read-only engine, does not (the editor spec's *Save as a
-patch*, [../WordsEdit/SPEC.md](../WordsEdit/SPEC.md)). Nothing here is built
-yet.
+patch*, [../WordsEdit/SPEC.md](../WordsEdit/SPEC.md)). Built so far: the
+first step of its order, the document, the sections dialect, values and
+comments, lists, the transaction, the commit and recovery; the dotted
+dialect and its cuts are next.
 
 ## A transaction
 
@@ -32,9 +36,27 @@ and replaces only the lines that hold it; every other line stays, byte for
 byte, but one: a line added after a last line that had no break gives that
 line one, and the new last line goes without, so a file that ended without
 a break still does. A line added takes the break of the file's first line
-that has one, or the platform's in a file with none. The edits are held in
-memory: a key set three times is written once, and a transaction disposed
-without `Commit` leaves the file as it was, as it never touched it.
+that has one; in a file with none, the dialect's where its rules name one,
+or else the system's. The edits are held in memory: a key set three times is
+written once, and a transaction disposed without `Commit` leaves the file as
+it was, as it never touched it.
+
+**Elements.** The dialect cuts the lines into elements: a block of comment
+lines, a run of blank lines, a section header, a comment sharing a line with
+another element, a field, and a field's value, every line of it where it
+runs on. A line the dialect does not recognise is no element: an edit never
+touches it, and it stays where it stands, byte for byte, while the elements
+around it change.
+
+**The section `""`.** Fields above the first header are in the section named
+`""`, so a section's name is never null, and a `[]` header, where a dialect
+takes it, opens that section again further down, as any section named twice
+is one. Its first occurrence has no header and stays at the head of the
+file: a new section `""` starts there, above the first header, and a key set
+in it lands there. Renamed, the head gains a header of the new name; moved,
+its fields are gathered under a `[]` at the new place. A dialect that takes
+no `[]` leaves such a header and the lines under it to the next as lines it
+does not recognise.
 
 A document can also be replaced whole, with text and an encoding the caller
 gives, for a file written in a form of the caller's own rather than patched:
@@ -42,7 +64,9 @@ the commit, the check of the file on disk and the log are the same. A file
 absent when opened is a new file, and has nothing to patch: it is replaced
 whole, or built from edits on nothing.
 
-The file is decoded strictly. One with a byte its encoding does not read is
+The file is decoded strictly. A byte-order mark names its encoding; without
+one, it reads as UTF-8, the best most dialects can take, unless its
+dialect's rules name another. One with a byte its encoding does not read is
 no text to patch: it is refused for edits, and can still be replaced whole,
 the check of the file on disk going by its bytes.
 
@@ -53,19 +77,30 @@ the others, so an occurrence left with nothing goes, as any section the
 edits emptied does; a section removed or renamed goes, or is renamed, in
 every occurrence; one moved is gathered whole at its new place.
 
+**Where an edit lands.** A key added goes after its section's last field,
+or under its header when it has none; the head with none starts the file,
+a blank line parting it from what follows. A section moved goes after the
+other's last field, after a blank line. A section going, removed, moved or
+emptied, takes its header, its fields and the blank runs that part nothing
+left standing, and one that ended the file the blank run above its header
+too; its comment blocks and the lines no element stand. An element read
+before an edit, a comment block to edit or move, is refused once it no
+longer stands where it stood.
+
 **Its dialect** is the file's grammar and its rules, how names compare
 among them: without case, or exactly. The library carries two, and a user
 extends either:
 - `IniDialect.Sections(rules)`: `[section]` headers and `key=value` lines:
   set or clear a key, replace a section whole in
   an order the rules give, add a section at the end after a blank line,
-  remove one. The rules say which encodings the file may be in and whether
+  remove one, move one after another, rename one, and add, edit, move or
+  remove a comment block. The rules say which encodings the file may be in and whether
   it carries a byte-order mark: one may be ANSI or UTF-8 with none, refusing
   UTF-16 and UTF-32; another keeps the encoding it was read in.
 - The dotted dialect: section names in dotted segments, a `[.child]` header
   chaining off the last full one (`[group.a]` then `[.b]` is `group.a.b`),
-  and a cut strategy that decides how the chains are cut (*Cutting*). It
-  adds moving a section after another, and renaming one.
+  and a cut strategy that decides how the chains are cut (*Cutting*), which
+  moving and renaming a section go through.
 
 **Values and comments.** How a value runs past its line, and what a
 comment is, are the dialect's too, each a rule it picks, so one library
@@ -225,8 +260,8 @@ a backup.
   its hash after and deletes it.
 - **Refused**: nothing written, the file as it was, the log gone. A typed
   exception names why: the file changed on disk, held by someone else,
-  another commit running, a log that will not settle, a check, an encoding,
-  the log's own write. Everything about the file refuses at `Prepare`;
+  denied (read-only, or not the user's to write), another commit running, a
+  log that will not settle, a check, an encoding, the log's own write. Everything about the file refuses at `Prepare`;
   after it, only the log's write can.
 - **Pending**: the log is whole, so the commit stands, but the file's write
   failed, or broke off and failed again when tried once more. A typed
@@ -242,7 +277,8 @@ commit cut off through one name is finished by an open through that name.
 **Failures are data.** The library has no words of its own to say a thing
 in: a refusal or a pending commit is a typed exception carrying the file,
 what changed on disk or what the check found, and where any log or kept
-bytes sit, and its caller says it in its own.
+bytes sit, and its caller says it in its own. Each is an `IOException`, so
+a caller that catches what a file throws catches it too.
 
 ## Where it comes from
 
@@ -262,7 +298,14 @@ place.
 - The documents: every line outside an edit kept byte for byte, each with
   its break and the file's encoding; a line added after an unbroken last
   line gives it the break and goes without one; a line added takes the
-  file's first break; a key set many times written once; a transaction
+  file's first break, and in a file with none the dialect's, else the
+  system's; a file with no byte-order mark read as UTF-8, or as its rules
+  say; fields above the first header in the section `""`, a `[]` further
+  down opening it again where the dialect takes it and left alone where it
+  does not, a new `""` starting at the head, and the head renamed and moved;
+  a line no element stays where it stands, byte for
+  byte, while the elements around it are edited, moved and removed; a key
+  set many times written once; a transaction
   disposed uncommitted leaves the file untouched; a refused edit leaves the
   document as it was; a document replaced whole, over a file and over none;
   the sections dialect's encodings refused as their rules say; a file with a

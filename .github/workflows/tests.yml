@@ -34,6 +34,9 @@ jobs:
       - name: Localization tests
         run: dotnet test Localization-Tests/Localization-Tests.csproj -c Release --nologo
 
+      - name: Ini tests
+        run: dotnet test Text-Ini.Tests/Text-Ini.Tests.csproj -c Release --nologo
+
       - name: Analyzer tests
         run: dotnet test LocalizationAnalyzer/LocalizationAnalyzer.Test/LocalizationAnalyzer.Test.csproj -c Release --nologo
 

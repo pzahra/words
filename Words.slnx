@@ -6,6 +6,10 @@
     <Project Path="Localization-Authoring/Localization-Authoring.csproj" />
     <Project Path="Localization-Tests/Localization-Tests.csproj" />
   </Folder>
+  <Folder Name="/Ini/">
+    <Project Path="Text-Ini/Text-Ini.csproj" />
+    <Project Path="Text-Ini.Tests/Text-Ini.Tests.csproj" />
+  </Folder>
   <Folder Name="/Analyzer/">
     <Project Path="LocalizationAnalyzer/LocalizationAnalyzer/LocalizationAnalyzer.csproj" />
     <Project Path="LocalizationAnalyzer/LocalizationAnalyzer.Package/LocalizationAnalyzer.Package.csproj" />

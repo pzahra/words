@@ -2371,15 +2371,21 @@ for itself is a Merge's or a Split's.
 - `schema.ini`: the sections dialect, names without case, `=`, `;`
   comments, ANSI or UTF-8 with
   no byte-order mark and UTF-16 and UTF-32 refused (the ODBC driver reads
-  none). `SchemaIni` replacing a section keeps the comments ending it above
-  the next, as it does now.
+  none), and a new line breaking CRLF wherever it is written, as the ODBC
+  driver is Windows'. `SchemaIni` replacing a section keeps the comments
+  ending it above the next, as it does now.
 - The config: the sections dialect, names without case, `=`, `;`
   comments, UTF-8 with no byte-order mark.
 - A `words.ini`: the words dialect, Authoring's, on the dotted one, with
   the rules Core's parser reads: names compared exactly (`[A]` and `[a]`
   are two keys), `=` or `:`, `\` and `_`
   continuations whose marker takes the character after it, `\\`, `__` and
-  `''` read as one, no quotes, `;` comments on lines of their own. It adds
+  `''` read as one, no quotes, `;` comments on lines of their own. The
+  language table is the section `""`, above the first header. Core reads
+  past the fields under a `[]`, so they never join the table, and the words
+  dialect, Core its authority, takes no `[]`: such a header and the lines
+  under it to the next are lines it does not recognise, left as they stand.
+  It adds
   Words' fields, folded and escaped as Save writes them, the language table,
   the settings references, the preamble and the trailer, a key added where
   the writer would put it, and a check comparing every key's fields, the
@@ -2451,7 +2457,10 @@ own words.
 and its `Save` a transaction. `SchemaIni`, `ProjectSettings.Save` and
 `EditorConfig` keep their surfaces. `WordsSession` keeps what each file was
 read as, beside its model, and gains the diff. Core keeps its own reader,
-pinned to the words dialect and the writer by a shared corpus.
+pinned to the words dialect and the writer by a shared corpus. Core is the
+authority on the grammar: a case the corpus finds them reading apart is
+noted, not fixed in this cycle, and settled with Core's next change, so that
+once the driver is a package Core can read through it with nothing changed.
 
 **Order.** Each step shippable alone:
 1. The driver's first step; the config and `schema.ini` move onto it, and
@@ -2477,7 +2486,9 @@ pinned to the words dialect and the writer by a shared corpus.
   Import goes on and a refused one stops; the command line's exits.
 - The shared corpus reads alike in Core, the words dialect and the writer:
   `one\_`, `one_\`, `a\b`, a continuation taking a header, a chain and its
-  cuts.
+  cuts, the language table as the section `""`, and the fields under a `[]`
+  read past. A case Core reads apart is
+  marked as known, with why, until Core's next change settles it.
 - The writers: Export's section lands only with its sheet; a read-only or
   held `schema.ini` is known before the sheet; the Project Settings dialog
   keeps a settings file's comments; the config's write never stops a close.
