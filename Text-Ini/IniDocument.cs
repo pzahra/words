@@ -16,6 +16,8 @@ public sealed class IniDocument {
 	private List<IniLine> lines = [];
 	private List<IniElement> elements = [];
 	private IniContent content;
+	//what a batch's edits so far mean, while one runs
+	private IniContent? batched;
 	private byte[] mark = [];
 	private IniEncodingFailure? failure;
 
@@ -158,7 +160,7 @@ public sealed class IniDocument {
 			return;
 		}
 		var plan = new Plan();
-		IniContent expected = content.Clone();
+		IniContent expected = Expecting();
 		expected.Set(section, key, value);
 		List<string> touched = [];
 		if (declared.Count > 0) {
@@ -190,7 +192,7 @@ public sealed class IniDocument {
 			return;
 		}
 		var plan = new Plan();
-		IniContent expected = content.Clone();
+		IniContent expected = Expecting();
 		(bool stands, bool dropped) = DropFields(plan, occurrences, declared);
 		if (stands) {
 			expected.Remove(section, key);
@@ -230,7 +232,7 @@ public sealed class IniDocument {
 		}
 		List<Written> written = [.. given.SelectMany(pair => FieldLines(pair.Key, pair.Value))];
 		var plan = new Plan();
-		IniContent expected = content.Clone();
+		IniContent expected = Expecting();
 		expected.Replace(section, given);
 		if (!content.Has(section)) {
 			AddSection(plan, section, given, written);
@@ -274,7 +276,7 @@ public sealed class IniDocument {
 		foreach (Occurrence occurrence in Occurrences(section).Where(Stands)) {
 			Drop(plan, occurrence);
 		}
-		IniContent expected = content.Clone();
+		IniContent expected = Expecting();
 		expected.RemoveSection(section);
 		Land(plan, expected, [Parent(section)]);
 	}
@@ -310,7 +312,7 @@ public sealed class IniDocument {
 				plan.Insert(Fields(occurrence)[0].Line, [new Written($"[{name}]", Name: name, Renamed: true)]);
 			}
 		}
-		IniContent expected = content.Clone();
+		IniContent expected = Expecting();
 		expected.Rename(section, name);
 		Land(plan, expected, [Parent(section), Parent(name), section, name]);
 	}
@@ -356,7 +358,7 @@ public sealed class IniDocument {
 			gathered.Add(new(""));
 		}
 		plan.Insert(at, gathered);
-		Land(plan, content.Clone(), [Parent(section), section]);
+		Land(plan, Expecting(), [Parent(section), section]);
 	}
 
 	/// <summary>Replaces a comment block's lines with <paramref name="comment"/>'s; none removes it.</summary>
@@ -371,7 +373,7 @@ public sealed class IniDocument {
 		IniElement located = Locate(block);
 		var plan = new Plan();
 		plan.Replace(located, written);
-		Land(plan, content.Clone(), []);
+		Land(plan, Expecting(), []);
 	}
 
 	/// <summary>Removes a comment block.</summary>
@@ -394,7 +396,7 @@ public sealed class IniDocument {
 		}
 		var plan = new Plan();
 		plan.Insert(at, written);
-		Land(plan, content.Clone(), []);
+		Land(plan, Expecting(), []);
 	}
 
 	/// <summary>Moves a comment block above <paramref name="before"/>, or to the end for null.</summary>
@@ -412,7 +414,48 @@ public sealed class IniDocument {
 		var plan = new Plan();
 		plan.Remove(located);
 		plan.Insert(at, [.. lines.Skip(located.Line).Take(located.Count).Select(line => new Written(line.Text, line.Break))]);
-		Land(plan, content.Clone(), []);
+		Land(plan, Expecting(), []);
+	}
+
+	/// <summary>
+	///     Makes <paramref name="edits"/> as one edit (SPEC.md, <i>Checked before it lands</i>): each
+	///     placed and cut as it would be alone, and the document checked once, after the last,
+	///     against what it was before the first plus what they all mean. Refused, by the check or
+	///     by an edit, none of them stands. A batch made inside one is part of it.
+	/// </summary>
+	/// <exception cref="IniCheckException">The edits would change more than themselves.</exception>
+	/// <exception cref="IniEncodingException">It is no text.</exception>
+	public void Batch(Action edits) {
+		ArgumentNullException.ThrowIfNull(edits);
+		Editable();
+		if (batched is not null) {
+			edits();
+			return;
+		}
+		(List<IniLine> wasLines, List<IniElement> wasElements, IniContent wasContent, bool wasEdited) = (lines, elements, content, IsEdited);
+		batched = content.Clone();
+		try {
+			edits();
+			if (lines != wasLines) {
+				List<IniDifference> differences = Dialect.Check(batched, content, wasContent);
+				if (differences.Count == 0) {
+					differences.AddRange(Dialect.CheckMore(new IniChange(
+						new IniSnapshot(Join(wasLines), Recognised(wasElements), wasContent),
+						new IniSnapshot(Join(lines), Recognised(elements), content),
+						batched)));
+				}
+				if (differences.Count > 0) {
+					throw new IniCheckException(differences, Path);
+				}
+			}
+		}
+		catch {
+			(lines, elements, content, IsEdited) = (wasLines, wasElements, wasContent, wasEdited);
+			throw;
+		}
+		finally {
+			batched = null;
+		}
 	}
 
 	/// <summary>
@@ -420,10 +463,14 @@ public sealed class IniDocument {
 	///     <paramref name="encoding"/>, for a file written in a form of the caller's own: no
 	///     check, and a document that was no text is text again.
 	/// </summary>
+	/// <exception cref="InvalidOperationException">A batch is running: it edits the document, which is replaced whole outside one.</exception>
 	public void Replace(string text, Encoding encoding, bool byteOrderMark = false) {
 		ArgumentNullException.ThrowIfNull(text);
 		ArgumentNullException.ThrowIfNull(encoding);
 		Unfrozen();
+		if (batched is not null) {
+			throw new InvalidOperationException("A batch is running: the document is replaced whole outside one.");
+		}
 		Encoding = encoding;
 		mark = byteOrderMark ? IniEncodings.MarkOf(encoding) : [];
 		failure = null;
@@ -499,6 +546,10 @@ public sealed class IniDocument {
 
 	//a prepared transaction has made its bytes: no edit until it ends
 	internal bool Frozen { get; set; }
+
+	//what the document is expected to read as once an edit lands: as it reads, or as a batch's
+	//edits so far mean it to
+	private IniContent Expecting() => (batched ?? content).Clone();
 
 	private void Readable() {
 		if (failure is { } why) {
@@ -729,8 +780,8 @@ public sealed class IniDocument {
 		return $"{header.Indent}[{written[..lead]}{name}{written[(written.Length - trail)..]}]{header.Suffix}";
 	}
 
-	//the edit made to a copy, cut anew in the dotted dialect, parsed again and checked: refused,
-	//the document stands as it was
+	//the edit made to a copy, cut anew in the dotted dialect, parsed again and checked, in a batch
+	//by the batch's check: refused, the document stands as it was
 	private void Land(Plan plan, IniContent expected, IReadOnlyCollection<string> touched) {
 		(List<IniLine> wasLines, List<IniElement> wasElements) = (lines, elements);
 		List<IniLine> edited;
@@ -746,16 +797,22 @@ public sealed class IniDocument {
 		}
 		List<IniElement> parsed = Dialect.Parse(edited);
 		var actual = IniContent.Of(parsed, Dialect.Names, Dialect.KeyNames);
-		List<IniDifference> differences = Dialect.Check(expected, actual, content);
-		if (differences.Count == 0) {
-			var change = new IniChange(
-				new IniSnapshot(Join(lines), Recognised(elements), content),
-				new IniSnapshot(Join(edited), Recognised(parsed), actual),
-				expected);
-			differences.AddRange(Dialect.CheckMore(change));
+		if (batched is not null) {
+			//checked once the batch's last edit lands
+			batched = expected;
 		}
-		if (differences.Count > 0) {
-			throw new IniCheckException(differences, Path);
+		else {
+			List<IniDifference> differences = Dialect.Check(expected, actual, content);
+			if (differences.Count == 0) {
+				var change = new IniChange(
+					new IniSnapshot(Join(lines), Recognised(elements), content),
+					new IniSnapshot(Join(edited), Recognised(parsed), actual),
+					expected);
+				differences.AddRange(Dialect.CheckMore(change));
+			}
+			if (differences.Count > 0) {
+				throw new IniCheckException(differences, Path);
+			}
 		}
 		lines = edited;
 		elements = parsed;
@@ -769,18 +826,19 @@ public sealed class IniDocument {
 	//whether the cut may write it afresh: a line taken from current where one is given
 	private List<Placed> Apply(Plan plan, List<Placed>? current) {
 		string lineBreak = FirstBreak(lines);
+		string?[]? heads = current is null ? Heads() : null;
 		var placed = new List<Placed>(lines.Count + 8);
 		int at = 0;
 		foreach (Splice splice in plan.Splices.OrderBy(splice => splice.At).ThenBy(splice => splice.Count > 0)) {
 			while (at < splice.At) {
-				placed.Add(Kept(at++, current));
+				placed.Add(Kept(at++, current, heads));
 			}
 			placed.AddRange(splice.Lines.Select(line => new Placed(
 				new IniLine(line.Text, line.Break ?? lineBreak), line.Name, Free: line.Name is not null, New: line.Name is not null && !line.Renamed)));
 			at = Math.Max(at, splice.At + splice.Count);
 		}
 		while (at < lines.Count) {
-			placed.Add(Kept(at++, current));
+			placed.Add(Kept(at++, current, heads));
 		}
 		for (int line = 0; line < placed.Count - 1; line++) {
 			if (placed[line].Line.Break.Length == 0) {
@@ -794,16 +852,24 @@ public sealed class IniDocument {
 	}
 
 	//a line the plan keeps: what current says of it, else the section it heads as it reads
-	private Placed Kept(int at, List<Placed>? current) {
+	private Placed Kept(int at, List<Placed>? current, string?[]? heads) {
 		if (current is not null) {
 			return current[at] with { Line = lines[at] };
 		}
-		string? name = elements.Find(element => element.Line == at) switch {
-			IniHeader header => header.Name,
-			IniOther { IsEmptyHeader: true } => "",
-			_ => null,
-		};
-		return new Placed(lines[at], name, Free: false, New: false);
+		return new Placed(lines[at], heads![at], Free: false, New: false);
+	}
+
+	//the section each line heads, "" for a [] that ends a chain, by line
+	private string?[] Heads() {
+		var heads = new string?[lines.Count];
+		foreach (IniElement element in elements) {
+			heads[element.Line] = element switch {
+				IniHeader header => header.Name,
+				IniOther { IsEmptyHeader: true } => "",
+				_ => null,
+			};
+		}
+		return heads;
 	}
 
 	private string FirstBreak(IEnumerable<IniLine> from)
@@ -816,6 +882,11 @@ public sealed class IniDocument {
 	//one as it stands
 	private List<Placed> Recut(IniDottedDialect dotted, List<Placed> placed, IReadOnlyCollection<string> touched) {
 		var groups = new HashSet<string>(touched.Where(group => group.Length > 0), Dialect.Names);
+		//an edit that writes no header and touches no group leaves every header naming what it
+		//named: a header it drops bases no chain, or it stays
+		if (groups.Count == 0 && !placed.Any(line => line.Free)) {
+			return placed;
+		}
 		for (int pass = 0; pass < 8; pass++) {
 			List<IniElement> parsed = Dialect.Parse([.. placed.Select(line => line.Line)]);
 			bool changed = Rechain(placed, parsed, out Dictionary<int, string> bases);

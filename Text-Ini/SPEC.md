@@ -140,6 +140,12 @@ bases aside, and whatever more an extending dialect compares. A difference
 refuses the edit, saying what would have changed, and leaves the document
 as it was. A file that will not encode is refused at `Prepare`.
 
+**A batch** makes many edits as one: each placed and cut as it would be
+alone, the document checked once, after the last, against what it was
+before the first plus what they all mean. Refused, by the check or by an
+edit, none of them stands. A batch inside one is part of it, and a
+document is replaced whole outside one.
+
 ## The commit
 
 A commit is written ahead to a log, `.<name>.tmp` beside the file, hidden on
@@ -203,7 +209,9 @@ what the check found, and where any log or kept bytes sit.
   line added after an unbroken last line, and the break a line added takes;
   decoding by the rules; the section `""` at the head and under `[]`, taken
   or left; unrecognised lines standing; a key set many times written once;
-  disposed uncommitted, untouched; a refused edit undone; replaced whole,
+  disposed uncommitted, untouched; a refused edit undone; a batch placed
+  edit by edit and checked once, refused whole by its check or by an edit,
+  one inside another part of it, no replacing inside one; replaced whole,
   over a file and over none; no text refused for edits; names with and
   without case, keys by their own rule, a rename by case alone; indents, a
   header's tail and trailing spaces, each rule on and off.

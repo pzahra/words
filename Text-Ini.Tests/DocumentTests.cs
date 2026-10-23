@@ -8,7 +8,7 @@ namespace PatTech.Text.Ini.Tests;
 ///     it the break and goes without; the section <c>""</c> at the head and under <c>[]</c>; a line
 ///     no element stays where it stands; a refused edit leaves the document as it was; names with
 ///     and without case, keys by a rule of their own; indents, a header's tail and the spaces
-///     ending a value, each rule on and off; a section named twice; trimming.
+///     ending a value, each rule on and off; a section named twice; trimming; batches.
 /// </summary>
 public class DocumentTests {
 	[Fact]
@@ -72,6 +72,49 @@ public class DocumentTests {
 		Assert.Contains(refused.Differences, difference => difference is { Section: "s", Key: "y", Expected: "1", Actual: null });
 		Assert.Equal("[s]\nx=a\\", document.Text);
 		Assert.False(document.IsEdited);
+	}
+
+	[Fact]
+	public void ABatch_PlacesEachEdit_AndIsCheckedOnce_RefusedWhole() {
+		IniDocument document = Ini.Read("[s]\nx=1\n");
+		document.Batch(() => {
+			document.Set("s", "x", "2");
+			document.Set("t", "y", "3");
+			document.Remove("s", "z");
+		});
+		Assert.Equal("[s]\nx=2\n\n[t]\ny=3\n", document.Text);
+
+		//y=1 lands as x's continuation: alone it is refused, and in a batch, the batch is
+		IniDocument trap = Ini.Read("[t]\nw=1\n[s]\nx=a\\", new IniRules { Continuations = IniContinuations.Backslash });
+		IniCheckException refused = Assert.Throws<IniCheckException>(() => trap.Batch(() => {
+			trap.Set("t", "w", "2");
+			trap.Set("s", "y", "1");
+		}));
+		Assert.Contains(refused.Differences, difference => difference is { Section: "s", Key: "y", Expected: "1", Actual: null });
+		Assert.Equal("[t]\nw=1\n[s]\nx=a\\", trap.Text);
+		Assert.False(trap.IsEdited);
+	}
+
+	[Fact]
+	public void AnEditRefusedInABatch_LeavesNoneOfItStanding() {
+		IniDocument document = Ini.Read("[s]\nx=1\n\n[t]\ny=1\n");
+		Assert.Throws<IniEditException>(() => document.Batch(() => {
+			document.Set("s", "x", "2");
+			document.RenameSection("s", "t");
+		}));
+		Assert.Equal("[s]\nx=1\n\n[t]\ny=1\n", document.Text);
+		Assert.False(document.IsEdited);
+	}
+
+	[Fact]
+	public void ABatchInsideABatch_IsPartOfIt_AndNothingIsReplacedWholeInOne() {
+		IniDocument document = Ini.Read("[s]\nx=1\n");
+		document.Batch(() => {
+			document.Batch(() => document.Set("s", "x", "2"));
+			Assert.Throws<InvalidOperationException>(() => document.Replace("[t]\n", new System.Text.UTF8Encoding(false)));
+			document.Set("s", "y", "3");
+		});
+		Assert.Equal("[s]\nx=2\ny=3\n", document.Text);
 	}
 
 	[Fact]
