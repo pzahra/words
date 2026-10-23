@@ -55,7 +55,8 @@ names no type reading back whole (the editor spec's *Parameters*):
   hand (`stale=`) and a parameter's definition, whose empty text says what they
   are: an empty line, exit 0.
 - `list <file> [prefix]` prints the keys in the order their blocks first
-  appear, leaving out a bare group header as the editor drops it; the prefix
+  appear, leaving out a bare group header as the editor drops it, and a `[]`,
+  which names none; the prefix
   is plain text, so `menu.` lists a group. `--missing xx` lists only those
   where `xx` misses its words, by the badges' rule (the editor spec's *Plural forms*, Badges): no
   words, or on a plural key a form the language requires. A language the file
@@ -210,6 +211,7 @@ Headless:
 - Removals: a field with its continuations, an empty one included; a block
   with its blank line, the last with none left behind; a block it empties; a
   reopened key everywhere; a header that bases children kept bare.
+- Keys read past a `[]`.
 - Bytes: a BOM, CRLF and a missing last break kept, each line of a mixed
   file its own break, UTF-16 and UTF-32 kept either way round; text not
   UTF-8, UTF-16 without its BOM and a NUL refused.

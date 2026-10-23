@@ -13,6 +13,9 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Text-Ini.Tests" />
+    <!-- a commit failed at a step, to leave a save pending -->
+    <InternalsVisibleTo Include="Localization-Tests" />
+    <InternalsVisibleTo Include="WordsEdit.Tests" />
   </ItemGroup>
 
 </Project>

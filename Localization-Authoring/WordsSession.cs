@@ -1,4 +1,5 @@
 using PatTech.Localization.Authoring.Codecs;
+using PatTech.Text.Ini;
 using System.Text;
 
 namespace PatTech.Localization.Authoring {
@@ -43,13 +44,14 @@ namespace PatTech.Localization.Authoring {
 		///     Whether two paths reach one file: compared in full and case-insensitively,
 		///     each folder on the way a link or a junction leads through followed to where
 		///     it leads, so <c>alias\words.ini</c>, <c>alias</c> a junction to <c>real</c>,
-		///     is <c>real\words.ini</c> (the editor's SPEC: Saving). The file's own link is
-		///     not followed: Save replaces a link to a file rather than writing through it.
+		///     is <c>real\words.ini</c> (the editor's SPEC: Saving), and so is a symbolic link
+		///     to the file, which Save writes through.
 		/// </summary>
 		public static bool SamePath(string a, string b) => string.Equals(Resolved(a), Resolved(b), StringComparison.OrdinalIgnoreCase);
 
 		//path in full, each folder on it that is a link or a junction followed as far as the
-		//disk has it; what is not there yet, and the file itself, stay as written
+		//disk has it, and the file a link to one, as the ini driver follows it; what is not
+		//there yet stays as written
 		private static string Resolved(string path) {
 			string full = System.IO.Path.GetFullPath(path);
 			string root = System.IO.Path.GetPathRoot(full) ?? "";
@@ -57,11 +59,9 @@ namespace PatTech.Localization.Authoring {
 			string at = root;
 			for (int i = 0; i < segments.Length; i++) {
 				at = System.IO.Path.Combine(at, segments[i]);
-				if (i == segments.Length - 1) {
-					break;
-				}
 				try {
-					if (new DirectoryInfo(at) is { Exists: true } folder && folder.ResolveLinkTarget(returnFinalTarget: true) is { } target) {
+					FileSystemInfo here = i == segments.Length - 1 ? new FileInfo(at) : new DirectoryInfo(at);
+					if (here.Exists && here.ResolveLinkTarget(returnFinalTarget: true) is { } target) {
 						at = System.IO.Path.GetFullPath(target.FullName);
 					}
 				}
@@ -75,16 +75,38 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>
 		///     Reads and <see cref="Load(TextReader, string, Encoding?)">loads</see> the
 		///     file at <paramref name="path"/>, keeping its line break and encoding for
-		///     Save. I/O failures propagate.
+		///     Save, and what it was read as, which Save patches. It is read through the
+		///     ini driver, a write left pending on it finished first. I/O failures propagate.
 		/// </summary>
-		public WordsFile Load(string path) => Load(path, path);
+		/// <exception cref="FileNotFoundException">No file is there.</exception>
+		/// <exception cref="IniCommitException">The file is held, another write to it is running, or one left pending will not settle.</exception>
+		public WordsFile Load(string path) => Load(path, out _);
+
+		/// <summary><see cref="Load(string)"/>, saying what finishing a write left pending on the file did; null for nothing.</summary>
+		public WordsFile Load(string path, out IniRecovery? recovery) => Load(path, path, out recovery);
 
 		//reads source and loads it as path; a StreamReader decodes it as File.OpenText
-		//does, and the BOM it went by is the one Save writes back
-		private WordsFile Load(string source, string path) {
-			byte[] bytes = File.ReadAllBytes(source);
+		//does, and the BOM it went by is the one Save writes back. Read from its own path,
+		//it keeps what it was read as
+		private WordsFile Load(string source, string path, out IniRecovery? recovery) {
+			byte[] bytes;
+			using (IniTransaction read = IniTransaction.Open(source, WordsDialect.Instance)) {
+				if (read.Document.IsNew) {
+					throw new FileNotFoundException($"Could not find file '{read.Path}'.", source);
+				}
+				bytes = read.Document.ToBytes();
+				recovery = read.Recovery;
+			}
+			return Load(bytes, path, readAs: SamePath(source, path));
+		}
+
+		private WordsFile Load(byte[] bytes, string path, bool readAs) {
 			using var reader = new StreamReader(new MemoryStream(bytes));
-			return Load(reader, path, EncodingOf(bytes));
+			WordsFile file = Load(reader, path, EncodingOf(bytes));
+			if (readAs) {
+				file.ReadAs = ReadAs.Of(file, path, bytes);
+			}
+			return file;
 		}
 
 		//a StreamReader's BOMs (UTF-32 LE first: its BOM starts with UTF-16 LE's),
@@ -217,7 +239,7 @@ namespace PatTech.Localization.Authoring {
 				throw new ArgumentException("nothing to import", nameof(paths));
 			}
 			if (importer is IniCodec && paths.Count == 1) {
-				return Load(paths[0], importer.NativePath(paths));
+				return Load(paths[0], importer.NativePath(paths), out _);
 			}
 			return Load(importer.Read(paths, options), importer.NativePath(paths));
 		}
@@ -351,29 +373,83 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		/// <summary>
-		///     Writes <paramref name="file"/> to its <see cref="WordsFile.Path"/>:
-		///     its own language table, preamble and settings references, and its
-		///     keys in the order <paramref name="tree"/> walks them, in its line break
-		///     and encoding. Atomic — a failure leaves the file on disk untouched. I/O
-		///     failures propagate, and so does <see cref="EncoderFallbackException"/>
-		///     for text the encoding can't hold, such as a lone surrogate.
+		///     Writes <paramref name="file"/> to its <see cref="WordsFile.Path"/> as a patch (the
+		///     editor's SPEC: Save as a patch): what it was read as, edited through the ini driver
+		///     until it reads as the text <see cref="Save(WordsFile, IKeyTreeNode, TextWriter)"/>
+		///     writes, so the lines the edits do not reach stay as they were. A file not read from
+		///     its path, gone from it since, read as no text, or whose document will not take the
+		///     edits, is that text written whole, as <see cref="Save(WordsFile, IKeyTreeNode, string)"/>
+		///     writes it. One transaction; landed, what it was read as is what was written.
 		/// </summary>
 		/// <param name="file">The file to write.</param>
 		/// <param name="tree">The file's node: the walk decides block order, comments write themselves in place.</param>
 		/// <exception cref="InvalidOperationException">The file has no path yet: its first Save asks where.</exception>
-		public void Save(WordsFile file, IKeyTreeNode tree)
-			=> Save(file, tree, file.Path ?? throw new InvalidOperationException($"{file.Name} has no path yet: its first Save asks where"));
+		/// <exception cref="IniCommitException">Refused, nothing written: the file changed on disk since it was read, is held or denied, or another write to it is running.</exception>
+		/// <exception cref="IniEncodingException">Refused: text its encoding cannot write, such as a lone surrogate.</exception>
+		/// <exception cref="IniPendingException">The write stands, logged beside the file, but the file's own failed: the next read finishes it. What it was read as is what was written.</exception>
+		public void Save(WordsFile file, IKeyTreeNode tree) {
+			string path = file.Path ?? throw new InvalidOperationException($"{file.Name} has no path yet: its first Save asks where");
+			string canonical = Canonical(file, tree);
+			using IniTransaction transaction = IniTransaction.Open(path, WordsDialect.Instance);
+			IniDocument document = transaction.Document;
+			bool patched = false;
+			if (file.ReadAs is { } readAs && SamePath(readAs.Path, path) && !document.IsNew) {
+				if (!document.ToBytes().AsSpan().SequenceEqual(readAs.Bytes)) {
+					throw new IniCommitException(IniCommitFailure.Changed, transaction.Path);
+				}
+				patched = document.IsText && WordsPatch.Apply(document, canonical, readAs.Renames(file));
+			}
+			if (!patched) {
+				Replace(document, canonical, file.Encoding);
+			}
+			Commit(file, path, transaction);
+		}
 
 		/// <summary>
-		///     <see cref="Save(WordsFile, IKeyTreeNode)"/> to <paramref name="path"/>,
-		///     the file's own path left as it is: a file's first Save, or its move,
-		///     writes there before <see cref="MoveTo"/>, so a failure moves nothing.
+		///     Writes <paramref name="file"/> whole at <paramref name="path"/>, through the ini
+		///     driver, the text <see cref="Save(WordsFile, IKeyTreeNode, TextWriter)"/> writes in
+		///     the file's encoding, BOM and all, and its own path left as it is: a file's first
+		///     Save, or a Save As, at its own path too, writes there before <see cref="MoveTo"/>,
+		///     so a refusal moves nothing. Landed or pending, what the file was read as is what
+		///     was written there.
 		/// </summary>
 		/// <param name="file">The file to write.</param>
 		/// <param name="tree">The file's node: the walk decides block order, comments write themselves in place.</param>
 		/// <param name="path">Where it is written.</param>
-		public void Save(WordsFile file, IKeyTreeNode tree, string path)
-			=> IniWriter.WriteAtomic(path, writer => Save(file, tree, writer), file.Encoding);
+		/// <exception cref="IniCommitException">Refused, nothing written: the file is held or denied, changed while it was written, or another write to it is running.</exception>
+		/// <exception cref="IniEncodingException">Refused: text its encoding cannot write, such as a lone surrogate.</exception>
+		/// <exception cref="IniPendingException">The write stands, logged beside the file, but the file's own failed: the next read finishes it.</exception>
+		public void Save(WordsFile file, IKeyTreeNode tree, string path) {
+			string canonical = Canonical(file, tree);
+			using IniTransaction transaction = IniTransaction.Open(path, WordsDialect.Instance);
+			Replace(transaction.Document, canonical, file.Encoding);
+			Commit(file, path, transaction);
+		}
+
+		//the text the writer writes for the file
+		private string Canonical(WordsFile file, IKeyTreeNode tree) {
+			var text = new StringWriter();
+			Save(file, tree, text);
+			return text.ToString();
+		}
+
+		//text in place of the document, in the encoding, BOM and all
+		private static void Replace(IniDocument document, string text, Encoding encoding)
+			=> document.Replace(text, encoding, encoding.GetPreamble().Length > 0);
+
+		//commits the file's transaction: landed or left pending, what the file was read as is
+		//what was written at path, by the names its keys have now
+		private static void Commit(WordsFile file, string path, IniTransaction transaction) {
+			byte[] written = transaction.Document.ToBytes();
+			try {
+				transaction.Commit();
+			}
+			catch (IniPendingException) {
+				file.ReadAs = ReadAs.Of(file, path, written);
+				throw;
+			}
+			file.ReadAs = ReadAs.Of(file, path, written);
+		}
 
 		/// <summary>
 		///     <see cref="Save(WordsFile, IKeyTreeNode)"/> to a writer instead of the
@@ -636,6 +712,9 @@ namespace PatTech.Localization.Authoring {
 		/// <param name="conflicts">Keys the involved files disagree on.</param>
 		/// <exception cref="InvalidOperationException"><paramref name="baseTree"/> does not cover exactly the base file's keys.</exception>
 		/// <exception cref="ArgumentException">A source does not declare the language mapped to it: its entries are only backfill, and would empty the base's.</exception>
+		/// <exception cref="IniCommitException">Refused, nothing written: the file there is held or denied, or another write to it is running.</exception>
+		/// <exception cref="IniEncodingException">Refused: text the base file's encoding cannot write.</exception>
+		/// <exception cref="IniPendingException">The write stands, logged beside the file, but the file's own failed: the file is loaded as written all the same, at <paramref name="outPath"/>.</exception>
 		public WordsFile? Merge(WordsFile baseFile, IReadOnlyDictionary<string, WordsFile> languageSources, IKeyTreeNode baseTree, string outPath, out HashSet<string> conflicts) {
 			foreach (var (code, source) in languageSources) {
 				if (!source.Languages.Contains(code)) {
@@ -656,9 +735,10 @@ namespace PatTech.Localization.Authoring {
 					languages.Add(label);
 				}
 			}
-			IniWriter.WriteFile(baseTree, outPath, merged, languages,
-				preamble: baseFile.Preamble, settings: baseFile.Settings, languageSettings: baseFile.LanguageSettings, newLine: baseFile.NewLine, defaultLanguage: baseFile.DefaultLanguage, encoding: baseFile.Encoding);
-			return Load(outPath);
+			var text = new StringWriter { NewLine = baseFile.NewLine };
+			IniWriter.WriteFile(baseTree, text, merged, languages,
+				preamble: baseFile.Preamble, settings: baseFile.Settings, languageSettings: baseFile.LanguageSettings, defaultLanguage: baseFile.DefaultLanguage);
+			return Written(outPath, text.ToString(), baseFile.Encoding);
 		}
 
 		/// <summary>
@@ -670,15 +750,35 @@ namespace PatTech.Localization.Authoring {
 		///     own — and loads it. Exactly what <see cref="Merge"/> consumes back.
 		/// </summary>
 		/// <exception cref="InvalidOperationException"><paramref name="sourceTree"/> does not cover exactly the source's keys.</exception>
+		/// <exception cref="IniCommitException">Refused, nothing written: the file there is held or denied, or another write to it is running.</exception>
+		/// <exception cref="IniEncodingException">Refused: text the source's encoding cannot write.</exception>
+		/// <exception cref="IniPendingException">The write stands, logged beside the file, but the file's own failed: the file is loaded as written all the same, at <paramref name="outPath"/>.</exception>
 		public WordsFile Split(WordsFile source, string languageCode, IKeyTreeNode sourceTree, string outPath) {
 			EnsureTreeCovers(source, sourceTree);
 			var split = WordsOperations.Split(source.Keys, languageCode);
 			//the language as the source labels it, and only its own settings reference
 			List<LanguageEntry> languages = (Languages.For(source).FirstOrDefault(language => language.Code == languageCode) ?? Languages.Find(languageCode)) is { } label ? [label] : [];
 			Dictionary<string, string> languageSettings = source.LanguageSettings.TryGetValue(languageCode, out string? path) ? new() { [languageCode] = path } : [];
-			IniWriter.WriteFile(sourceTree, outPath, split, languages,
-				preamble: source.Preamble, settings: source.Settings, languageSettings: languageSettings, newLine: source.NewLine, defaultLanguage: source.DefaultLanguage, encoding: source.Encoding);
-			return Load(outPath);
+			var text = new StringWriter { NewLine = source.NewLine };
+			IniWriter.WriteFile(sourceTree, text, split, languages,
+				preamble: source.Preamble, settings: source.Settings, languageSettings: languageSettings, defaultLanguage: source.DefaultLanguage);
+			return Written(outPath, text.ToString(), source.Encoding);
+		}
+
+		//text written whole at path through the ini driver, in encoding, and loaded from what was
+		//written, as what it was read as: landed or left pending, the file is loaded
+		private WordsFile Written(string path, string text, Encoding encoding) {
+			using IniTransaction transaction = IniTransaction.Open(path, WordsDialect.Instance);
+			Replace(transaction.Document, text, encoding);
+			byte[] written = transaction.Document.ToBytes();
+			try {
+				transaction.Commit();
+			}
+			catch (IniPendingException) {
+				Load(written, path, readAs: true);
+				throw;
+			}
+			return Load(written, path, readAs: true);
 		}
 
 		//the project settings files by path, as last read; re-read when the file

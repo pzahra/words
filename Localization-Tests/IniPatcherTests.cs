@@ -40,6 +40,13 @@ public class IniPatcherTests {
 		";the end");
 
 	[Fact]
+	public void Keys_PassOverABracketPair_WhichNamesNoKey() {
+		var patcher = Patch("[a]\nvalue=A\n[]\nvalue=junk\n[b]\nvalue=B\n");
+
+		Assert.Equal(["a", "b"], patcher.Keys.Select(key => key.BlockKey));
+	}
+
+	[Fact]
 	public void Set_ReplacesOnlyTheFieldsLines() {
 		var patcher = Patch(Menu);
 

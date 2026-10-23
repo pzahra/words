@@ -1,5 +1,6 @@
 using PatTech.Localization.Authoring;
 using PatTech.Localization.Authoring.Codecs;
+using PatTech.Text.Ini;
 using System.Text;
 using Xunit;
 
@@ -164,8 +165,8 @@ value-fr=Ouvrir
 
 	[Fact]
 	public void Save_RefusesTextItsEncodingCannotHold_AndLeavesTheFile() {
-		// a lone surrogate has no UTF-8: the encoder throws rather than write a
-		// replacement character, and the file on disk stays as it was
+		// a lone surrogate has no UTF-8: the driver refuses it rather than write a
+		// replacement character, and the file on disk stays as it was, no log beside it
 		string folder = Path.Combine(Path.GetTempPath(), $"WordsSessionEncoding-{Guid.NewGuid():N}");
 		Directory.CreateDirectory(folder);
 		try {
@@ -175,8 +176,9 @@ value-fr=Ouvrir
 			WordsFile file = session.Load(path);
 			session.FileNamed("Main").Keys["greeting"].DefaultValue = "Hello \uD83D";
 
-			Assert.Throws<EncoderFallbackException>(() => session.Save(file, KeyTree.Build(file)));
+			var refused = Assert.Throws<IniEncodingException>(() => session.Save(file, KeyTree.Build(file)));
 
+			Assert.Equal(IniEncodingFailure.Unencodable, refused.Failure);
 			Assert.Equal(Main, File.ReadAllText(path));
 			Assert.Empty(Directory.GetFiles(folder, "*.tmp"));
 		}

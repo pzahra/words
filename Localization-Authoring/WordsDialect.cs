@@ -63,10 +63,11 @@ namespace PatTech.Localization.Authoring {
 			if (own.Count == 0) {
 				return new IniPlacement(all.OfType<IniHeader>().Last(header => header.Name == section).Line + 1);
 			}
-			//the writer's order is Core's: its entries and parameters as the key read; a block of
-			//nothing but empty fields reads as a group, no key, and has neither
+			//the writer's order is Core's: its entries and parameters as the key reads under the
+			//language table; a block of nothing but empty fields reads as a group, no key, and has neither
 			List<string> languages = [], parameters = [];
-			if (Read(document.Text).Words.WordKeys.TryGetValue(section, out var found)) {
+			string block = Render("", Pairs(document, "")) + Render(section, Pairs(document, section));
+			if (WordsReading.Of(block).Words.WordKeys.TryGetValue(section, out var found)) {
 				languages = [.. found.Entries.Keys];
 				parameters = [.. found.Parameters.Select(parameter => parameter.Key)];
 			}
@@ -177,20 +178,27 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		//a section's pairs as the edit means them, written as Save writes them, for Core to read
-		private static string Render(IniChange change, string section) {
+		private static string Render(IniChange change, string section)
+			=> Render(section, change.ExpectedKeys(section).Select(key => KeyValuePair.Create(key, change.Expected(section, key)!)));
+
+		//a section's pairs as the document reads them
+		private static IEnumerable<KeyValuePair<string, string>> Pairs(IniDocument document, string section)
+			=> document.Keys(section).Select(key => KeyValuePair.Create(key, document.Get(section, key)!));
+
+		private static string Render(string section, IEnumerable<KeyValuePair<string, string>> pairs) {
 			var text = new StringBuilder();
 			if (section.Length > 0) {
 				text.Append('[').Append(section).Append("]\n");
 			}
-			foreach (string key in change.ExpectedKeys(section)) {
-				foreach (string line in WordsValues.Pair(key, change.Expected(section, key)!)) {
+			foreach (var (key, value) in pairs) {
+				foreach (string line in WordsValues.Pair(key, value)) {
 					text.Append(line).Append('\n');
 				}
 			}
 			return text.ToString();
 		}
 
-		private static bool SameTable(WordsParserToLocalizationProvider was, WordsParserToLocalizationProvider now)
+		internal static bool SameTable(WordsParserToLocalizationProvider was, WordsParserToLocalizationProvider now)
 			=> was.DeclaredLanguages.SequenceEqual(now.DeclaredLanguages)
 				&& was.DeclaredLanguages.All(code => was.KnownLanguages[code].NativeName == now.KnownLanguages[code].NativeName
 					&& was.KnownLanguages[code].EnglishName == now.KnownLanguages[code].EnglishName);
@@ -200,7 +208,7 @@ namespace PatTech.Localization.Authoring {
 			=> [.. elements.OfType<IniComment>().SelectMany(block => block.Lines).Select(line => line.TrimStart()[1..])];
 
 		//key → field → text, for every key that is not a bare group
-		private static Dictionary<string, Dictionary<string, string>> Flatten(IReadOnlyDictionary<string, WordsKey> keys) {
+		internal static Dictionary<string, Dictionary<string, string>> Flatten(IReadOnlyDictionary<string, WordsKey> keys) {
 			Dictionary<string, Dictionary<string, string>> flat = [];
 			foreach (var (name, key) in keys) {
 				if (!key.IsEmpty()) {
@@ -325,7 +333,21 @@ namespace PatTech.Localization.Authoring {
 
 		public override int GetHashCode(string obj) => StringComparer.Ordinal.GetHashCode(Canonical(obj)!);
 
-		private static string? Canonical(string? name) => name is not null && WordsField.TryParse(name, out var field, out _) ? field.ToString() : name;
+		//every name a file holds is asked for again on each edit's every lookup: each parsed once
+		private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> canonical = new(StringComparer.Ordinal);
+
+		private static string? Canonical(string? name) {
+			if (name is null) {
+				return null;
+			}
+			if (canonical.TryGetValue(name, out string? known)) {
+				return known;
+			}
+			if (canonical.Count > 100_000) {
+				canonical.Clear();
+			}
+			return canonical[name] = WordsField.TryParse(name, out var field, out _) ? field.ToString() : name;
+		}
 	}
 
 	/// <summary>A <c>words.ini</c> read through Core: its model, its comments in order, and its keys in the order their blocks first stand.</summary>
@@ -344,7 +366,8 @@ namespace PatTech.Localization.Authoring {
 
 		public void VisitBlock(string baseKey, string key) {
 			string name = key.StartsWith('.') ? baseKey + key : key;
-			if (seen.Add(name)) {
+			//[] names no key: Core reads past it
+			if (name.Length > 0 && seen.Add(name)) {
 				Order.Add(name);
 			}
 			((IWordsParserConsumer)Words).VisitBlock(baseKey, key);

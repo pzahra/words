@@ -102,6 +102,8 @@ namespace PatTech.Localization.Authoring {
 		///     <see cref="System.Text.EncoderFallbackException"/>.
 		/// </summary>
 		public System.Text.Encoding Encoding { get; }
+		//what the file was read as, or last written as, which Save patches (the editor's SPEC: Save as a patch)
+		internal ReadAs? ReadAs { get; set; }
 
 		internal WordsFile(string? path, string name, ILoadedWords loaded, string newLine, System.Text.Encoding encoding) {
 			Path = path;
@@ -152,6 +154,21 @@ namespace PatTech.Localization.Authoring {
 
 		/// <summary>The name, for the debugger and for tests that print one.</summary>
 		public override string ToString() => Name;
+	}
+
+	/// <summary>
+	///     What a file was read as at <paramref name="Path"/>, or last written as: its bytes,
+	///     which the file on disk must still be for Save to patch it, and the name each key had
+	///     then, so a key renamed since is a rename (the editor's SPEC: Save as a patch).
+	/// </summary>
+	internal sealed record ReadAs(string Path, byte[] Bytes, IReadOnlyDictionary<WordsKey, string> Names) {
+		//the file's keys by their names as they stand
+		public static ReadAs Of(WordsFile file, string path, byte[] bytes)
+			=> new(path, bytes, file.Store.Values.ToDictionary<WordsKey, WordsKey, string>(key => key, key => key.BlockKey, ReferenceEqualityComparer.Instance));
+
+		//each key renamed since, from its name then to its name now
+		public List<(string From, string To)> Renames(WordsFile file)
+			=> [.. file.Store.Values.Where(key => Names.TryGetValue(key, out string? was) && was != key.BlockKey).Select(key => (Names[key], key.BlockKey))];
 	}
 
 	/// <summary>
