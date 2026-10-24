@@ -12,7 +12,7 @@
          on by hand, so this can move ahead of nuget.org until its tag publishes it -->
     <AnalyzerVersion>1.4.0</AnalyzerVersion>
     <!-- Wordsmith, the editor, and words, the command line that ships beside it -->
-    <WordsmithVersion>1.4.0</WordsmithVersion>
+    <WordsmithVersion>1.5.0</WordsmithVersion>
   </PropertyGroup>
 
 </Project>
