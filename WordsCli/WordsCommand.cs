@@ -47,7 +47,8 @@ namespace PatTech.Localization.Cli {
 			(an answer of - is read from stdin). apply writes a key only when its answer
 			keeps the default's {...} tokens, code spans and links, and neither the
 			default nor the translation changed since the request. A changed link target
-			is written, and raises the key's hand (stale=) for a person to check. A script that loops
+			is written, and raises the key's hand (stale=) for a person to check. The name
+			a translator gives itself in "translator" follows the mark, after a colon. A script that loops
 			request and apply over --stale passes over apply's own marks with
 			--stale-without "machine translated", or the words it gave --stale.
 
@@ -324,7 +325,7 @@ namespace PatTech.Localization.Cli {
 					written++;
 				}
 				if (verdict.Writes.Count != 0) {
-					gripes.AddRange(patcher.Set(item.Key, mark, call.Stale ?? "machine translated"));
+					gripes.AddRange(patcher.Set(item.Key, mark, answer.MarkOf(call.Stale ?? "machine translated")));
 				}
 				//a changed link target goes in, and the key's hand up, so a person checks the URL;
 				//a hand up already keeps its words

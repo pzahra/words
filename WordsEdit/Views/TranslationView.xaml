@@ -1,0 +1,157 @@
+<UserControl x:Class="WordsEdit.Views.TranslationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="https://github.com/pzahra/words"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:vm="clr-namespace:WordsEdit.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:TranslationViewModel}"
+             Padding="10">
+    <!-- Machine Translation (SPEC: Machine translation, In Wordsmith): first what to ask for and
+         the request, copied or saved, with the answer pasted or opened below; then the answer
+         as a grid, a row per slot, to tick, edit and apply. Sized to its content once, then to
+         the window: the answer box and the grid take the room it gives -->
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="IsTrue"/>
+    </UserControl.Resources>
+    <Grid x:Name="Root" Width="820">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <TextBlock Grid.Row="0" FontWeight="Bold" FontSize="16" Margin="2.5px" Text="{Binding Title, Mode=OneWay}"/>
+        <TextBlock Grid.Row="1" TextWrapping="Wrap" Margin="2.5px" Opacity="0.7" Text="{Binding Blurb, Mode=OneWay}"/>
+
+        <!-- what to ask for, and the request -->
+        <DockPanel Grid.Row="2" Visibility="{Binding IsAsking, Converter={StaticResource IsTrue}}">
+            <Grid DockPanel.Dock="Top" Margin="2.5px 5px">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="{l:Words machine.target}" VerticalAlignment="Center" Margin="0 0 10 0"/>
+                <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding Targets}" SelectedItem="{Binding Target}" DisplayMemberPath="DisplayName"
+                          IsEnabled="{Binding HasTargets}" Margin="0 2.5px"/>
+
+                <TextBlock Grid.Row="1" Text="{l:Words machine.select}" VerticalAlignment="Center" Margin="0 0 10 0"/>
+                <WrapPanel Grid.Row="1" Grid.Column="1" Margin="0 2.5px">
+                    <CheckBox Content="{l:Words machine.missing}" IsChecked="{Binding Missing}" Margin="0 0 15 0"/>
+                    <CheckBox Content="{l:Words machine.stale}" IsChecked="{Binding Stale}" Margin="0 0 15 0"/>
+                    <!-- the caption is markdown, the node's name set off in it -->
+                    <CheckBox IsChecked="{Binding Under}" Visibility="{Binding CanKeepUnder, Converter={StaticResource IsTrue}}">
+                        <TextBlock>
+                            <l:WordsInline Key="machine.under">
+                                <Binding Path="UnderCaption" />
+                            </l:WordsInline>
+                        </TextBlock>
+                    </CheckBox>
+                </WrapPanel>
+
+                <TextBlock Grid.Row="2" Text="{l:Words machine.brief}" VerticalAlignment="Center" Margin="0 0 10 0"/>
+                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Brief, UpdateSourceTrigger=PropertyChanged}" Margin="0 2.5px"/>
+
+                <TextBlock Grid.Row="3" Text="{l:Words machine.batch}" VerticalAlignment="Center" Margin="0 0 10 0"/>
+                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Batch, UpdateSourceTrigger=PropertyChanged}" Width="60" HorizontalAlignment="Left" Margin="0 2.5px"/>
+
+                <TextBlock Grid.Row="4" Text="{l:Words machine.mark}" VerticalAlignment="Center" Margin="0 0 10 0"/>
+                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Mark, UpdateSourceTrigger=PropertyChanged}" Margin="0 2.5px"/>
+            </Grid>
+
+            <TextBlock DockPanel.Dock="Top" Text="{Binding Summary}" TextWrapping="Wrap" Margin="2.5px 5px"/>
+            <TextBlock DockPanel.Dock="Top" Text="{Binding Applied}" TextWrapping="Wrap" Margin="2.5px" Opacity="0.7" Visibility="{Binding HasApplied, Converter={StaticResource IsTrue}}"/>
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0 5px">
+                <Button Content="{l:Words machine.copy}" Command="{Binding CopyCommand}" Margin="2.5px"/>
+                <Button Content="{l:Words machine.save}" Command="{Binding SaveCommand}" Margin="2.5px"/>
+            </StackPanel>
+
+            <DockPanel DockPanel.Dock="Top" Margin="2.5px 10px 2.5px 2.5px">
+                <Button DockPanel.Dock="Right" Content="{l:Words machine.open}" Command="{Binding OpenCommand}" Margin="5 0 0 0"/>
+                <TextBlock Text="{l:Words machine.answer}" VerticalAlignment="Center"/>
+            </DockPanel>
+
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 10 0 0">
+                <Button Content="{l:Words machine.review}" Command="{Binding ReviewCommand}" IsDefault="True" MinWidth="80" Margin="2.5px"/>
+                <Button Content="{l:Words dialog.close}" Command="{Binding CloseCommand}" IsCancel="True" MinWidth="80" Margin="2.5px"/>
+            </StackPanel>
+            <TextBlock DockPanel.Dock="Bottom" Text="{Binding Problem}" TextWrapping="Wrap" Foreground="{StaticResource WordsmithOrangeBrush}" Margin="2.5px 8px 2.5px 2.5px"
+                       Visibility="{Binding HasProblem, Converter={StaticResource IsTrue}}"/>
+            <!-- the answer takes the room left; a fault in it stays highlighted while the problem is read -->
+            <TextBox x:Name="AnswerBox" Text="{Binding Answer, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
+                     FontFamily="Consolas" MinHeight="160" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Margin="2.5px"
+                     IsInactiveSelectionHighlightEnabled="True"/>
+        </DockPanel>
+
+        <!-- the answer under review: a row per slot, a flagged key's unticked and saying why; a
+             row is as tall as its words, so the grid scrolls by the pixel, not by the row -->
+        <DockPanel Grid.Row="2" Visibility="{Binding IsReviewing, Converter={StaticResource IsTrue}}">
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 10 0 0">
+                <Button Content="{l:Words machine.back}" Command="{Binding BackCommand}" MinWidth="80" Margin="2.5px"/>
+                <Button Content="{Binding ApplyCaption}" Command="{Binding ApplyCommand}" IsDefault="True" MinWidth="80" Margin="2.5px"/>
+                <Button Content="{l:Words dialog.close}" Command="{Binding CloseCommand}" MinWidth="80" Margin="2.5px"/>
+            </StackPanel>
+            <TextBlock DockPanel.Dock="Top" Text="{Binding Translator}" TextWrapping="Wrap" Margin="2.5px 5px 2.5px 0" Opacity="0.7"
+                       Visibility="{Binding HasTranslator, Converter={StaticResource IsTrue}}"/>
+            <StackPanel DockPanel.Dock="Bottom" Visibility="{Binding HasBroken, Converter={StaticResource IsTrue}}" Margin="2.5px">
+                <TextBlock Text="{l:Words machine.broken}" FontWeight="SemiBold"/>
+                <TextBlock Text="{Binding Broken}" TextWrapping="Wrap" Opacity="0.8"/>
+            </StackPanel>
+            <DataGrid ItemsSource="{Binding Rows}" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                      HeadersVisibility="Column" MinHeight="200" Margin="2.5px 5px"
+                      VirtualizingPanel.ScrollUnit="Pixel">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Width="Auto">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type vm:TranslationRow}">
+                                <CheckBox IsChecked="{Binding Ticked, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Top"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="{l:Words machine.key}" Binding="{Binding Key, Mode=OneWay}" IsReadOnly="True" Width="140"/>
+                    <DataGridTextColumn Header="{l:Words machine.form}" Binding="{Binding Form, Mode=OneWay}" IsReadOnly="True" Width="Auto"/>
+                    <DataGridTextColumn Header="{l:Words machine.default}" Binding="{Binding Default, Mode=OneWay}" IsReadOnly="True" Width="*">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="TextWrapping" Value="Wrap"/>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                    <DataGridTextColumn Header="{l:Words machine.proposed}" Binding="{Binding Text, UpdateSourceTrigger=PropertyChanged}" Width="*">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="TextWrapping" Value="Wrap"/>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                        <DataGridTextColumn.EditingElementStyle>
+                            <Style TargetType="TextBox">
+                                <Setter Property="TextWrapping" Value="Wrap"/>
+                                <Setter Property="AcceptsReturn" Value="True"/>
+                            </Style>
+                        </DataGridTextColumn.EditingElementStyle>
+                    </DataGridTextColumn>
+                    <DataGridTextColumn Header="{l:Words machine.notes}" Binding="{Binding Notes, Mode=OneWay}" IsReadOnly="True" Width="*">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="TextWrapping" Value="Wrap"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Flagged}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource WordsmithOrangeBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </DockPanel>
+    </Grid>
+</UserControl>

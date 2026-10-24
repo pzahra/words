@@ -71,6 +71,10 @@ public class TranslationDocumentTests {
 		var request = Request("it", "files", "menu.file", "lines");
 
 		Assert.Equal(TranslationRequest.Kind, request.GetProperty("words").GetString());
+		//up top, the translator's own name to fill, which the instructions ask for
+		Assert.Equal(["words", "translator"], request.EnumerateObject().Take(2).Select(property => property.Name));
+		Assert.Equal(JsonValueKind.Null, request.GetProperty("translator").ValueKind);
+		Assert.Contains("Put your own name in \"translator\"", request.GetProperty("instructions").GetString());
 		Assert.StartsWith("Translate each item's default from English (en) into Italian (it).", request.GetProperty("instructions").GetString());
 		Assert.False(request.TryGetProperty("brief", out _));
 		Assert.Equal("words.ini", request.GetProperty("file").GetString());
@@ -154,6 +158,28 @@ public class TranslationDocumentTests {
 		Assert.Equal(new Dictionary<string, string?> { ["value"] = "Ah", ["value#other"] = null }, item.Translation);
 	}
 
+	//the name a translator gives itself, on one line and cut short, follows the mark; none,
+	//a blank or anything but text leaves the mark as it is, and costs the answer nothing
+	[Theory]
+	[InlineData("\"GPT-5\"", "GPT-5")]
+	[InlineData("\"  Claude\\n  Opus 5.5 \"", "Claude Opus 5.5")]
+	[InlineData("null", null)]
+	[InlineData("\"  \"", null)]
+	[InlineData("5", null)]
+	public void TheTranslatorsName_FollowsTheMark(string json, string? name) {
+		var answer = TranslationAnswer.Read($$"""{ "words": "translation/1", "translator": {{json}}, "target": { "code": "it" }, "items": [] }""");
+
+		Assert.Equal(name, answer.Translator);
+		Assert.Equal(name is null ? "machine translated" : $"machine translated: {name}", answer.MarkOf("machine translated"));
+	}
+
+	[Fact]
+	public void ATranslatorsLongName_IsCut() {
+		var answer = TranslationAnswer.Read($$"""{ "words": "translation/1", "translator": "{{new string('x', 200)}}", "target": { "code": "it" }, "items": [] }""");
+
+		Assert.Equal(new string('x', TranslationAnswer.TranslatorLength), answer.Translator);
+	}
+
 	[Theory]
 	[InlineData("no JSON here", "no JSON object")]
 	[InlineData("{ \"words\": ", "no JSON")]
@@ -169,6 +195,23 @@ public class TranslationDocumentTests {
 		var refused = Assert.Throws<InvalidDataException>(() => TranslationAnswer.Read(text));
 
 		Assert.Contains(why, refused.Message);
+	}
+
+	//a model's answer that dropped a quote: where, in the text as given, past the sentence
+	//above it, a character not a byte, the line counted from 1
+	[Fact]
+	public void AnAnswerThatIsNoJson_SaysWhereItStops_InTheTextAsGiven() {
+		string text = "Ecco:\n{ \"words\": \"translation/1\",\n  \"target\": { \"code\": \"it\" },\n  \"items\": [ { \"key\": \"é\", \"translation\": { \"value\": Il ruolo } } ] }";
+
+		var refused = Assert.Throws<InvalidDataException>(() => TranslationAnswer.Read(text));
+
+		int column = text.Split('\n')[3].IndexOf("Il ruolo", StringComparison.Ordinal) + 1;
+		Assert.StartsWith($"the answer is no JSON at line 4, column {column}: ", refused.Message);
+		var (at, reason) = TranslationAnswer.FaultOf(refused)!.Value;
+		Assert.Equal(text.IndexOf("Il ruolo", StringComparison.Ordinal), at);
+		Assert.Equal(refused.Message[$"the answer is no JSON at line 4, column {column}: ".Length..], reason);
+		Assert.DoesNotContain("LineNumber", refused.Message);
+		Assert.Null(TranslationAnswer.FaultOf(Assert.Throws<InvalidDataException>(() => TranslationAnswer.Read("no JSON here"))));
 	}
 
 	//the answer for key as the request carried it, with these slots filled

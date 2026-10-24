@@ -77,7 +77,9 @@ names no type reading back whole (the editor spec's *Parameters*):
 - `apply <file> <answer>`, `-` for stdin, reads the request filled in and
   writes each key whose answer passes the check (the same section, *Nothing
   is written unchecked*): its filled slots as `set` writes them, and its
-  entry's stale mark, `machine translated` or the words `--stale` gives. A
+  entry's stale mark, `machine translated` or the words `--stale` gives,
+  and after a colon the name the answer's `translator` gives itself, where
+  it gives one: `machine translated: GPT-5`. A
   key skipped is named on stderr with why, and a last line counts the slots
   written, left and skipped; any skipped exits 1. The batch is checked whole:
   a key reads the words it writes for the keys it refers to, a key skipped is

@@ -4,19 +4,39 @@ using System.Text.Json;
 namespace PatTech.Localization.Authoring {
 	/// <summary>
 	///     A translator's answer (editor SPEC: Machine translation): the request sent
-	///     back with its nulls filled. Only the target's code and each item's key,
-	///     default, current words and translation are read, so a script may drop the
-	///     rest.
+	///     back with its nulls filled. Only the translator's name, the target's code
+	///     and each item's key, default, current words and translation are read, so a
+	///     script may drop the rest.
 	/// </summary>
 	/// <param name="Target">The language the answer is in.</param>
 	/// <param name="Items">The items, in the answer's order.</param>
 	public sealed record TranslationAnswer(string Target, IReadOnlyList<TranslationItem> Items) {
+		/// <summary>The longest name a translator gives itself that the mark carries; past it, the name is cut.</summary>
+		public const int TranslatorLength = 80;
+
+		/// <summary>
+		///     The name the translator gave itself, as it says, which a model may say
+		///     wrong: its runs of white space one space, cut to <see cref="TranslatorLength"/>;
+		///     null when it gave none.
+		/// </summary>
+		public string? Translator { get; init; }
+
+		/// <summary>
+		///     The stale mark a key the answer writes takes: <paramref name="mark"/>, and the
+		///     translator's name after it where it gave one. The mark still starts the
+		///     same, so a selection passing over it passes over this.
+		/// </summary>
+		public string MarkOf(string mark) => Translator is { } name ? $"{mark}: {name}" : mark;
+
 		/// <summary>
 		///     Reads an answer. Text around the document, a model's code fence or a
 		///     sentence before it, is dropped: the document runs from the first
 		///     <c>{</c> to the last <c>}</c>. Comments and trailing commas are let by.
 		/// </summary>
-		/// <exception cref="InvalidDataException">The text is no JSON, or no translation document, or holds broken Unicode.</exception>
+		/// <exception cref="InvalidDataException">
+		///     The text holds no JSON object, is no JSON, which says where (<see cref="FaultOf"/>),
+		///     or is no translation document, or holds broken Unicode.
+		/// </exception>
 		public static TranslationAnswer Read(string text) {
 			int first = text.IndexOf('{'), last = text.LastIndexOf('}');
 			if (first < 0 || last < first) {
@@ -27,7 +47,7 @@ namespace PatTech.Localization.Authoring {
 				document = JsonDocument.Parse(text.AsMemory(first, last - first + 1), new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
 			}
 			catch (JsonException ex) {
-				throw new InvalidDataException($"the answer is no JSON: {ex.Message}", ex);
+				throw Faulted(text, first, ex);
 			}
 			using (document) {
 				try {
@@ -37,6 +57,42 @@ namespace PatTech.Localization.Authoring {
 					throw Broken("the answer", ex);
 				}
 			}
+		}
+
+		/// <summary>
+		///     Where <see cref="Read(string)"/> found the answer no JSON, so a person can mend it
+		///     there: the character the reader stopped at, counted from 0 in the text as given,
+		///     and why, without the place the message gives as a line and a column; null for
+		///     any other fault.
+		/// </summary>
+		public static (int At, string Reason)? FaultOf(InvalidDataException refused)
+			=> refused.Data[FaultAt] is int at && refused.Data[FaultReason] is string reason ? (at, reason) : null;
+
+		private const string FaultAt = "TranslationAnswer.At", FaultReason = "TranslationAnswer.Reason";
+
+		//where the reader stopped, counted in the text as given: the reader counts its lines
+		//from 0 and its columns in UTF-8 bytes, both from the first {, which a model's
+		//sentence or code fence may put lines down; its own count leaves the message
+		private static InvalidDataException Faulted(string text, int first, JsonException ex) {
+			int start = first;
+			for (long line = 0; line < (ex.LineNumber ?? 0); line++) {
+				int next = text.IndexOf('\n', start);
+				if (next < 0) {
+					break;
+				}
+				start = next + 1;
+			}
+			int end = text.IndexOf('\n', start);
+			end = end < 0 ? text.Length : end;
+			byte[] bytes = System.Text.Encoding.UTF8.GetBytes(text[start..end]);
+			int at = start + System.Text.Encoding.UTF8.GetCharCount(bytes, 0, (int)Math.Min(ex.BytePositionInLine ?? 0, bytes.Length));
+			int lineStart = at == 0 ? 0 : text.LastIndexOf('\n', at - 1) + 1;
+			int number = 1 + text.AsSpan(0, at).Count('\n'), column = at - lineStart + 1;
+			int count = ex.Message.IndexOf(" LineNumber:", StringComparison.Ordinal);
+			string what = count >= 0 ? ex.Message[..count] : ex.Message;
+			return new($"the answer is no JSON at line {number}, column {column}: {what}", ex) {
+				Data = { [FaultAt] = at, [FaultReason] = what },
+			};
 		}
 
 		//JSON escapes a lone surrogate (\ud800) as readily as a character, but it is no
@@ -66,7 +122,17 @@ namespace PatTech.Localization.Authoring {
 				}
 				index++;
 			}
-			return new(code.GetString()!, read);
+			return new(code.GetString()!, read) { Translator = Name(root) };
+		}
+
+		//the name the translator gave itself, on one line and not too long for a mark; none
+		//for a null, a blank or anything but text, which costs the answer nothing
+		private static string? Name(JsonElement root) {
+			if (!root.TryGetProperty("translator", out var translator) || translator.ValueKind != JsonValueKind.String) {
+				return null;
+			}
+			string name = string.Join(' ', translator.GetString()!.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+			return name == "" ? null : name.Length > TranslatorLength ? name[..TranslatorLength].TrimEnd() : name;
 		}
 
 		/// <summary>

@@ -6,10 +6,11 @@ namespace WordsEdit.Utils;
 
 /// <summary>
 ///     Wordsmith's own settings — the language it speaks, the main window as it
-///     last closed, the help bubbles and the toolbars — in <c>%LocalAppData%\Wordsmith\config.ini</c>,
-///     in sections: <c>[editor]</c> for the language and the tips switch,
-///     <c>[window]</c> for the window, <c>[seen]</c> for each bubble closed,
-///     <c>[toolbars]</c> for each toolbar changed, each a
+///     last closed, the help bubbles, the toolbars and machine translation — in
+///     <c>%LocalAppData%\Wordsmith\config.ini</c>, in sections: <c>[editor]</c> for the
+///     language and the tips switch, <c>[window]</c> for the window, <c>[seen]</c> for
+///     each bubble closed, <c>[toolbars]</c> for each toolbar changed,
+///     <c>[translation]</c> for each language's brief, the batch and the mark, each a
 ///     group of <c>key=value</c> lines, their names matched without case. Read
 ///     once, each value then read from memory; written as soon as a value is set,
 ///     every value a moment sets in one transaction of the ini driver's (SPEC: Save
@@ -38,6 +39,7 @@ public static class EditorConfig {
 	private const string WindowSection = "window";
 	private const string SeenSection = "seen";
 	private const string ToolbarsSection = "toolbars";
+	private const string TranslationSection = "translation";
 
 	//names without case, `=`, `;` comments, UTF-8 with no byte-order mark when it makes one
 	private static readonly IniDialect Dialect = IniDialect.Sections(new IniRules());
@@ -100,6 +102,12 @@ public static class EditorConfig {
 	/// <summary>Keeps each toolbar's line under <c>[toolbars]</c>, all in one write; a null line drops it.</summary>
 	public static void KeepToolbars(IEnumerable<KeyValuePair<string, string?>> lines)
 		=> Write(ToolbarsSection, [.. lines.Select(pair => (pair.Key, pair.Value))]);
+
+	/// <summary>What machine translation keeps under <c>[translation]</c> as <paramref name="name"/>: a language's brief, the batch, the mark; null when nothing.</summary>
+	public static string? Translation(string name) => Read(TranslationSection).GetValueOrDefault(name);
+
+	/// <summary>Keeps <paramref name="value"/> under <c>[translation]</c> as <paramref name="name"/>; null drops it.</summary>
+	public static void KeepTranslation(string name, string? value) => Write(TranslationSection, (name, value));
 
 	private static double? Number(Dictionary<string, string> values, string key)
 		=> double.TryParse(values.GetValueOrDefault(key), NumberStyles.Float, CultureInfo.InvariantCulture, out double number) && number > 0 ? number : null;
