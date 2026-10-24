@@ -1099,6 +1099,44 @@ from C# 13, needs C# 13 for Core's net8.0 build, and is ignored by a C# 12
 caller. Nothing breaks today, so it waits for a way that warns only the calls
 it should.
 
+## Markdown into a TextBlock of one's own
+
+A string that is markdown already, built by the app rather than looked up by a
+key (Wordsmith's help bubble, a page assembled from parts), has no good way
+into a `TextBlock` today. `WordsInline` takes a key. `MarkdownConverter` hands
+back an `Inline` only where the target is one, and WPF has no bindable property
+of that type, nor does Avalonia's `ContentControl`; everywhere else it hands back
+a `TextBlock` of its own, which the binding cannot style: it doesn't wrap, so
+a bubble or a card narrower than the text shows one line, cut. The samples'
+markdown playground binds it into a `ContentControl` and shows the same. So
+Wordsmith's bubble borrows its preview panes' renderer, which is there for a
+project's image rules (the editor spec's *Markdown previews*).
+
+**The shape.** An attached property on both frameworks, `Markdown.Text`, set
+on a `TextBlock`: the bound markdown, rendered by the parser `WordsInline` and
+the converter use (`MarkdownParser.Default`), fills that `TextBlock`'s own
+inlines, so it keeps its wrapping, trimming, font and style, and its links
+navigate as any rendered link does. A change renders again; null or empty
+leaves it empty. `MarkdownConverter` stays for a target of its own; the
+`TextBlock` it makes wraps, since nothing else can tell it to, and its
+summary names `Markdown.Text` for a `TextBlock` in hand. Words that live
+switching re-renders still come from `WordsInline`, whose key is what tells a
+switch it is due; `Markdown.Text` renders what it is given, so a binding that
+builds it from `Words.Known` re-renders when that binding does.
+
+**Order.** In the library on both frameworks, with the converter's wrap; the
+samples' markdown playground on `Markdown.Text`, WPF and Avalonia alike,
+before anything else uses it; then Wordsmith's help bubble, with the next
+`api/` release after editor 1.5, leaving its `MarkdownPreview` to the preview
+panes alone. The readmes and the skill name it beside the converter.
+
+**Tests.** On each framework: a `TextBlock` given `Markdown.Text` holds the
+rendered inlines, bold and a link among them, and keeps the `TextWrapping` it
+was given; a new value renders again, and null empties it; a link in it
+navigates through the handler a rendered link uses. The converter's own
+`TextBlock` wraps. In Wordsmith, the bubble measures the page it opens with
+(`TheBubbleMeasuresThePageItOpensWith`) on `Markdown.Text`.
+
 ## One trigger per synchronization context
 
 `TriggerWords` is one for the process, and lives on the UI thread whose
