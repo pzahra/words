@@ -61,7 +61,8 @@ under its header; the head with none starts the file, a blank line parting
 it from what follows. A section moved goes after the other's last field,
 after a blank line. A section going takes its header, its fields and the
 blank runs that then part nothing, and, if it ended the file, the blank run
-above its header; comment blocks and unrecognised lines stand. An element
+above its header, unless the dialect spaces the section above with one
+(*Spacing*); comment blocks and unrecognised lines stand. An element
 read before an edit (a comment block to edit or move) is refused once it no
 longer stands where it stood, or once another just like it has come to stand
 there.
@@ -84,8 +85,17 @@ ship, and either can be extended:
   of its own before what follows where that block had one.
 
 A dialect that extends one may say which names are keys, how a field is
-written (its whole lines), where a new key and a new section go, and what
-more the check compares.
+written (its whole lines), where a new key and a new section go, whether a
+blank line follows a section (*Spacing*), and what more the check compares.
+
+**Spacing.** A dialect may say whether a section is followed by a blank
+line, given its fields: one, none, or no say, which the two that ship have.
+An edit that leaves a section standing, a set, a remove or a section
+replaced, asks before and after: where the answer changes, the line goes in
+after the section's first occurrence's last field, or its header, or the run
+there goes; an edit that changes nothing the dialect spaces by leaves the
+blank lines as they stand. A section dropped from the end of the file leaves
+the blank run above it where the dialect spaces the section above with one.
 
 **Values and comments**, each a rule the dialect picks:
 - **Separators**: `=`, `:`, or either.
@@ -225,7 +235,10 @@ what the check found, and where any log or kept bytes sit.
   one inside another part of it, no replacing inside one; replaced whole,
   over a file and over none; no text refused for edits; names with and
   without case, keys by their own rule, a rename by case alone; indents, a
-  header's tail, a header's spaces and trailing spaces, each rule on and off.
+  header's tail, a header's spaces and trailing spaces, each rule on and off;
+  a dialect's spacing, the blank line after a section given or taken where an
+  edit changes what it wants and kept where it changes nothing, and kept
+  above a section dropped from the end.
 - A section named twice: read as one, set in its first occurrence, removed,
   renamed and moved in every occurrence.
 - Values and comments, each rule on and off: continued, quoted and escaped

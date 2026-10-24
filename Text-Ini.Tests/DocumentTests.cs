@@ -186,6 +186,30 @@ public class DocumentTests {
 		Assert.False(document.IsEdited);
 	}
 
+	//a dialect that spaces a section with a blank line after it while it has an x
+	private sealed class SpacedByX() : IniDialect(new IniRules()) {
+		protected internal override bool? BlankAfter(IniDocument document, string section, IReadOnlyList<KeyValuePair<string, string>> pairs)
+			=> pairs.Any(pair => pair.Key == "x");
+	}
+
+	//an edit that changes whether the dialect wants a blank line after a section gives or takes
+	//it, and one that changes nothing it spaces by leaves the blank lines; a section dropped from
+	//the end leaves the one the section above it is spaced with
+	[Fact]
+	public void TheBlankLineAfterASection_IsTheDialects_WhereAnEditChangesWhatItWants() {
+		IniDocument document = IniDocument.Read("[s]\ny=1\n[t]\nx=2\n\n"u8.ToArray(), new SpacedByX());
+
+		document.Set("s", "z", "3");
+		Assert.Equal("[s]\ny=1\nz=3\n[t]\nx=2\n\n", document.Text);
+		document.Set("s", "x", "4");
+		Assert.Equal("[s]\ny=1\nz=3\nx=4\n\n[t]\nx=2\n\n", document.Text);
+		document.Remove("s", "x");
+		Assert.Equal("[s]\ny=1\nz=3\n[t]\nx=2\n\n", document.Text);
+		document.Set("s", "x", "5");
+		document.RemoveSection("t");
+		Assert.Equal("[s]\ny=1\nz=3\nx=5\n\n", document.Text);
+	}
+
 	[Fact]
 	public void ABatchInsideABatch_IsPartOfIt_AndNothingIsReplacedWholeInOne() {
 		IniDocument document = Ini.Read("[s]\nx=1\n");

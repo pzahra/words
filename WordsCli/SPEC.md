@@ -139,13 +139,20 @@ gains a bare header, its keys re-headed to chain off it; a deeper group
 takes its keys from the chain they ran in; a bare header left basing nothing
 goes. Those headers are the only other lines that change. It is spaced as
 the writer spaces: past a blank line after the block it follows, with one of
-its own when it has a value, and none in a file written without them. A
-value added to or removed from a key already there leaves the blank lines as
-they were.
+its own when it has a value, and none in a file written without them. A key
+already there that gains its value, set on a key added by its context first,
+gains the blank line the writer writes after a block with one, ahead of the
+comment of the block that follows; one that loses it, by `remove` or an
+empty `set`, loses the line. Any other field, and a value set over a value,
+leaves the blank lines as they were, and so does every edit in a file
+written without them.
 
 **A removal** keeps bare a header that bases `[.child]` headers, which
 reloads as a group; a block it leaves with no field goes; it leaves no blank
-line that parts nothing; the comments above a removed block stand.
+line that parts nothing, but the one after a block with a value, which is
+that block's own: the file's last key removed leaves the blank line of the
+block before it, so a key set and then removed gives the file back. The
+comments above a removed block stand.
 
 **Checked.** Each edit is read back through Core and compared with the file
 before it, the change applied: every key's fields, the language table, the
@@ -209,10 +216,14 @@ Headless:
   group's too, the writer saving the result to the same bytes; a lone key
   after the last block and before the trailer, and at the end of a file with
   no blocks; a blank line of its own only with a value, and none in a file
-  without them.
+  without them; a key's first value giving its block the blank line after
+  it, ahead of the next block's comment, and its value removed or emptied
+  taking it, but in a file without them.
 - Removals: a field with its continuations, an empty one included; a block
-  with its blank line, the last with none left behind; a block it empties; a
-  reopened key everywhere; a header that bases children kept bare.
+  with its blank line, the last leaving the blank line of the block before
+  it where that has a value, so a key set and removed gives the file back,
+  and none where the file ends without one; a block it empties; a reopened
+  key everywhere; a header that bases children kept bare.
 - Keys read past a `[]`.
 - Bytes: a BOM, CRLF and a missing last break kept, each line of a mixed
   file its own break, UTF-16 and UTF-32 kept either way round; text not
@@ -265,14 +276,3 @@ read back through the editor byte for byte.
 
 Its part in the editor's *Machine translation*, `list --stale`, `request` and
 `apply`, is built (*Calls*); the editor's part is planned there.
-
-## A block's first value spaces it
-
-`set` giving the default's value to a key that has none, a key added by its
-context first, writes the value into the block and no blank line after it,
-where the editor writes one after each block with a value (*Surgical edits*):
-the file then reads back through the editor with a line more. A new key set
-by its value first is spaced right. The fix: a block that gains a value
-gains the blank line after it, in a file spaced so, and one that loses it,
-by `remove` or an empty `set`, loses the line. Until then, a new key's value
-goes first.

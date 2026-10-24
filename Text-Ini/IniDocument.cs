@@ -175,7 +175,10 @@ public sealed class IniDocument {
 		else {
 			AddSection(plan, section, [new(key, value)], FieldLines(key, value));
 			touched.Add(Parent(section));
+			Land(plan, expected, touched);
+			return;
 		}
+		Respace(plan, section, expected);
 		Land(plan, expected, touched);
 	}
 
@@ -195,9 +198,13 @@ public sealed class IniDocument {
 		IniContent expected = Expecting();
 		(bool stands, bool dropped) = DropFields(plan, occurrences, declared);
 		//the key goes, and the section with it only when nothing else is meant to stand in it: a
-		//key a batch added that reads as part of another stays expected, and the check refuses
+		//key a batch added that reads as part of another stays expected, and the check refuses.
+		//A section left standing is spaced anew
 		expected.Remove(section, key);
-		if (!stands && expected.Keys(section).Count == 0) {
+		if (stands) {
+			Respace(plan, section, expected);
+		}
+		else if (expected.Keys(section).Count == 0) {
 			expected.RemoveSection(section);
 		}
 		Land(plan, expected, dropped ? [Parent(section)] : []);
@@ -256,6 +263,7 @@ public sealed class IniDocument {
 			Drop(plan, occurrence);
 			touched = [Parent(section)];
 		}
+		Respace(plan, section, expected);
 		Land(plan, expected, touched);
 	}
 
@@ -658,8 +666,8 @@ public sealed class IniDocument {
 
 	//an occurrence going: its header, its fields, and the blank runs that part nothing left
 	//standing; comment blocks and lines no element stand, and so, in the dotted dialect, does a
-	//header that bases a chain. One ending the file takes the blank run above its header too.
-	//Whether its header stayed
+	//header that bases a chain. One ending the file takes the blank run above its header too,
+	//but where its dialect spaces the section above with one. Whether its header stayed
 	private bool Drop(Plan plan, Occurrence occurrence) {
 		bool keeps = occurrence.Header is { } kept && Bases(kept);
 		if (occurrence.Header is { } header && !keeps) {
@@ -675,14 +683,60 @@ public sealed class IniDocument {
 				plan.Remove(elements[at]);
 			}
 		}
-		//a blank run left ending the file parts nothing either
+		//a blank run left ending the file parts nothing either, but where the dialect spaces the
+		//section above it with one after
 		if (occurrence.Header is { } dropped && !keeps) {
 			int above = occurrence.First - 2;
-			if (above >= 0 && elements[above] is IniBlank && !Parts(plan, above)) {
+			if (above >= 0 && elements[above] is IniBlank && !Parts(plan, above) && !Spaces(above)) {
 				plan.Remove(elements[above]);
 			}
 		}
 		return keeps;
+	}
+
+	//whether the dialect wants the blank run at elements[at] after the section the element above
+	//it is in, that section's fields as they stand
+	private bool Spaces(int at) {
+		string section = "";
+		for (int back = at - 1; back >= 0; back--) {
+			if (elements[back] is IniHeader header) {
+				section = header.Name;
+				break;
+			}
+		}
+		return Dialect.BlankAfter(this, section, Pairs(content, section)) == true;
+	}
+
+	private static List<KeyValuePair<string, string>> Pairs(IniContent content, string section)
+		=> [.. content.Keys(section).Select(key => new KeyValuePair<string, string>(key, content.Get(section, key)!))];
+
+	//the blank line after a section an edit leaves standing, where the edit changes whether its
+	//dialect wants one: one added after its first occurrence's last field, or its header, where it
+	//now wants one and none is there; the run there taken where it now wants none. An edit that
+	//changes nothing the dialect spaces by leaves the blank lines as they stand, and so does a
+	//section ending in no field nor header, the head with nothing
+	private void Respace(Plan plan, string section, IniContent expected) {
+		if (Dialect.BlankAfter(this, section, Pairs(expected, section)) is not { } wanted
+			|| Dialect.BlankAfter(this, section, Pairs(content, section)) == wanted
+			|| Occurrences(section) is not [var first, ..]) {
+			return;
+		}
+		int end = -1;
+		for (int at = first.First - 1; at < first.End; at++) {
+			if (at >= 0 && (elements[at] is IniField || at == first.First - 1 && elements[at] is IniHeader)) {
+				end = at;
+			}
+		}
+		if (end < 0) {
+			return;
+		}
+		bool blank = end + 1 < elements.Count && elements[end + 1] is IniBlank;
+		if (wanted && !blank) {
+			plan.Insert(elements[end].Line + elements[end].Count, [new Written("")]);
+		}
+		else if (!wanted && blank && !plan.Removes(elements[end + 1])) {
+			plan.Remove(elements[end + 1]);
+		}
 	}
 
 	//whether the blank run at elements[at] parts two things left standing, neither of them blank

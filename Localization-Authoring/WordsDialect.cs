@@ -115,6 +115,51 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		/// <summary>
+		///     A blank line after a block with a value, and after the language table, as the writer
+		///     writes one, and none after a block without: in a file spaced so, where the nearest
+		///     other block with a value has one after it, or that has no such block. A file written
+		///     without them is left as it stands.
+		/// </summary>
+		protected override bool? BlankAfter(IniDocument document, string section, IReadOnlyList<KeyValuePair<string, string>> pairs) {
+			ArgumentNullException.ThrowIfNull(document);
+			ArgumentNullException.ThrowIfNull(pairs);
+			if (!Spaced(document, section)) {
+				return null;
+			}
+			return section.Length == 0 || pairs.Any(pair => KeyNames.Equals(pair.Key, "value") && pair.Value != "");
+		}
+
+		//whether the file spaces its blocks as the writer does: the nearest block with a value but
+		//section's, above its first header or else below it, has a blank line after it; a file
+		//with none is taken as the writer would write it
+		private static bool Spaced(IniDocument document, string section) {
+			IReadOnlyList<IniElement> all = document.Elements;
+			//each block's name and its last field, or its header
+			List<(string Name, int End)> blocks = [];
+			int mine = -1;
+			for (int at = 0; at < all.Count; at++) {
+				if (all[at] is IniHeader header) {
+					if (mine < 0 && header.Name == section) {
+						mine = blocks.Count;
+					}
+					blocks.Add((header.Name, at));
+				}
+				else if (all[at] is IniField field && blocks.Count > 0 && field.Section == blocks[^1].Name) {
+					blocks[^1] = (blocks[^1].Name, at);
+				}
+			}
+			IEnumerable<int> nearest = mine < 0 ? Enumerable.Range(0, blocks.Count)
+				: Enumerable.Range(0, mine).Reverse().Concat(Enumerable.Range(mine + 1, blocks.Count - mine - 1));
+			foreach (int at in nearest) {
+				var (name, end) = blocks[at];
+				if (name != section && document.Get(name, "value") is { Length: > 0 }) {
+					return end + 1 < all.Count && all[end + 1] is IniBlank;
+				}
+			}
+			return true;
+		}
+
+		/// <summary>
 		///     The file read back through Core as the edit means it: every key it did not touch as
 		///     it read, every key it touched as its pairs read, the language table and the settings
 		///     references likewise, and the comments in order, as they were unless the edit's own

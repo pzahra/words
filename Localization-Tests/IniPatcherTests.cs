@@ -86,7 +86,8 @@ public class IniPatcherTests {
 
 		patcher.Set("a", F("value"), "A");
 
-		Assert.Equal(Ini("[a]", "context=", "comment=", "value=A"), patcher.Text);
+		//its first value gives the block the blank line the writer writes after one
+		Assert.Equal(Ini("[a]", "context=", "comment=", "value=A", ""), patcher.Text);
 		Assert.Equal("A", patcher.Find("a")!.DefaultValue);
 	}
 
@@ -96,7 +97,7 @@ public class IniPatcherTests {
 
 		patcher.Set("menu", F("value"), "Menu");
 
-		Assert.Equal(Menu.Replace("[menu]\n", "[menu]\nvalue=Menu\n"), patcher.Text);
+		Assert.Equal(Menu.Replace("[menu]\n", "[menu]\nvalue=Menu\n\n"), patcher.Text);
 		Assert.Equal("File", patcher.Find("menu.file")!.DefaultValue);
 	}
 
@@ -263,7 +264,8 @@ public class IniPatcherTests {
 		patcher.Remove("a", F("context"));
 		patcher.Remove("b", F("comment")); //a block of nothing but the empty field, read as a group, goes with it
 
-		Assert.Equal(Ini("[a]", "value=A"), patcher.Text);
+		//[a]'s own blank line stays, as the writer writes it
+		Assert.Equal(Ini("[a]", "value=A", ""), patcher.Text);
 		Assert.False(patcher.Declares("a", F("context")));
 	}
 
@@ -346,6 +348,48 @@ public class IniPatcherTests {
 		Assert.Equal(Ini("[a]", "value=A"), patcher.Text);
 	}
 
+	//the block before owns the blank line after it, as the writer writes it, so removing the
+	//last key leaves it, and a key set and then removed there gives back the file
+	[Fact]
+	public void Remove_TheLastKey_KeepsTheBlankLineOfTheBlockBeforeIt() {
+		string text = Ini("value=!en", "", "[a]", "value=A", "");
+		var patcher = Patch(text);
+
+		patcher.Set("z.last", F("value"), "Z");
+		patcher.Remove("z.last");
+
+		Assert.Equal(text, patcher.Text);
+	}
+
+	//a block that gains its value gains the blank line after it, ahead of the comment of the
+	//block that follows; one that loses it, by a remove or an empty set, loses the line
+	[Fact]
+	public void AValueGainedOrLost_GivesOrTakesTheBlankLineAfterItsBlock() {
+		string valued = Ini("value=!en", "", "[a]", "value=A", "", "[k]", "context=c", "value=K", "", ";for z", "[z]", "value=Z", "");
+		string bare = Ini("value=!en", "", "[a]", "value=A", "", "[k]", "context=c", ";for z", "[z]", "value=Z", "");
+
+		var removed = Patch(valued);
+		removed.Remove("k", F("value"));
+		var gained = Patch(bare);
+		gained.Set("k", F("value"), "K");
+		var emptied = Patch(valued);
+		emptied.Set("k", F("value"), "");
+
+		Assert.Equal(bare, removed.Text);
+		Assert.Equal(valued, gained.Text);
+		Assert.Equal(bare.Replace("context=c\n", "context=c\nvalue=\n"), emptied.Text);
+	}
+
+	//a file written without blank lines gets none, a value gained or not
+	[Fact]
+	public void AValueGained_InAFileWrittenWithoutBlankLines_GetsNone() {
+		var patcher = Patch(Ini("value=!en", "[a]", "value=A", "[b]", "context=c", "[z]", "value=Z"));
+
+		patcher.Set("b", F("value"), "B");
+
+		Assert.Equal(Ini("value=!en", "[a]", "value=A", "[b]", "context=c", "value=B", "[z]", "value=Z"), patcher.Text);
+	}
+
 	[Fact]
 	public void Remove_AKeyThatBasesChildren_KeepsItsHeaderBare() {
 		var patcher = Patch(Ini("[menu]", "value=Menu", "", "[.file]", "value=File"));
@@ -363,7 +407,7 @@ public class IniPatcherTests {
 
 		patcher.Remove("a");
 
-		Assert.Equal(Ini("[b]", "value=B"), patcher.Text);
+		Assert.Equal(Ini("[b]", "value=B", ""), patcher.Text);
 	}
 
 	[Fact]

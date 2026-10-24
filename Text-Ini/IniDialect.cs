@@ -71,6 +71,15 @@ public class IniDialect {
 	}
 
 	/// <summary>
+	///     Whether a blank line follows <paramref name="section"/>, its fields being
+	///     <paramref name="pairs"/>, as the dialect spaces a file (SPEC.md, <i>Spacing</i>): true
+	///     for one, false for none, null to leave the file as it stands, as here. An edit that
+	///     leaves a section standing asks it of that section; one dropping the section that ends
+	///     the file asks it of the section the blank line above would then end.
+	/// </summary>
+	protected internal virtual bool? BlankAfter(IniDocument document, string section, IReadOnlyList<KeyValuePair<string, string>> pairs) => null;
+
+	/// <summary>
 	///     A field's lines as the dialect writes it, key and all, each without its break, for a
 	///     new field and for one set anew; null to write it in the form it was written in while
 	///     that holds the value, else in the first form that does (SPEC.md, <i>Values and comments</i>).
