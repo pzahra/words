@@ -338,6 +338,7 @@ public sealed class CommandTable {
 		//Tools
 		var languages = new CommandItem(Words.Known["menu.languages"], PackIconKind.Translate, vm.ManageLanguagesCommand);
 		var settings = new CommandItem(Words.Known["menu.settings"], PackIconKind.Cog, vm.SettingsCommand);
+		var machine = new CommandItem(Words.Known["menu.machine-translation"], PackIconKind.RobotOutline, vm.MachineTranslationCommand);
 		var customize = new CommandItem(Words.Known["menu.toolbars"], PackIconKind.ToolboxOutline, vm.CustomizeToolbarsCommand);
 		//Help: the bubbles' switch, and their memory forgotten
 		var tips = new ToggleItem(Words.Known["menu.tips"], PackIconKind.CommentQuestionOutline, () => vm.Help.Tips, new DelegateCommand(() => vm.Help.Tips = !vm.Help.Tips));
@@ -348,7 +349,7 @@ public sealed class CommandTable {
 			new MenuGroup(Words.Known["menu.file"], [create, load, import, merge, new MenuBreak(), save, saveAs, export, new MenuBreak(), reset, exit], HelpTopics.Start.Id),
 			edit,
 			new MenuGroup(Words.Known["menu.view"], [staleView, reviewView, missingView, mismatchView, clearFilters, new MenuBreak(), defaultPreview, translationPreview, new MenuBreak(), back, forward, find, new MenuBreak(), defaultForm, translationForm, new MenuBreak(), translationLanguage, uiLanguage]),
-			new MenuGroup(Words.Known["menu.tools"], [languages, settings, customize]),
+			new MenuGroup(Words.Known["menu.tools"], [languages, machine, settings, customize]),
 			new MenuGroup(Words.Known["menu.help"], [tips, tipsAgain]),
 		];
 		EditRows = edit.Items;
@@ -368,7 +369,7 @@ public sealed class CommandTable {
 			["back"] = back, ["forward"] = forward, ["find"] = find,
 			["default-form"] = defaultForm, ["translation-form"] = translationForm,
 			["translation-language"] = translationLanguage, ["ui-language"] = uiLanguage,
-			["languages"] = languages, ["settings"] = settings, ["toolbars"] = customize, ["tips"] = tips, ["tips-again"] = tipsAgain,
+			["languages"] = languages, ["machine-translation"] = machine, ["settings"] = settings, ["toolbars"] = customize, ["tips"] = tips, ["tips-again"] = tipsAgain,
 			["search-box"] = searchBox, ["filters"] = filters, ["node-name"] = nodeName,
 		};
 		foreach (var (name, row) in named) {

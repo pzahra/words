@@ -504,6 +504,21 @@ public sealed class WordsCommandTests : IDisposable {
 		Assert.Contains("[files]\nvalue=file\nvalue#other=files\nvalue-it=file\nvalue-it#other=file\nstale-it=machine translated\n", text);
 	}
 
+	//the name the translator gives itself follows the mark, --stale's words too, and a loop
+	//passing over the mark still passes over it
+	[Fact]
+	public void Apply_TheTranslatorsName_FollowsTheMark() {
+		File.WriteAllText(path, Sample);
+		var answer = Requested("--missing", "it");
+		answer["translator"] = "GPT-5";
+		answer["items"]![0]!["translation"]!["value"] = "Modifica";
+
+		Assert.Equal(0, RunWith(answer.ToJsonString(), "apply", "FILE", "-", "--stale", "auto").Code);
+
+		Assert.Contains("[menu.edit]\nvalue=Edit\nvalue-it=Modifica\nstale-it=auto: GPT-5\n", File.ReadAllText(path));
+		Assert.DoesNotContain("menu.edit", Run("list", "FILE", "--stale", "it", "--stale-without", "auto").Output);
+	}
+
 	//a link's target may change, some pages having one per language, but a person
 	//checks the URL: the key goes in with its hand raised, and the change is named
 	[Fact]

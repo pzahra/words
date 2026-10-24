@@ -81,6 +81,8 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	public ICommand MergeFilesCommand { get; }
 	public ICommand ManageLanguagesCommand { get; }
 	public ICommand SettingsCommand { get; }
+	/// <summary>Tools &gt; Machine Translation, on the selected node's file (SPEC: Machine translation, In Wordsmith).</summary>
+	public ICommand MachineTranslationCommand { get; }
 	/// <summary>The toolbar editor; a toolbar's context menu passes the toolbar, which the board marks.</summary>
 	public ICommand CustomizeToolbarsCommand { get; }
 	public ICommand ShowGripesCommand { get; }
@@ -136,11 +138,15 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	private readonly Func<string, bool> spellCheckers;
 	//the clock typing reads: when a keystroke landed, and the stale stamps it writes
 	private readonly TimeProvider time;
+	//what machine translation remembers between runs
+	private readonly ITranslationMemory translation;
 
 	/// <param name="help">What the bubbles remember between runs: the config's, or this run's alone when null.</param>
 	/// <param name="toolbars">What the toolbars remember between runs: the config's, or this run's alone when null.</param>
+	/// <param name="translation">What machine translation remembers between runs: the config's, or this run's alone when null.</param>
 	public MainWindowViewModel(IDialogs? dialogs = null, WordsFormats? formats = null, Func<string, bool>? spellCheckers = null, TimeProvider? time = null,
-			IHelpMemory? help = null, IToolbarMemory? toolbars = null) {
+			IHelpMemory? help = null, IToolbarMemory? toolbars = null, ITranslationMemory? translation = null) {
+		this.translation = translation ?? new TranslationMemory();
 		Dialogs = dialogs ?? new WpfDialogs();
 		this.time = time ?? TimeProvider.System;
 		UndoStack = new UndoStack(this.time);
@@ -180,6 +186,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		MergeFilesCommand = new DelegateCommand(DoMergeFiles);
 		ManageLanguagesCommand = new DelegateCommand(DoManageLanguages, () => LanguagesFile is not null);
 		SettingsCommand = new DelegateCommand(DoSettings, () => Tree.SelectedFile is not null);
+		MachineTranslationCommand = new DelegateCommand(() => Dialogs.Show(new TranslationViewModel(this, this.translation)), () => Tree.SelectedFile is not null);
 		CustomizeToolbarsCommand = new DelegateCommand<Toolbar?>(toolbar => Dialogs.Show(new ToolbarsViewModel(this, toolbar)));
 		ShowGripesCommand = new DelegateCommand<PreviewPane>(
 			pane => Dialogs.Show(new GripesViewModel(Words.Known["gripes.preview"], pane.Gripes)),
@@ -832,6 +839,61 @@ public class MainWindowViewModel : ViewModelSaveBase {
 			}
 		});
 		Tree.RefreshBadges(node);
+	}
+
+	/// <summary>
+	///     Writes a machine translation's rows into <paramref name="file"/> (SPEC: Machine
+	///     translation, It lands for review) as one entry (SPEC: One entry for many edits):
+	///     each row's words in <paramref name="code"/>, each key written marked stale with
+	///     <paramref name="mark"/>, and each of <paramref name="raise"/> its hand raised,
+	///     stamped as a hand is, unless it is up. A key gone, and a key the rows leave as
+	///     it was, are passed over.
+	/// </summary>
+	/// <returns>How many rows changed a field.</returns>
+	internal int WriteTranslations(WordsFile file, string code, IReadOnlyList<(string Key, string Form, string Text)> rows, string mark, IReadOnlySet<string> raise) {
+		int written = 0;
+		Batch(() => {
+			foreach (var rowsOfKey in rows.GroupBy(row => row.Key)) {
+				string name = rowsOfKey.Key;
+				if (!file.Keys.TryGetValue(name, out WordsKey? key)) {
+					continue;
+				}
+				int was = written;
+				foreach (var (_, form, text) in rowsOfKey) {
+					Perform(() => {
+						string before = TranslationRequest.Held(key.Entries.GetValueOrDefault(code)).GetValueOrDefault(TranslationRequest.Slot(form)) ?? "";
+						if (before == text) {
+							return null;
+						}
+						Session.Set(file, name, new WordsField("value", code, form), text);
+						written++;
+						return new FieldEdit(new NodeRef(file, name), code, DocumentField.EntryValue, before, text, form == "" ? null : form);
+					});
+				}
+				//a key whose words the rows left as they were takes no mark
+				if (written == was) {
+					continue;
+				}
+				Perform(() => {
+					string? before = key.Entries.GetValueOrDefault(code)?.Stale;
+					if (before == mark) {
+						return null;
+					}
+					Session.Set(file, name, WordsField.StaleIn(code), mark);
+					return new StaleEdit(file, name, code, before, mark);
+				});
+				if (raise.Contains(name) && !key.NeedsReview) {
+					Perform(() => {
+						string after = WordsKey.StaleStamp(time.GetLocalNow());
+						Session.Set(file, name, WordsField.Hand, after);
+						return new ReviewEdit(file, name, null, after);
+					});
+				}
+			}
+		});
+		Tree.RefreshBadges();
+		Tree.FollowSelectedKey();
+		return written;
 	}
 
 	private void DoToggleStaleLanguage(string? languageCode) {

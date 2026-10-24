@@ -104,7 +104,10 @@ with a title, is held to the same rules. A link pointing somewhere new is let
 through, since the Italian docs may well live at their own URL, but the key
 gets its hand raised and stderr says what moved, so somebody checks before
 it ships. Everything it writes is marked stale (`machine translated`, or your
-own words with `--stale`), so it turns up in Wordsmith's review filter. A
+own words with `--stale`), so it turns up in Wordsmith's review filter, with
+whatever name the translator put in `"translator"` tacked on: `machine
+translated: GPT-5`. Take that name with a pinch of salt; models are not
+always sure who they are. A
 `null` left is fine: that slot just stays missing. It exits 1 when it skipped
 anything, and writes nothing at all if the file would refuse one of the edits.
 

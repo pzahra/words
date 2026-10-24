@@ -1815,7 +1815,7 @@ An action that is a run of edits the history already knows, each to its own
 key, field or language, undoes as one: Stale All Languages stamps each
 language a key keeps, a drag from one file to another is a removal from the
 file it left and an addition to the file it went to, each its own file's
-(*Dirty by file*), and Machine translation's Apply, when it is built, writes
+(*Dirty by file*), and Machine translation's Apply writes
 a field, marks it stale and may raise a hand, row after row (*Machine
 translation*, It lands for review). A `BatchEdit`
 holds those entries, in the order they were made, and is one entry on the
@@ -2500,6 +2500,7 @@ translator needs nothing else:
 ```json
 {
   "words": "translation/1",
+  "translator": null,
   "instructions": "Translate each item's default from English into Italian…",
   "brief": "Informal: tu, not Lei. Wordsmith stays Wordsmith.",
   "file": "words.ini",
@@ -2523,8 +2524,9 @@ names are: fill each null under `translation` with the item's default in the
 target language; keep every `{…}` token and code span as it is, and each link
 target unless the page has its own in the target language, and the line breaks; read `context`, `comment` and `parameters` for where the
 text shows and what each token becomes; improve a `current` translation
-rather than start over; return the whole document as JSON and change nothing
-else; leave a null that cannot be filled. `brief` is the user's own, for the
+rather than start over; put its own name in `translator`; return the whole
+document as JSON and change nothing else; leave a null that cannot be
+filled. `brief` is the user's own, for the
 tone and the terms. A slot is named as in the file less the language, `value`
 for the plain value and `value#other` for a form, and is written back as
 `value-it#other`. A key's slots are the plain value and, on a plural key,
@@ -2539,9 +2541,16 @@ has some. A key whose default has no words, and a constant, ask nothing.
 Text is a value's own, unescaped, as `words get` prints it: no doubled `_` or
 `'`, no continuation, real line breaks.
 
-**The answer is the same document**, its nulls filled. Only `target.code`
-and each item's `key`, `default`, `current` and `translation` are read back,
-so a script may drop the rest. It is read from its first `{` to its last
+**The answer is the same document**, its nulls filled. Only `translator`,
+`target.code` and each item's `key`, `default`, `current` and `translation`
+are read back, so a script may drop the rest. `translator` is the name the
+translator gives itself, as the instructions ask, a model and its version or
+the service a script called: its runs of white space one space, cut at 80
+characters, and none for a null, a blank or anything but text, which costs
+the answer nothing. It is what the translator says, which a model may say
+wrong. Where it is given, it follows the stale mark each key written takes,
+after a colon (`machine translated: GPT-5`), so the mark still starts the
+same and a selection passing over it passes over this. It is read from its first `{` to its last
 `}`, so a model's code fence or a sentence around it does no harm, and
 comments and trailing commas are let by. A null left, or blank text, is a
 slot not translated, and no error. Broken Unicode, a lone surrogate JSON
@@ -2634,6 +2643,21 @@ whose command fails or whose answer is no document is reported with the exit
 code and stderr, and the next one runs. The command, the brief per language,
 the batch size and the mark are remembered in the editor's settings.
 
+By hand, built: the dialog opens on the selected node's file, offering each
+language the file wants words in, the tree's own first. Missing and Stale
+choose the keys, and Only under keeps to the selected node; Stale passes
+over an entry stale with the mark, so the request after an Apply moves on,
+as the command line's `--stale-without` does. The request asks for the
+selection's first keys, as many as the batch, and the dialog says how many
+there are; Copy Request and Save Request… hand it over, and the answer is
+pasted or opened, then read by Review. One in another language, or no
+document, is refused, saying why; one that is no JSON is highlighted in the
+box from where it stops reading as JSON to the end of that line, to mend it
+and Review again (the command line's `apply` gives the line and the column
+in the text as given). Apply goes back to the request, the
+next one already chosen. The brief per language, the batch and the mark are
+kept under the config's `[translation]`.
+
 **It lands for review.** The answers open in a grid, a row per slot: the key,
 the form, the default, the proposed text and the flags. A row is edited in
 place, unticked or asked for again (a retry sends the selected rows alone); a
@@ -2644,6 +2668,17 @@ entry marked stale with the mark, as one undo entry (*One entry for many edits*)
 file as ever, and the stale filter surfaces the rows for a translator to
 review, as it does any stale translation. The command line writes the file;
 the editor writes its document, so undo and an unsaved file stay whole.
+
+Built, but for the retry, which comes with the command: the grid's rows are
+the slots the answer filled, the default's words beside each, a row as tall
+as its words and the grid scrolled by the pixel. The dialog sizes itself to
+its first page, then to the window: dragging its edge grows the grid and its
+columns, and the answer box. A row edited
+is checked again with the rest, its key's notes with it, and its tick stays
+the person's. A key whose rows leave its words as they were takes no mark.
+The keys the answer leaves at odds without writing them are listed under the
+grid, and the name the translator gave itself above it. The check's flags
+read as Authoring writes them, in English.
 
 **Privacy.** The first run of a command says that the file's strings go
 wherever the command sends them, and the user confirms once per command. If
@@ -2690,14 +2725,29 @@ them is flagged for the `{0}` they bring, a key flagged sends the keys
 reading it back to be checked without it, a key the batch leaves at odds is
 named and not skipped, and a key answered twice keeps its first; a refused edit writes
 nothing; the request sent back untouched writes nothing and exits 0; an answer
-in a code fence reads, and what is no document says why. To build, the
-editor's, with a fake translator: a batch's answer fills the grid, a flagged
-key's rows unticked with the reason, an edited row applied as edited, Apply
-one undo entry that marks stale; a failed batch reported and the next one run;
-Cancel stops; a pasted answer fills the grid.
+in a code fence reads, and what is no document says why. Built, the
+editor's by hand, in `MachineTranslationTests`: the request asks for the keys
+missing the language, up to a batch, with the brief; a pasted answer, in a
+code fence with a trailing comma, fills the grid, a flagged key's rows
+unticked with the reason; a row edited is checked again, its tick kept; Apply
+writes the ticked rows as edited, as one undo entry that marks each key's
+entry stale, and undone takes them all back; the next request passes over
+what was written, stale with the mark; an answer in another language, or no
+document, is refused; one that is no JSON says why, and the view is told the
+character it stops at, in the text as given; an answer naming itself says
+so above the grid, and its name follows the mark Apply writes, which the
+next request still passes over; the brief and the mark are kept.
+Authoring's: an answer that is no JSON names the line and the column in the
+text as given, past the sentence above it and counted in characters; the
+request asks for the translator's name up top, and the name read back is
+one line, cut short, and none for a blank or anything but text; the command
+line's `apply` writes it after the mark, `--stale`'s words too. To build, with a fake
+translator: a batch's answer fills the grid; a failed batch reported and the
+next one run; Cancel stops; a retry sends the selected rows alone.
 
 **Order.** Authoring's document and check with the command line's `list
 --stale`, `request` and `apply` first, since an agent can run the loop with
 them at once and the skill can say so (built); then the editor's dialog by
-hand and its grid, its Apply one batch entry (*One entry for many edits*);
-then the command runner and the batches.
+hand and its grid, its Apply one batch entry (*One entry for many edits*)
+(built); then the command runner and the batches, with the retry and the
+first run's word on privacy.

@@ -15,7 +15,7 @@ namespace PatTech.Localization.Authoring {
 	///     The request a translator fills (editor SPEC: Machine translation): one JSON
 	///     document that explains itself, each key with its default and forms, its
 	///     context, comment and parameters, the target's words where it has some, and
-	///     a null for each slot to fill. A slot is named as in the file less the
+	///     a null for each slot to fill, and one for the translator's own name. A slot is named as in the file less the
 	///     language: <c>value</c>, the plain value, or <c>value#few</c>, a form. The
 	///     answer is the same document filled (<see cref="TranslationAnswer"/>).
 	/// </summary>
@@ -89,6 +89,8 @@ namespace PatTech.Localization.Authoring {
 			using (var json = new Utf8JsonWriter(buffer, new JsonWriterOptions { Indented = true, NewLine = "\n", Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping })) {
 				json.WriteStartObject();
 				json.WriteString("words", Kind);
+				//the translator names itself here, and its name goes with the stale mark
+				json.WriteNull("translator");
 				json.WriteString("instructions", Instructions(source, target));
 				if (brief != "") {
 					json.WriteString("brief", brief);
@@ -172,7 +174,8 @@ namespace PatTech.Localization.Authoring {
 			+ "as the default has them, each link too, its target unchanged unless the page has one of its own in the target "
 			+ "language, and keep its line breaks. \"context\" and \"comment\" say where the text "
 			+ "shows, and \"parameters\" what each {…} token becomes. Where an item has a \"current\" translation, improve it "
-			+ "rather than start over. Follow the \"brief\", if there is one. Return the whole document as JSON and nothing "
+			+ "rather than start over. Follow the \"brief\", if there is one. Put your own name in \"translator\": the model "
+			+ "and its version, or the service or tool that translated. Return the whole document as JSON and nothing "
 			+ "else, and leave a null you cannot fill.";
 	}
 }

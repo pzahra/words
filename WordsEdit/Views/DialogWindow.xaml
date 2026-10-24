@@ -38,6 +38,9 @@
         <DataTemplate DataType="{x:Type vm:ToolbarsViewModel}">
             <v:ToolbarsView/>
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:TranslationViewModel}">
+            <v:TranslationView/>
+        </DataTemplate>
     </Window.Resources>
     <ContentPresenter Content="{Binding}"/>
 </Window>

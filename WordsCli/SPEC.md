@@ -77,7 +77,9 @@ names no type reading back whole (the editor spec's *Parameters*):
 - `apply <file> <answer>`, `-` for stdin, reads the request filled in and
   writes each key whose answer passes the check (the same section, *Nothing
   is written unchecked*): its filled slots as `set` writes them, and its
-  entry's stale mark, `machine translated` or the words `--stale` gives. A
+  entry's stale mark, `machine translated` or the words `--stale` gives,
+  and after a colon the name the answer's `translator` gives itself, where
+  it gives one: `machine translated: GPT-5`. A
   key skipped is named on stderr with why, and a last line counts the slots
   written, left and skipped; any skipped exits 1. The batch is checked whole:
   a key reads the words it writes for the keys it refers to, a key skipped is
@@ -271,4 +273,13 @@ by its value first is spaced right. The fix: a block that gains a value
 gains the blank line after it, in a file spaced so, and one that loses it,
 by `remove` or an empty `set`, loses the line. Until then, a new key's value
 goes first; the keys the editor's *New* added to Wordsmith's own words went
-so.
+so, and so did Machine translation's.
+
+## Removing the last key keeps the blank line before it
+
+`remove` of the file's last key takes the blank line that ends the block
+before it with it, so a key `set` and then removed at the end leaves the file
+a line short, and the next key added there goes unspaced, the file then
+reading as one written without blank lines. The fix: the blank line after
+the block before stays, as it would with a block after it. Until then, a
+key added at the end by mistake is better undone by restoring the file.
