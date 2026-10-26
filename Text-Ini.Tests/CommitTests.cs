@@ -228,30 +228,111 @@ public sealed class CommitTests : IDisposable {
 	}
 
 	[Fact]
-	public void ALogThatWillNotDelete_StillLands_AndTheNextOpenDeletesIt() {
+	public void ALogThatFailsToFlush_AndWillNeitherEmptyNorDelete_IsPending_AndTheNextOpenFinishesIt() {
 		string path = folder.Write("a.ini", "[s]\nx=1\n");
-		FileStream? holder = null;
+		using (IniTransaction file = Open(path)) {
+			file.Set("s", "x", "2");
+			//the trailer written, the flush failing, and the log not to be undone
+			IniFiles.Step = step => {
+				if (step is "flushing" or "emptying" or "deleting") {
+					throw new IOException("the disk went away");
+				}
+			};
+			Assert.Equal(file.LogPath, Assert.Throws<IniPendingException>(file.Commit).Log);
+			IniFiles.Step = null;
+		}
+		using (IniTransaction next = Open(path)) {
+			Assert.Equal(IniRecoveryKind.Replayed, next.Recovery?.Kind);
+			Assert.Equal("2", next.Get("s", "x"));
+		}
+
+		//emptied though it will not delete: refused, and the log left never reads whole
+		using (IniTransaction file = Open(path)) {
+			file.Set("s", "x", "3");
+			IniFiles.Step = step => {
+				if (step is "flushing" or "deleting") {
+					throw new IOException("the disk went away");
+				}
+			};
+			IniCommitException refused = Assert.Throws<IniCommitException>(file.Commit);
+			Assert.Equal((IniCommitFailure.LogWrite, file.LogPath), (refused.Failure, refused.Log));
+			IniFiles.Step = null;
+		}
+		using (IniTransaction next = Open(path)) {
+			Assert.Equal(IniRecoveryKind.Unwhole, next.Recovery?.Kind);
+			Assert.Equal("2", next.Get("s", "x"));
+		}
+		Assert.Equal(["a.ini"], folder.Names);
+	}
+
+	[Fact]
+	public void AHandleThatFailsToClose_LeavesTheOutcomeAsItWas_AndTheFileFree() {
+		string path = folder.Write("a.ini", "[s]\nx=1\n");
 		using (IniTransaction file = Open(path)) {
 			file.Set("s", "x", "2");
 			IniFiles.Step = step => {
-				if (step == "landing") {
-					holder = new FileStream(file.LogPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+				if (step is "logging" or "closing") {
+					throw new IOException("the disk is full");
 				}
 			};
-			IniLanded landed = file.Commit();
+			Assert.Equal(IniCommitFailure.LogWrite, Assert.Throws<IniCommitException>(file.Commit).Failure);
 			IniFiles.Step = null;
-			if (OperatingSystem.IsWindows()) {
-				Assert.Equal(file.LogPath, landed.Log);
-			}
 		}
-		holder!.Dispose();
-		Assert.Equal("[s]\nx=2\n", Folder.Read(path));
-		using (IniTransaction next = Open(path)) {
-			if (OperatingSystem.IsWindows()) {
-				Assert.Equal(new IniRecovery(IniRecoveryKind.Finished, null), next.Recovery);
-			}
+		using (new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) {
 		}
 		Assert.Equal(["a.ini"], folder.Names);
+	}
+
+	[Fact]
+	public void ALogThatWillNotDelete_StillLands_AndTheNextOpenDeletesIt() {
+		string path = folder.Write("a.ini", "[s]\nx=1\n");
+		using (IniTransaction file = Open(path)) {
+			file.Set("s", "x", "2");
+			IniFiles.Step = step => {
+				if (step == "deleting") {
+					throw new IOException("held by a scanner");
+				}
+			};
+			Assert.Equal(file.LogPath, file.Commit().Log);
+			IniFiles.Step = null;
+		}
+		Assert.Equal("[s]\nx=2\n", Folder.Read(path));
+		using (IniTransaction next = Open(path)) {
+			Assert.Equal(new IniRecovery(IniRecoveryKind.Finished, null), next.Recovery);
+		}
+		Assert.Equal(["a.ini"], folder.Names);
+	}
+
+	//a commit's log goes while the commit still holds it: one landing after another commit settled
+	//the file and left its own log pending never deletes that one
+	[Fact]
+	public void ACommitLanding_NeverDeletesALaterCommitsLog() {
+		string path = folder.Write("a.ini", "[s]\nx=1\n");
+		bool later = false;
+		using (IniTransaction first = Open(path)) {
+			first.Set("s", "x", "2");
+			IniFiles.Step = step => {
+				if (step == "landed" && !later) {
+					later = true;
+					using IniTransaction second = Open(path);
+					second.Set("s", "x", "3");
+					IniFiles.Step = inner => {
+						if (inner == "writing") {
+							throw new IOException("the file went away");
+						}
+					};
+					Assert.Throws<IniPendingException>(second.Commit);
+				}
+			};
+			first.Commit();
+			IniFiles.Step = null;
+		}
+		Assert.True(later);
+		Assert.Contains(".a.ini.tmp", folder.Names);
+		using (IniTransaction next = Open(path)) {
+			Assert.Equal(IniRecoveryKind.Replayed, next.Recovery?.Kind);
+			Assert.Equal("3", next.Get("s", "x"));
+		}
 	}
 
 	[Fact]

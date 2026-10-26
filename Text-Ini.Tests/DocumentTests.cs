@@ -96,6 +96,86 @@ public class DocumentTests {
 	}
 
 	[Fact]
+	public void ABatch_IsCheckedAgainstWhatItsEditsMean_NotAgainstWhatALaterOneReadsAway() {
+		//y=1 lands as x's continuation, and removing x takes it along: y was meant to stand
+		IniDocument trap = Ini.Read("[s]\nx=a\\", new IniRules { Continuations = IniContinuations.Backslash });
+		IniCheckException refused = Assert.Throws<IniCheckException>(() => trap.Batch(() => {
+			trap.Set("s", "y", "1");
+			trap.Remove("s", "x");
+		}));
+		Assert.Contains(refused.Differences, difference => difference.Section == "s");
+		Assert.Equal("[s]\nx=a\\", trap.Text);
+	}
+
+	[Fact]
+	public void ATransaction_IsNotPrepared_WhileABatchRuns() {
+		string path = Path.Combine(Path.GetTempPath(), $"text-ini-{Guid.NewGuid():N}.ini");
+		File.WriteAllText(path, "[s]\nx=1\n");
+		try {
+			using (IniTransaction file = IniTransaction.Open(path, Folder.Dialect)) {
+				Assert.Throws<InvalidOperationException>(() => file.Document.Batch(() => {
+					file.Set("s", "x", "2");
+					file.Prepare();
+				}));
+				Assert.Equal("1", file.Get("s", "x"));
+			}
+			Assert.Equal("[s]\nx=1\n", File.ReadAllText(path));
+		}
+		finally {
+			File.Delete(path);
+		}
+	}
+
+	[Fact]
+	public void ASectionRemovedFromTheEnd_LeavesTheLineLeftLastItsBreak() {
+		IniDocument document = Ini.Read("[s]\nx=1\n[t]\ny=2");
+		document.RemoveSection("t");
+		Assert.Equal("[s]\nx=1\n", document.Text);
+
+		//a line written over the unbroken last, or after it, goes without
+		IniDocument set = Ini.Read("[s]\nx=1");
+		set.Set("s", "x", "2");
+		Assert.Equal("[s]\nx=2", set.Text);
+		set.Set("s", "y", "3");
+		Assert.Equal("[s]\nx=2\ny=3", set.Text);
+	}
+
+	[Fact]
+	public void ASectionReplacedWithNothing_IsEmptied_AndGoes() {
+		IniDocument document = Ini.Read("[s]\nx=1\n[t]\ny=2\n");
+		document.ReplaceSection("s", []);
+		Assert.Equal("[t]\ny=2\n", document.Text);
+		//one empty by hand stays as it is
+		IniDocument empty = Ini.Read("[s]\n[t]\ny=2\n");
+		empty.ReplaceSection("s", []);
+		Assert.Equal("[s]\n[t]\ny=2\n", empty.Text);
+	}
+
+	[Fact]
+	public void ANul_IsRefused_InAValueAKeyAndAComment() {
+		IniDocument document = Ini.Read("[s]\nx=1\n");
+		Assert.Equal(IniEditFailure.Unwritable, Assert.Throws<IniEditException>(() => document.Set("s", "x", "a\0b")).Failure);
+		Assert.Equal(IniEditFailure.InvalidName, Assert.Throws<IniEditException>(() => document.Set("s", "a\0b", "1")).Failure);
+		Assert.Equal(IniEditFailure.NotAComment, Assert.Throws<IniEditException>(() => document.AddComment(null, ["; a\0b"])).Failure);
+		Assert.Equal("[s]\nx=1\n", document.Text);
+	}
+
+	[Fact]
+	public void ACommentHandle_IsNotAnotherJustLikeItThatCameToStandWhereItStood() {
+		IniDocument document = Ini.Read("; same\nx=1\n; same\ny=2\n");
+		IniComment first = document.Elements.OfType<IniComment>().First();
+		document.RemoveComment(first);
+		document.Remove("", "x");
+		Assert.Equal(IniEditFailure.Moved, Assert.Throws<IniEditException>(() => document.RemoveComment(first)).Failure);
+		Assert.Equal("; same\ny=2\n", document.Text);
+		//one an edit left whole where it stood is still itself
+		IniComment kept = document.Elements.OfType<IniComment>().Single();
+		document.Set("", "y", "3");
+		document.SetComment(kept, ["; changed"]);
+		Assert.Equal("; changed\ny=3\n", document.Text);
+	}
+
+	[Fact]
 	public void AnEditRefusedInABatch_LeavesNoneOfItStanding() {
 		IniDocument document = Ini.Read("[s]\nx=1\n\n[t]\ny=1\n");
 		Assert.Throws<IniEditException>(() => document.Batch(() => {
@@ -283,7 +363,8 @@ public class DocumentTests {
 	public void AKeySet_LandsInTheFirstOccurrence_AndAnOccurrenceLeftEmptyGoes() {
 		IniDocument document = Ini.Read("[s]\nx=1\n\n[t]\nz=1\n\n[s]\nx=2");
 		document.Set("s", "x", "9");
-		Assert.Equal("[s]\nx=9\n\n[t]\nz=1", document.Text);
+		//the line left last keeps its break: only a line written last takes the file's lack of one
+		Assert.Equal("[s]\nx=9\n\n[t]\nz=1\n", document.Text);
 
 		IniDocument added = Ini.Read("[s]\nx=1\n\n[t]\nz=1\n\n[s]\nw=2\n");
 		added.Set("s", "y", "9");
@@ -326,7 +407,7 @@ public class DocumentTests {
 
 		IniDocument byHand = Ini.Read("[s]\n\n[c]\n; only this\n\n[t]\ny=1");
 		byHand.Remove("t", "y");
-		Assert.Equal("[s]\n\n[c]\n; only this", byHand.Text);
+		Assert.Equal("[s]\n\n[c]\n; only this\n", byHand.Text);
 		Assert.Equal(["s", "c"], byHand.Sections);
 
 		//an occurrence empty by hand keeps the section standing when its other one goes

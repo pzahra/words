@@ -90,6 +90,33 @@ public sealed class RecoveryTests : IDisposable {
 	}
 
 	[Fact]
+	public void AWholeLog_OverAFileAlreadyWrittenAndNowReadOnly_Goes_TheFileOnlyRead() {
+		string path = folder.Write("a.ini", After);
+		File.SetAttributes(path, FileAttributes.ReadOnly);
+		Log(path, Before, After);
+		using (IniTransaction file = Open(path)) {
+			Assert.Equal(new IniRecovery(IniRecoveryKind.Finished, null), file.Recovery);
+		}
+		Assert.Equal(["a.ini"], folder.Names);
+	}
+
+	[Fact]
+	public void ARecoveryThatKeepsTheBytes_AndThenFailsToWrite_SaysWhereTheyWereKept() {
+		string path = folder.Write("a.ini", "[s]\nx=mine\n");
+		Log(path, Before, After);
+		IniFiles.Step = step => {
+			if (step == "settling") {
+				throw new IOException("the disk is full");
+			}
+		};
+		IniCommitException refused = Assert.Throws<IniCommitException>(() => Open(path));
+		IniFiles.Step = null;
+		Assert.Equal((IniCommitFailure.Unsettled, folder[".a.ini.recovered"]), (refused.Failure, refused.Kept));
+		Assert.Equal("[s]\nx=mine\n", Folder.Read(folder[".a.ini.recovered"]));
+		Assert.Contains(".a.ini.tmp", folder.Names);
+	}
+
+	[Fact]
 	public void AKeptCopyLeftHalfWritten_Goes() {
 		string path = folder.Write("a.ini", "[s]\nx=mine\n");
 		folder.Write(".a.ini.recovered.tmp", "half");

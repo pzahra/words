@@ -83,23 +83,26 @@ public enum IniCommitFailure {
 	Running,
 	/// <summary>A log a commit left will not settle, the file held; it is kept for the next open.</summary>
 	Unsettled,
-	/// <summary>The log would not write or flush; the file was never touched.</summary>
+	/// <summary>The log would not write or flush; the file was never touched, and the log, emptied or gone, never reads whole.</summary>
 	LogWrite,
 }
 
-/// <summary>A commit refused, or an open refused while a log will not settle: nothing written, the file as it was, and no log of its own left.</summary>
+/// <summary>A commit refused, or an open refused while a log will not settle: nothing written, the file as it was, and no log of its own left that could stand.</summary>
 public sealed class IniCommitException : IniException {
 	/// <summary>Creates one for <paramref name="failure"/> over <paramref name="path"/>.</summary>
-	public IniCommitException(IniCommitFailure failure, string path, string? log = null, Exception? inner = null)
-		: base($"{failure}{(log is null ? "" : $" (log {log})")}", path, inner) {
+	public IniCommitException(IniCommitFailure failure, string path, string? log = null, Exception? inner = null, string? kept = null)
+		: base($"{failure}{(log is null ? "" : $" (log {log})")}{(kept is null ? "" : $" (kept {kept})")}", path, inner) {
 		Failure = failure;
 		Log = log;
+		Kept = kept;
 	}
 
 	/// <summary>Why.</summary>
 	public IniCommitFailure Failure { get; }
-	/// <summary>The log in the way, kept: another commit's, or one that will not settle; null for none.</summary>
+	/// <summary>A log left beside the file: another commit's, one that will not settle, or this commit's own emptied log that would not delete; null for none.</summary>
 	public string? Log { get; }
+	/// <summary>Where a recovery that will not settle kept the file's bytes before it failed to write over them; null for none.</summary>
+	public string? Kept { get; }
 }
 
 /// <summary>A commit that stands, its log whole, but whose write to the file failed twice: the next open through the library finishes it.</summary>

@@ -60,6 +60,14 @@ public class DottedTests {
 	}
 
 	[Fact]
+	public void ANewBase_LeavesADeeperChainItsOwnCut() {
+		IniDocument document = Read("[g.a]\n[.x]\nv=X\n[.y]\nv=Y\n[g.b]\nv=B\n");
+		document.Set("g.c", "v", "C");
+		Assert.Equal("[g.a]\n[.x]\nv=X\n[.y]\nv=Y\n[g]\n[.b]\nv=B\n[.c]\nv=C\n", document.Text);
+		Assert.Equal(["g.a", "g.a.x", "g.a.y", "g", "g.b", "g.c"], document.Sections);
+	}
+
+	[Fact]
 	public void SeveralEdits_InOneDocument_CutAsOne() {
 		IniDocument document = Read("[x]\nv=1\n\n");
 		document.Set("g.a", "k", "1");

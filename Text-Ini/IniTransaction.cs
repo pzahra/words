@@ -85,6 +85,9 @@ public sealed class IniTransaction : IDisposable {
 		if (state == State.Prepared) {
 			return;
 		}
+		if (Document.Batching) {
+			throw new InvalidOperationException("A batch is running: its edits are checked, and its bytes made, once it ends.");
+		}
 		byte[] made = Document.ToBytes();
 		Document.Frozen = true;
 		if (!Document.IsEdited || (!Document.IsNew && made.AsSpan().SequenceEqual(Document.Original.Span))) {
@@ -129,9 +132,17 @@ public sealed class IniTransaction : IDisposable {
 			IniLog.Write(log, Document.IsNew ? null : IniFiles.Hash(Document.Original.Span), bytes);
 		}
 		catch (Exception e) when (e is IOException or UnauthorizedAccessException) {
-			Release(deleteLog: true);
+			//undone while it is still held: emptied, so it never reads whole, and deleted; one
+			//that will do neither and reads whole stands, as a commit pending
+			bool emptied = EmptyLog();
+			bool deleted = DeleteLog();
+			bool stands = !emptied && !deleted && LogIsWhole();
+			Release(deleteLog: false);
 			state = State.Done;
-			throw new IniCommitException(IniCommitFailure.LogWrite, Path, inner: e);
+			if (stands) {
+				throw new IniPendingException(Path, LogPath, e);
+			}
+			throw new IniCommitException(IniCommitFailure.LogWrite, Path, deleted ? null : LogPath, e);
 		}
 		state = State.Logged;
 		IniFiles.At("logged");
@@ -152,10 +163,12 @@ public sealed class IniTransaction : IDisposable {
 			}
 		}
 		IniFiles.At("written");
-		Release(deleteLog: false);
 		IniFiles.At("landing");
+		bool gone = DeleteLog();
+		Release(deleteLog: false);
+		IniFiles.At("landed");
 		state = State.Done;
-		return new IniLanded(IniFiles.TryDelete(LogPath) ? null : LogPath);
+		return new IniLanded(gone ? null : LogPath);
 	}
 
 	/// <summary>Ends the transaction: one prepared lets the file go and deletes its log, nothing written.</summary>
@@ -170,15 +183,38 @@ public sealed class IniTransaction : IDisposable {
 		}
 	}
 
+	//the log deleted first, while it is still held, so it is never another commit's log of the
+	//same name that goes; then both let go. It never throws: a handle that fails to close is
+	//closed all the same, and the outcome already decided stands
 	private void Release(bool deleteLog) {
-		held?.Dispose();
-		held = null;
-		if (log is not null) {
-			log.Dispose();
-			log = null;
-			if (deleteLog) {
-				IniFiles.TryDelete(LogPath);
-			}
+		if (deleteLog && log is not null) {
+			DeleteLog();
+		}
+		IniFiles.Close(ref log);
+		IniFiles.Close(ref held);
+	}
+
+	//this commit's own log, deleted while it is held: its name goes, whoever makes the next
+	private bool DeleteLog() => log is not null && IniFiles.TryDelete(LogPath, "deleting");
+
+	private bool EmptyLog() {
+		try {
+			IniFiles.At("emptying");
+			log!.SetLength(0);
+			log.Flush(flushToDisk: true);
+			return true;
+		}
+		catch (Exception e) when (e is IOException or UnauthorizedAccessException) {
+			return false;
+		}
+	}
+
+	private bool LogIsWhole() {
+		try {
+			return IniLog.Read(log!) is not null;
+		}
+		catch (Exception e) when (e is IOException or UnauthorizedAccessException) {
+			return true; //not known to be broken: it may stand
 		}
 	}
 
@@ -194,12 +230,16 @@ public sealed class IniTransaction : IDisposable {
 				continue;
 			}
 			try {
-				var taken = new FileStream(LogPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
+				var taken = new FileStream(LogPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Delete);
 				IniFiles.Hide(LogPath);
 				return taken;
 			}
 			catch (IOException e) when (IniFiles.IsExists(e) && attempt < 5) {
 				//made since it was looked for: settled, or waited for, on the next turn
+			}
+			catch (UnauthorizedAccessException) when (attempt < 5) {
+				//a log deleted while held, where its name outlives it until it is let go
+				Thread.Sleep(50 * attempt);
 			}
 			catch (Exception e) when (e is IOException or UnauthorizedAccessException) {
 				throw new IniCommitException(IniCommitFailure.LogWrite, Path, inner: e);
@@ -207,45 +247,49 @@ public sealed class IniTransaction : IDisposable {
 		}
 	}
 
-	//a log a commit left, settled before the file is read: taken as a commit takes its own, the
-	//file held as a commit holds it; null when it went before it could be taken
+	//a log a commit left, settled before the file is read: taken as a commit takes its own, and
+	//deleted while it is held; null when it went before it could be taken
 	private static IniRecovery? Settle(string file, string logPath) {
-		using FileStream? log = IniFiles.Open(logPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None, file, IniCommitFailure.Running, logPath);
+		using FileStream? log = IniFiles.Open(logPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Delete, file, IniCommitFailure.Running, logPath);
 		if (log is null) {
 			return null;
 		}
-		if (IniLog.Read(log) is not { } whole) {
-			log.Dispose();
-			IniFiles.TryDelete(logPath);
-			return new IniRecovery(IniRecoveryKind.Unwhole, null);
-		}
-		(byte[]? before, byte[] after) = whole;
-		IniRecovery recovery;
-		using (FileStream? target = IniFiles.Open(file, FileMode.Open, FileAccess.ReadWrite, FileShare.Read, file, IniCommitFailure.Unsettled, logPath)) {
-			byte[]? current = target is null ? null : IniFiles.ReadAll(target);
-			byte[]? hash = current is null ? null : IniFiles.Hash(current);
-			if (hash is not null && hash.AsSpan().SequenceEqual(IniFiles.Hash(after))) {
-				recovery = new IniRecovery(IniRecoveryKind.Finished, null);
-			}
-			else {
-				bool untouched = hash is null ? before is null : before is not null && hash.AsSpan().SequenceEqual(before);
-				try {
-					string? kept = untouched || current is null ? null : Keep(file, current);
-					IniFiles.At("settling");
-					FileStream stream = target ?? new FileStream(file, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read);
-					using (target is null ? stream : null) {
-						IniFiles.WriteOver(stream, after);
-					}
-					recovery = new IniRecovery(untouched ? IniRecoveryKind.Replayed : IniRecoveryKind.Kept, kept);
-				}
-				catch (Exception e) when (e is IOException or UnauthorizedAccessException) {
-					throw new IniCommitException(IniCommitFailure.Unsettled, file, logPath, e);
-				}
-			}
-		}
-		log.Dispose();
+		IniRecovery recovery = IniLog.Read(log) is { } whole
+			? Replay(file, logPath, whole.Before, whole.Bytes)
+			: new IniRecovery(IniRecoveryKind.Unwhole, null);
 		IniFiles.TryDelete(logPath);
 		return recovery;
+	}
+
+	//the file brought to the log's bytes, looked at reading first, so a file already written
+	//needs no write: held as a commit holds it only when it is to be written
+	private static IniRecovery Replay(string file, string logPath, byte[]? before, byte[] after) {
+		byte[] written = IniFiles.Hash(after);
+		using (FileStream? reading = IniFiles.Open(file, FileMode.Open, FileAccess.Read, FileShare.Read, file, IniCommitFailure.Unsettled, logPath)) {
+			if (reading is not null && IniFiles.Hash(IniFiles.ReadAll(reading)).AsSpan().SequenceEqual(written)) {
+				return new IniRecovery(IniRecoveryKind.Finished, null);
+			}
+		}
+		using FileStream? target = IniFiles.Open(file, FileMode.Open, FileAccess.ReadWrite, FileShare.Read, file, IniCommitFailure.Unsettled, logPath);
+		byte[]? current = target is null ? null : IniFiles.ReadAll(target);
+		byte[]? hash = current is null ? null : IniFiles.Hash(current);
+		if (hash is not null && hash.AsSpan().SequenceEqual(written)) {
+			return new IniRecovery(IniRecoveryKind.Finished, null);
+		}
+		bool untouched = hash is null ? before is null : before is not null && hash.AsSpan().SequenceEqual(before);
+		string? kept = null;
+		try {
+			kept = untouched || current is null ? null : Keep(file, current);
+			IniFiles.At("settling");
+			FileStream stream = target ?? new FileStream(file, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read);
+			using (target is null ? stream : null) {
+				IniFiles.WriteOver(stream, after);
+			}
+			return new IniRecovery(untouched ? IniRecoveryKind.Replayed : IniRecoveryKind.Kept, kept);
+		}
+		catch (Exception e) when (e is IOException or UnauthorizedAccessException) {
+			throw new IniCommitException(IniCommitFailure.Unsettled, file, logPath, e, kept);
+		}
 	}
 
 	//the file's bytes kept before a log writes over them: whole in a temporary first, a crash's

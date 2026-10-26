@@ -39,6 +39,7 @@ internal static class IniLog {
 		IniFiles.At("logging");
 		log.Write(trailer);
 		log.SetLength(log.Position);
+		IniFiles.At("flushing");
 		log.Flush(flushToDisk: true);
 	}
 

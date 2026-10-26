@@ -172,6 +172,8 @@ public class IniDialect {
 			start++;
 		}
 		string prefix = text[..start];
+		//spaces after the separator part a comment that starts the value from it: the value is empty
+		bool spaced = start > separator + 1;
 		if (start < text.Length && IsQuote(text[start]) && ReadQuoted(lines, at, start) is { } quoted) {
 			return new IniField(at, quoted.Count, section, key, quoted.Value, quoted.Form, prefix, quoted.Suffix, quoted.Comment, Snapshot(lines, at, quoted.Count));
 		}
@@ -180,7 +182,7 @@ public class IniDialect {
 		int line = at;
 		string part = text[start..];
 		while (true) {
-			(string body, string suffix, string? comment) = SplitComment(part);
+			(string body, string suffix, string? comment) = SplitComment(part, spaced && line == at);
 			if (comment is null && Continues(body, out char marker)) {
 				if (form == IniValueForm.Plain) {
 					form = marker == '\\' ? IniValueForm.Backslash : IniValueForm.Underscore;
@@ -200,7 +202,13 @@ public class IniDialect {
 			string trimmed = Rules.TrailingSpaces ? body : body.TrimEnd(' ', '\t');
 			value.Append(Unescape(trimmed));
 			int count = line - at + 1;
-			return new IniField(at, count, section, key, value.ToString(), form, prefix, body[trimmed.Length..] + suffix, comment, Snapshot(lines, at, count));
+			string tail = body[trimmed.Length..] + suffix;
+			if (comment is not null && line == at && body.Length == 0 && spaced) {
+				//an empty value: the spaces before its comment are the comment's, as after any value
+				tail = prefix[(separator + 1)..] + tail;
+				prefix = prefix[..(separator + 1)];
+			}
+			return new IniField(at, count, section, key, value.ToString(), form, prefix, tail, comment, Snapshot(lines, at, count));
 		}
 	}
 
@@ -254,11 +262,12 @@ public class IniDialect {
 		return false;
 	}
 
-	//a value's line parted from a comment after it: the comment starts at the spaces before its marker
-	private (string Body, string Suffix, string? Comment) SplitComment(string part) {
+	//a value's line parted from a comment after it: the comment starts at the spaces before its
+	//marker, which for one starting the line stand before it, spaced
+	private (string Body, string Suffix, string? Comment) SplitComment(string part, bool spaced) {
 		if (Rules.CommentsAfterEntries) {
-			for (int at = 1; at < part.Length; at++) {
-				if (IsCommentMarker(part[at]) && IsSpace(part[at - 1])) {
+			for (int at = 0; at < part.Length; at++) {
+				if (IsCommentMarker(part[at]) && (at > 0 ? IsSpace(part[at - 1]) : spaced)) {
 					int spaces = at;
 					while (spaces > 0 && IsSpace(part[spaces - 1])) {
 						spaces--;
@@ -332,6 +341,9 @@ public class IniDialect {
 	/// <summary>Whether <paramref name="value"/>, written in <paramref name="form"/>, reads back as itself.</summary>
 	internal bool CanHold(IniValueForm form, string value) {
 		ArgumentNullException.ThrowIfNull(value);
+		if (value.Contains('\0')) {
+			return false; //a file holding one is no text
+		}
 		return form switch {
 			IniValueForm.Plain => LineHolds(value, first: true, last: true),
 			IniValueForm.Underscore => Rules.Continuations.HasFlag(IniContinuations.Underscore) && LineHolds(value, first: true, last: true),
@@ -394,6 +406,10 @@ public class IniDialect {
 			return false;
 		}
 		if (Rules.CommentsAfterEntries) {
+			//a marker starting the value reads as a comment where spaces stand before it
+			if (first && line.Length > 0 && IsCommentMarker(line[0])) {
+				return false;
+			}
 			for (int at = 1; at < line.Length; at++) {
 				if (IsCommentMarker(line[at]) && IsSpace(line[at - 1])) {
 					return false;

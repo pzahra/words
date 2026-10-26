@@ -26,8 +26,9 @@ file.Commit();
 LF or CRLF; a last line without one stays so), in its own encoding and
 byte-order mark. An edit replaces only the lines of the element it names;
 every other line stays byte for byte. A line added after an unbroken last
-line gives it a break and goes without one; a line added takes the break of
-the file's first line that has one, else the dialect's, else the system's.
+line, or written over it, gives it a break and goes without one; a line left
+last by a removal keeps its own. A line added takes the break of the file's
+first line that has one, else the dialect's, else the system's.
 Edits are held in memory: a key set three times is written once, and a
 transaction disposed without `Commit` leaves the file untouched.
 
@@ -62,7 +63,8 @@ after a blank line. A section going takes its header, its fields and the
 blank runs that then part nothing, and, if it ended the file, the blank run
 above its header; comment blocks and unrecognised lines stand. An element
 read before an edit (a comment block to edit or move) is refused once it no
-longer stands where it stood.
+longer stands where it stood, or once another just like it has come to stand
+there.
 
 **Its dialect** is the file's grammar and rules. Section names compare
 without case or exactly, and keys may compare by a rule of their own. Two
@@ -98,14 +100,15 @@ more the check compares.
   block, edited, moved and removed as one, standing while its neighbours
   move or go.
 - **Comments after an entry**: where allowed, a marker after a space and
-  outside quotes starts one, and an edit to the value keeps it.
+  outside quotes starts one, and an edit to the value keeps it; spaces after
+  the separator part one from an empty value (`x= ; note`).
 - **Lines**: whether a header or a field may be indented (else it is
   unrecognised), whether anything may follow a header's `]` (read past), and
   whether a value's trailing spaces are its own.
 
 A value reads through its continuations and quotes into its text. An edit
 writes it back in its own form while that form holds it, else in the
-dialect's first.
+dialect's first. A NUL, in a value, a name or a comment, is refused.
 
 **Lists.** `IniList` splits `"comma separated", arrays` into trimmed items,
 a quoted item taking commas, spaces and doubled quotes as its own; joined
@@ -117,7 +120,8 @@ holding keys. `GroupCuts` bases a group no header names once two sections
 would chain off it, a section past a deeper group that heads its own
 counting there. The cut changes header lines only:
 - a section chains off a base already there;
-- a group worth it gains a bare base, its sections chained off it;
+- a group worth it gains a bare base, its sections chained off it, but for a
+  deeper chain among them, which keeps its own cut;
 - a deeper group gains its own base, taking its sections from an ancestor's
   chain;
 - a bare base left basing nothing goes.
@@ -130,8 +134,8 @@ sections chained off it keep their names and are re-cut. A subtree renamed
 section by section chains under the new name. A rename onto a name taken is
 refused.
 
-**Trimmed in memory.** A section the edits emptied goes, but a header that
-bases a chain stays, bare. A section empty by hand, or holding only
+**Trimmed in memory.** A section the edits emptied goes, replaced with no
+pairs too, but a header that bases a chain stays, bare. A section empty by hand, or holding only
 comments, stays.
 
 **Checked before it lands.** The edited document is parsed again and
@@ -143,8 +147,9 @@ as it was. A file that will not encode is refused at `Prepare`.
 **A batch** makes many edits as one: each placed and cut as it would be
 alone, the document checked once, after the last, against what it was
 before the first plus what they all mean. Refused, by the check or by an
-edit, none of them stands. A batch inside one is part of it, and a
-document is replaced whole outside one.
+edit, none of them stands. What the edits mean is what they asked: a key
+one added that a later one reads away is still expected. A batch inside one
+is part of it, and a document is replaced whole, or prepared, outside one.
 
 ## The commit
 
@@ -163,11 +168,13 @@ enforces the sharing; elsewhere it is advisory.
    must still be what was read, by hash, or still absent: else refused.
 2. **Write ahead.** The log gets the file's hash before, the new bytes
    whole, and a trailer with their length and hash, and is flushed. A log
-   that will not write is refused, the file untouched.
+   that will not write is refused, the file untouched, the log emptied and
+   deleted; one that will do neither and reads whole is pending.
 3. **Write the file** in place, through the held handle or created now, cut
    to length and flushed: it keeps its hard links, attributes, permissions
    and Unix mode's ordinary bits.
-4. **Let go**, and delete the log.
+4. **Let go**: the log deleted while still held, so no later commit's log of
+   the same name is the one deleted, then the log and the file let go.
 
 `Commit` prepares first if needed. `Prepare` alone holds the file until
 `Commit` or `Dispose`; disposing lets it go and deletes the log.
@@ -175,21 +182,24 @@ enforces the sharing; elsewhere it is advisory.
 **Recovery.** An open settles a log before reading the file:
 - held: a commit is running; the open waits a moment, then is refused;
 - not whole: the file was never touched; the log goes;
-- whole, the file at its hash after: finished; the log goes;
+- whole, the file at its hash after: finished; the log goes, the file only
+  read;
 - whole, the file at its hash before, or absent for a new file: written from
   the log;
 - whole, the file at neither hash: its bytes are kept first, as
   `.<name>.recovered` (then `-2` and on, never written over), and it is
   written from the log.
 
-A log that will not settle is kept, and the file refused until it does. A
+A log that will not settle is kept, and the file refused until it does,
+saying where any bytes were kept. A
 process killed anywhere in a commit or a recovery is finished or undone by
 the next open; a power loss is not promised.
 
 **Outcomes.**
 - **Landed**: the file holds the new bytes. A log that would not delete is
   noted, and the next open clears it.
-- **Refused**: nothing written, no log left, a typed exception saying why
+- **Refused**: nothing written, no log left that could stand, a typed
+  exception saying why
   (changed on disk, held, denied, another commit running, a log that will
   not settle, the check, an encoding, the log's own write). All but the
   log's write refuse at `Prepare`.

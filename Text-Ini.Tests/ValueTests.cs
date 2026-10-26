@@ -174,4 +174,19 @@ public class ValueTests {
 		//without, the comment is the value's
 		Assert.Equal("900   ; at 100%", Ini.Read("[s]\nwidth=900   ; at 100%\n").Get("s", "width"));
 	}
+
+	[Fact]
+	public void AnEmptyValue_WithACommentAfterIt_ReadsEmpty_AndIsWritten() {
+		var after = new IniRules { CommentsAfterEntries = true, Quotes = IniQuotes.Double };
+		IniDocument document = Ini.Read("[s]\nx= ; note\ny=old ; kept\nz=;not\n", after);
+		Assert.Equal("", document.Get("s", "x"));
+		Assert.Equal("; note", document.Elements.OfType<IniField>().First().Comment);
+		Assert.Equal(";not", document.Get("s", "z"));
+		document.Set("s", "y", "");
+		Assert.Equal("", document.Get("s", "y"));
+		Assert.Equal("[s]\nx= ; note\ny= ; kept\nz=;not\n", document.Text);
+		//a value starting with a marker is quoted, as spaces before it would start a comment
+		document.Set("s", "x", "; a");
+		Assert.Equal("; a", document.Get("s", "x"));
+	}
 }

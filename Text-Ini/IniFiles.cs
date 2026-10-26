@@ -86,13 +86,30 @@ internal static class IniFiles {
 		}
 	}
 
-	internal static bool TryDelete(string path) {
+	//step names a test's hook, to fail the delete
+	internal static bool TryDelete(string path, string? step = null) {
 		try {
+			if (step is not null) {
+				At(step);
+			}
 			File.Delete(path);
 			return true;
 		}
 		catch (Exception e) when (e is IOException or UnauthorizedAccessException) {
 			return false;
 		}
+	}
+
+	//a handle let go, never throwing: one whose last flush fails is closed all the same
+	internal static void Close(ref FileStream? stream) {
+		try {
+			stream?.Dispose();
+			if (stream is not null) {
+				At("closing");
+			}
+		}
+		catch (Exception e) when (e is IOException or UnauthorizedAccessException) {
+		}
+		stream = null;
 	}
 }

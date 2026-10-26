@@ -194,10 +194,10 @@ public sealed class IniDocument {
 		var plan = new Plan();
 		IniContent expected = Expecting();
 		(bool stands, bool dropped) = DropFields(plan, occurrences, declared);
-		if (stands) {
-			expected.Remove(section, key);
-		}
-		else {
+		//the key goes, and the section with it only when nothing else is meant to stand in it: a
+		//key a batch added that reads as part of another stays expected, and the check refuses
+		expected.Remove(section, key);
+		if (!stands && expected.Keys(section).Count == 0) {
 			expected.RemoveSection(section);
 		}
 		Land(plan, expected, dropped ? [Parent(section)] : []);
@@ -225,8 +225,8 @@ public sealed class IniDocument {
 				throw new ArgumentException($"{key} is given twice", nameof(pairs));
 			}
 		}
-		if (section.Length == 0 && given.Count == 0) {
-			//the head with no fields is no section
+		if (given.Count == 0 && (section.Length == 0 || content.Keys(section).Count > 0)) {
+			//emptied, it goes as any section the edits empty; the head with no fields is no section
 			RemoveSection(section);
 			return;
 		}
@@ -547,6 +547,9 @@ public sealed class IniDocument {
 	//a prepared transaction has made its bytes: no edit until it ends
 	internal bool Frozen { get; set; }
 
+	//a batch is running: its edits so far are not checked, so no bytes are made of them
+	internal bool Batching => batched is not null;
+
 	//what the document is expected to read as once an edit lands: as it reads, or as a batch's
 	//edits so far mean it to
 	private IniContent Expecting() => (batched ?? content).Clone();
@@ -569,13 +572,13 @@ public sealed class IniDocument {
 	}
 
 	private void Nameable(string key) {
-		if (!Dialect.CanName(key)) {
+		if (key.Contains('\0') || !Dialect.CanName(key)) {
 			throw new IniEditException(IniEditFailure.InvalidName, key, Path);
 		}
 	}
 
 	private void Headable(string name) {
-		if (name.Length == 0 ? !Dialect.Rules.EmptyHeader : !Dialect.CanHead(name)) {
+		if (name.Length == 0 ? !Dialect.Rules.EmptyHeader : name.Contains('\0') || !Dialect.CanHead(name)) {
 			throw new IniEditException(name.Length == 0 ? IniEditFailure.EmptyHeader : IniEditFailure.InvalidName, name, Path);
 		}
 	}
@@ -584,7 +587,7 @@ public sealed class IniDocument {
 		List<Written> written = [];
 		foreach (string line in comment) {
 			ArgumentNullException.ThrowIfNull(line, nameof(comment));
-			if (line.Contains('\r') || line.Contains('\n') || !Dialect.IsComment(line)) {
+			if (line.Contains('\r') || line.Contains('\n') || line.Contains('\0') || !Dialect.IsComment(line)) {
 				throw new IniEditException(IniEditFailure.NotAComment, line, Path);
 			}
 			written.Add(new(line));
@@ -592,10 +595,12 @@ public sealed class IniDocument {
 		return written;
 	}
 
-	//the element read before as it stands now; refused when it stands no longer where it stood
+	//the element read before as it stands now: the one it is, through the edits that left it whole,
+	//so another just like it that came to stand there is not it; refused when it stands no longer
+	//where it stood
 	private IniElement Locate(IniElement element) {
-		IniElement? found = elements.Find(standing => standing.Line == element.Line);
-		if (found is null || found.GetType() != element.GetType() || found.Count != element.Count || found.Snapshot != element.Snapshot) {
+		IniElement? found = elements.Find(standing => ReferenceEquals(standing.Identity, element.Identity));
+		if (found is null || found.GetType() != element.GetType() || found.Line != element.Line) {
 			throw new IniEditException(IniEditFailure.Moved, null, Path);
 		}
 		return found;
@@ -784,18 +789,19 @@ public sealed class IniDocument {
 	//by the batch's check: refused, the document stands as it was
 	private void Land(Plan plan, IniContent expected, IReadOnlyCollection<string> touched) {
 		(List<IniLine> wasLines, List<IniElement> wasElements) = (lines, elements);
-		List<IniLine> edited;
+		List<Placed> placed;
 		try {
-			List<Placed> placed = Apply(plan, null);
+			placed = Apply(plan, null);
 			if (Dialect is IniDottedDialect dotted) {
 				placed = Recut(dotted, placed, touched);
 			}
-			edited = [.. placed.Select(line => line.Line)];
 		}
 		finally {
 			(lines, elements) = (wasLines, wasElements);
 		}
+		List<IniLine> edited = [.. placed.Select(line => line.Line)];
 		List<IniElement> parsed = Dialect.Parse(edited);
+		Carry(placed, parsed);
 		var actual = IniContent.Of(parsed, Dialect.Names, Dialect.KeyNames);
 		if (batched is not null) {
 			//checked once the batch's last edit lands
@@ -820,21 +826,45 @@ public sealed class IniDocument {
 		IsEdited = true;
 	}
 
+	//an element the edit left whole, every line of it kept as it was in its order, is the one it
+	//was, and an element read before it still finds it
+	private void Carry(List<Placed> placed, List<IniElement> parsed) {
+		var was = new Dictionary<int, IniElement>();
+		foreach (IniElement element in elements) {
+			was[element.Line] = element;
+		}
+		foreach (IniElement element in parsed) {
+			int origin = placed[element.Line].Origin;
+			if (origin >= 0 && was.TryGetValue(origin, out IniElement? old) && old.GetType() == element.GetType()
+				&& old.Count == element.Count && old.Snapshot == element.Snapshot
+				&& Enumerable.Range(0, element.Count).All(at => placed[element.Line + at].Origin == origin + at)) {
+				element.Identity = old.Identity;
+			}
+		}
+	}
+
 	//the lines with the plan's splices made, a line added taking the file's first break, else the
-	//dialect's, else the system's; every line but the last keeps or gains one, and the last goes
-	//without where the file's did. Each line keeps the section it heads, if it heads one, and
-	//whether the cut may write it afresh: a line taken from current where one is given
+	//dialect's, else the system's; every line but the last keeps or gains one, and a line added
+	//last, or written over the file's last, goes without where the file's last did: a line left
+	//last by a removal keeps its break. Each line keeps the section it heads, if it heads one,
+	//whether the cut may write it afresh, and the line it was: a line taken from current where one
+	//is given
 	private List<Placed> Apply(Plan plan, List<Placed>? current) {
 		string lineBreak = FirstBreak(lines);
 		string?[]? heads = current is null ? Heads() : null;
 		var placed = new List<Placed>(lines.Count + 8);
 		int at = 0;
+		//the last line a splice wrote, by where it stands among the placed
+		int written = -1;
 		foreach (Splice splice in plan.Splices.OrderBy(splice => splice.At).ThenBy(splice => splice.Count > 0)) {
 			while (at < splice.At) {
 				placed.Add(Kept(at++, current, heads));
 			}
 			placed.AddRange(splice.Lines.Select(line => new Placed(
 				new IniLine(line.Text, line.Break ?? lineBreak), line.Name, Free: line.Name is not null, New: line.Name is not null && !line.Renamed)));
+			if (splice.Lines.Count > 0) {
+				written = placed.Count - 1;
+			}
 			at = Math.Max(at, splice.At + splice.Count);
 		}
 		while (at < lines.Count) {
@@ -845,7 +875,7 @@ public sealed class IniDocument {
 				placed[line] = placed[line] with { Line = placed[line].Line with { Break = lineBreak } };
 			}
 		}
-		if (lines.Count > 0 && lines[^1].Break.Length == 0 && placed.Count > 0) {
+		if (lines.Count > 0 && lines[^1].Break.Length == 0 && written >= 0 && written == placed.Count - 1) {
 			placed[^1] = placed[^1] with { Line = placed[^1].Line with { Break = "" } };
 		}
 		return placed;
@@ -856,7 +886,7 @@ public sealed class IniDocument {
 		if (current is not null) {
 			return current[at] with { Line = lines[at] };
 		}
-		return new Placed(lines[at], heads![at], Free: false, New: false);
+		return new Placed(lines[at], heads![at], Free: false, New: false, Origin: at);
 	}
 
 	//the section each line heads, "" for a [] that ends a chain, by line
@@ -994,7 +1024,12 @@ public sealed class IniDocument {
 		if (headed.Contains(group) || !dotted.Cuts.Cuts(group, keyed, Dialect.Names)) {
 			return false;
 		}
-		List<int> run = [.. Enumerable.Range(0, heads.Count).Where(at => ChainsOff(group, NameOf(heads[at])))];
+		//a full header that bases a chain of its own, and the headers chained off it, are a deeper
+		//group's: their cut stays as it is, and the run is the rest
+		bool Deeper(int at) => heads[at] is IniHeader header && (header.IsChained
+			? ChainsOff(group, bases.GetValueOrDefault(header.Line, ""))
+			: at + 1 < heads.Count && heads[at + 1] is IniHeader { IsChained: true } next && Dialect.Names.Equals(bases.GetValueOrDefault(next.Line, ""), NameOf(header)));
+		List<int> run = [.. Enumerable.Range(0, heads.Count).Where(at => ChainsOff(group, NameOf(heads[at])) && !Deeper(at))];
 		if (run.Count == 0 || run[^1] - run[0] + 1 != run.Count) {
 			return false;
 		}
@@ -1022,9 +1057,9 @@ public sealed class IniDocument {
 	private sealed record Written(string Text, string? Break = null, string? Name = null, bool Renamed = false);
 
 	//a line as an edit leaves it: the section it heads, whether the cut may write it afresh,
-	//whether the edit wrote it new, and whether it is a base the cut added, written full, as a
-	//chained header bases nothing
-	private sealed record Placed(IniLine Line, string? Name, bool Free, bool New, bool Base = false);
+	//whether the edit wrote it new, whether it is a base the cut added, written full, as a
+	//chained header bases nothing, and the line it was before the edit, -1 for one it wrote
+	private sealed record Placed(IniLine Line, string? Name, bool Free, bool New, bool Base = false, int Origin = -1);
 
 	private sealed record Splice(int At, int Count, List<Written> Lines);
 

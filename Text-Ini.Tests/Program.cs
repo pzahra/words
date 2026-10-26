@@ -33,15 +33,18 @@ internal static class Program {
 			start.ArgumentList.Add(arg);
 		}
 		using Process process = Process.Start(start)!;
+		//both read as they come, so a helper that hangs is still timed out
 		Task<string> output = process.StandardOutput.ReadToEndAsync();
-		string error = process.StandardError.ReadToEnd();
+		Task<string> error = process.StandardError.ReadToEndAsync();
 		if (!process.WaitForExit(60_000)) {
-			process.Kill();
+			process.Kill(entireProcessTree: true);
+			process.WaitForExit();
 			throw new TimeoutException($"The helper never ended: {string.Join(' ', args)}");
 		}
+		process.WaitForExit();
 		_ = output.Result;
-		if (process.ExitCode == 0 && error.Length > 0) {
-			throw new InvalidOperationException(error);
+		if (process.ExitCode == 0 && error.Result.Length > 0) {
+			throw new InvalidOperationException(error.Result);
 		}
 		return process.ExitCode;
 	}

@@ -25,6 +25,8 @@ public abstract class IniElement {
 	public string Section { get; }
 	//its lines as read, to know it again
 	internal string Snapshot { get; }
+	//what it is through the edits that leave it whole: shared by the element each such edit reads it as
+	internal object Identity { get; set; } = new();
 }
 
 /// <summary>A run of blank lines.</summary>
