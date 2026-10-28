@@ -215,6 +215,31 @@ public class KeyNameTests {
 	}
 
 	[Fact]
+	public void TheCommandLine_RemovesAConstant_AndItsLastField() {
+		var patcher = IniPatcher.FromBytes(Encoding.UTF8.GetBytes("[$brand]\nvalue=Words\n\n[ok]\nvalue=y\n"));
+		patcher.Remove("$brand");
+		Assert.Equal("[ok]\nvalue=y\n", patcher.Text);
+
+		patcher = IniPatcher.FromBytes(Encoding.UTF8.GetBytes("[$brand]\nvalue=Words\n\n[ok]\nvalue=y\n"));
+		Assert.True(WordsField.TryParse("value", out var value, out _));
+		patcher.Remove("$brand", value);
+		Assert.Equal("[ok]\nvalue=y\n", patcher.Text);
+	}
+
+	[Fact]
+	public void TheCommandLine_ReadsTheSpacesInsideAHeadersBrackets_AsCoreDoes() {
+		var logger = new CaptureLogger();
+		WordsBuilder.Create(logger).LoadString("[ a ]\nvalue=x\n").Flatten("");
+		Assert.Equal(["WP:NAME:` a `"], logger.Messages); //the spaces are the name's, which is none
+
+		//the driver reads the block by the name Core gives it, so it is found and removed
+		var patcher = IniPatcher.FromBytes(Encoding.UTF8.GetBytes("[ a ]\nvalue=x\n\n[ok]\nvalue=y\n"));
+		Assert.Null(patcher.Find("a"));
+		patcher.Remove(" a ");
+		Assert.Equal("[ok]\nvalue=y\n", patcher.Text);
+	}
+
+	[Fact]
 	public void AForeignName_IsMadeAKey_AndTwoNeverBecomeOne() {
 		string folder = Path.Combine(Path.GetTempPath(), $"KeyNames-{Guid.NewGuid():N}");
 		Directory.CreateDirectory(folder);

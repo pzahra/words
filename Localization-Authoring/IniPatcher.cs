@@ -65,6 +65,9 @@ namespace PatTech.Localization.Authoring {
 		/// <summary>What opening the file did to a write left pending on it; null for nothing.</summary>
 		public IniRecovery? Recovery => file?.Recovery;
 
+		/// <summary>Whether the file was not there to read, once a write left pending on it was finished.</summary>
+		public bool IsNew => document.IsNew;
+
 		/// <summary>The file as it now reads, BOM first.</summary>
 		public byte[] ToBytes() => document.ToBytes();
 

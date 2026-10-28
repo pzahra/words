@@ -100,6 +100,8 @@ public sealed record IniRules {
 	public bool Indents { get; init; } = true;
 	/// <summary>Whether anything may follow a header's closing bracket, read past; without, only spaces, and a comment where one may follow an entry.</summary>
 	public bool HeaderTails { get; init; }
+	/// <summary>Whether the spaces inside a header's brackets are trimmed from its name; without, they are the name's own.</summary>
+	public bool TrimmedHeaders { get; init; } = true;
 	/// <summary>Whether the spaces ending a value's last line are the value's own; without, they are its line's.</summary>
 	public bool TrailingSpaces { get; init; }
 	/// <summary>What parts a key from its value; a new field takes the first.</summary>

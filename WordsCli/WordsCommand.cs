@@ -348,9 +348,6 @@ namespace PatTech.Localization.Cli {
 		//a file's failures name the file, which the system's messages may not; a write a call
 		//before left pending is finished first, and said
 		private static IniPatcher Open(string path, TextWriter error) {
-			if (!File.Exists(path)) {
-				throw new FileNotFoundException($"{path}: no such file", path);
-			}
 			IniPatcher patcher;
 			try {
 				patcher = IniPatcher.Open(path);
@@ -360,6 +357,11 @@ namespace PatTech.Localization.Cli {
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
 				throw new IOException($"{path}: can't be read: {Say(ex)}", ex);
+			}
+			//missing once a write left pending on it, which would make it, is finished
+			if (patcher.IsNew) {
+				patcher.Dispose();
+				throw new FileNotFoundException($"{path}: no such file", path);
 			}
 			if (Recovered(patcher.Recovery) is { } note) {
 				error.WriteLine($"words: {path}: {note}");
@@ -382,7 +384,8 @@ namespace PatTech.Localization.Cli {
 			IniCommitException { Failure: IniCommitFailure.Held } => "another program holds it",
 			IniCommitException { Failure: IniCommitFailure.Denied } => "it is read-only, or not yours to write",
 			IniCommitException { Failure: IniCommitFailure.Running } => "another write to it is running",
-			IniCommitException { Failure: IniCommitFailure.Unsettled, Log: var log } => $"a write a call before left pending in {log} will not finish, and is kept for the next call",
+			IniCommitException { Failure: IniCommitFailure.Unsettled, Log: var log } refused => $"a write a call before left pending in {log} will not finish ({refused.InnerException?.Message}), and is kept for the next call"
+				+ (refused.Kept is { } kept ? $"; the file as it stood is kept in {kept}" : ""),
 			IniCommitException { Failure: IniCommitFailure.LogWrite } refused => $"its log would not write: {refused.InnerException?.Message}",
 			IniEncodingException { Failure: IniEncodingFailure.Unencodable, Encoding: var encoding } => $"its {encoding} has no bytes for a character the edit writes",
 			_ => failure.Message,

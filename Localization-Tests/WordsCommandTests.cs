@@ -1,4 +1,6 @@
+using PatTech.Localization.Authoring;
 using PatTech.Localization.Cli;
+using PatTech.Text.Ini;
 using System.Globalization;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -614,5 +616,118 @@ public sealed class WordsCommandTests : IDisposable {
 		Assert.Equal(2, refused.Code);
 		Assert.Contains("refused", refused.Error);
 		Assert.Equal(text, File.ReadAllText(path)); //b's translation too
+	}
+
+	//the log beside the file, and what a recovery keeps
+	private string Log => Path.Combine(Path.GetDirectoryName(path)!, $".{Path.GetFileName(path)}.tmp");
+
+	//every file the driver leaves beside the test's, gone
+	private void Sweep() {
+		IniFiles.Step = null;
+		foreach (string left in Directory.GetFiles(Path.GetDirectoryName(path)!, $".{Path.GetFileName(path)}*")) {
+			File.Delete(left);
+		}
+	}
+
+	//a step of the commit or the recovery that fails, as a full disk would
+	private static void Fail(string at) => IniFiles.Step = step => {
+		if (step == at) {
+			throw new IOException("the disk is full");
+		}
+	};
+
+	[Fact]
+	public void APendingWrite_IsSaid_AndTheNextCallFinishesIt() {
+		try {
+			File.WriteAllText(path, Sample);
+			Fail("writing");
+			var (code, _, error) = Run("set", "FILE", "menu.edit", "value", "Edited");
+			IniFiles.Step = null;
+
+			Assert.Equal(2, code);
+			Assert.Contains($"the write stands in its log, {Log}, but the file's own failed; the next call that opens it finishes it", error);
+			Assert.Equal(Sample, File.ReadAllText(path));
+			(code, string output, error) = Run("get", "FILE", "menu.edit", "value");
+			Assert.Equal((0, "Edited\n"), (code, output));
+			Assert.Contains("a write a call before left pending was finished first", error);
+			Assert.False(File.Exists(Log));
+		}
+		finally {
+			Sweep();
+		}
+	}
+
+	[Fact]
+	public void ANewFilesWriteLeftPending_IsFinished_NotCalledMissing() {
+		try {
+			using (IniTransaction made = IniTransaction.Open(path, WordsDialect.Instance)) {
+				made.Replace("[a]\nvalue=A\n", new UTF8Encoding(false), false);
+				Fail("writing");
+				Assert.Throws<IniPendingException>(() => made.Commit());
+				IniFiles.Step = null;
+			}
+			Assert.False(File.Exists(path));
+
+			var (code, output, _) = Run("get", "FILE", "a", "value");
+
+			Assert.Equal((0, "A\n"), (code, output));
+			Assert.True(File.Exists(path));
+		}
+		finally {
+			Sweep();
+		}
+	}
+
+	[Fact]
+	public void AFileHeld_OrUnderAnotherWrite_OrWhoseLogWontWrite_IsRefused_AndSaid() {
+		try {
+			File.WriteAllText(path, Sample);
+			using (new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) {
+				var (code, _, error) = Run("set", "FILE", "menu.edit", "value", "Edited");
+				Assert.Equal(2, code);
+				Assert.Contains("another program holds it", error);
+			}
+			using (new FileStream(Log, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None)) {
+				var (code, _, error) = Run("set", "FILE", "menu.edit", "value", "Edited");
+				Assert.Equal(2, code);
+				Assert.Contains("another write to it is running", error);
+			}
+			File.Delete(Log);
+			Fail("flushing");
+			var refused = Run("set", "FILE", "menu.edit", "value", "Edited");
+			IniFiles.Step = null;
+			Assert.Equal(2, refused.Code);
+			Assert.Contains("its log would not write: the disk is full", refused.Error);
+			Assert.Equal(Sample, File.ReadAllText(path));
+			Assert.False(File.Exists(Log));
+		}
+		finally {
+			Sweep();
+		}
+	}
+
+	[Fact]
+	public void AWriteLeftPendingThatWontFinish_SaysWhy_AndWhereTheFileWasKept() {
+		try {
+			File.WriteAllText(path, Sample);
+			Fail("writing");
+			Run("set", "FILE", "menu.edit", "value", "Edited");
+
+			Fail("settling");
+			var (code, _, error) = Run("get", "FILE", "menu.edit", "value");
+			Assert.Equal(2, code);
+			Assert.Contains($"will not finish (the disk is full), and is kept for the next call", error);
+			Assert.DoesNotContain("kept in", error);
+
+			//changed since, so its bytes are kept before the write that fails
+			File.WriteAllText(path, Sample + "\n");
+			(code, _, error) = Run("get", "FILE", "menu.edit", "value");
+			Assert.Equal(2, code);
+			Assert.Contains("(the disk is full)", error);
+			Assert.Contains($"the file as it stood is kept in {Path.Combine(Path.GetDirectoryName(path)!, $".{Path.GetFileName(path)}.recovered")}", error);
+		}
+		finally {
+			Sweep();
+		}
 	}
 }

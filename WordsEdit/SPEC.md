@@ -351,9 +351,10 @@ from a **project settings file** instead of the pre-loaded set:
 - The Project Settings dialog edits what a dictionary names — the paths in
   its `param` slots, for the dictionary and for each language — and the two
   tables of whichever of those files is picked, with the rules' gripes shown
-  as they are typed. Settings are the editor's to read and write, so it
-  rewrites a settings file as two plain tables: comments in a hand-written
-  one do not survive the dialog. On OK the tables are written first; one
+  as they are typed. It sets and removes each table's rows in place, so a
+  hand-written file keeps its comments, its order and every row it leaves
+  (*Ini files through the driver*); a write left pending on it is finished
+  before it is read. On OK the tables are written first; one
   that will not write is told, and the dialog stays open with its edits so
   OK can be tried again, the slots unchanged until it is.
 
@@ -2341,7 +2342,8 @@ out, are written whole.
   names as Words names them (`value-FR` is `value-fr`), `=` or `:`, `\` and
   `_` continuations whose marker takes the character after it, `\\`, `__`
   and `''` read as one, no quotes, `;` comments on lines of their own, no
-  indents, a header's tail read past, a value's trailing spaces its own. The
+  indents, a header's tail read past, the spaces inside a header's brackets
+  its name's own, a value's trailing spaces its own. The
   language table is the section `""`; a `[]` and the lines under it, which
   Core reads past, are left as they stand. Fields are written as the writer
   writes them, a new one where it would put it, and chains are cut by

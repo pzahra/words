@@ -319,6 +319,18 @@ public class DocumentTests {
 	}
 
 	[Fact]
+	public void TheSpacesInsideAHeadersBrackets_AreTrimmed_UnlessTheRulesKeepThem() {
+		const string Text = "[ s ]\nx=1\n";
+		Assert.Equal("1", Ini.Read(Text).Get("s", "x"));
+
+		IniDocument kept = Ini.Read(Text, new IniRules { TrimmedHeaders = false });
+		Assert.DoesNotContain("s", kept.Sections);
+		Assert.Equal("1", kept.Get(" s ", "x"));
+		kept.RemoveSection(" s ");
+		Assert.Equal("", kept.Text);
+	}
+
+	[Fact]
 	public void TheSpacesEndingAValue_AreItsOwn_OnlyWhereTheRulesSay() {
 		const string Text = "[s]\nx=a  \n";
 		IniDocument trimmed = Ini.Read(Text);

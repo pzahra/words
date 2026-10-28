@@ -208,9 +208,19 @@ namespace PatTech.Localization.Authoring {
 			return read.ToSettings(path);
 		}
 
-		/// <summary>Reads the settings file at <paramref name="path"/>. A file that is not there, or cannot be read, is an error carried in <see cref="Errors"/>, not thrown.</summary>
-		public static ProjectSettings Load(string path) {
+		/// <summary>
+		///     Reads the settings file at <paramref name="path"/>, a write left pending on it finished
+		///     first (the ini driver's SPEC: Recovery). A file that cannot be read is an error carried
+		///     in <see cref="Errors"/>, not thrown, and so is one that is not there, but where
+		///     <paramref name="absentIsEmpty"/>, which reads as no rows.
+		/// </summary>
+		public static ProjectSettings Load(string path, bool absentIsEmpty = false) {
 			try {
+				using (IniTransaction file = IniTransaction.Open(path, SettingsDialect.Instance)) {
+					if (file.Document.IsNew && absentIsEmpty) {
+						return Empty;
+					}
+				}
 				using var reader = File.OpenText(path);
 				return Load(reader, path);
 			}
@@ -255,11 +265,12 @@ namespace PatTech.Localization.Authoring {
 				foreach (string table in Tables) {
 					StringComparer names = document.Dialect.KeyNames;
 					List<(string Key, string Value)> rows = [.. Rows(table)];
-					foreach (string gone in document.Keys(table).Where(key => !rows.Any(row => names.Equals(row.Key, key))).ToList()) {
-						document.Remove(table, gone);
-					}
+					//set before removed, so a table that keeps any row is never emptied and moved
 					foreach (var (key, value) in rows) {
 						document.Set(table, key, value);
+					}
+					foreach (string gone in document.Keys(table).Where(key => !rows.Any(row => names.Equals(row.Key, key))).ToList()) {
+						document.Remove(table, gone);
 					}
 				}
 			}

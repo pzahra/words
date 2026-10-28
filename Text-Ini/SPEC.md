@@ -103,8 +103,9 @@ more the check compares.
   outside quotes starts one, and an edit to the value keeps it; spaces after
   the separator part one from an empty value (`x= ; note`).
 - **Lines**: whether a header or a field may be indented (else it is
-  unrecognised), whether anything may follow a header's `]` (read past), and
-  whether a value's trailing spaces are its own.
+  unrecognised), whether anything may follow a header's `]` (read past),
+  whether the spaces inside a header's brackets are trimmed from its name
+  (else they are its own), and whether a value's trailing spaces are its own.
 
 A value reads through its continuations and quotes into its text. An edit
 writes it back in its own form while that form holds it, else in the
@@ -224,7 +225,7 @@ what the check found, and where any log or kept bytes sit.
   one inside another part of it, no replacing inside one; replaced whole,
   over a file and over none; no text refused for edits; names with and
   without case, keys by their own rule, a rename by case alone; indents, a
-  header's tail and trailing spaces, each rule on and off.
+  header's tail, a header's spaces and trailing spaces, each rule on and off.
 - A section named twice: read as one, set in its first occurrence, removed,
   renamed and moved in every occurrence.
 - Values and comments, each rule on and off: continued, quoted and escaped

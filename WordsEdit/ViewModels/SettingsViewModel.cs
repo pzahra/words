@@ -75,7 +75,7 @@ public class SettingsDocument : ViewModelBase {
 		AddLinkCommand = new DelegateCommand(() => Links.Add(new LinkRuleRow()));
 		RemoveLinkCommand = new DelegateCommand<LinkRuleRow>(row => Links.Remove(row), static row => row is not null);
 		//a file that is not there yet is simply empty; anything else it says is shown
-		ProjectSettings loaded = File.Exists(path) ? ProjectSettings.Load(path) : ProjectSettings.Empty;
+		ProjectSettings loaded = ProjectSettings.Load(path, absentIsEmpty: true);
 		foreach (ImageRule rule in loaded.Images) {
 			Images.Add(new ImageRuleRow { Scheme = rule.Scheme, Folder = rule.Folder, Decode = rule.Decode ?? "" });
 		}

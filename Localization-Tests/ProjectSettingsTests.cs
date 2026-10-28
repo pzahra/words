@@ -1,4 +1,5 @@
 using PatTech.Localization.Authoring;
+using PatTech.Text.Ini;
 using Xunit;
 
 namespace PatTech.Localization.Tests;
@@ -266,6 +267,61 @@ help-decode=/^help:(\w+)$//https://example.com/help/$1.html
 			File.Delete(path);
 			File.Delete(fresh);
 		}
+	}
+
+	[Fact]
+	public void Save_ReplacingATablesOnlyRow_KeepsTheTableWhereItStands() {
+		string path = Path.Combine(Path.GetTempPath(), $"settings-{Guid.NewGuid():N}.ini");
+		try {
+			File.WriteAllText(path, "; where the pictures are\n[images]\nassets=old\n\n[hyperlinks]\nhttps=popup\n");
+			var edited = new ProjectSettings(path, [new ImageRule("pack", "new", null)], [new LinkRule("https", LinkMode.Popup, null)]);
+
+			edited.Save(path);
+
+			Assert.Equal("; where the pictures are\n[images]\npack=new\n\n[hyperlinks]\nhttps=popup\n", File.ReadAllText(path));
+		}
+		finally {
+			File.Delete(path);
+		}
+	}
+
+	[Fact]
+	public void Load_FinishesAWriteLeftPending_AndTheNextSaveKeepsIt() {
+		string path = Path.Combine(Path.GetTempPath(), $"settings-{Guid.NewGuid():N}.ini");
+		string log = Path.Combine(Path.GetDirectoryName(path)!, $".{Path.GetFileName(path)}.tmp");
+		try {
+			File.WriteAllText(path, "[images]\nassets=old\n\n[hyperlinks]\nhttps=popup\n");
+			IniFiles.Step = step => {
+				if (step == "writing") {
+					throw new IOException("the file went away");
+				}
+			};
+			Assert.Throws<IniPendingException>(() => new ProjectSettings(path, [new ImageRule("assets", "new", null)], [new LinkRule("https", LinkMode.Popup, null)]).Save(path));
+			IniFiles.Step = null;
+			Assert.True(File.Exists(log));
+
+			ProjectSettings read = ProjectSettings.Load(path);
+
+			Assert.Equal("new", Assert.Single(read.Images).Folder);
+			Assert.False(File.Exists(log));
+			new ProjectSettings(path, read.Images, [new LinkRule("https", LinkMode.ShellExec, null)]).Save(path);
+			Assert.Equal("[images]\nassets=new\n\n[hyperlinks]\nhttps=shellexec\n", File.ReadAllText(path));
+		}
+		finally {
+			IniFiles.Step = null;
+			File.Delete(path);
+			File.Delete(log);
+		}
+	}
+
+	[Fact]
+	public void Load_AnAbsentFile_IsEmptyWhereAsked() {
+		string path = Path.Combine(Here, $"missing-{Guid.NewGuid():N}.ini");
+
+		ProjectSettings read = ProjectSettings.Load(path, absentIsEmpty: true);
+
+		Assert.Empty(read.Errors);
+		Assert.Empty(read.Images);
 	}
 
 	[Fact]

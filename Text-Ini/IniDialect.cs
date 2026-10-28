@@ -91,7 +91,7 @@ public class IniDialect {
 		while (at < lines.Count) {
 			string text = lines[at].Text;
 			if (ReadBrackets(text) is { } brackets) {
-				string written = brackets.Written.Trim();
+				string written = Rules.TrimmedHeaders ? brackets.Written.Trim() : brackets.Written;
 				readingPast = written == "" && !Rules.EmptyHeader;
 				if (written == "") {
 					chainBase = "";

@@ -92,7 +92,7 @@ namespace PatTech.Localization.Authoring {
 		///     block's own: the new key goes past it, and has one of its own when it has a value. A
 		///     block with a value and no blank line after it is a file written without them, and the
 		///     new key gets none. In a file with no blocks it goes under the language table, after
-		///     its blank line or with one.
+		///     its blank line or with one; in an empty file it has its own, as the writer writes it.
 		/// </summary>
 		protected override IniPlacement PlaceSection(IniDocument document, string section, IReadOnlyList<KeyValuePair<string, string>> pairs) {
 			ArgumentNullException.ThrowIfNull(document);
@@ -105,7 +105,8 @@ namespace PatTech.Localization.Authoring {
 			int count = document.LineCount;
 			if (follows is null) {
 				bool ends = count != 0 && document.IsBlank(count - 1);
-				return new IniPlacement(count, BlankBefore: count != 0 && !ends, BlankAfter: ends && valued);
+				//an empty file is spaced as the writer spaces one
+				return new IniPlacement(count, BlankBefore: count != 0 && !ends, BlankAfter: (ends || count == 0) && valued);
 			}
 			bool blank = end + 1 < count && document.IsBlank(end + 1);
 			bool spaced = blank || document.Get(follows.Name, "value") is not { Length: > 0 };
@@ -127,7 +128,8 @@ namespace PatTech.Localization.Authoring {
 			var wanted = Flatten(before.Words.WordKeys);
 			foreach (string section in touched.Where(section => section.Length > 0)) {
 				wanted.Remove(section);
-				if (Flatten(WordsReading.Of(Render(change, section)).Words.WordKeys).TryGetValue(section, out var fields)) {
+				//a section the edit empties is gone, a constant's bare header with it
+				if (change.ExpectedKeys(section).Count > 0 && Flatten(WordsReading.Of(Render(change, section)).Words.WordKeys).TryGetValue(section, out var fields)) {
 					wanted[section] = fields;
 				}
 			}
@@ -302,6 +304,7 @@ namespace PatTech.Localization.Authoring {
 			EmptyHeader = false,
 			Indents = false,
 			HeaderTails = true,
+			TrimmedHeaders = false, //[ a ] names " a ", as Core reads it
 			TrailingSpaces = true,
 			Encodings = [new UTF8Encoding(false)],
 			ByteOrderMarks = IniByteOrderMarks.Kept,

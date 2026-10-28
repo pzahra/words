@@ -159,7 +159,9 @@ is followed. A file changed since the call read it, held by another program,
 read-only, or under another write is refused, exit 2, saying which. A commit
 whose log is whole but whose file write failed exits 2, saying the next call
 finishes it. A call whose open settles a log a call before left says so when
-that wrote the file or dropped a write.
+that wrote the file or dropped a write, and one it will not settle exits 2,
+saying what the system said and where the file's bytes were kept. A file
+missing until a log a call before left makes it is no missing file.
 
 ## Where it lives
 
@@ -235,7 +237,10 @@ The command, in process:
 - Files: gripes passed on; a refused edit leaving the file; BOM-less UTF-16
   left alone; a missing or read-only file named without the calls, the
   read-only one with why; a log a call before broke off dropped first and
-  said.
+  said; a held file, another write running and a log that won't write each
+  refused and said; a pending write said and finished by the next call, a
+  new file's included; a log that won't settle saying why, with and without
+  kept bytes.
 - `remove` of an empty field `get` calls none; a `[.child]` header before
   any base listed, read and removed but never written.
 - `list` under a prefix, `--missing` by the badges' rule, `--stale` alone and
