@@ -512,12 +512,11 @@ they hold (*Keys without the file's name*).
 
 Why Save As and not a move: a move is a write and a delete, and the delete is
 the hazard. A path that reaches the same file another way, a directory junction
-or a symbolic link above it, was read as another path, so the move wrote the file
-and then deleted it, losing both. Save As only writes.
+or a symbolic link above it, reads as another path, and the delete takes the
+file just written. Save As only writes.
 
 Why: a location asked up front is a question before there is anything to save,
-and most people expect the one asked at Save. It also removes the hazard of a
-New over a path already loaded, which replaced that file's unsaved work.
+and most people expect the one asked at Save.
 
 **Tests.**
 - New asks nothing.
@@ -629,10 +628,7 @@ and `[seen]` the help bubbles closed (*Help bubbles*). A value is read from
 its section, the section's name and its own matched without case. A setting changes its own line in its section and leaves the
 rest as it was, comments, other sections and keys the editor does not know
 included; a new key joins its section's last value, and a section the file
-lacks is appended after a blank line. A config from before the sections is
-not read: its lines sit above the first section, in none, so the window
-opens at its default size once and the language is the system's until one
-is picked. A config that will not read or write (locked, read-only) costs
+lacks is appended after a blank line. A config that will not read or write (locked, read-only) costs
 the settings, never a close or a restart. The config is read once, at the
 first value asked, each value then read from memory; each moment that sets
 values (the toolbars written back at startup, the toolbar editor's OK, a
@@ -645,14 +641,13 @@ The editor speaks `words.ini`; the world speaks resx, XLIFF, and whatever a
 translator's last tool exported. This is the seam that lets the two trade,
 without the native format giving up an inch of what it holds.
 
-**The shape is two seams that already existed.** Import is what `WordsParser` →
+**The shape is two seams.** Import is what `WordsParser` →
 `WordsParserToLocalizationProvider` does: turn foreign text into the neutral
 document surface — keys, known languages, declared languages, preamble, block
 comments, gripes — that `WordsSession.Load` absorbs. Export is what
 `IniWriter.WriteFile` does: take the document and emit one format. A format is
 not new machinery, then, but those two jobs generalized, and the native ini is
-the first one written to the interface — its own reference implementation.
-Had ini not made a plugin, the interface would have been wrong.
+written to the interface — its own reference implementation.
 
 **Where it lives.** In `PatTech.Localization.Authoring`, tested headless against
 the document model like everything else there (Architecture rules: the
@@ -670,7 +665,7 @@ and stacks their words; the app builds it at startup and hands it to the words
 loader and the main view model.
 
 **One load path.** `WordsSession.Load` has a sibling taking an `ILoadedWords`
-— the surface `WordsParserToLocalizationProvider` already satisfied, and
+— the surface `WordsParserToLocalizationProvider` satisfies, and
 `LoadedWords` is for filling by hand — so an importer produces that surface and
 flows through the exact pipeline the ini loader does: each file its own keys,
 two of one name kept apart, empty-key dropping, language backfill,
@@ -1151,7 +1146,7 @@ which are other windows.
 back), as rows of the command table: Ctrl+Z and Ctrl+Y outside the editing
 boxes, entries at the head of the Edit menu (and so in the tree's context
 menu), their captions in `words.ini`. They ship with no toolbar buttons:
-beside Back and Forward they left the search box too little room. A user
+beside Back and Forward they would leave the search box too little room. A user
 can place them (The toolbar editor).
 
 **Tests.** Every kind of entry has an undo twin, in one run through the
@@ -1337,17 +1332,16 @@ programmer's alone: `x` is the parameter as the text names it (`param-0`,
 `param-Name`, `param-1` for `{1#N}`), the type is what the code passes (Types,
 below), and the description says what it is, for the translator:
 `param-0=int:the files deleted`. The type is optional, `str` without one, so
-`param-0=the file` (the field's first intention) is text. The words before the
+`param-0=the file` is text. The words before the
 first `:` are a type only where they name one, so `param-0=the file: its full
-path` stays whole, where 1.3.0's reader took "the file" for an unknown type
-and lost it; the writer writes the type wherever it is not `str`, or the
-description's own first words would read as one. No value is saved: the
-sample a 1.3.0 file holds (`Type:sample`) comes up as a description; its
-type names (String, Integer, Double, TimeSpan,
-DateTimeOffset) read as the short ones below and are written short. A value
+path` stays whole; the writer writes the type wherever it is not `str`, or the
+description's own first words would read as one. No value is saved: a
+`Type:sample` field reads its sample as the description, and the long type
+names (String, Integer, Double, TimeSpan, DateTimeOffset) read as the short
+ones below and are written short. A value
 kept in the file, if one turns out wanted, is a field of its own beside the
-definition, never mixed into it again, and is an experiment for later. The
-runtime skips `param-` as it always has.
+definition, never mixed into it, and is an experiment for later. The
+runtime skips `param-`.
 
 **Types.** Six, in any case, each with the input that reads it:
 - `str`, free text;
@@ -1539,7 +1533,7 @@ words name no type, since the reader keeps such a text whole.
   same.
 - `param-0=the file: its full path` reads as one `str` description and
   writes back as it was; `param-0=INT:` reads as an `int` without one; a
-  description that starts `real:` round-trips; 1.3.0's `Integer:` reads as
+  description that starts `real:` round-trips; a long `Integer:` reads as
   `int` and writes `int:`; `enum(enums.brew)` keeps its prefix as written.
 - Each input reads its type in the invariant culture and refuses what it
   cannot; an `enum` lists the keys directly under its prefix and not their
@@ -1570,8 +1564,7 @@ words name no type, since the reader keeps such a text whole.
 - In Mismatch View, a `{0}` restored takes a follower out at once and dropped
   again brings it back, while the edited row stays until the selection moves
   on, and then goes.
-- The menu's inventory has no Test Parameters, and Mismatch View sits beside
-  Missing View in the menu and the filter popup.
+- Mismatch View sits beside Missing View in the menu and the filter popup.
 
 ## Keys without the file's name
 
@@ -1649,15 +1642,15 @@ before the first is saved is `anonymous-words` as well, and saving it to the
 first's path is refused; a preview reads a bare reference through the files in
 tree order, the later winning, and the selected key above them all; a tree
 labelled by its paths writes, and another file's tree or one whose root is
-labelled is refused; a split, a merge, an export and every round trip write as
-before, byte for byte; and the tests name a key by its file and its own name.
+labelled is refused; a split, a merge, an export and every round trip write
+each key's name as it is, byte for byte; and the tests name a key by its file and its own name.
 
 ## Dirty by file
 
 Unsaved work is each file's own, and so is its history. A file is dirty from
 an edit to it until it is written, and clean again whenever an undo or a
 redo brings it back to what was last written. The window's title stars while
-any file is dirty, as it does now, and a dirty file's root carries the same
+any file is dirty, and a dirty file's root carries the same
 star after its name, so the tree says which files Save will write. A file
 that leaves the session takes its history with it, and the other files keep
 theirs.
@@ -1682,7 +1675,7 @@ not know its file does not compile.
 is, and leaves the clean ones alone on disk: a file loaded and never edited
 is not rewritten, and a file edited keeps it but for what was edited (*Save as
 a patch*). It greys while no
-file is dirty. A file never saved asks where, as it does now; cancelled, the
+file is dirty. A file never saved asks where; cancelled, the
 Save stops there, the files written before it clean, and it and the rest
 dirty. A file that fails to write is told and stays dirty, and the others
 are written. Save As writes the selected file alone, dirty or clean, at the
@@ -1691,7 +1684,7 @@ on disk; at its own path it is that file's write and no other's, the way to
 rewrite a clean file.
 
 **Undo.** The saved point is each file's own. Each entry records the files
-dirty before it and after it, where it records the window's flag now, and an
+dirty before it and after it, and an
 undo or a redo puts back what it records for the files the entry changes
 (*Undo*, Recording); every other file keeps its mark, as the entry did not
 touch it, a file New started or an import made, which the history never
@@ -1702,10 +1695,9 @@ the first entry that does, either way. So after a save, undoing an edit to
 one file stars that file alone, and a Save that writes some files and not
 others is no special case: each file written has its saved point where the
 history stands, and each file not written keeps the one it had. A typing
-run changes one file, so each of its steps keeps that file's mark, as each
-keeps the window's now, and a save between two steps is clean there for that
-file alone. A new edit after undoing past a save drops the entries undone,
-as it does now; a file whose saved point lay past one of them that changes
+run changes one file, so each of its steps keeps that file's mark, and a
+save between two steps is clean there for that file alone. A new edit after
+undoing past a save drops the entries undone; a file whose saved point lay past one of them that changes
 it has no saved point left in the history, and stays dirty until it is
 written.
 
@@ -1729,7 +1721,7 @@ source control is the way back, as for any work dropped.
   from the files, as a load of them would read it. So undoing a commit in
   one file never brings back a language only a removed file declared, and
   words a redo writes in a language a removal let go bring the language
-  back, as words in it keep it now. A key put back from a copy, a removal
+  back, as words in any language keep it. A key put back from a copy, a removal
   undone or a constant's cleared translations, meets the list as it stands
   (`WordsSession.Restore`, `PutBackEntries`): an empty entry for a language
   a file brought since, its words in a language the list let go bringing it
@@ -1747,12 +1739,11 @@ them and closes once none is dirty, so a write that fails or a first save
 cancelled keeps the window; Discard closes; Cancel stays. Removing a dirty
 file asks the same of that file alone: Save writes it and then removes it, a
 failed or cancelled write keeping it; Discard removes it, its unsaved work
-with it; Cancel keeps it. Removing a clean file asks as it does now, without
-the warning of lost changes, as there are none. A removed file's mark goes
-with it, so removing the last dirty file clears the title's star. Reset asks
-as it does now.
+with it; Cancel keeps it. Removing a clean file asks, without the warning of
+lost changes, as there are none. A removed file's mark goes with it, so
+removing the last dirty file clears the title's star.
 
-**Where it lives.** The marks are the editor's, as the window's is now:
+**Where it lives.** The marks are the editor's:
 `ViewModelSaveBase` keeps them by file behind the same doors (`MarkDirty`
 naming the file, the history's `PutBack`, Save's and Reset's clean),
 `IsDirty` saying whether any is set, and each root mirrors its file's for
@@ -1761,12 +1752,11 @@ the tree. An entry's file is the entry's, and a drag between files is
 are `UndoStack`'s, and the places it takes are `SelectionHistory`'s.
 Authoring keeps a commit to one file's table (`LanguageTableChange`) and
 reads the session's list again from the files (`LanguageTable`), tested
-headless; the runtime does not change.
+headless; the runtime has no part in it.
 
-**Why.** Save wrote every loaded file, rewriting files nobody had touched,
-and Save As did too; after a save, an undo in one file starred the whole
-window; closing could not say which files held the work it was about to
-drop; and a file loaded or removed emptied every file's undo history.
+**Why.** A file nobody touched is never rewritten; an undo in one file stars
+that file alone; closing names the files whose work it would drop; and a
+file loaded or removed leaves the others' undo history alone.
 
 **Tests.**
 - Each kind of entry marks its own file and no other: typing a field, each
@@ -1883,9 +1873,9 @@ delimiter. So the codec reads what a `schema.ini` beside the sheet tells it,
 one section a file, and makes or edits that section as it goes. The format
 is the old ODBC text driver's, chosen for compatibility alone: nothing needs
 the driver, but anything that speaks it can read a sheet Wordsmith
-described. `FormatOptions` has had a seam and no door (xliff's
-`source-language` is the file's default language until a dialog asks), and
-this is the format that earns the door.
+described. The sheet is the format whose `FormatOptions` have a door, its
+dialog; xliff's `source-language` stays the file's default language until a
+dialog asks.
 
 **The schema.** `schema.ini` is the Microsoft Text driver's: one a folder,
 a `[Strings.csv]` section a file, its names matched without case. Wordsmith
@@ -1963,7 +1953,7 @@ command line's `get` and `set` reach it as they reach a stale mark.
 Raising the hand stamps it, by the Needs Review toggle or by a note typed,
 as a stale mark is stamped (`WordsKey.StaleStamp`), and lowering it takes
 the text away; a flag a file gives keeps whatever text it has, none
-included. The panes show no text for it, as now. Undo keeps the text before
+included. The panes show no text for it. Undo keeps the text before
 and after: the toggle's entry (`ReviewEdit`), and the step of a note's
 typing that raised the hand, which keeps the stamp it raised it with, as a
 typing of the default keeps its stale stamps. XLIFF carries it beside
@@ -2042,12 +2032,10 @@ Export dialog shows what the target's columns will be.
   columns keeps all it does say, and its columns are a new table's, ticked
   by what the file uses; Export leaves it naming none unless the tick
   changes it.
-- The section is written before the sheet, so a `schema.ini` that refuses it
+- The section is prepared before the sheet, so a `schema.ini` that refuses it
   is known before a byte of the sheet lands: told, nothing written, and the
-  dialog left open. A sheet whose write then fails puts the `schema.ini`
-  back as it was, byte for byte, or removes it when Export made it; when
-  that fails too, both are told: the sheet was not written, and its section
-  says what Export wrote.
+  dialog left open. It commits once the sheet is written; a sheet whose write
+  fails leaves the `schema.ini` as it was, or absent when it was.
 - A target whose `schema.ini` can't be read leaves no plan: Export greys,
   and the dialog says why, so it never writes by the plan of a target
   before.
@@ -2084,17 +2072,16 @@ file's order, and the review flag last. The header row is their names.
   quoted cell is taken as text; whether to guard it (a `'` prefix, stripped
   on the way back in) is decided when a real value starts with one.
 
-**Other tools.** Checked by hand, a sheet's round trip through each, and not
-by the tests, which need neither:
-- The ODBC text driver (Jet's, 32-bit; this machine has no ACE) reads a
-  sheet Wordsmith wrote by its section: quotes, line breaks in cells, a cell
-  past 255 characters as a `Memo`, UTF-8 as `65001`, and a mark with no text
-  as its word, where `""` read as no value. Wordsmith reads the driver's own
-  tables back: it writes `Char Width 50` columns, `CharacterSet=1252` and
-  every cell quoted. The script that checked it is kept beside the codec,
-  `Localization-Authoring/Codecs/odbc-check.ps1`, for reference: nothing
-  runs it.
-- LibreOffice 24.2 opens a sheet in its columns. Its default import takes
+**Other tools.** A sheet's round trip through each, by hand and not by the
+tests, which need neither:
+- The ODBC text driver (Jet's, 32-bit) reads a sheet Wordsmith wrote by its
+  section: quotes, line breaks in cells, a cell past 255 characters as a
+  `Memo`, UTF-8 as `65001`, and a mark with no text as its word, where `""`
+  reads as no value. Wordsmith reads the driver's own tables back: it writes
+  `Char Width 50` columns, `CharacterSet=1252` and every cell quoted.
+  `Localization-Authoring/Codecs/odbc-check.ps1` checks it by hand: nothing
+  else runs it.
+- LibreOffice opens a sheet in its columns. Its default import takes
   `007` for 7, `1.50` for 1.5, `=1+1` for 2, and `50%` and `1/2` for a
   percentage and a date; with "Format quoted field as text" ticked, or the
   columns set to Text, every field comes back as it went out. It drops
@@ -2102,7 +2089,7 @@ by the tests, which need neither:
   and the section still names the encoding, so the sheet reads back as
   UTF-8. ISO dates, the editor's stamps, line breaks, padded spaces, a `$`
   key and UTF-8 come through in any setting.
-- Excel waits on a machine with it: the codec was built on one without.
+- Excel is not checked.
 
 **Loss follows the columns.** What a sheet keeps is what its columns name:
 the context and comment channels, stale marks and the review flag when there
@@ -2127,9 +2114,8 @@ a value of their own (`CsvLayout`), which the codec turns into the section's
 columns and back, the ticks that hang on others with it, so the dialog only
 binds the ticks. The sheet is the plan's one file; its section is the
 dialog's own step, written as Import or Export goes ahead. `ExportUnit`
-gains the encoding it is written in (none being UTF-8 without a BOM, as
-now), and `IWordsExporter` gains `Keeps(options)` and `Keeps(source,
-options)`. The codec says what a section comes to (`Effective`: the columns
+carries the encoding it is written in (none being UTF-8 without a BOM), and
+`IWordsExporter` has `Keeps(options)` and `Keeps(source, options)`. The codec says what a section comes to (`Effective`: the columns
 a file uses for a section naming none) and what it must say to keep every
 cell (`Quoting`), and `IsUtf32` and `IsCharacterSet` what is no sheet's. Code pages come from
 .NET's own `CodePagesEncodingProvider`, registered once. The dialogs are the
@@ -2140,8 +2126,8 @@ and the write go by. They are the CSV codec's alone: a generic options
 surface, a format declaring its options and their kinds, waits until a
 second format needs one. The review flag's text is
 Authoring's (`WordsKey`, the loader, `IniWriter`, `WordsField.Hand`, the
-XLIFF codec) and the editor's (the stamp, its undo). The runtime does not
-change: it reads past `stale=` as it does now.
+XLIFF codec) and the editor's (the stamp, its undo). The runtime reads past
+`stale=`.
 
 **Tests.**
 - The review flag's text: `stale=note` loads and saves byte for byte, and
@@ -2206,9 +2192,8 @@ change: it reads past `stale=` as it does now.
   cell that needs a quote switches the section to `"`; a locked section
   gets the cells bare, spaces for what needed the quote, and reads back so;
   changed ticks against a locked or UTF-16 `schema.ini` write nothing and
-  keep the dialog open. The sheet's write failing puts the `schema.ini`
-  back byte for byte, or removes it, and a failure to put it back is told
-  too. A `schema.ini` that can't be read greys Export and says why. Import
+  keep the dialog open. The sheet's write failing leaves the `schema.ini`
+  untouched, and a new table's unmade. A `schema.ini` that can't be read greys Export and says why. Import
   keeps the columns a section declares, refuses a UTF-32 sheet with the
   reason, shows a section naming UTF-32 as ANSI, and imports nothing when
   its section can't be written.
@@ -2376,7 +2361,8 @@ out, are written whole.
   whose columns changed is not written, and one that only wanted quoting
   goes bare under its section as it stands, each told; a sheet that fails
   leaves the section unwritten. A commit left pending, or refused by its
-  log's own write after the sheet landed, is told.
+  log's own write after the sheet landed, is told; the switch to a quote is
+  said only once the section lands.
 - The Project Settings dialog sets and removes each file's rows, so a
   hand-written one keeps its comments and order; a new file, or one that is
   no text, is written whole. Refused is told, and the dialog stays open with
@@ -2385,12 +2371,14 @@ out, are written whole.
   *Surgical edits*).
 
 Wordsmith and the command line put the driver's typed failures in their own
-words (`IniWords`, the `ini.*` keys).
+words (`IniWords`, the `ini.*` keys): a log that will not settle says what
+the system said, and where the file's bytes were kept.
 
 **Tests.** `SpreadsheetTests`: Import writes the section it reads by, and
 one that can't be saved imports nothing; Export's section lands only with
-its sheet, a commit failing after the sheet is said, and a section that
-can't be written writes nothing. `CsvCodecTests`: a section read without
+its sheet, a commit failing after the sheet is said and no switch to a
+quote claimed, and a section that can't be written writes nothing.
+`IniWordsTests`: a log that won't settle, with and without kept bytes. `CsvCodecTests`: a section read without
 case and written leaving every other line; `schema.ini` loaded once.
 `WindowPlaceTests`: the config keeps its comments, one that won't write
 costs only the setting, and the close writes the window and the language

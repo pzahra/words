@@ -17,11 +17,9 @@ mode — and picking a theme swaps it; both are saved. Below: the topics as a li
 on the left, and the selected topic's page on the right, scrolling on its own.
 The window opens on the topic it was last left on, or the first.
 
-**Why.** One long scroll mixed the features together, the only guidance was in
-markup comments nobody running the app sees, and the theme switch sat by the
-language picker though only the images cared. A page per topic keeps each
-feature with its own explanation, and the controls that affect every page sit
-above them all.
+**Why.** A page per topic keeps each feature apart, with its own explanation
+where someone running the app sees it, and the controls that affect every
+page sit above them all.
 
 ## Topics and their markers
 
@@ -43,9 +41,9 @@ below). The card takes one key, `<topic>.<card>`: its
 value is the heading, `.guide` beneath it is the guidance, and `.demo` is the
 demonstration text where the card shows one. Heading and guidance render as
 Words with markdown, so the explanation is itself a demonstration and follows a
-language switch. Guidance written before the dialect had code spans names an
-API in bold and leaves the exact spelling to the chips; the code card and the
-links card spell their resources in code spans, as later guidance may. References
+language switch. Most guidance names an API in bold and leaves the exact
+spelling to the chips; the code card and the links card spell their resources
+in code spans, as any guidance may. References
 resolve in guidance as anywhere, a code span included, so a brace meant
 literally is written twice: `{{>key}` shows as `{>key}`.
 
@@ -135,7 +133,7 @@ text box, so the reader can select and copy it, with long lines wrapped. The box
 takes the code spans' look from the same resources, `WordsCodeFont` and
 `WordsCodeBackground`, and keeps it while hovered or focused.
 
-**Why not markdown.** A code block rendered through `WordsMarkdown` read well,
+**Why not markdown.** A code block rendered through `WordsMarkdown` reads well,
 but a text block cannot be selected, and a How is exactly what a reader wants to
 copy. The label keeps the How's markdown.
 

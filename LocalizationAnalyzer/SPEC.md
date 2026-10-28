@@ -221,8 +221,8 @@ Some members take a string near a key and are deliberately left unmarked:
 - `RenderText`'s `baseKey` is a context, not a key: it resolves the text's relative
   references, `{>.sub}` reading `baseKey.sub`, and need hold no value of its own.
 - `EchoWords.GetValue` echoes whatever it is given as `#key#`, declared or not. Its
-  indexer stays marked, so echoing an undeclared literal through it warns; that was
-  accepted.
+  indexer stays marked, so echoing an undeclared literal through it warns, by
+  choice.
 - `TryGetValue` and `ContainsKey`, on `IWords`, `CulturedWords` and `EchoWords`, and the
   `TryGetValue` extension ask whether a key is there, so a key that is not is an answer.
 - `Words.FormKey` names the entry a count reads, for a tool that holds keys read from
@@ -238,10 +238,7 @@ LocalizedSample builds with one PTL001 and one PTL002 on purpose, against its
 PTL002 under Release 1.4.0; `AnalyzerReleases.Unshipped.md` is empty. A new rule goes
 into Unshipped and moves under a release's heading when that release is cut. The files
 are a record kept by hand: the analyzer project does not hand them to its build as
-AdditionalFiles, so the release-tracking analyzers do not check them. 1.3.0, the
-package's last published version and the one its consumers pin today, carried an earlier
-PTL002 listed as unshipped; 1.4.0 ships it, now that Core, WPF and Avalonia mark their
-keys.
+AdditionalFiles, so the release-tracking analyzers do not check them.
 
 **The package.** `LocalizationAnalyzer.Package` packs `PatTech.Localization.Analyzer` at
 `AnalyzerVersion` (`Versions.props`):
@@ -301,8 +298,8 @@ XAML editing in Rider is the ReSharper engine's, so completion, tooltips and squ
 markup can only come from a plugin to that engine. Once there, it serves C# too.
 
 **Checked by hand.** A build proves the wiring compiles, not that a list pops up or a
-tooltip shows. The 1.4.0 release, first built as 0.2.0, was checked by hand in a live
-Rider on 2026-10-09; a change to the glue is checked the same way, in `runIde`'s sandbox.
+tooltip shows. A change to the glue is checked by hand in a live Rider, `runIde`'s
+sandbox.
 
 ## Keys in XAML
 
@@ -397,8 +394,7 @@ continuations, comments. It keeps values as `WordsParserToWordsProvider` does, a
 follows the runtime there too, where that surprises:
 
 - A repeated `value=` for the same key and language overwrites the earlier one, as the
-  runtime does (it warns `WB:KOVR`), and a continuation follows the line that won. 0.1.0
-  concatenated them.
+  runtime does (it warns `WB:KOVR`), and a continuation follows the line that won.
 - A trailing `\` joins with a newline and a trailing `_` with nothing; `\\`, `__` and
   `''` are one character each and never continue. Since the test pairs each `\` or `_`
   with the character after it, `a_\` does not continue: `_\` is an escaped pair. An odd
@@ -473,12 +469,11 @@ The ini files name keys too: a value's `{>key}` reference renders `#key#` at run
 no file declares the key, and nothing checks it before then. The analyzer already holds
 the files, so the check belongs there: each `{>key}`, resolved as the runtime resolves it
 (`{>.sub}` against its own block), checked against the declared keys with PTL002's
-grammar and reported at its line in the file. It waited for this spec, so that the
-reading it checks against is written down first.
+grammar and reported at its line in the file.
 
 ## PTL002 by operations
 
-PTL002 walks syntax, and misses four shapes that predate 1.4.0:
+PTL002 walks syntax, and misses four shapes:
 
 - a target-typed `new("x")`, which is no `ObjectCreationExpression`;
 - an omitted argument whose default is a key;

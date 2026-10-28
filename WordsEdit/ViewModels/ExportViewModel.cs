@@ -219,15 +219,14 @@ public class ExportViewModel : DialogViewModel {
 		//written, and a sheet that fails leaves it as it was
 		string? schema = null;
 		IniTransaction? section = null;
+		bool quoted = false; //said once the section lands
 		if (Sheet is { } sheet && Format.Format is CsvCodec codec && options is not null) {
 			FormatOptions wanted = codec.Quoting(source, options);
 			if (sheet.WritesSection || !ReferenceEquals(wanted, options)) {
 				schema = SchemaIni.For(sheet.Sheet);
 				try {
 					section = PrepareSection(sheet.Sheet, wanted);
-					if (!ReferenceEquals(wanted, options)) {
-						gripes.Add(Words.Known.Format("export.quoted", schema));
-					}
+					quoted = !ReferenceEquals(wanted, options);
 					options = wanted;
 				}
 				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
@@ -257,6 +256,9 @@ public class ExportViewModel : DialogViewModel {
 			if (section is not null) {
 				try {
 					CommitSection(section);
+					if (quoted) {
+						gripes.Insert(0, Words.Known.Format("export.quoted", schema!));
+					}
 				}
 				catch (IniPendingException ex) {
 					Parent.Dialogs.Tell(Words.Known.Format("export.schema-pending", schema!, Plan[0].Path, ex.Log));

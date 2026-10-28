@@ -516,13 +516,14 @@ value-fr=Bonjour\
 			Assert.False(File.Exists(schema));
 
 			//the sheet written and its section's commit left pending, or refused by its log's own
-			//write: each is said, and Export is done
+			//write: each is said, and Export is done, never saying the section switched to a quote
 			SaveBare(target);
 			string pendingLog = Path.Combine(folder, ".schema.ini.tmp");
 			(dialogs, export) = Export(folder, target, Awkward);
 			export.CommitSection = section => throw new IniPendingException(section.Path, pendingLog);
 			export.ExportCommand.Execute(null);
 			Assert.Equal(Words.Known.Format("export.schema-pending", schema, target, pendingLog), Assert.Single(dialogs.Notices));
+			Assert.Empty(dialogs.Shown);
 			Assert.Equal("\"key\";\"value\";\"value-fr\"\r\n\"greeting\";\"Hello; you\";\"Bonjour\nà vous\"\r\n", File.ReadAllText(target));
 
 			(dialogs, export) = Export(folder, target, Awkward);
@@ -530,6 +531,7 @@ value-fr=Bonjour\
 			export.CommitSection = _ => throw full;
 			export.ExportCommand.Execute(null);
 			Assert.Equal(Words.Known.Format("export.schema-unwritten", schema, target, IniWords.Say(full)), Assert.Single(dialogs.Notices));
+			Assert.Empty(dialogs.Shown);
 			Assert.Equal(before, File.ReadAllBytes(schema)); //its section as it was
 		}
 		finally {

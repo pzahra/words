@@ -270,5 +270,4 @@ the file then reads back through the editor with a line more. A new key set
 by its value first is spaced right. The fix: a block that gains a value
 gains the blank line after it, in a file spaced so, and one that loses it,
 by `remove` or an empty `set`, loses the line. Until then, a new key's value
-goes first; the keys the editor's *New* added to Wordsmith's own words went
-so.
+goes first.

@@ -42,8 +42,8 @@ behaves exactly as *The dictionary is a snapshot* describes, byte for byte.
 builder — its un-flattened per-language sources, its `Debug`/`UseSystemNumbers`
 settings and its `ConfigureDescribe` registrations — alive as `Words.Live`
 instead of letting it go, and arms the watch
-registry below. Off (the default: `Words.Live` is null), `Digest` behaves as
-today and every hook in this section is a no-op; `Live(false)` lets the builder
+registry below. Off (the default: `Words.Live` is null), `Digest` lets the
+builder go and every hook in this section is a no-op; `Live(false)` lets the builder
 go again.
 
 **Re-flattening.** With the sources retained, `Words.SwitchLanguage(code)`
@@ -52,9 +52,8 @@ builder runs at startup, without touching disk. The assignment is the trigger:
 everything downstream hangs off the `Words.Known` swap, so a plain
 `Words.Known = dictionary` relocalizes just as well.
 
-**LazyWords is the proxy.** [`LazyWords`](Words.cs) already held a key, resolved
-it against `Words.Known` on first read, and cached — most of a live proxy. It
-implements `INotifyPropertyChanged` and `IKnowWords`, the one-method seam
+**LazyWords is the proxy.** [`LazyWords`](Words.cs) holds a key, resolves it
+against `Words.Known` on first read, and caches it. It implements `INotifyPropertyChanged` and `IKnowWords`, the one-method seam
 (`Refresh()`) the registry calls; its `Refresh()` drops the cache and raises
 `PropertyChanged(Value)`, so the next read re-resolves and any binding over it
 re-pulls. That is the whole proxy — no new type. A *literal* `LazyWords` — the
@@ -123,9 +122,10 @@ asked again for each instance.
 
 **The XAML analyser.** `Key` names no constructor argument. Marked
 `[ConstructorArgument("key")]`, a `string` property naming the `object`
-constructor's argument, it made the IDE's XAML analyser balk at a key passed as
-a string, `{l:Words some.key}`, though that built and ran. The mark is for XAML
-serialization, which nothing does with `{l:Words}`; both twins go without it.
+constructor's argument, it would make the IDE's XAML analyser balk at a key
+passed as a string, `{l:Words some.key}`, though that builds and runs. The mark
+is for XAML serialization, which nothing does with `{l:Words}`; both twins go
+without it.
 
 **The converter hoist.** Wrapping a converted binding in a `MultiBinding` with
 the trigger is *not* enough, and the reason is easy to miss: a `MultiBinding` does
@@ -232,7 +232,7 @@ define a default — blue on WPF, a light and a dark variant on Avalonia — so 
 that merges them, as it already does, gets a link that reads in both themes. An
 app that defines its own `WordsLinkBrush`, in its theme dictionaries or the one it
 swaps in, overrides it; both samples do, and their theme switch shows it. The
-underline stays as it was, and so does the console's ANSI blue.
+underline does not follow the theme, and the console keeps its ANSI blue.
 
 **Nothing defined.** An app that defines no brush and merges nothing still gets
 blue: the link carries it as a fixed fallback until the lookup finds something,
@@ -428,12 +428,10 @@ header is `[name]`, or `[.child]` under the last full header, and the key it
 resolves to must be a name. `WordsParser.IsKeyName` is the check, and
 `IsKeySegment` its one segment; the analyzer and the Rider plugin port it.
 
-**Why there is a grammar.** Until plural forms nothing hung on it, and a header
-took anything up to `]`. Now `#` marks a form, so `[lang.c#]` beside
-`[lang.c]` read as a form of `lang.c`, and `lang.c#` itself rendered as a
-missing key where 1.4.0 read `C#`. A space, `=`, `:`, `;`, a brace or `>` is
-no better: the reference and selector syntax, `{>key}` and `{0#key}`, could
-never name one. Wordsmith never let anyone type them.
+**Why there is a grammar.** `#` marks a plural form, so `[lang.c#]` beside
+`[lang.c]` would read as a form of `lang.c`. A space, `=`, `:`, `;`, a brace
+or `>` is no better: the reference and selector syntax, `{>key}` and
+`{0#key}`, could never name one.
 
 **What a runtime does.** A block whose name is none is skipped, its fields with
 it, and warned about once (`WP:NAME`, with the key it resolved to); so are the
@@ -454,10 +452,7 @@ and a one-segment constant; it refuses an empty name or segment, a leading dot
 or dash, `$` inside or a constant's child, and each of the characters above.
 Devanagari's spacing marks, a Persian non-joiner, letters past the 16-bit plane
 and a digit of any script are its; a leading mark or joiner, an emoji, a lone
-surrogate, a letter NFKC would change and a decomposed `café` are not. Checked
-once against the ICU that Windows ships (Unicode 12.1): its XID_Start and
-XID_Continue agree on every code point both assign, but the four characters
-Unicode 15.1 added to XID_Continue (the joiners and two katakana middle dots).
+surrogate, a letter NFKC would change and a decomposed `café` are not.
 A runtime skips `[lang.c#]` and its continued value, warns once, and reads
 `[lang.c]` and the block after; it skips the children of a constant and of a
 skipped block; a second file's labels are read after a first that ended in a
@@ -535,8 +530,7 @@ out `#other`, its plain word. A key with no words in the language takes a
 shorter code's, or the default's, forms included, branded under `Debug` as values
 are. The unit is the forms': a translation that writes forms and no plain value
 reads its plain value from the level below, branded, like any missing word, so
-its count of 1 shows what is missing rather than a form in its place (owner's
-call, 2026-10-07). A language with one category, such as Japanese, speaks only its plain
+its count of 1 shows what is missing rather than a form in its place. A language with one category, such as Japanese, speaks only its plain
 value, its own or the one it falls back to. `Words.FormKey(provider, language,
 key, form)` names the entry a count in a form reads, for a tool that shows it:
 the editor's hints and previews.
@@ -627,9 +621,8 @@ supplies its values by name, never its own members, so `{Count}` reads the
 entry and not the dictionary's `Count`. That is any dictionary by a `string`
 key, of any value type: an `IDictionary`, or an `IReadOnlyDictionary<string, T>`
 or `IDictionary<string, T>` of one's own that is nothing else. A tool holding samples by name
-selects as an app would. A bare `null` fills every name with nothing, as in
-1.4.0. The template overloads 1.4.0 shipped with an `IReadOnlyDictionary`
-parameter (`Words.FormatByName`, `Words.PreFormatByName`) stay for callers built
+selects as an app would. A bare `null` fills every name with nothing. The
+template overloads with an `IReadOnlyDictionary` parameter (`Words.FormatByName`, `Words.PreFormatByName`) stay for callers built
 against it, hidden from completion; they take a `null` too, and read exactly
 as the `object` overloads do, so whichever one a call binds to doesn't matter.
 
@@ -681,8 +674,7 @@ count indexer returns the key's own form for the count. The table's spot checks
 follow current CLDR, and each rule's categories are what whole numbers reach;
 an optional category, and the one it reads, are both its language's.
 The parser lowercases a form, continues it and warns about forms that are none.
-Checked once against the ICU that Windows ships (CLDR 35): the table agrees
-except where CLDR has changed since. Where things resolve: a form's relative
+Where things resolve: a form's relative
 reference, chained twice, through a selector, the count indexer, a
 `{>word#other}` and a lookup of the form itself; a referenced key's selector
 picks from its own sub-key; a key referring to one that selects its own forms
@@ -706,10 +698,8 @@ UI thread.
 
 `Describe` reads an enum member's name, number, key (`[Words]`) and attribute
 text, looks up the words beside the key, and assembles what the format's
-letters ask for. It used to reflect on every call, asking for each attribute
-by name whether the member had it or not, and to look up every key beside the
-member though `G` reads one; and Wordsmith, which has the keys and never the
-type, could not describe at all (the editor spec's *Parameters*, Types).
+letters ask for. Wordsmith, which has the keys and never the type, describes
+through the same engine (the editor spec's *Parameters*, Types).
 
 **The seam.** `IDescribable` is what the engine reads: `Name`, `Number`, the
 number as text so any integer type's value fits, `Key`, and `Text(slot)`, the
@@ -729,8 +719,8 @@ behind it: its name the last segment, no number and no attribute text, so the
 letters read the key's `.tooltip` and kin as they would for a real member.
 Wordsmith's `enum(prefix)` input builds one per key under the prefix.
 
-**Flags.** A `[Flags]` combination is no member. `Describe` on one reads as it
-always has: the joined names, and for `D` the whole number.
+**Flags.** A `[Flags]` combination is no member. `Describe` on one reads the
+joined names, and for `D` the whole number.
 `Describable.Members(value, words)` gives the members `Enum.ToString` names for it,
 which settles overlapping values the way .NET does, each one's describable
 from the cache, and `Describe` on that list gives one text per member. Both
@@ -745,10 +735,9 @@ description, then the name (`N`: the key's words, then the name); `d`,
 `.tooltip`, then `[Tooltip]`; and `s` the name and `D` the number, which read
 no key. One letter a slot: `D` reads as Enum's own `D` does, so a template,
 which hands an enum over (*Describe in a template*), cannot mean two things
-by it. `D` used to read the description beside `d`, a leftover nothing
-used; `i`, the number's letter before it, is retired, and so is `n`, which
-read as `G` and looked like the lower case of `N`, the strict name. `G` is
-the general text because IFormattable's general format is.
+by it. `i` and `n` are no slots (`n` would look like the lower case of `N`,
+the strict name), and read as stray letters (below). `G` is the general text
+because IFormattable's general format is.
 `DescribeSlot`, a `byte` enum, names the canon by its letters,
 `DescribeSlot.Tooltip = (byte)'T'`, cast to `char` where a slot is asked for,
 so `(char)DescribeSlot.Tooltip` and `'T'` are one slot. Any other letter or
@@ -758,16 +747,14 @@ beside each member: `describe.Slot('H', ".hint")` (The registry, below) makes
 letter that is a slot already, built in or added, is refused, and so is a
 suffix that is not a dot and one segment of a key's name.
 
-`.unit` left the canon on the same footing: a suffix to another value is one
-app's need, not every enum's, and one line puts it back,
-`describe.Slot('U', ".unit")`. The samples' `LoadShared` adds it on the builder
+`.unit` is no slot of the canon: a suffix to another value is one app's
+need, not every enum's, and one line adds it, `describe.Slot('U', ".unit")`. The samples' `LoadShared` adds it on the builder
 it loads their words into, and their Enums page shows each brew's unit, a slot
 of one's own on show.
 
 **A letter no slot answers** reads as `G`, marked `#!X#`, and warns
-`WORDS:SLOT` with the letter. It used to read nothing, so a typo in a format,
-or an app reading `U` without adding it, vanished without a word; marked, it
-leaves something to search the gripes and the docs for. Quoted text, `''`
+`WORDS:SLOT` with the letter, so a typo in a format, or an app reading `U`
+without adding it, leaves something to search the gripes and the docs for. Quoted text, `''`
 being a quote, and anything that is no letter or digit are written as they
 are. The release that brings this says so in its notes: `U` is no longer
 built in, `D` reads the number where it read the description, `i` and `n`
@@ -783,8 +770,7 @@ return it for the next. The registry starts with `[Words]` for the key,
 describable asks its field for its attributes once and reads each as the
 nearest registered type of its lineage, and that alone: its own type where it
 is registered, its nearest registered base where it is not. An unregistered
-subclass reads as its base (a translated `[Description]` is common), as
-1.5.0's reflection read it. A registered one is read as itself, its own
+subclass reads as its base (a translated `[Description]` is common). A registered one is read as itself, its own
 properties and all, and never as its base, whose reading may not fit it: a
 subclass may hold something else in its base's property, as another system's
 key in `[Description]`'s text, which would otherwise show as the description;
@@ -818,10 +804,8 @@ leaving a member keyless. The function is asked once per member, when the
 type is first described, however many threads first describe it together; a
 first describe that threw keeps nothing, so the next tries again. A member's
 own key still wins, and a type has one way to key its members, the latest
-given. This is the
-migration `[Tooltip]` stood in for: the Core readme's advice to move a custom
-attribute's text into `[Tooltip]` is now registering that attribute, and
-`[Tooltip]` stays, obsolete, for the code that already uses it.
+given. `[Tooltip]` is obsolete, kept for the code that uses it: an app with
+an attribute of its own registers that instead.
 
 **Frozen at Digest.** The registry is the dictionary's, not the process's.
 `ConfigureDescribe` runs its callback at once, adding to what the builder's
@@ -840,16 +824,12 @@ describe by their own registrations alone. A dictionary that does not say,
 wrapping another passes the inner one's `DescribeRegistry` on. The members a
 registry builds are its own, kept for every dictionary that carries it, so a
 live switch keeps them, and a type is built once however many threads first
-describe it together. This replaced a process-wide registry, `Describable`'s
-`Fill`, `FillKey`, `Keys` and `Slot`, which a test or a second dictionary
-shared with whatever anyone registered, and which a description under way
-could see change; it never shipped.
+describe it together.
 
-**Tests.** Every built-in letter reads as before, quoting and punctuation
+**Tests.** Every built-in letter reads as *Slots* gives it, quoting and punctuation
 included, for a `[Words]` member, a `[Description]` one and a bare one; one
 sharing its value with an obsolete name reads its first name that is not
-obsolete, `s` and an untranslated `N` too, where 1.5.0 read the name
-`Enum.ToString()` gives, a fix; `G` looks up the key alone and `T`
+obsolete, `s` and an untranslated `N` too; `G` looks up the key alone and `T`
 its `.tooltip` alone, each once, and `s` and `D` none; `D` reads the number
 as Enum's `D` does, and `i` and `n` as stray letters; a member is read once
 however often it is described, by every dictionary of one registry; a
@@ -871,15 +851,14 @@ a slot of one's own reads its suffix, then its attribute; a letter taken, no
 letter and a bad suffix are refused; a letter no slot answers reads as `G`
 marked, and warns; the samples' `U` reads a brew's unit; a combination's
 members are those .NET names, an overlap and an undefined value among them,
-while `Describe` on the combination reads as before; a registration after a
+while `Describe` on the combination reads its joined names; a registration after a
 dictionary reads in the next one alone, two dictionaries side by side each
 describe by their own registrations, `Describe` without words reads
 `Known`'s and a live switch keeps its registry, a dictionary that does not
 say reads Words' own, a refused callback leaves the builder as it was, and
 what a callback was handed refuses once it returns; the cache holds no
 words, so another language reads its own; and a describable built from a
-key alone reads its slots. The
-`Describe` and converter tests stand unchanged.
+key alone reads its slots.
 
 ## Describe in a template
 
@@ -901,8 +880,8 @@ number, and a template reads an enum as the converters do. This holds for
 for `WordsInline` and the converters, and for `RenderKey` and `RenderText`
 with arguments; the raw-template `FormatByName` and the provider overloads
 have no dictionary, and describe in `Known`. A selector reads its argument
-before it is described, so a count stays a count; an enum is none, as
-before. Wordsmith's `enum` input sends the describable it builds off the
+before it is described, so a count stays a count; an enum is none.
+Wordsmith's `enum` input sends the describable it builds off the
 key, so its previews read a template's letters as an app's would (the
 editor spec's *Parameters*).
 
@@ -922,9 +901,8 @@ itself takes an enum too, and `{0:T}` reaches Enum's own `ToString`, which
 rejects it, so the item is marked; such a formatter returns `null` for an
 `Enum` and an `IDescribable`, and they are described.
 
-The letters are Describe's, not Enum's, and they change what a template
-printed. `{0}` printed the member's name, and now prints its words, or its
-`[Description]`, then its name. `D` is the number to both. `d`, the decimal
+The letters are Describe's, not Enum's. `{0}` prints the member's words, or
+its `[Description]`, then its name. `D` is the number to both. `d`, the decimal
 to Enum, is the description, empty where there is none. Enum's `X` and
 `F`, in either case, and `g` are no slot's, and read as stray letters, the
 general text marked `#!X#` with a `WORDS:SLOT` warning. A `[Flags]`
@@ -994,7 +972,7 @@ string.Format reads a value.
   braces keep it from reading as a missing key's `#key#`. That is a number past the
   arguments, a name in a positional call or one no member answers (`WORDS:FIELD`),
   a member being a public field or a property with a public getter and no index,
-  so `{Chars}` on a string is none, where reading the indexer threw,
+  so `{Chars}` on a string is none,
   and a spec its argument rejects, `{0:Q}` for a count (`WORDS:FORMAT`). A selector
   past the arguments picks `other` and warns, as a name no member answers does.
   `RenderKey` and `RenderText` given arguments fill the same way, and the
@@ -1016,33 +994,25 @@ string.Format reads a value.
   It reads the template with `ParseFormat` and writes it back numbered, each brace
   escaped as string.Format wants. A spec its argument rejects goes through as
   written, since nothing is formatted yet: `{Name:Q}` on a count becomes `{1:Q}`,
-  which string.Format then throws on, as in 1.5.0, where `FormatByName` marks it.
+  which string.Format then throws on, where `FormatByName` marks it.
 - **Authoring.** The parameter finder (`ParameterUse`'s `Tokens`, `Items` and its
   walk, and `IsName`), the translation check and the editor's followers
   (`TreeViewModel`'s) read the same pieces, so they agree with the runtime by
   construction, and so do the samples' source cards. A constant brings in no
   parameter.
 
-**Why.** A formatted value was read twice: rendering expanded its escapes,
-references, constants and selectors with regular expressions, and string.Format
-then parsed what came out for format items. Two parsers over the same braces made three bugs.
-- *Double escaping.* A brace is escaped once in words, `{{`, and rendering
-  collapsed it, so string.Format, which wants an escape of its own, filled `{{0}`
-  and threw on `{{>key}`, and a literal brace in a formatted value took `{{{{`.
-  Whoever writes a value should not have to know whether the code formats it, and
-  a translator cannot.
-- *Format injection.* A spec was parsed after the words rendered, so a `{>key}` or
-  `{$constant}` written inside one was pasted in first: `{0:{>fmt}}` with
-  `[fmt] value=N2` formatted `7.00`, and another key, or a translation of it, could
-  rewrite how a parameter formats. A constant `N2}{1`, pasted unrendered, made
-  `{0:N2}{1}`. And no checker saw it: the parameter finder, scanning each piece of
-  text, found no `{0}`.
-- *A third escape.* The ini reader collapses a file's own escapes, `\\`, `__` and
-  `''`, and rendering collapsed `\\`, `''` and `""` again, a leftover from before
-  the reader did, so a value holding `\\server` rendered `\server`.
+**Why.** One parser over the braces, read once:
+- *One escape.* A brace is escaped once, `{{`, whether the code formats the
+  value or not. Whoever writes a value should not have to know which, and a
+  translator cannot.
+- *No format injection.* A spec is read before anything renders, so no
+  `{>key}` or `{$constant}`, nor a translation of one, rewrites how a parameter
+  formats, and the parameter finder sees every item the runtime fills.
+- *A file's escapes are its reader's.* The ini reader collapses `\\`, `__` and
+  `''`, and rendering collapses nothing more, so `\\server` renders as written.
 
-An item string.Format could not fill threw, and took the whole value with it;
-filling each item itself is what lets one be marked alone.
+Filling each item itself lets one that cannot be filled be marked alone,
+rather than taking the whole value with it.
 
 **Tests.** The parser: each piece and its place, `{{`, a `}` always itself, numbers as
 string.Format reads them, names with spaces and alignments, and every malformed
@@ -1053,10 +1023,10 @@ or a constant holding `N2}{1`, adds no item, the reference warning; a reference'
 the plain value's; an `IWords` of one's own answering `{{` shows a brace and its
 selectors still pick; an item with nothing to read is marked, its alignment and spec
 dropped, and a selector past the arguments picks `other`, each warning;
-`PreFormatByName`'s output formats through string.Format as before; and a template
+`PreFormatByName`'s output formats through string.Format; and a template
 with no Words syntax formats as string.Format formats it, character for character,
 across alignments, specs, cultures, a custom formatter and nulls, while an enum is
-described as before, after a custom formatter has declined it; a format its argument rejects is marked. Authoring: the finder
+described, after a custom formatter has declined it; a format its argument rejects is marked. Authoring: the finder
 reads an item spanning a reference as malformed, a constant brings in no parameter,
 and the translation check reads items as the runtime does; a malformed brace is
 found value by value, each once, and gripes on load naming the key and the field, a
@@ -1087,8 +1057,7 @@ another language than its host's default.
 
 ## FormatByName's dictionary overloads
 
-The template overloads 1.4.0 shipped with an `IReadOnlyDictionary` parameter
-stay, hidden from completion (`[EditorBrowsable(Never)]`), and read as the
+The template overloads with an `IReadOnlyDictionary` parameter stay, hidden from completion (`[EditorBrowsable(Never)]`), and read as the
 `object` overloads do (*Plural forms*). The goal is to steer callers to the
 `object` overload and warn anyone who reaches a dictionary one, and neither
 attribute does that alone. `[Obsolete]` warns on every call that binds there, a

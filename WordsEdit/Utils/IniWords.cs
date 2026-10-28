@@ -13,7 +13,8 @@ public static class IniWords {
 		IniCommitException { Failure: IniCommitFailure.Held } => Words.Known["ini.held"],
 		IniCommitException { Failure: IniCommitFailure.Denied } => Words.Known["ini.denied"],
 		IniCommitException { Failure: IniCommitFailure.Running } => Words.Known["ini.running"],
-		IniCommitException { Failure: IniCommitFailure.Unsettled } refused => Words.Known.Format("ini.unsettled", refused.Log ?? ""),
+		IniCommitException { Failure: IniCommitFailure.Unsettled, Kept: { } kept } refused => Words.Known.Format("ini.unsettled-kept", refused.Log ?? "", Reason(refused), kept),
+		IniCommitException { Failure: IniCommitFailure.Unsettled } refused => Words.Known.Format("ini.unsettled", refused.Log ?? "", Reason(refused)),
 		IniCommitException { Failure: IniCommitFailure.LogWrite } refused => Words.Known.Format("ini.log-write", Reason(refused)),
 		IniPendingException pending => Words.Known.Format("ini.pending", pending.Log),
 		IniCheckException => Words.Known["ini.check"],
@@ -24,6 +25,6 @@ public static class IniWords {
 		_ => failure.Message,
 	};
 
-	//what the system said when the log would not write
+	//what the system said when the log would not write, or would not settle
 	private static string Reason(IniException failure) => failure.InnerException?.Message ?? "";
 }
