@@ -57,20 +57,40 @@ namespace PatTech.Localization.Authoring {
 		}
 
 		//each renamed key's section renamed while the name it had stands and the one it has is
-		//free, parents first; one onto a name another rename frees waits for it
+		//free, parents first; one onto a name another rename frees waits for it. A section
+		//whose name a renamed key takes, and whose own key is no rename's, is a key gone, and
+		//goes first; renames that wait on each other, a swap, go one through a name of none
 		private static void Rename(IniDocument document, IReadOnlyList<(string From, string To)> renames) {
-			List<(string From, string To)> waiting = [.. renames.OrderBy(rename => rename.From.Count(c => c == '.'))];
-			for (bool renamed = true; renamed;) {
-				renamed = false;
+			List<(string From, string To)> waiting = [.. renames
+				.Where(rename => rename.From != rename.To && document.HasSection(rename.From))
+				.OrderBy(rename => rename.From.Count(c => c == '.'))];
+			foreach (var (_, to) in waiting.Where(rename => document.HasSection(rename.To) && !waiting.Any(other => other.From == rename.To)).ToList()) {
+				document.RemoveSection(to);
+			}
+			while (waiting.Count > 0) {
+				bool renamed = false;
 				foreach (var rename in waiting.ToList()) {
-					if (!document.HasSection(rename.From)) {
-						waiting.Remove(rename);
-					}
-					else if (!document.HasSection(rename.To)) {
+					if (!document.HasSection(rename.To)) {
 						document.RenameSection(rename.From, rename.To);
 						waiting.Remove(rename);
 						renamed = true;
 					}
+				}
+				if (!renamed) {
+					var (from, to) = waiting[0];
+					string free = Free(document, from);
+					document.RenameSection(from, free);
+					waiting[0] = (free, to);
+				}
+			}
+		}
+
+		//a name no section has, beside one that does
+		private static string Free(IniDocument document, string name) {
+			for (int count = 1; ; count++) {
+				string free = $"{name}-renaming-{count}";
+				if (!document.HasSection(free)) {
+					return free;
 				}
 			}
 		}

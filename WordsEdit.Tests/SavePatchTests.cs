@@ -98,6 +98,42 @@ public sealed class SavePatchTests : IDisposable {
 	}
 
 	[Fact]
+	public void APendingSave_Undone_IsDirty_AndTheNextSaveWritesTheUndo() {
+		var (vm, _) = Loaded();
+		Edit(vm, "farewell", "Goodbye");
+		Failing(() => vm.Save());
+
+		int done = vm.UndoStack.DoneCount;
+		vm.UndoCommand.Execute(null);
+		if (vm.UndoStack.DoneCount == done) {
+			vm.UndoCommand.Execute(null);
+		}
+
+		//the log lands Goodbye, so Bye is unsaved work
+		Assert.Equal("Bye", Key(vm, "words", "farewell").DefaultValue);
+		Assert.True(vm.IsDirty);
+		vm.Save();
+		Assert.Equal(Hand, File.ReadAllText(this["words.ini"]));
+		Assert.False(vm.IsDirty);
+		Assert.Equal([this["words.ini"]], Directory.GetFiles(folder));
+	}
+
+	[Fact]
+	public void APendingSaveAs_OfACleanFile_IsDirty_TheNextSaveFinishingIt() {
+		var (vm, dialogs) = Loaded();
+		vm.Tree.SelectedKeyNode = vm.Tree.KeyNodes.Single();
+		dialogs.FileToSave = this["moved.ini"];
+
+		Failing(() => vm.SaveAsCommand.Execute(null));
+
+		Assert.False(File.Exists(this["moved.ini"]));
+		Assert.True(vm.IsDirty);
+		vm.Save();
+		Assert.Equal(Written(vm), File.ReadAllText(this["moved.ini"]));
+		Assert.False(vm.IsDirty);
+	}
+
+	[Fact]
 	public void AReadFinishingAPendingWrite_OverAChangeMadeSince_SaysWhereThatChangeIsKept() {
 		var (vm, _) = Loaded();
 		Edit(vm, "farewell", "Goodbye");

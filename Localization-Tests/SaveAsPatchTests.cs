@@ -94,6 +94,29 @@ public sealed class SaveAsPatchTests : IDisposable {
 	}
 
 	[Fact]
+	public void AKeyRenamedOntoTheNameOfOneRemoved_RenamesItsHeader_KeepingItsLines() {
+		var (session, file, path) = Load("[a]\nvalue = Alpha\n\n\n[b]\nvalue=Beta\n");
+
+		session.RemoveKeysUnder(file, "b");
+		Assert.True(session.TryRename(file, "a", "b", out _));
+		Save(session, file);
+
+		Assert.Equal("[b]\nvalue = Alpha\n", Read(path));
+	}
+
+	[Fact]
+	public void TwoKeysSwappingNames_SwapTheirHeaders_KeepingTheirLines() {
+		var (session, file, path) = Load("[a]\nvalue = Alpha\n\n[b]\nvalue = Beta\n");
+
+		Assert.True(session.TryRename(file, "a", "swap", out _));
+		Assert.True(session.TryRename(file, "b", "a", out _));
+		Assert.True(session.TryRename(file, "swap", "b", out _));
+		Save(session, file, Tree(file, "b", "a"));
+
+		Assert.Equal("[b]\nvalue = Alpha\n\n[a]\nvalue = Beta\n", Read(path));
+	}
+
+	[Fact]
 	public void AKeyDragged_MovesItsBlock_AfterTheKeyBeforeIt() {
 		var (session, file, path) = Load(Hand);
 

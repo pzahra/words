@@ -492,7 +492,7 @@ public class MainWindowViewModel : ViewModelSaveBase {
 	//writes the file at path, or where it is, which it takes once written there; a file
 	//never saved asks where first. Where it is, it is patched (SPEC: Save as a patch), and
 	//anywhere else, or whole, written in the writer's form. True when written: landed, it is
-	//clean; left pending, that is told and it stays dirty. False when the write was refused,
+	//clean; left pending, that is told and it is dirty. False when the write was refused,
 	//which is told and moves nothing; null when the dialog was cancelled
 	private bool? SaveFile(WordsFile file, string? path = null, bool whole = false) {
 		KeyNode node = Tree.NodeOf(file);
@@ -520,9 +520,14 @@ public class MainWindowViewModel : ViewModelSaveBase {
 		if (path != file.Path) {
 			Locate(file, path);
 		}
-		if (!pending) {
+		//a pending write stands, so the history's saved point is what it lands; the file stays
+		//dirty, clean or not before, so Save tries it again
+		UndoStack.Saved(file);
+		if (pending) {
+			MarkDirty(file);
+		}
+		else {
 			MarkClean(file);
-			UndoStack.Saved(file);
 		}
 		return true;
 	}

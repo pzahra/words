@@ -137,7 +137,7 @@ namespace PatTech.Localization.Authoring {
 	///     hand-written one's comments are read past, and kept where they stand
 	///     when it is saved. The runtime never reads it. Nothing here touches the
 	///     file system but
-	///     <see cref="Load(string)"/>, <see cref="Save(string)"/> and
+	///     <see cref="Load(string, bool)"/>, <see cref="Save(string)"/> and
 	///     <see cref="TryResolveImage"/>.
 	/// </summary>
 	public sealed class ProjectSettings {
