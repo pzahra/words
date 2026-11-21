@@ -277,4 +277,5 @@ read back through the editor byte for byte.
 # Planned upgrades
 
 Its part in the editor's *Machine translation*, `list --stale`, `request` and
-`apply`, is built (*Calls*); the editor's part is planned there.
+`apply`, is built (*Calls*); the editor's dialog by hand is built there, and
+its command runner planned.
