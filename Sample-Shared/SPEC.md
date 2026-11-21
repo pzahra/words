@@ -85,7 +85,7 @@ template, Avalonia through its view locator.
 | Topic | Cards |
 |---|---|
 | Getting started | words in markup (`{l:Words}`); a missing key, shown as `#key#` |
-| Markdown | inline styles; entities and emoji; code spans and blocks (`WordsCodeFont`, `WordsCodeBackground`); the kitchen sink; the playground (`MarkdownConverter`) |
+| Markdown | inline styles; entities and emoji; code spans and blocks (`WordsCodeFont`, `WordsCodeBackground`); the kitchen sink; the playground (`Markdown.Text`) |
 | References | one key inside another (`{>key}`); constants (`{$constant}`, from `framework-words.ini`); dot-relative blocks and references; a loop, cut at `# ∞ #` |
 | Hyperlinks | tooltips, autolinks and app commands (`RegisterGlobalNavigateHandler`), coloured by the theme (`WordsLinkBrush`); the app's report of them (`Params`) |
 | Images | every scheme, `staticres:` beside `dynres:` under the theme toggle |

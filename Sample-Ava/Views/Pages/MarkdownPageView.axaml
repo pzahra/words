@@ -32,11 +32,11 @@
     <!-- /card -->
 
     <!-- card: markdown.playground -->
-    <c:DemoCard Key="markdown.playground" Uses="MarkdownConverter">
+    <c:DemoCard Key="markdown.playground" Uses="Markdown.Text">
       <StackPanel>
         <TextBox Text="{Binding Playground}" TextWrapping="Wrap"/>
-        <!-- WordsMarkdown comes from the package's Converters.axaml, merged in App.axaml -->
-        <ContentControl Margin="0,6,0,0" Content="{Binding Playground, Converter={StaticResource WordsMarkdown}}"/>
+        <!-- the markdown fills a TextBlock of the page's own, which keeps its wrapping -->
+        <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" l:Markdown.Text="{Binding Playground}"/>
       </StackPanel>
     </c:DemoCard>
     <!-- /card -->
