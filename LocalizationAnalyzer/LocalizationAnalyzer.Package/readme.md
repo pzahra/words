@@ -30,9 +30,10 @@ WriteLocal("hello");                      // PTL001, straight to jail
 static void WriteLocal([Localized] string message) { ... }
 ```
 
-It sees through parentheses, `await`, conditionals, and switch expressions, and
-flags only the arms that misbehave — so the one bad branch lights up, not the
-whole statement.
+It sees through parentheses, `await`, casts, `!`, conditionals, and switch
+expressions, and flags only the arms that misbehave — so the one bad branch
+lights up, not the whole statement. `null` and `default` go through untouched:
+no text at all isn't text you forgot to translate.
 
 The other side of the lookup is the key. Mark a parameter, property or field
 with `[WordsKey]` and every constant string handed to it must be a key some

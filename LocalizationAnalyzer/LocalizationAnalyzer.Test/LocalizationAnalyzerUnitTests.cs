@@ -245,5 +245,80 @@ public static class Program
                 .WithArguments("message", "WriteLocal");
             await VerifyCS.VerifyAnalyzerAsync(test, expected);
         }
+
+        // null and default are no text, not text left unlocalized: a marked member may hold
+        // none, whether assigned, passed, an arm of a ?: or a switch, cast, through ! or traced
+        [TestMethod]
+        public async Task NullAndDefault_AreNoText_ReportsNothing()
+        {
+            var test = @"
+#nullable enable
+using PatTech.Localization;
+
+public class ViewModel
+{
+    [Localized]
+    public string? Failure { get; set; }
+
+    [Localized]
+    string? note;
+
+    [Localized]
+    static string Known
+    {
+        get { return ""known""; }
+    }
+
+    public void Update(int kind, bool flag)
+    {
+        Failure = null;
+        Failure = default;
+        Failure = default(string);
+        Failure = (string?)null;
+        Failure = null!;
+        note = null;
+        Show(null);
+        Show(default);
+        Failure = kind switch { 0 => Known, _ => null };
+        Failure = flag ? Known : null;
+        string? held = null;
+        held = Known;
+        Show(held);
+    }
+
+    static void Show([Localized] string? message)
+    {
+    }
+}
+" + AttributeSource;
+
+            await VerifyCS.VerifyAnalyzerAsync(test);
+        }
+
+        // a cast or a ! hides nothing: the text under it is what counts
+        [TestMethod]
+        public async Task ALiteral_UnderACastOrSuppression_Warns()
+        {
+            var test = @"
+#nullable enable
+using PatTech.Localization;
+
+public class ViewModel
+{
+    [Localized]
+    public string? Failure { get; set; }
+
+    public void Update()
+    {
+        Failure = {|#0:(string)""raw""|};
+        Failure = {|#1:""raw""!|};
+    }
+}
+" + AttributeSource;
+
+            await VerifyCS.VerifyAnalyzerAsync(test,
+                VerifyCS.Diagnostic(LocalizationAnalyzer.PropertyAssignmentDiagnostic).WithLocation(0).WithArguments("ViewModel.Failure"),
+                VerifyCS.Diagnostic(LocalizationAnalyzer.PropertyAssignmentDiagnostic).WithLocation(1).WithArguments("ViewModel.Failure"));
+        }
     }
 }

@@ -370,7 +370,8 @@ namespace LocalizationAnalyzer
         /// <summary>
         /// Determine whether <paramref name="expression"/> fails to produce a localized
         /// value: it neither reads a <c>[Localized]</c> member nor invokes a method
-        /// marked <c>[return: Localized]</c> (looking through parentheses, <c>await</c>,
+        /// marked <c>[return: Localized]</c>, nor is <c>null</c> or <c>default</c>, which
+        /// are no text at all (looking through parentheses, <c>await</c>, casts, <c>!</c>,
         /// conditional access, conditionals, and switch expressions).
         /// </summary>
         private static bool IsLocalizationError(
@@ -412,6 +413,19 @@ namespace LocalizationAnalyzer
                     return IsLocalizationError(semanticModel, parenthesized.Expression, cancellationToken, visited);
                 case AwaitExpressionSyntax await:
                     return IsLocalizationError(semanticModel, await.Expression, cancellationToken, visited);
+                // null and default are no text, not text left unlocalized: a marked member
+                // may hold none
+                case LiteralExpressionSyntax literal
+                        when literal.IsKind(SyntaxKind.NullLiteralExpression)
+                        || literal.IsKind(SyntaxKind.DefaultLiteralExpression):
+                    return false;
+                case DefaultExpressionSyntax _:
+                    return false;
+                case CastExpressionSyntax cast:
+                    return IsLocalizationError(semanticModel, cast.Expression, cancellationToken, visited);
+                case PostfixUnaryExpressionSyntax suppressed
+                        when suppressed.IsKind(SyntaxKind.SuppressNullableWarningExpression):
+                    return IsLocalizationError(semanticModel, suppressed.Operand, cancellationToken, visited);
                 case InvocationExpressionSyntax invocation:
                     {
                         if (!(semanticModel.GetSymbolInfo(invocation.Expression, cancellationToken).Symbol is IMethodSymbol symbol))

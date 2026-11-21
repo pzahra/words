@@ -23,8 +23,9 @@ WriteLocal("hello");                      // PTL001, straight to jail
 static void WriteLocal([Localized] string message) { ... }
 ```
 
-It looks through parentheses, `await`, conditionals, and switch expressions,
-and flags only the arms that misbehave.
+It looks through parentheses, `await`, casts, `!`, conditionals, and switch
+expressions, and flags only the arms that misbehave. `null` and `default` go
+through untouched: no text at all isn't text you forgot to translate.
 
 ## What's in this folder
 
