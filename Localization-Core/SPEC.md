@@ -1106,6 +1106,72 @@ navigates through the handler a rendered link uses. The converter's own
 `TextBlock` wraps. In Wordsmith, the bubble measures the page it opens with
 (`TheBubbleMeasuresThePageItOpensWith`) on `Markdown.Text`.
 
+## Avalonia 12
+
+`PatTech.Localization.Avalonia` takes Avalonia `[11.0, 12.0)`. Avalonia 12 is
+another binary interface: the same assembly names for the same targets, so one
+package cannot carry a build for each, and a NuGet reference cannot pick by
+the version of another. Avalonia 12 support is a package of its own,
+`PatTech.Localization.Avalonia12`, named for its major because the next ones
+are likely to need the same split.
+
+**One source, built twice.** `Localization-Ava12` compiles `Localization-Ava`'s
+sources and its `Converters.axaml` against Avalonia `[12.0, 13.0)`, built
+against 12.0 as the other is against 11.0, under an `AVALONIA12` symbol. Both
+packages keep the assembly name `PatTech.Localization.Avalonia`, its
+namespaces and the `https://github.com/pzahra/words` XAML namespace, so moving
+an app between them is a package swap and nothing else; an app references one
+or the other. They ship at one `ApiVersion`, released with Core and WPF.
+
+**What differs.** Measured by building the sources against 12.1.6, then 12.0.0:
+two places break, a third follows Avalonia 12's word to libraries, and nothing
+else the library touches changes.
+- Avalonia 12 removes `IBinding`; `BindingBase` replaces it. The extension's
+  bound key and `WordsInline.Args` take a `BindingBase` in the 12 build, so
+  `Args`' element type is the one difference in the public surface.
+- `Converter`, `ConverterParameter`, `ConverterCulture`, `Mode` and
+  `StringFormat` are no longer on `BindingBase`: `ReflectionBinding`,
+  `CompiledBinding`, `MultiBinding` and `TemplateBinding` each declare their
+  own. Under `{l:Words}`, the 12 build wraps a reflection binding (`Binding` is
+  one) and a compiled binding, each by its own members, and hands any other on
+  as it is; `ConverterCulture` is read directly, where 11 reflects for it,
+  since 11.0 lacks it.
+- A library posts to its object's own `Dispatcher` in Avalonia 12, which 11.0
+  does not have: the 12 build's `WordsInline` does, and 11 keeps
+  `Dispatcher.UIThread`.
+
+Avalonia 12 compiles a XAML `{Binding}` by default, so an app writing
+`{l:Words {Binding Status}}` gives the view an `x:DataType`, as any compiled
+binding asks, or writes `{ReflectionBinding}`. The readme says so.
+
+**Tests.** Avalonia 12's headless host runs on xUnit v3, and Avalonia 11's on
+v2; `Localization-Tests` is one xUnit 2 project for WPF, Core and Avalonia.
+The Avalonia tests move out into a project of their own, built once per major
+from the same sources (xUnit 2 with Avalonia 11, xUnit 3 with Avalonia 12), so
+both packages pass the same tests. WPF and Core stay where they are.
+
+**The samples.** `Sample-Ava` moves to Avalonia 12 on the new package before
+anything else uses it, dropping `Avalonia.Diagnostics`, which Avalonia 12
+removes and the sample references without calling. It already compiles its
+bindings by default. The 11 package is covered by its tests.
+
+**The 11 package keeps its name.** `PatTech.Localization.Avalonia` stays on
+Avalonia 11, so an app on it updates where it stands; NuGet has no alias, and
+a rename would leave every such app to swap the package or quietly stop
+getting fixes. When Avalonia 11 support is dropped, the package is deprecated
+on NuGet, pointing at the newest `.AvaloniaNN`, and gets no further release.
+
+**Order.** The second project and the three differences, building both;
+`Sample-Ava` on Avalonia 12 on it, before anything else uses it; the Avalonia
+tests split and passing on both majors; the release pipeline packing both on
+an `api/` tag, with the readme saying which to take and the skill naming both.
+
+**Tests.** Each package passes the Avalonia tests on its own major: `{l:Words}`
+over a reflection and a compiled binding, converted and not, live and not;
+`WordsInline` with bound arguments; the converters, images and links as they
+stand. The 12 package's assembly answers the same XAML namespace, and
+`Sample-Ava` runs on it.
+
 ## One trigger per synchronization context
 
 `TriggerWords` is one for the process, and lives on the UI thread whose
