@@ -1,5 +1,6 @@
 ﻿using Avalonia;
 using Avalonia.Data;
+using Avalonia.Data.Converters;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
 using System;
@@ -38,8 +39,8 @@ namespace PatTech.Localization.Avalonia;
 /// </remarks>
 public class WordsExtension : MarkupExtension {
 	private string value;
-	private readonly IBinding? wrapped;
-	private IBinding? provided;
+	private readonly AnyBinding? wrapped;
+	private AnyBinding? provided;
 
 	private string _Key;
 	/// <summary>
@@ -64,11 +65,11 @@ public class WordsExtension : MarkupExtension {
 	///     Creates the extension over a key, resolved against <see cref="Words.Known"/>
 	///     immediately, or over a binding, localized when the binding is applied.
 	/// </summary>
-	/// <param name="key">The key of the Words to provide, or an <see cref="IBinding"/> whose value to localize.</param>
+	/// <param name="key">The key of the Words to provide, or a binding whose value to localize.</param>
 	/// <exception cref="ArgumentNullException"><paramref name="key"/> is <see langword="null"/>.</exception>
 	public WordsExtension([WordsKey] object key) {
 		ArgumentNullException.ThrowIfNull(key);
-		if (key is IBinding binding) {
+		if (key is AnyBinding binding) {
 			wrapped = binding;
 			_Key = "?";
 			value = "#?#";
@@ -102,7 +103,7 @@ public class WordsExtension : MarkupExtension {
 
 	//an object-typed property would take a binding itself for its value: bind it here,
 	//and hand back what it shows now for the loader to set meanwhile
-	private static object Hand(IProvideValueTarget? target, IBinding binding) {
+	private static object Hand(IProvideValueTarget? target, AnyBinding binding) {
 		if (target is { TargetObject: AvaloniaObject owner, TargetProperty: AvaloniaProperty property } && property.PropertyType == typeof(object)) {
 			owner.Bind(property, binding);
 			return owner.GetValue(property) ?? AvaloniaProperty.UnsetValue;
@@ -110,34 +111,63 @@ public class WordsExtension : MarkupExtension {
 		return binding;
 	}
 
+#if !AVALONIA12
 	//BindingBase.ConverterCulture arrived after Avalonia 11.0, which the package still takes
 	private static readonly PropertyInfo? ConverterCulture = typeof(BindingBase).GetProperty("ConverterCulture");
+#endif
 
 	//the binding as it localizes: off, a bound key gains a lookup and a converted binding
 	//is itself; live, the converter (or the lookup) moves up to a multi-binding with the
 	//trigger beside the binding, since a multi-binding re-runs only its own converter
-	private static IBinding Wrap(IBinding wrapped, bool live) {
-		if (wrapped is not BindingBase binding) {
+	private static AnyBinding Wrap(AnyBinding wrapped, bool live) {
+		if (Parts.Of(wrapped) is not { } parts) {
 			return wrapped;
 		}
 		if (!live) {
-			if (binding.Converter is null) {
-				binding.Converter = new BoundWordsConverter();
-				if (binding.Mode == BindingMode.Default) {
-					binding.Mode = BindingMode.OneWay;
-				}
+			if (parts.Converter is null) {
+				(parts with { Converter = new BoundWordsConverter(), Mode = parts.Mode == BindingMode.Default ? BindingMode.OneWay : parts.Mode }).To(wrapped);
 			}
-			return binding;
+			return wrapped;
 		}
-		var converter = new BoundWordsConverter(binding.Converter, binding.ConverterParameter, ConverterCulture?.GetValue(binding) as CultureInfo);
-		var multi = new MultiBinding { Converter = converter, Mode = BindingMode.OneWay, StringFormat = binding.StringFormat };
-		binding.Converter = null;
-		binding.ConverterParameter = null;
-		ConverterCulture?.SetValue(binding, null);
-		binding.StringFormat = null;
-		multi.Bindings.Add(binding);
+		var multi = new MultiBinding { Converter = new BoundWordsConverter(parts.Converter, parts.Parameter, parts.Culture), Mode = BindingMode.OneWay, StringFormat = parts.Format };
+		(parts with { Converter = null, Parameter = null, Culture = null, Format = null }).To(wrapped);
+		multi.Bindings.Add(wrapped);
 		multi.Bindings.Add(new Binding(nameof(TriggerWords.Pulse)) { Source = TriggerWords.Watch(), Mode = BindingMode.OneWay });
 		return multi;
+	}
+
+	//a binding's converter, with its parameter and culture, its format and its mode: Avalonia 11
+	//keeps them on BindingBase, and 12 on each kind of binding, read here for the two a key is
+	//bound by, reflection (Binding in code, {ReflectionBinding}) and compiled ({Binding} in XAML).
+	//None for any other kind, a MultiBinding among them, which is handed on as it is
+	private readonly record struct Parts(IValueConverter? Converter, object? Parameter, CultureInfo? Culture, string? Format, BindingMode Mode) {
+		public static Parts? Of(AnyBinding binding) => binding switch {
+#if AVALONIA12
+			ReflectionBinding r => new Parts(r.Converter, r.ConverterParameter, r.ConverterCulture, r.StringFormat, r.Mode),
+			CompiledBinding c => new Parts(c.Converter, c.ConverterParameter, c.ConverterCulture, c.StringFormat, c.Mode),
+#else
+			BindingBase b => new Parts(b.Converter, b.ConverterParameter, ConverterCulture?.GetValue(b) as CultureInfo, b.StringFormat, b.Mode),
+#endif
+			_ => null,
+		};
+
+		public void To(AnyBinding binding) {
+			switch (binding) {
+#if AVALONIA12
+				case ReflectionBinding r:
+					(r.Converter, r.ConverterParameter, r.ConverterCulture, r.StringFormat, r.Mode) = (Converter, Parameter, Culture, Format, Mode);
+					break;
+				case CompiledBinding c:
+					(c.Converter, c.ConverterParameter, c.ConverterCulture, c.StringFormat, c.Mode) = (Converter, Parameter, Culture, Format, Mode);
+					break;
+#else
+				case BindingBase b:
+					(b.Converter, b.ConverterParameter, b.StringFormat, b.Mode) = (Converter, Parameter, Format, Mode);
+					ConverterCulture?.SetValue(b, Culture);
+					break;
+#endif
+			}
+		}
 	}
 
 	//Avalonia holds a binding's source weakly, and the shared holder's other owners

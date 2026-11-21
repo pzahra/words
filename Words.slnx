@@ -3,6 +3,7 @@
     <Project Path="Localization-Core/Localization-Core.csproj" />
     <Project Path="Localization-Wpf/Localization-Wpf.csproj" />
     <Project Path="Localization-Ava/Localization-Ava.csproj" />
+    <Project Path="Localization-Ava12/Localization-Ava12.csproj" />
     <Project Path="Localization-Authoring/Localization-Authoring.csproj" />
     <Project Path="Localization-Tests/Localization-Tests.csproj" />
   </Folder>

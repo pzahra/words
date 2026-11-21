@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Words for Avalonia 12 (the runtime SPEC: Avalonia 12): Localization-Ava's own sources and
+       resource dictionary, built against Avalonia 12 under AVALONIA12. Its assembly, namespaces
+       and XAML namespace are the Avalonia 11 package's, so an app moves between the two by
+       swapping the package; it references one or the other -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net8.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>PatTech.Localization.Avalonia</RootNamespace>
+    <DefineConstants>$(DefineConstants);AVALONIA12</DefineConstants>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <!-- a Release build packs as it builds, for a local feed; a Debug build only builds -->
+    <GeneratePackageOnBuild Condition="'$(Configuration)' == 'Release'">True</GeneratePackageOnBuild>
+    <PackageId>PatTech.Localization.Avalonia12</PackageId>
+    <Version>$(ApiVersion)</Version>
+    <Title>Words for Avalonia 12</Title>
+    <Description>Puts Words in the AXAML of an Avalonia 12 app: the {l:Words key} markup extension, WordsInline for markdown-rendered strings, converters and image schemes over PatTech.Localization.Core. For Avalonia 11, take PatTech.Localization.Avalonia.</Description>
+    <PackageTags>localization;i18n;l10n;translation;avalonia;avalonia12;axaml;markup-extension;markdown</PackageTags>
+    <AssemblyName>PatTech.Localization.Avalonia</AssemblyName>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
+    <!-- the sources and the dictionary are Localization-Ava's, listed below -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultAvaloniaItems>false</EnableDefaultAvaloniaItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Localization-Ava\*.cs" />
+    <AvaloniaXaml Include="..\Localization-Ava\Converters.axaml" Link="Converters.axaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="[12.0, 13.0)" />
+    <ProjectReference Include="..\Localization-Core\Localization-Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\Localization-Ava\readme.md" Link="readme.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

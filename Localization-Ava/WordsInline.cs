@@ -49,7 +49,12 @@ public class WordsInline : Span, IKnowWords {
 		Args.CollectionChanged += (_, _) => {
 			if (!resolvePending) {
 				resolvePending = true;
+#if AVALONIA12
+				//a library posts to its object's own dispatcher in Avalonia 12
+				Dispatcher.Post(() => { resolvePending = false; ResolveArgs(); }, DispatcherPriority.Send);
+#else
 				Dispatcher.UIThread.Post(() => { resolvePending = false; ResolveArgs(); }, DispatcherPriority.Send);
+#endif
 			}
 		};
 		// live mode: a swap of the dictionary renders the key again; off, a no-op
@@ -96,7 +101,7 @@ public class WordsInline : Span, IKnowWords {
 	///     list built one child at a time is read whole, never half.
 	/// </summary>
 	[Content]
-	public AvaloniaList<IBinding> Args { get; } = new();
+	public AvaloniaList<AnyBinding> Args { get; } = new();
 
 	/// <inheritdoc/>
 	protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change) {
