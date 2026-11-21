@@ -14,14 +14,6 @@ public enum TinyEnum : byte {
 	Top = 255,
 }
 
-/// <summary>A member with a Description and one without; none has a [Words] key, so nothing looks Words.Known up.</summary>
-[Flags]
-public enum DescribedFlags {
-	None = 0,
-	[Description("Two sugars")] Sugar = 1,
-	Cream = 2,
-}
-
 /// <summary>
 /// Covers <see cref="Extensions.Describe(Enum, string?, IWords?)"/> where it needs no words.
 /// </summary>

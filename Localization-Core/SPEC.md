@@ -1145,10 +1145,13 @@ Avalonia 12 compiles a XAML `{Binding}` by default, so an app writing
 binding asks, or writes `{ReflectionBinding}`. The readme says so.
 
 **Tests.** Avalonia 12's headless host runs on xUnit v3, and Avalonia 11's on
-v2; `Localization-Tests` is one xUnit 2 project for WPF, Core and Avalonia.
-The Avalonia tests move out into a project of their own, built once per major
-from the same sources (xUnit 2 with Avalonia 11, xUnit 3 with Avalonia 12), so
-both packages pass the same tests. WPF and Core stay where they are.
+v2. The Avalonia tests move out of `Localization-Tests` into
+`Localization-Ava.Tests` (xUnit 2, Avalonia 11), and `Localization-Ava12.Tests`
+compiles the same files (xUnit 3, Avalonia 12, under `AVALONIA12`), so both
+packages pass the same tests, each a step of CI's. The helpers they share with
+the WPF and Core tests are linked from there; WPF and Core stay where they are.
+A test that makes a control runs on Avalonia's thread: once the headless app is
+up, a control made off it throws.
 
 **The samples.** `Sample-Ava` moves to Avalonia 12 on the new package before
 anything else uses it, dropping `Avalonia.Diagnostics`, which Avalonia 12
@@ -1163,7 +1166,7 @@ on NuGet, pointing at the newest `.AvaloniaNN`, and gets no further release.
 
 **Order.** The second project and the three differences, building both
 (built); `Sample-Ava` on Avalonia 12 on it, before anything else uses it
-(built); the Avalonia tests split and passing on both majors; the release
+(built); the Avalonia tests split and passing on both majors (built); the release
 pipeline packing both on an `api/` tag, with the readme saying which to take
 and the skill naming both.
 

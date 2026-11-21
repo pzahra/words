@@ -11,7 +11,7 @@ namespace PatTech.Localization.Tests;
 /// <summary>
 /// Covers the WPF image-scheme registry: custom scheme registration, options
 /// parsing, uniform size/background/tooltip handling, and alt-text fallback.
-/// <see cref="AvaImageSchemeTests"/> is the Avalonia twin; both swap the
+/// <c>AvaImageSchemeTests</c> (Localization-Ava.Tests) is the Avalonia twin; both swap the
 /// Words.Logger global, hence the shared collection.
 /// </summary>
 [Collection("Words globals")]

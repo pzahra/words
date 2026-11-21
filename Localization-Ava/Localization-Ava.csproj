@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Localization-Tests" />
+    <InternalsVisibleTo Include="Localization-Ava.Tests" />
   </ItemGroup>
 
   <ItemGroup>

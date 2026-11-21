@@ -10,7 +10,7 @@ using Xunit;
 namespace PatTech.Localization.Tests;
 
 /// <summary>
-/// The Avalonia <see cref="WordsInline"/> twin of <see cref="WordsInlineTests"/>:
+/// The Avalonia <see cref="WordsInline"/> twin of <c>WordsInlineTests</c> (Localization-Tests):
 /// a rebuild must be transactional, so a formatting failure leaves the previous
 /// content standing rather than blanking the inline. Swaps the Words.Known
 /// global, hence the shared collection.

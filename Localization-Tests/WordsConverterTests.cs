@@ -8,7 +8,7 @@ namespace PatTech.Localization.Tests;
 /// The WPF <see cref="WordsConverter"/> formats with the culture the binding hands it,
 /// as any converter does — WPF passes the target element's Language, which the WPF
 /// Digest flag repoints. Explicit words and an explicit culture, no globals touched.
-/// <see cref="AvaWordsConverterTests"/> is the twin.
+/// <c>AvaWordsConverterTests</c> (Localization-Ava.Tests) is the twin.
 /// </summary>
 public class WordsConverterTests {
 

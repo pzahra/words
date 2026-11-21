@@ -8,7 +8,7 @@ using Xunit;
 namespace PatTech.Localization.Tests;
 
 /// <summary>
-/// The Avalonia twin of <see cref="LiveWpfTests"/> (SPEC: Live language switching):
+/// The Avalonia twin of <c>LiveWpfTests</c> (Localization-Tests) (SPEC: Live language switching):
 /// live, <c>{l:Words}</c> hands a styled property — an object-typed one too — a binding
 /// that follows <see cref="Words.SwitchLanguage"/>, and <see cref="WordsInline"/> renders
 /// again; off, the markup is the snapshot it always was. Swaps the Words.Known global,

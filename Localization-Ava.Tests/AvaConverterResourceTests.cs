@@ -10,7 +10,7 @@ namespace PatTech.Localization.Tests;
 
 /// <summary>
 /// Covers the ready-made converter resources shipped as Converters.axaml —
-/// the twin of the WPF <see cref="ConverterResourceTests"/>: the dictionary
+/// the twin of the WPF <c>ConverterResourceTests</c> (Localization-Tests): the dictionary
 /// must load from the avares URI and every instance must construct.
 /// </summary>
 public class AvaConverterResourceTests {

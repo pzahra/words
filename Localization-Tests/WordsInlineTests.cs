@@ -13,7 +13,7 @@ namespace PatTech.Localization.Tests;
 /// <summary>
 /// The WPF <see cref="WordsInline"/> rebuilds its content when Key/Params change.
 /// It must do so transactionally: a formatting failure leaves the previous
-/// content standing rather than blanking the inline. <see cref="AvaWordsInlineTests"/>
+/// content standing rather than blanking the inline. <c>AvaWordsInlineTests</c> (Localization-Ava.Tests)
 /// is the twin; both swap the Words.Known global, hence the shared collection.
 /// </summary>
 [Collection("Words globals")]

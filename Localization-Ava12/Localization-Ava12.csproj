@@ -35,6 +35,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Localization-Ava12.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="..\Localization-Ava\readme.md" Link="readme.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 </Project>

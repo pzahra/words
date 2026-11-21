@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- the Avalonia package's tests on Avalonia 11 (the runtime SPEC: Avalonia 12); the same
+       files run on Avalonia 12 from Localization-Ava12.Tests -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>PatTech.Localization.Tests</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- headless test host; Skia gives real bitmaps -->
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="11.3.18" />
+    <PackageReference Include="Avalonia.Skia" Version="11.3.18" />
+    <!-- AXAML parsed at run time, for the markup extension's live tests -->
+    <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="11.3.18" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.5.0" />
+    <PackageReference Include="coverlet.collector" Version="3.2.0" />
+    <PackageReference Include="xunit" Version="2.4.2" />
+    <PackageReference Include="xunit.analyzers" Version="1.1.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- the helpers the Avalonia tests share with the WPF and Core ones -->
+    <Compile Include="..\Localization-Tests\WordsGlobals.cs;..\Localization-Tests\LiveSource.cs;..\Localization-Tests\DescribedFlags.cs" Link="Shared\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Localization-Core\Localization-Core.csproj" />
+    <ProjectReference Include="..\Localization-Ava\Localization-Ava.csproj" />
+  </ItemGroup>
+
+</Project>

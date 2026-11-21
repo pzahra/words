@@ -12,7 +12,7 @@ namespace PatTech.Localization.Tests;
 
 /// <summary>
 /// The Avalonia look of rendered markdown a theme may restyle — the twin of the WPF
-/// <see cref="ThemeResourceTests"/>, in the headless test host.
+/// <c>ThemeResourceTests</c> (Localization-Tests), in the headless test host.
 /// </summary>
 public class AvaThemeResourceTests {
 

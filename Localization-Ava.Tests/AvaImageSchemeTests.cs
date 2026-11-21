@@ -14,7 +14,7 @@ namespace PatTech.Localization.Tests;
 
 /// <summary>
 /// Covers the Avalonia image-scheme registry — the twin of the WPF
-/// <see cref="ImageSchemeTests"/>, running in the headless test host.
+/// <c>ImageSchemeTests</c> (Localization-Tests), running in the headless test host.
 /// Shares the Words.Logger global with the WPF suite, hence the collection.
 /// </summary>
 [Collection("Words globals")]
@@ -230,7 +230,12 @@ public class AvaImageSchemeTests {
 		var file = Path.Combine(assetsDir.FullName, "tiny ava image.png");
 		if (!File.Exists(file)) {
 			using var bitmap = new RenderTargetBitmap(new PixelSize(1, 1));
+#if AVALONIA12
+			//Avalonia 12 takes the encoder's options where 11 took a quality
+			bitmap.Save(file, new PngBitmapEncoderOptions());
+#else
 			bitmap.Save(file);
+#endif
 		}
 
 		var visual = new AssetsImageResolver().Resolve(new Uri("assets:tiny%20ava%20image.png"), new ImageOptions());
@@ -292,7 +297,9 @@ public class AvaImageSchemeTests {
 		Assert.Equal(4096, textBlock.Height);
 	}
 
-	[Theory]
+	//on Avalonia's thread, since it makes controls: off it, a control made once the headless
+	//app is up throws, which the parser shows as alt text
+	[AvaloniaTheory]
 	[InlineData("fake:thing?width=-5&height=NaN")]
 	[InlineData("fake:thing?width=Infinity")]
 	public void Dimension_NonFiniteOrNegative_IgnoredNotThrownAsMissingImage(string uri) {

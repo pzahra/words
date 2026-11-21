@@ -6,6 +6,8 @@
     <Project Path="Localization-Ava12/Localization-Ava12.csproj" />
     <Project Path="Localization-Authoring/Localization-Authoring.csproj" />
     <Project Path="Localization-Tests/Localization-Tests.csproj" />
+    <Project Path="Localization-Ava.Tests/Localization-Ava.Tests.csproj" />
+    <Project Path="Localization-Ava12.Tests/Localization-Ava12.Tests.csproj" />
   </Folder>
   <Folder Name="/Ini/">
     <Project Path="Text-Ini/Text-Ini.csproj" />

@@ -12,7 +12,7 @@ namespace PatTech.Localization.Tests;
 /// The WPF look of rendered markdown a theme may restyle: a link's colour from
 /// WordsLinkBrush, a code span's monospace and tint from WordsCodeFont and
 /// WordsCodeBackground — looked up where the inline lands, a fixed look where there is
-/// none. <see cref="AvaThemeResourceTests"/> is the Avalonia twin.
+/// none. <c>AvaThemeResourceTests</c> (Localization-Ava.Tests) is the Avalonia twin.
 /// </summary>
 public class ThemeResourceTests {
 

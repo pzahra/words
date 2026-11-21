@@ -5,7 +5,7 @@ using Xunit;
 namespace PatTech.Localization.Tests;
 
 /// <summary>
-/// The Avalonia <see cref="WordsConverter"/> twin of <see cref="WordsConverterTests"/>:
+/// The Avalonia <see cref="WordsConverter"/> twin of <c>WordsConverterTests</c> (Localization-Tests):
 /// it formats with the culture the binding hands it — Avalonia passes the binding's
 /// ConverterCulture, else CurrentCulture. Explicit words and an explicit culture, no
 /// globals touched.

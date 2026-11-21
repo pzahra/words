@@ -8,7 +8,7 @@ namespace PatTech.Localization.Tests;
 /// <summary>
 /// Covers the ready-made converter resources shipped as Converters.xaml: the
 /// dictionary must load from the pack URI and every instance must construct.
-/// (The Avalonia twin mirrors the same dictionary; it has no test host here.)
+/// <c>AvaConverterResourceTests</c> (Localization-Ava.Tests) is the Avalonia twin.
 /// </summary>
 public class ConverterResourceTests {
 
