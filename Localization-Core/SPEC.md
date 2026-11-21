@@ -1161,10 +1161,11 @@ a rename would leave every such app to swap the package or quietly stop
 getting fixes. When Avalonia 11 support is dropped, the package is deprecated
 on NuGet, pointing at the newest `.AvaloniaNN`, and gets no further release.
 
-**Order.** The second project and the three differences, building both;
-`Sample-Ava` on Avalonia 12 on it, before anything else uses it; the Avalonia
-tests split and passing on both majors; the release pipeline packing both on
-an `api/` tag, with the readme saying which to take and the skill naming both.
+**Order.** The second project and the three differences, building both
+(built); `Sample-Ava` on Avalonia 12 on it, before anything else uses it
+(built); the Avalonia tests split and passing on both majors; the release
+pipeline packing both on an `api/` tag, with the readme saying which to take
+and the skill naming both.
 
 **Tests.** Each package passes the Avalonia tests on its own major: `{l:Words}`
 over a reflection and a compiled binding, converted and not, live and not;

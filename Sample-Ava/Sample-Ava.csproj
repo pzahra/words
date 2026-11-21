@@ -27,22 +27,18 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.3.18" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.3.18" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.18" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.18" />
-    <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
-    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.18">
-      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
-      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
-    </PackageReference>
+    <!-- Avalonia 12, on Words for Avalonia 12 (the runtime SPEC: Avalonia 12); Avalonia 12
+         drops Avalonia.Diagnostics, which the sample never called -->
+    <PackageReference Include="Avalonia" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.6" />
     <!-- pinned by hand, as in Localization-Core.csproj: bumped once that version is on nuget.org -->
     <PackageReference Include="PatTech.Localization.Analyzer" Version="1.4.0" />
-    <PackageReference Include="Tmds.DBus.Protocol" Version="0.92.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Localization-Ava\Localization-Ava.csproj" />
+    <ProjectReference Include="..\Localization-Ava12\Localization-Ava12.csproj" />
     <!-- the shared words, topics and config -->
     <ProjectReference Include="..\Sample-Shared\Sample-Shared.csproj" />
   </ItemGroup>
