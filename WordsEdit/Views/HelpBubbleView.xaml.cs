@@ -40,7 +40,7 @@ public partial class HelpBubbleView : UserControl {
 	///     out, first.
 	/// </summary>
 	public Size Fit() {
-		BindingOperations.GetBindingExpression(PageText, MarkdownPreview.TextProperty)?.UpdateTarget();
+		BindingOperations.GetBindingExpression(PageText, PatTech.Localization.Wpf.Markdown.TextProperty)?.UpdateTarget();
 		UpdateLayout();
 		Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
 		return DesiredSize;

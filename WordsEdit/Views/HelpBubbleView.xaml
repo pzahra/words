@@ -40,7 +40,7 @@
             <StackPanel>
                 <TextBlock x:Name="PageText"
                            TextWrapping="Wrap"
-                           uc:MarkdownPreview.Text="{Binding Page}"/>
+                           l:Markdown.Text="{Binding Page}"/>
                 <Button Content="{l:Words help.got-it}"
                         Command="{Binding GotItCommand}"
                         Focusable="False"

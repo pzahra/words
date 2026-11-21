@@ -374,9 +374,9 @@ value={0} items
 			view.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background); //the bindings settle
 
 			TextBlock page = (TextBlock)view.FindName("PageText");
-			Assert.Equal(help.Page, MarkdownPreview.GetText(page));
+			Assert.Equal(help.Page, PatTech.Localization.Wpf.Markdown.GetText(page));
 			Assert.Contains(page.Inlines, inline => Descendants(inline).OfType<Hyperlink>().Any(link => link.NavigateUri == new Uri("wordsmith:load")));
-			Assert.True(Bubble.GetInBubble(Descendants(page.Inlines.First()).OfType<Hyperlink>().First()));
+			Assert.True(Bubble.GetInBubble(page.Inlines.SelectMany(Descendants).OfType<Hyperlink>().First()));
 
 			var tail = (System.Windows.Shapes.Path)view.FindName("Tail");
 			foreach (var (side, row, column) in new[] { (BubbleSide.Right, 1, 0), (BubbleSide.Left, 1, 2), (BubbleSide.Below, 0, 1), (BubbleSide.Above, 2, 1) }) {
