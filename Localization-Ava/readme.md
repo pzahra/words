@@ -157,6 +157,20 @@ MarkdownParser.Default.ImageSchemes["md"] = new PackIconResolver();
 // and now `![save](md:ContentSave)` gives you Words with icons in them.
 ```
 
+## Show markdown you already have
+
+Markdown that is a string already, a page you put together or help text from
+somewhere else, goes into a `TextBlock` of your own:
+
+``` xml
+<TextBlock TextWrapping="Wrap" l:Markdown.Text="{Binding Page}"/>
+```
+
+The `TextBlock` keeps its wrapping, trimming, font and style, and its links go
+to the same navigate handler as every other Words link. It renders what it's
+given, so for words that follow a live language switch, `WordsInline` is still
+the one.
+
 ## Convert Words
 
 For values that only exist at runtime, there are converters:
@@ -164,7 +178,8 @@ For values that only exist at runtime, there are converters:
 - `WordsConverter` — formats a bound value into the Words template named by
   `ConverterParameter`.
 - `MarkdownConverter` — turns any bound markdown string into rendered inlines
-  (or a whole `TextBlock`, when the target wants a control).
+  (or a whole `TextBlock`, wrapping its lines, when the target wants a control;
+  for a `TextBlock` you already have, `Markdown.Text` above).
 - `EnumDescriptionConverter` — turns a `[Words]`-decorated enum value into its
   display text; the ConverterParameter picks the `Describe` format (tooltip,
   subtitle, description, a slot of the app's own…). A member with nothing for that format gives null, so a

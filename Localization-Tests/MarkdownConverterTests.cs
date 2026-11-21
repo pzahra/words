@@ -51,7 +51,8 @@ public class MarkdownConverterTests {
 	public void Convert_ObjectTarget_WrapsInATextBlock() {
 		RunSta<object?>(() => {
 			var result = new MarkdownConverter().Convert("hi", typeof(object), null, CultureInfo.InvariantCulture);
-			Assert.IsType<TextBlock>(result);
+			//the binding cannot style the TextBlock it makes, so it wraps of its own
+			Assert.Equal(System.Windows.TextWrapping.Wrap, Assert.IsType<TextBlock>(result).TextWrapping);
 			return null;
 		});
 	}

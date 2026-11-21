@@ -45,7 +45,8 @@ public class AvaConverterResourceTests {
 	[AvaloniaFact]
 	public void Markdown_TextBlockTarget_WrapsInATextBlock() {
 		var result = new MarkdownConverter().Convert("**hi**", typeof(TextBlock), null, CultureInfo.InvariantCulture);
-		Assert.IsType<TextBlock>(result);
+		//the binding cannot style the TextBlock it makes, so it wraps of its own
+		Assert.Equal(global::Avalonia.Media.TextWrapping.Wrap, Assert.IsType<TextBlock>(result).TextWrapping);
 	}
 
 	[Fact]

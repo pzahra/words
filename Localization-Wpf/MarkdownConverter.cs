@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Globalization;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Documents;
@@ -7,7 +8,8 @@ using System.Windows.Documents;
 namespace PatTech.Localization.Wpf {
 	/// <summary>
 	///     Converts a markdown string into a formatted <see cref="Span"/> or
-	///     <see cref="TextBlock"/>. Currently only supports basic formatting and hyperlinks.
+	///     <see cref="TextBlock"/>. For a <see cref="TextBlock"/> of your own, which keeps its
+	///     wrapping and style, set <see cref="Markdown"/>'s <c>Markdown.Text</c> on it instead.
 	/// </summary>
 	[ValueConversion(typeof(string), typeof(Span))]
 	[ValueConversion(typeof(string), typeof(TextBlock))]
@@ -19,8 +21,9 @@ namespace PatTech.Localization.Wpf {
 		/// <remarks>
 		///     When <paramref name="targetType"/> is an <see cref="Inline"/> (or a subclass), the
 		///     <see cref="Inline"/> is returned directly for use in flow content; for any other
-		///     target the inline is wrapped in a new <see cref="TextBlock"/>. Null or empty input
-		///     produces an empty <see cref="Run"/>.
+		///     target the inline is wrapped in a new <see cref="TextBlock"/>, which wraps its
+		///     lines, since the binding has no way to say so. Null or empty input produces an
+		///     empty <see cref="Run"/>.
 		/// </remarks>
 		/// <param name="value">The markdown text to render.</param>
 		/// <param name="targetType">Decides between raw <see cref="Inline"/> and <see cref="TextBlock"/> output.</param>
@@ -44,7 +47,7 @@ namespace PatTech.Localization.Wpf {
 			}
 			else {
 				// otherwise, assume it's in a Visual context
-				return new TextBlock(inline);
+				return new TextBlock(inline) { TextWrapping = TextWrapping.Wrap };
 			}
 		}
 

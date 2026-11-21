@@ -1,13 +1,15 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Data.Converters;
+using Avalonia.Media;
 using System.Globalization;
 
 namespace PatTech.Localization.Avalonia;
 
 /// <summary>
 ///     Converts a markdown string into a formatted <see cref="Span"/> or
-///     <see cref="TextBlock"/>. Currently only supports basic formatting and hyperlinks.
+///     <see cref="TextBlock"/>. For a <see cref="TextBlock"/> of your own, which keeps its
+///     wrapping and style, set <see cref="Markdown"/>'s <c>Markdown.Text</c> on it instead.
 /// </summary>
 public class MarkdownConverter : IValueConverter {
 	/// <summary>
@@ -17,8 +19,9 @@ public class MarkdownConverter : IValueConverter {
 	/// <remarks>
 	///     When <paramref name="targetType"/> is an <see cref="Inline"/> (or a subclass), the
 	///     <see cref="Inline"/> is returned directly for use in flow content; for any other
-	///     target the inline is wrapped in a new <see cref="TextBlock"/>. Null or empty input
-	///     produces an empty <see cref="Run"/>.
+	///     target the inline is wrapped in a new <see cref="TextBlock"/>, which wraps its lines,
+	///     since the binding has no way to say so. Null or empty input produces an empty
+	///     <see cref="Run"/>.
 	/// </remarks>
 	/// <param name="value">The markdown text to render.</param>
 	/// <param name="targetType">Decides between raw <see cref="Inline"/> and <see cref="TextBlock"/> output.</param>
@@ -44,7 +47,7 @@ public class MarkdownConverter : IValueConverter {
 			// otherwise, assume it's in a Visual context
 			// (populate the existing collection: replacing it via the setter leaves the
 			// inline without a logical parent, so it stops inheriting text properties)
-			var textBlock = new TextBlock();
+			var textBlock = new TextBlock { TextWrapping = TextWrapping.Wrap };
 			textBlock.Inlines!.Add(inline);
 			return textBlock;
 		}
