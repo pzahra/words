@@ -153,7 +153,7 @@ namespace PatTech.Localization {
 		//a form's entry, key#form, or null with a warning: a label has no forms, the
 		//plain value is the one form, and only CLDR's categories are forms
 		private string? FormEntry(string blockKey, string form, string languageCode) {
-			if (blockKey == "" || form == "one" || !PluralRules.Names.Contains(form)) {
+			if (blockKey == "" || form == PluralRules.One || !PluralRules.Names.Contains(form)) {
 				logger.Warn(string.Format(
 					"WP:FORM:`{0}.value-{1}#{2}`",
 					blockKey,

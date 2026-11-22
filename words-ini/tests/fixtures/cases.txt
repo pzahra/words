@@ -1,0 +1,88 @@
+# What each fixture reads, run by the crate (tests/shared.rs) and by Core
+# (Localization-Tests/WordsIniCasesTests.cs), so the two readers agree by test.
+#
+# file | language | call | key | args | expected
+#
+# call: get (no arguments: items and selectors stay as written), format, count.
+# args: - for none; else ;-separated, Name=value for a named one; a count's number.
+# expected: \n is a line break and \\ a backslash.
+
+plurals.ini | en | format | files | 1 | 1 word
+plurals.ini | en | format | files | 2 | 2 words
+plurals.ini | en | format | files | 21 | 21 words
+plurals.ini | en | format | files | 1.5 | 1.5 words
+plurals.ini | en | format | files | - | #{0}# words
+plurals.ini | ru | format | files | 1 | 1 слово
+plurals.ini | ru | format | files | 2 | 2 слова
+plurals.ini | ru | format | files | 5 | 5 слов
+plurals.ini | ru | format | files | 11 | 11 слов
+plurals.ini | ru | format | files | 21 | 21 слово
+plurals.ini | ru | format | files | 22 | 22 слова
+plurals.ini | ru | format | files | 25 | 25 слов
+plurals.ini | ru | format | files | 101 | 101 слово
+plurals.ini | ja | format | files | 5 | 5 単語
+plurals.ini | fr | format | files | 0 | 0 mot
+plurals.ini | fr | format | files | 1000000 | 1000000 mots
+plurals.ini | it | format | files | 1000000 | 1000000 words
+plurals.ini | en | format | named | Count=1 | 1 word
+plurals.ini | ru | format | named | Count=22 | 22 слова
+plurals.ini | en | format | named | - | #{Count}# words
+plurals.ini | ru | count | box | 2 | коробки
+plurals.ini | ru | count | solo | 5 | соло
+plurals.ini | ru | count | thing | 5 | вещь
+plurals.ini | ru | count | relative.n | 5 | items
+plurals.ini | fr | count | word | 1000000 | mots
+plurals.ini | mt | count | word | 2 | kelmtejn
+plurals.ini | mt | count | word | 3 | kelmiet
+plurals.ini | mt | count | word | 11 | kelma
+plurals.ini | mt | count | word | 20 | kelma
+plurals.ini | en | count | word | 1 | word
+plurals.ini | en | count | word | 0 | words
+plurals.ini | en | format | self | 2 | 2 # ∞ #
+plurals.ini | en | format | relative | 1 | 1 item
+plurals.ini | en | format | relative | 2 | 2 items
+plurals.ini | en | format | report | 1 | one file
+plurals.ini | en | format | report | 3 | 3 files in the box
+plurals.ini | en | format | nested | 2 | 2 outer words
+plurals.ini | en | format | braces | 2 | {0#word}
+plurals.ini | en | get | braces | - | {0#word}
+plurals.ini | en | get | files | - | {0} {0#word}
+plurals.ini | en | format | mine | 1 | item of 1
+plurals.ini | en | format | mine | 2 | items of 2
+
+render.ini | en | get | app.title | - | Pool Manager — v1.2
+render.ini | de | get | app.title | - | Pool Manager — v1.2
+render.ini | en | get | a | - | ABC
+render.ini | en | get | loop | - | xy# ∞ #
+render.ini | en | format | greet | Name=Ada | Hello, Ada!
+render.ini | de | format | greet | Name=Ada | Hallo, Ada!
+render.ini | en | format | pad | ab;7 | [   ab|ab   |7]
+render.ini | en | format | missing | 1 | #nowhere# 1 #{3}#
+render.ini | en | get | missing | - | #nowhere# {0} {3}
+render.ini | en | format | escaped | x | {0} and {>app} and } alone
+render.ini | en | get | escaped | - | {0} and {>app} and } alone
+render.ini | en | format | malformed | 1 | a {0,x} b {} c {
+render.ini | en | get | server | - | \\\\server\\share
+render.ini | en | get | quote | - | it's snake_case
+render.ini | en | get | lines | - | first\nsecond third
+render.ini | en | get | constant | - | {0} {>app}
+render.ini | en | format | constant | 9 | {0} {>app}
+render.ini | en | format | outer | it;Who=Ada | made it by Ada
+render.ini | en | get | nope | - | #nope#
+render.ini | en | format | nope | 1 | #nope#
+
+fallback.ini | en-GB | get | colour | - | colour
+fallback.ini | en-US | get | colour | - | color
+fallback.ini | en | get | colour | - | color
+fallback.ini | zh-TW | get | hello | - | 妳好
+fallback.ini | zh-HK | get | hello | - | 妳好
+fallback.ini | zh-hant-tw | get | hello | - | 妳好
+fallback.ini | zh-CN | get | hello | - | 你好呀
+fallback.ini | zh-SG | get | hello | - | 你好呀
+fallback.ini | zh-Hans-HK | get | hello | - | 你好呀
+fallback.ini | zh | get | hello | - | 你好
+fallback.ini | en-GB | count | apple | 2 | Apple
+fallback.ini | en-US | count | apple | 2 | apples
+fallback.ini | pt-BR | count | apple | 0 | maçã
+fallback.ini | pt-BR | count | apple | 2 | maçãs
+fallback.ini | pt-PT | count | apple | 0 | maçãs

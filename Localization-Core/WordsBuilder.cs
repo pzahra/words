@@ -293,11 +293,11 @@ namespace PatTech.Localization {
 				}
 				IReadOnlyDictionary<string, string> optional = PluralRules.Optional(language);
 				foreach (string key in pluralKeys) {
-					if (!marked(key) || (words.GetValueOrDefault($"{key}#other") ?? words.GetValueOrDefault(key)) is not { } standIn) {
+					if (!marked(key) || (words.GetValueOrDefault($"{key}#{PluralRules.Other}") ?? words.GetValueOrDefault(key)) is not { } standIn) {
 						continue;
 					}
-					foreach (string category in categories.Append("other").Distinct()) {
-						if (category != "one" && !optional.ContainsKey(category)) {
+					foreach (string category in categories.Append(PluralRules.Other).Distinct()) {
+						if (category != PluralRules.One && !optional.ContainsKey(category)) {
 							words.TryAdd($"{key}#{category}", "🎲" + standIn);
 						}
 					}

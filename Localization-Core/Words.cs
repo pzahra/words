@@ -277,15 +277,15 @@ namespace PatTech.Localization {
 			ArgumentNullException.ThrowIfNull(language);
 			ArgumentNullException.ThrowIfNull(key);
 			ArgumentNullException.ThrowIfNull(form);
-			if (form != "one" && PluralRules.Categories(language).Count > 1) {
+			if (form != PluralRules.One && PluralRules.Categories(language).Count > 1) {
 				if (provider.ContainsKey($"{key}#{form}")) {
 					return $"{key}#{form}";
 				}
 				if (PluralRules.Optional(language).TryGetValue(form, out string? standIn) && provider.ContainsKey($"{key}#{standIn}")) {
 					return $"{key}#{standIn}";
 				}
-				if (provider.ContainsKey($"{key}#other")) {
-					return $"{key}#other";
+				if (provider.ContainsKey($"{key}#{PluralRules.Other}")) {
+					return $"{key}#{PluralRules.Other}";
 				}
 			}
 			return key;
@@ -295,12 +295,12 @@ namespace PatTech.Localization {
 		//picks other quietly, and anything else picks other with a warning
 		private static string Category(string language, object? value) {
 			if (TryCount(value, out decimal count, out bool fraction)) {
-				return fraction ? "other" : PluralRules.Select(language, count);
+				return fraction ? PluralRules.Other : PluralRules.Select(language, count);
 			}
 			if (value is not null) {
 				Logger.Warn($"WORDS:COUNT:`{value}`");
 			}
-			return "other";
+			return PluralRules.Other;
 		}
 		//any number as a count. A floating-point fraction says so before a decimal could
 		//round it whole (1.0000001f); a whole number past decimal's range keeps the low

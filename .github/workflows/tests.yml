@@ -52,3 +52,19 @@ jobs:
 
       - name: WordsXaml tests
         run: dotnet test WordsXaml/src/dotnet/WordsXaml.Tests/WordsXaml.Tests.csproj -c Release --nologo
+
+  # words-ini, the Rust reader, on both systems it promises; its shared cases run
+  # in Localization tests above too, so Core and the crate read them alike
+  rust:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: words-ini formatting
+        run: cargo fmt --manifest-path words-ini/Cargo.toml --check
+
+      - name: words-ini tests
+        run: cargo test --manifest-path words-ini/Cargo.toml --locked

@@ -25,6 +25,7 @@ There is even a compiler warning for the day you inevitably try to sneak a raw
 | [WordsXaml](WordsXaml/README.md)                       | The Rider plugin: key completion, tooltips and an unknown-key squiggle for `{l:Words …}` in XAML, and completion in C# wherever a `[WordsKey]` is wanted. Ships beside the analyzer, as a zip on each `analyzer/` release, to install from disk. |
 | [WordsEdit](WordsEdit/readme.md)                       | Wordsmith, the WPF editor for `words.ini` files. For when the translators would rather not hand-edit an INI file.                                                                                                   |
 | [WordsCli](WordsCli/readme.md)                         | `words`, the command line: changes one field of a `words.ini` and leaves every other byte alone. For scripts, build steps and coding agents, on Windows, Linux and macOS. Ships with Wordsmith.                       |
+| [words-ini](words-ini/README.md)                       | Words in Rust: a crate that reads `words.ini` for a command line, embedded at build time, a function per key so a missing one doesn't compile, plain text out. No dependencies; Cargo takes it from this repository. |
 | Sample-Wpf, Sample-Ava                                 | Twin tours of Words in the XAML and AXAML respectively, from the same words: a page per topic — markdown, references, links, image schemes, format parameters, enums, live switching, diagnostics — each demo labelled with what it uses, its markup and its words shown under "How it's made", cut from the real files. A language dropdown switches the app in place, and a dot marks the topics you haven't visited yet. |
 | [Sample-Shared](Sample-Shared/SPEC.md)                 | What the twins share: the words, the topic list, the view models, and the config that remembers your language, theme and visits.                                                                                   |
 | Sample-Console                                         | Words in the terminal: `dotnet run --project Sample-Console` shows the markdown rendered with ANSI styling, clickable links, emoji, and a deliberate missing key griping to the logger.                             |
@@ -111,6 +112,9 @@ dotnet test WordsXaml/src/dotnet/WordsXaml.Tests/WordsXaml.Tests.csproj
 On Linux or macOS, `Localization-Core`, `Localization-Authoring`, `WordsCli`
 and `Sample-Console` build on their own.
 
+The Rust crate builds anywhere Cargo does, with
+`cargo test --manifest-path words-ini/Cargo.toml`.
+
 The libraries and samples consume the analyzer as the NuGet package
 `PatTech.Localization.Analyzer`, at a version each project pins by hand. If
 you change the analyzer, `dotnet pack` the `LocalizationAnalyzer.Package`
@@ -129,4 +133,5 @@ number the props don't carry publishes nothing. The API packages, the editor
 and the samples pin the analyzer version they depend on, and CI restores it
 from nuget.org, so a new analyzer is tagged first and the pins bumped in a
 commit of their own once it is published. Source Link stamps the commit into
-every assembly's informational version.
+every assembly's informational version. The Rust crate keeps its own number in
+[its Cargo.toml](words-ini/Cargo.toml), and has no tag line yet.

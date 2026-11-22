@@ -1,0 +1,13 @@
+[package]
+name = "words-ini"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Reads words.ini, the PatTech.Localization dictionary format, for a Rust command line: embedded, checked at build time, plain text out."
+license = "MIT"
+repository = "https://github.com/pzahra/words"
+readme = "README.md"
+keywords = ["localization", "i18n", "plural", "ini", "cldr"]
+categories = ["localization", "internationalization", "command-line-interface"]
+
+[dependencies]
