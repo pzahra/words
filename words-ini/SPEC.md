@@ -90,12 +90,19 @@ A few things differ from Core, because a `Display` value is not a .NET object:
 - **`{0}` in a named call.** A named call's `{0}` reads the positional
   arguments, so with none it reads `#{0}#`. Core reads the value itself
   there.
+- **Names past ASCII.** A placeholder's name, and a field's name, language
+  and form, are .NET's `\w` characters, which the standard library cannot
+  tell exactly. The crate reads letters, digits, `_` and the combining
+  diacritics (U+0300–U+036F, so a decomposed `{Café}` is a name), and reads a
+  character past the 16-bit plane as none, as .NET does, seeing two
+  surrogates. Other combining marks end a name here and not in Core, and a
+  number that is no digit (`²`, `①`) continues one here and not in Core.
 
 **Tests.** The pieces: each kind and its place, `{{`, numbers as string.Format
-reads them, names, and every malformed shape. Rendering and fallback are
-covered by the shared cases. Beyond those: a spec going unread and an
-alignment padding; a named call's `{0}`; a count from integers, floats, a
-huge number and text.
+reads them, names, a decomposed name and a letter past the 16-bit plane, and
+every malformed shape. Rendering and fallback are covered by the shared cases.
+Beyond those: a spec going unread and an alignment padding; a named call's
+`{0}`; a count from integers, floats, a huge number and text.
 
 ## Choosing the language
 
@@ -144,31 +151,44 @@ language, its forms' and what its references and selectors bring in
 included: `arg0`, `arg1`… by position, then each name in the order it first
 appears. A key with forms in any language takes its count first. A key with
 no placeholders reads `get`; the others read `format_with`, or `count` and
-`count_with`. Names follow Rust's rules:
+`count_with`, always by a path to the module's own `words()`, so a
+placeholder named `{words}` is just a parameter. Names follow Rust's rules:
 
-- `-` becomes `_`, as does any other character a name cannot take;
+- ASCII letters, digits and `_` stay, and so do other scripts' letters; `-`,
+  and anything else, becomes `_` (`area²` is `area_`, and the circled
+  letters, symbols that Unicode counts alphabetic, go too);
 - a name that cannot start as it does takes a leading `_`;
 - a keyword is raw, or takes a trailing `_` where it cannot be raw.
 
-Two keys whose names would meet stop the build, naming both. So does a key at
-the root named like one of the module's own items.
+A name past ASCII may draw rustc's `uncommon_codepoints`,
+`mixed_script_confusables` or `confusable_idents` warning, which only the
+app's crate root can allow.
+
+The build stops, saying why, on two keys whose names would meet, on a key at
+the root named like one of the module's own items, and on a key whose
+placeholders skip a number in every language (`{0}` and `{1000}`, a typo far
+more often than an argument left unread). `check()`'s findings go to Cargo a
+line each, a line break in one written `\n`.
 
 **Tests.** A golden module (`tests/generated/words.rs`) that the build must
 make exactly from `tests/fixtures/app.ini`; it is compiled and called, under
-a chosen locale, through every kind of function. Names made from segments
-and keywords; placeholders gathered through languages, references, selectors
-and forms, but not constants; meeting names refused.
+a chosen locale, through every kind of function. Names made from segments,
+keywords, other scripts and characters Rust refuses; placeholders gathered
+through languages, references, selectors and forms, but not constants; a
+skipped number and meeting names refused; a `{words}` placeholder.
 
 ## Checks for a test
 
 `check()` lists the warnings, each key with no default value, each reference,
-constant or selector naming words nobody holds (looked for in the default and
-the value's own language), and each malformed brace, naming the key and the
-field (`value-it#few`). `missing(keys)` names the keys the default has no words
-for.
+constant or selector naming words the value's language does not reach (looked
+for along its fallbacks, as rendering looks: `zh-Hant-TW`'s words find
+`zh-Hant`'s, `zh`'s and the default's), and each malformed brace, naming the
+key and the field (`value-it#few`). `missing(keys)` names the keys the default
+has no words for.
 
-**Tests.** A file with one of each problem lists exactly those. `missing`
-names what the default lacks.
+**Tests.** A file with one of each problem lists exactly those; a reference
+and a selector reached through fallbacks are none, and words in a sibling
+language do not count. `missing` names what the default lacks.
 
 ## Left out
 
@@ -197,7 +217,8 @@ Maltese, through selectors, named selectors and the count indexer. A
 translation that keeps the default's forms out. Selectors through sub-keys,
 forms that refer and select, and a key selecting its own forms. References,
 relatives, constants, loops, missing keys and items, alignment, escapes and
-malformed braces. Fallback through shorter codes and Chinese scripts, and
+malformed braces; a decomposed placeholder name, and a name holding a letter
+past the 16-bit plane, which is malformed. Fallback through shorter codes and Chinese scripts, and
 `pt-PT` counting apart from `pt`.
 
 # Planned upgrades

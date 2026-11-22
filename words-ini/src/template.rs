@@ -197,10 +197,17 @@ fn skip(text: &str, mut i: usize, numbered: bool) -> usize {
     i
 }
 
-/// A regular expression's `\w`, as near as the standard library tells: a
-/// letter, a digit or `_`.
+/// .NET's `\w`, which reads one UTF-16 unit at a time, as near as the standard
+/// library tells: a letter, a digit, `_`, or a combining diacritic
+/// (U+0300–U+036F, how a decomposed `é` is written). A character past the
+/// 16-bit plane is none, as .NET sees two surrogates there. Other marks, and
+/// numbers that are no digits (`²`, `①`), read otherwise than in .NET (SPEC:
+/// *Rendering*).
 pub(crate) fn is_word_char(c: char) -> bool {
-    c.is_alphanumeric() || c == '_'
+    if (c as u32) > 0xFFFF {
+        return false;
+    }
+    c.is_alphanumeric() || c == '_' || ('\u{300}'..='\u{36F}').contains(&c)
 }
 
 #[cfg(test)]
@@ -258,6 +265,8 @@ mod tests {
         assert_eq!(kinds("{Name,3: x }"), [item("Name", Some(3), Some("x"))]);
         assert_eq!(kinds("{_n}"), [item("_n", None, None)]);
         assert_eq!(kinds("{Größe}"), [item("Größe", None, None)]);
+        assert_eq!(kinds("{Cafe\u{301}}"), [item("Cafe\u{301}", None, None)]);
+        assert_eq!(kinds("{a\u{1D465}}"), [Kind::Malformed]);
     }
 
     #[test]

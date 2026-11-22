@@ -24,7 +24,7 @@ use crate::dictionary::Dictionary;
 use crate::parse::Store;
 use crate::template::{self, Kind};
 use crate::words::{key_of, relative};
-use std::collections::{BTreeMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 use std::fmt::Write as _;
 use std::path::Path;
 
@@ -45,8 +45,9 @@ pub fn try_generate(ini: &Path, module: &str) -> Result<(), String> {
     let path = std::path::absolute(ini).map_err(|e| format!("{}: {e}", ini.display()))?;
     println!("cargo:rerun-if-changed={}", path.display());
     let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    //a warning is one line to Cargo, and a continued value's problem holds line breaks
     for problem in Dictionary::parse(&text).check() {
-        println!("cargo:warning=words.ini: {problem}");
+        println!("cargo:warning=words.ini: {}", problem.replace('\r', "\\r").replace('\n', "\\n"));
     }
     let file = path.to_str().ok_or_else(|| format!("{}: the path is not UTF-8", path.display()))?;
     let source = source(module, &format!("include_str!({file:?})"), &text)?;
@@ -56,8 +57,9 @@ pub fn try_generate(ini: &Path, module: &str) -> Result<(), String> {
 }
 
 /// The module's source for the words.ini `text`, which the module embeds with
-/// the expression `include` (`include_str!("…")`); or why two keys cannot both
-/// have a function.
+/// the expression `include` (`include_str!("…")`); or why it cannot be made:
+/// two keys whose functions would share a name, or a key whose placeholders
+/// skip a number.
 pub fn source(module: &str, include: &str, text: &str) -> Result<String, String> {
     let dictionary = Dictionary::parse(text);
     let store = dictionary.store();
@@ -125,7 +127,7 @@ pub mod {module_ident} {{
     }}
 "
     );
-    write_node(&mut out, store, &root, 1);
+    write_node(&mut out, store, &root, 1)?;
     out.push_str("}\n");
     Ok(out)
 }
@@ -141,11 +143,12 @@ struct Node {
     modules: BTreeMap<String, (String, Node)>,
 }
 
-fn write_node(out: &mut String, store: &Store, node: &Node, depth: usize) {
+fn write_node(out: &mut String, store: &Store, node: &Node, depth: usize) -> Result<(), String> {
     let indent = "    ".repeat(depth);
-    let root = "super::".repeat(depth - 1);
+    //always a path, so a parameter named words cannot stand in for the function
+    let root = if depth == 1 { "self::".to_string() } else { "super::".repeat(depth - 1) };
     for (name, key) in &node.functions {
-        let (positional, named) = placeholders(store, key);
+        let (positional, named) = placeholders(store, key)?;
         let has_forms =
             store.languages.values().any(|words| words.keys().any(|entry| entry.starts_with(key) && entry[key.len()..].starts_with('#')));
 
@@ -185,9 +188,10 @@ fn write_node(out: &mut String, store: &Store, node: &Node, depth: usize) {
     for (name, (segment, child)) in &node.modules {
         let _ = writeln!(out, "\n{indent}/// The keys under `{segment}`.");
         let _ = writeln!(out, "{indent}pub mod {name} {{");
-        write_node(out, store, child, depth + 1);
+        write_node(out, store, child, depth + 1)?;
         let _ = writeln!(out, "{indent}}}");
     }
+    Ok(())
 }
 
 //the key, and its default words as an example
@@ -209,8 +213,10 @@ fn write_doc(out: &mut String, indent: &str, store: &Store, key: &str) {
 
 //the arguments a key's words read, in every language, its forms' and what its
 //references and selectors bring in included: how many by position, and the
-//names in the order they first appear
-fn placeholders(store: &Store, key: &str) -> (usize, Vec<String>) {
+//names in the order they first appear. A number no language reads below the
+//highest is refused: it is a typo far more often than an argument left unread,
+//and {1000} for {1} would make a function of 1001 parameters
+fn placeholders(store: &Store, key: &str) -> Result<(usize, Vec<String>), String> {
     let mut codes: Vec<&str> = vec![""];
     codes.extend(store.codes.iter().map(String::as_str).filter(|code| !code.is_empty()));
     let forms_of = |key: &str| -> Vec<String> {
@@ -228,11 +234,11 @@ fn placeholders(store: &Store, key: &str) -> (usize, Vec<String>) {
         entries
     };
 
-    let mut positional = 0;
+    let mut numbers = BTreeSet::new();
     let mut named: Vec<String> = Vec::new();
     let mut note = |argument: &str| {
         if argument.starts_with(|c: char| c.is_ascii_digit()) {
-            positional = positional.max(argument.parse::<usize>().map_or(0, |n| n + 1));
+            numbers.extend(argument.parse::<usize>());
         } else if !named.iter().any(|name| name == argument) {
             named.push(argument.to_string());
         }
@@ -261,15 +267,23 @@ fn placeholders(store: &Store, key: &str) -> (usize, Vec<String>) {
             }
         }
     }
-    (positional, named)
+    let positional = numbers.last().map_or(0, |highest| highest + 1);
+    if let Some(skipped) = (0..positional).find(|n| !numbers.contains(n)) {
+        return Err(format!(
+            "`{key}` reads {{{}}} but no language reads {{{skipped}}}, so its function would take {positional} arguments: is a number mistyped?",
+            positional - 1
+        ));
+    }
+    Ok((positional, named))
 }
 
-//a Rust name for a key's segment or a placeholder's name: - is _, a character
-//no name takes is _, a name that cannot start as it does starts with _, and a
-//keyword is raw, or takes a _ where it cannot be
+//a Rust name for a key's segment or a placeholder's name: ASCII letters,
+//digits and _ stay, and so do other scripts' letters; anything else is _. A
+//name that cannot start as it does starts with _, and a keyword is raw, or
+//takes a _ where it cannot be
 fn ident(name: &str) -> String {
-    let mut ident: String = name.chars().map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' }).collect();
-    if !ident.starts_with(|c: char| c.is_alphabetic() || c == '_') {
+    let mut ident: String = name.chars().map(|c| if is_name_char(c) { c } else { '_' }).collect();
+    if !ident.starts_with(|c: char| c == '_' || (is_name_char(c) && !c.is_ascii_digit())) {
         ident.insert(0, '_');
     }
     match ident.as_str() {
@@ -278,6 +292,18 @@ fn ident(name: &str) -> String {
         _ => {}
     }
     ident
+}
+
+//a character a Rust name takes: an ASCII letter, digit or _, or another
+//script's letter. Letters are what Rust's names are made of, past ASCII too;
+//digits, marks and symbols there go, and so do the circled and squared
+//letters, which are symbols that Unicode counts alphabetic
+fn is_name_char(c: char) -> bool {
+    if c.is_ascii() {
+        return c.is_ascii_alphanumeric() || c == '_';
+    }
+    c.is_alphabetic()
+        && !matches!(c, '\u{24B6}'..='\u{24E9}' | '\u{1F130}'..='\u{1F149}' | '\u{1F150}'..='\u{1F169}' | '\u{1F170}'..='\u{1F189}')
 }
 
 const KEYWORDS: [&str; 50] = [
@@ -299,17 +325,40 @@ mod tests {
         assert_eq!(ident("self"), "self_");
         assert_eq!(ident("_"), "__");
         assert_eq!(ident("Größe"), "Größe");
+        assert_eq!(ident("日本"), "日本");
+        assert_eq!(ident("area²"), "area_");
+        assert_eq!(ident("step①"), "step_");
+        assert_eq!(ident("Ⓐ"), "__");
+        assert_eq!(ident("٤٠٤"), "___");
+        assert_eq!(ident("e\u{301}"), "e_");
     }
 
     #[test]
     fn placeholders_come_from_every_language_and_what_a_value_brings_in() {
         let store = Dictionary::parse(
-            "[a]\nvalue={0} {>.b} {Name}\nvalue-it={2} {Name} {Other}\n[.b]\nvalue={Inner} {0#w}\n[w]\nvalue=w\nvalue#other={Form}s\n[c]\nvalue={$k}{>c}\n[$k]\nvalue={Never}",
+            "[a]\nvalue={0} {>.b} {Name}\nvalue-it={1} {Name} {Other}\n[.b]\nvalue={Inner} {2#w}\n[w]\nvalue=w\nvalue#other={Form}s\n[c]\nvalue={$k}{>c}\n[$k]\nvalue={Never}",
         );
-        let (positional, named) = placeholders(store.store(), "a");
+        let (positional, named) = placeholders(store.store(), "a").unwrap();
         assert_eq!(positional, 3);
         assert_eq!(named, ["Name", "Other", "Inner", "Form"]);
-        assert_eq!(placeholders(store.store(), "c"), (0, vec![]));
+        assert_eq!(placeholders(store.store(), "c"), Ok((0, vec![])));
+    }
+
+    #[test]
+    fn a_number_no_language_reads_below_the_highest_is_refused() {
+        let problem = source("words", "\"\"", "[a]\nvalue={0} {1}\nvalue-it={0} {1000}").unwrap_err();
+        assert!(problem.contains("`a` reads {1000} but no language reads {2}"), "{problem}");
+        assert!(source("words", "\"\"", "[a]\nvalue={1} {0}").is_ok());
+    }
+
+    #[test]
+    fn a_parameter_cannot_stand_in_for_the_module_s_words() {
+        let module = source("words", "\"\"", "[greet]\nvalue=You wrote {words} words\n[a.b]\nvalue={words}").unwrap();
+        assert!(
+            module.contains("pub fn greet(words: impl ::core::fmt::Display) -> ::std::string::String {\n        self::words()"),
+            "{module}"
+        );
+        assert!(module.contains("super::words().format_with(\"a.b\""), "{module}");
     }
 
     #[test]

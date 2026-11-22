@@ -70,6 +70,8 @@ render.ini | en | format | constant | 9 | {0} {>app}
 render.ini | en | format | outer | it;Who=Ada | made it by Ada
 render.ini | en | get | nope | - | #nope#
 render.ini | en | format | nope | 1 | #nope#
+render.ini | en | format | nfd | Café=Ada | Hello, Ada!
+render.ini | en | format | astral | 1 | {a𝑥} stays
 
 fallback.ini | en-GB | get | colour | - | colour
 fallback.ini | en-US | get | colour | - | color

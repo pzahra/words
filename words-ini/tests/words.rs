@@ -110,6 +110,15 @@ fn check_names_what_a_reader_would_trip_over() {
 }
 
 #[test]
+fn check_follows_the_fallbacks_a_value_renders_through() {
+    let dictionary = Dictionary::parse("[a]\nvalue=A\nvalue-zh-Hant-TW={>b} {0#c}\n[b]\nvalue-zh-Hant=B\n[c]\nvalue-zh=c\n");
+    assert_eq!(dictionary.words("zh-Hant-TW").get("a"), "B {0#c}");
+    assert_eq!(dictionary.check(), ["`b` has no default value", "`c` has no default value"]);
+    let elsewhere = Dictionary::parse("[a]\nvalue=A\nvalue-de={>b}\n[b]\nvalue-fr=B\n");
+    assert!(elsewhere.check().contains(&"`a`: value-de refers to `b`, which has no words".to_string()));
+}
+
+#[test]
 fn missing_names_the_keys_the_default_lacks() {
     let dictionary = Dictionary::parse(TRANSLATED);
     assert_eq!(dictionary.missing(&["hello", "goodbye"]), ["goodbye"]);

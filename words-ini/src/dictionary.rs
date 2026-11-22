@@ -132,9 +132,9 @@ impl Dictionary {
 
     /// What a reader of this file would trip over, one line each: what the
     /// reading refused ([`warnings`](Dictionary::warnings)), a key with no
-    /// default value, a reference, constant or selector naming words nobody
-    /// holds, and a brace that opens nothing. Empty for a sound file, so a test
-    /// can assert it is.
+    /// default value, a reference, constant or selector naming words that the
+    /// value's language reaches nowhere along its fallbacks, and a brace that
+    /// opens nothing. Empty for a sound file, so a test can assert it is.
     pub fn check(&self) -> Vec<String> {
         let mut problems: Vec<String> = self.store.warnings.clone();
         let empty = HashMap::new();
@@ -144,14 +144,15 @@ impl Dictionary {
                 problems.push(format!("`{key}` has no default value"));
             }
         }
-        let holds = |language: &str, entry: &str| {
-            default.contains_key(entry) || self.store.languages.get(language).is_some_and(|words| words.contains_key(entry))
+        //the levels a language's words are flattened from, as words() flattens them
+        let levels = |language: &str| -> Vec<&HashMap<String, String>> {
+            let chain = LanguageCode::parse(language).map(|code| code.chain()).unwrap_or_default();
+            chain.iter().filter_map(|level| self.store.languages.get(level.as_str())).chain([default]).collect()
         };
+        let holds = |language: &str, entry: &str| levels(language).iter().any(|words| words.contains_key(entry));
         let has_forms = |language: &str, key: &str| {
             let prefix = format!("{key}#");
-            [default, self.store.languages.get(language).unwrap_or(&empty)]
-                .iter()
-                .any(|words| words.contains_key(key) || words.keys().any(|entry| entry.starts_with(&prefix)))
+            levels(language).iter().any(|words| words.contains_key(key) || words.keys().any(|entry| entry.starts_with(&prefix)))
         };
         for code in &self.store.codes {
             let words = &self.store.languages[code];

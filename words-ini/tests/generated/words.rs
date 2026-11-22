@@ -38,7 +38,7 @@ pub mod words {
     /// Pool Manager
     /// ```
     pub fn app() -> ::std::string::String {
-        words().get("app")
+        self::words().get("app")
     }
 
     /// `file`
@@ -47,7 +47,7 @@ pub mod words {
     /// file
     /// ```
     pub fn file(count: impl ::core::fmt::Display) -> ::std::string::String {
-        words().count("file", count)
+        self::words().count("file", count)
     }
 
     /// `files`
@@ -56,7 +56,7 @@ pub mod words {
     /// one file in {Pool}
     /// ```
     pub fn files(count: impl ::core::fmt::Display, arg0: impl ::core::fmt::Display, Pool: impl ::core::fmt::Display) -> ::std::string::String {
-        words().count_with("files", count, &[&arg0 as &dyn ::core::fmt::Display], &[("Pool", &Pool as &dyn ::core::fmt::Display)])
+        self::words().count_with("files", count, &[&arg0 as &dyn ::core::fmt::Display], &[("Pool", &Pool as &dyn ::core::fmt::Display)])
     }
 
     /// `use`
@@ -65,7 +65,7 @@ pub mod words {
     /// Use words-ini.
     /// ```
     pub fn r#use() -> ::std::string::String {
-        words().get("use")
+        self::words().get("use")
     }
 
     /// The keys under `app`.
