@@ -163,6 +163,7 @@ public class TranslationDocumentTests {
 	[Theory]
 	[InlineData("\"GPT-5\"", "GPT-5")]
 	[InlineData("\"  Claude\\n  Opus 5.5 \"", "Claude Opus 5.5")]
+	[InlineData("\"gpt-5.6-terra 😀 (high)\"", "gpt-5.6-terra high")]
 	[InlineData("null", null)]
 	[InlineData("\"  \"", null)]
 	[InlineData("5", null)]
@@ -178,6 +179,10 @@ public class TranslationDocumentTests {
 		var answer = TranslationAnswer.Read($$"""{ "words": "translation/1", "translator": "{{new string('x', 200)}}", "target": { "code": "it" }, "items": [] }""");
 
 		Assert.Equal(new string('x', TranslationAnswer.TranslatorLength), answer.Translator);
+
+		//no symbol is kept to be cut in half
+		answer = TranslationAnswer.Read($$"""{ "words": "translation/1", "translator": "{{new string('x', TranslationAnswer.TranslatorLength - 1)}}😀y", "target": { "code": "it" }, "items": [] }""");
+		Assert.Equal(new string('x', TranslationAnswer.TranslatorLength - 1), answer.Translator);
 	}
 
 	[Theory]

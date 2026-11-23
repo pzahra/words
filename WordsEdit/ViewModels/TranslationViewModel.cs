@@ -36,21 +36,31 @@ public sealed class ConfigTranslationMemory : ITranslationMemory {
 }
 
 /// <summary>
-///     One slot an answer filled, as the review grid shows it: the key, the form, the
-///     default's words for it, the text proposed, which the person may edit, and
-///     whether it is written. Its notes say why its key was flagged, or why its hand
-///     goes up.
+///     One of a key's slots in the review grid: the default's words in it, or the words
+///     proposed for it, which the person may edit.
 /// </summary>
-public sealed class TranslationRow(TranslationViewModel parent, int item, string key, string slot, string @default, string text, bool ticked) : ViewModelBase {
-	/// <summary>The answer's item the row is of.</summary>
-	internal int Item => item;
-	public string Key => key;
+public sealed class TranslationForm(TranslationViewModel? parent, string slot, string text) : ViewModelBase {
 	/// <summary>The slot as the document names it: <c>value</c>, <c>value#few</c>.</summary>
 	public string Slot => slot;
 	/// <summary>The plural form, empty for the plain value.</summary>
 	public string Form => slot == TranslationRequest.Plain ? "" : slot[(TranslationRequest.Plain.Length + 1)..];
-	public string Default => @default;
-	public string Text { get; set => _ = ChangeProperty(ref field, value) && parent.Edited(); } = text;
+	public string Text { get; set => _ = ChangeProperty(ref field, value) && (parent?.Edited() ?? true); } = text;
+}
+
+/// <summary>
+///     One key an answer filled, as the review grid shows it: every form the default has
+///     beside every form proposed, since a form may rightly read otherwise than the one
+///     of the same name, and whether it is written. Its notes say why it was flagged, or
+///     why its hand goes up.
+/// </summary>
+public sealed class TranslationRow(TranslationViewModel parent, int item, string key, IReadOnlyList<TranslationForm> defaults, IReadOnlyList<TranslationForm> proposed, bool ticked) : ViewModelBase {
+	/// <summary>The answer's item the row is of.</summary>
+	internal int Item => item;
+	public string Key => key;
+	/// <summary>The default's words, each form it has.</summary>
+	public IReadOnlyList<TranslationForm> Defaults => defaults;
+	/// <summary>The words proposed, each form the answer filled.</summary>
+	public IReadOnlyList<TranslationForm> Proposed => proposed;
 	public bool Ticked { get; set => _ = ChangeProperty(ref field, value) && parent.TickedChanged(); } = ticked;
 	/// <summary>Why the key was flagged, or why its hand goes up; empty when neither.</summary>
 	public string Notes { get; internal set => ChangeProperty(ref field, value); } = "";
@@ -61,7 +71,7 @@ public sealed class TranslationRow(TranslationViewModel parent, int item, string
 /// <summary>
 ///     Tools &gt; Machine Translation (SPEC: Machine translation, In Wordsmith): the
 ///     selected file's keys a language needs, as a request a translator fills, and
-///     the answer it gives back, checked and shown a row per slot for review. By hand,
+///     the answer it gives back, checked and shown a row per key for review. By hand,
 ///     the request is copied or saved and the answer pasted or opened. Apply writes the
 ///     ticked rows into the file as one undo entry, each key's entry marked stale with
 ///     the mark, and goes back for the next request, which the keys just written have
@@ -159,7 +169,7 @@ public sealed class TranslationViewModel : DialogViewModel {
 	/// <summary>The grid shows: the answer read, under review.</summary>
 	public bool IsReviewing { get; private set => _ = ChangeProperty(ref field, value) && AffectProperty(nameof(IsAsking)); }
 	public bool IsAsking => !IsReviewing;
-	/// <summary>A row per slot the answer filled, in the answer's order.</summary>
+	/// <summary>A row per key the answer filled, in the answer's order.</summary>
 	public IReadOnlyList<TranslationRow> Rows { get; private set => ChangeProperty(ref field, value); } = [];
 	/// <summary>The keys the answer does not write whose translation it leaves at odds with their default; nothing is skipped for them.</summary>
 	public string Broken { get; private set => _ = ChangeProperty(ref field, value) && AffectProperty(nameof(HasBroken)); } = "";
@@ -268,8 +278,8 @@ public sealed class TranslationViewModel : DialogViewModel {
 		}
 	}
 
-	//the answer read and checked whole against the file as it is, a row for each slot it filled;
-	//a flagged key's rows start unticked, saying why
+	//the answer read and checked whole against the file as it is, a row for each key it filled;
+	//a flagged key's row starts unticked, saying why
 	private void DoReview() {
 		if (Target is not { } target) {
 			return;
@@ -301,11 +311,12 @@ public sealed class TranslationViewModel : DialogViewModel {
 		for (int i = 0; i < read.Items.Count; i++) {
 			TranslationItem item = read.Items[i];
 			var held = file.Keys.TryGetValue(item.Key, out WordsKey? key) ? TranslationRequest.Held(key) : item.Default ?? new Dictionary<string, string>();
-			foreach (var (slot, text) in item.Translation) {
-				if (text is { } filled && filled.Trim() != "") {
-					string shown = held.GetValueOrDefault(slot) ?? held.GetValueOrDefault(TranslationRequest.Plain) ?? "";
-					rows.Add(new TranslationRow(this, i, item.Key, slot, shown, filled, ticked: batch.Verdicts[i].Flags.Count == 0));
-				}
+			List<TranslationForm> proposed = [.. item.Translation
+				.Where(slot => slot.Value is { } filled && filled.Trim() != "")
+				.Select(slot => new TranslationForm(this, slot.Key, slot.Value!))];
+			if (proposed.Count > 0) {
+				rows.Add(new TranslationRow(this, i, item.Key, [.. held.Select(slot => new TranslationForm(null, slot.Key, slot.Value))], proposed,
+					ticked: batch.Verdicts[i].Flags.Count == 0));
 			}
 		}
 		if (rows.Count == 0) {
@@ -327,7 +338,9 @@ public sealed class TranslationViewModel : DialogViewModel {
 			Items = [.. read.Items.Select((item, i) => {
 				var slots = new Dictionary<string, string?>(item.Translation);
 				foreach (TranslationRow row in Rows.Where(row => row.Item == i)) {
-					slots[row.Slot] = !tickedAlone || row.Ticked ? row.Text : null;
+					foreach (TranslationForm form in row.Proposed) {
+						slots[form.Slot] = !tickedAlone || row.Ticked ? form.Text : null;
+					}
 				}
 				return item with { Translation = slots };
 			})],
@@ -366,7 +379,7 @@ public sealed class TranslationViewModel : DialogViewModel {
 		TranslationAnswer written = Edited(tickedAlone: true);
 		TranslationBatch batch = written.Check(file.Keys, code, file.DefaultLanguage);
 		HashSet<string> raised = [.. written.Items.Where((item, i) => batch.Verdicts[i].Raised.Count != 0).Select(item => item.Key)];
-		int count = parent.WriteTranslations(file, code, [.. ticked.Select(row => (row.Key, row.Form, row.Text))], written.MarkOf(MarkWritten), raised);
+		int count = parent.WriteTranslations(file, code, [.. ticked.SelectMany(row => row.Proposed.Select(form => (row.Key, form.Form, form.Text)))], written.MarkOf(MarkWritten), raised);
 		Applied = Words.Known.Format("machine.applied", count);
 		answer = null;
 		Rows = [];

@@ -2535,8 +2535,9 @@ Text is a value's own, unescaped, as `words get` prints it: no doubled `_` or
 `target.code` and each item's `key`, `default`, `current` and `translation`
 are read back, so a script may drop the rest. `translator` is the name the
 translator gives itself, as the instructions ask, a model and its version or
-the service a script called: its runs of white space one space, cut at 80
-characters, and none for a null, a blank or anything but text, which costs
+the service a script called: its word characters, dots and dashes, each run
+of anything else one space, cut at 80 characters, and none for a null, a
+blank or anything but text, which costs
 the answer nothing. It is what the translator says, which a model may say
 wrong. Where it is given, it follows the stale mark each key written takes,
 after a colon (`machine translated: GPT-5`), so the mark still starts the
@@ -2648,10 +2649,11 @@ in the text as given). Apply goes back to the request, the
 next one already chosen. The brief per language, the batch and the mark are
 kept under the config's `[translation]`.
 
-**It lands for review.** The answers open in a grid, a row per slot: the key,
-the form, the default, the proposed text and the flags. A row is edited in
+**It lands for review.** The answers open in a grid, a row per key: the key,
+every form of the default, every form proposed and the flags, since a form may
+rightly read otherwise than the default's of the same name. A row is edited in
 place, unticked or asked for again (a retry sends the selected rows alone); a
-flagged key's rows start unticked and say why, and ticking one is the
+flagged key's row starts unticked and says why, and ticking it is the
 person's call. A row whose link target changed starts ticked, saying so, and
 applying it raises the key's hand. Apply writes the ticked rows into the open file as edits, each
 entry marked stale with the mark, as one undo entry (*One entry for many edits*). Save writes the
@@ -2660,8 +2662,8 @@ review, as it does any stale translation. The command line writes the file;
 the editor writes its document, so undo and an unsaved file stay whole.
 
 Built, but for the retry, which comes with the command: the grid's rows are
-the slots the answer filled, the default's words beside each, a row as tall
-as its words and the grid scrolled by the pixel. The dialog sizes itself to
+the keys the answer filled, each form of the default's words beside each form
+proposed, a row as tall as its words and the grid scrolled by the pixel. The dialog sizes itself to
 its first page, then to the window: dragging its edge grows the grid and its
 columns, and the answer box. A row edited
 is checked again with the rest, its key's notes with it, and its tick stays

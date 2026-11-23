@@ -63,7 +63,28 @@ public sealed class MachineTranslationTests : IDisposable {
 		Assert.False(machine.Rows[1].Ticked);
 		Assert.True(machine.Rows[1].Flagged);
 		Assert.StartsWith(Words.Known.Format("machine.flagged", "").TrimEnd(), machine.Rows[1].Notes);
-		Assert.Equal("Bye {0}", machine.Rows[1].Default);
+		Assert.Equal("Bye {0}", Assert.Single(machine.Rows[1].Defaults).Text);
+	}
+
+	[Fact]
+	public void APluralKey_IsOneRow_EveryFormOfTheDefaultBesideEveryFormProposed() {
+		var (vm, _, machine) = Opened(text: Text + "\n[files]\nvalue={0} file\nvalue#other={0} files\n");
+		machine.Answer = """
+			{ "words": "translation/1", "target": { "code": "it" }, "items": [
+			  { "key": "files", "default": { "value": "{0} file", "value#other": "{0} files" }, "translation": { "value": "{0} file", "value#other": "{0} file" } }
+			] }
+			""";
+		machine.ReviewCommand.Execute(null);
+
+		TranslationRow files = Assert.Single(machine.Rows);
+		Assert.Equal([("", "{0} file"), ("other", "{0} files")], files.Defaults.Select(form => (form.Form, form.Text)));
+		Assert.Equal([("", "{0} file"), ("other", "{0} file")], files.Proposed.Select(form => (form.Form, form.Text)));
+		files.Proposed[1].Text = "{0} file!";
+		machine.ApplyCommand.Execute(null);
+
+		WordsEntry italian = Key(vm, "T", "files").Entries["it"];
+		Assert.Equal("{0} file", italian.Value);
+		Assert.Equal("{0} file!", italian.Forms["other"]);
 	}
 
 	[Fact]
@@ -72,7 +93,7 @@ public sealed class MachineTranslationTests : IDisposable {
 		machine.Answer = Answer;
 		machine.ReviewCommand.Execute(null);
 
-		machine.Rows[1].Text = "Arrivederci {0}";
+		machine.Rows[1].Proposed[0].Text = "Arrivederci {0}";
 
 		Assert.False(machine.Rows[1].Flagged);
 		Assert.Equal("", machine.Rows[1].Notes);
@@ -84,7 +105,7 @@ public sealed class MachineTranslationTests : IDisposable {
 		var (vm, _, machine) = Opened();
 		machine.Answer = Answer;
 		machine.ReviewCommand.Execute(null);
-		machine.Rows[0].Text = "Ciao!";
+		machine.Rows[0].Proposed[0].Text = "Ciao!";
 		int done = vm.UndoStack.DoneCount;
 
 		machine.ApplyCommand.Execute(null);
@@ -175,9 +196,9 @@ public sealed class MachineTranslationTests : IDisposable {
 	}
 
 	//T.ini loaded, its root selected and Italian the language, the dialog open on it
-	private (MainWindowViewModel Vm, FakeDialogs Dialogs, TranslationViewModel Machine) Opened(ITranslationMemory? memory = null) {
+	private (MainWindowViewModel Vm, FakeDialogs Dialogs, TranslationViewModel Machine) Opened(ITranslationMemory? memory = null, string text = Text) {
 		string path = Path.Combine(folder, "T.ini");
-		File.WriteAllText(path, Text);
+		File.WriteAllText(path, text);
 		var dialogs = new FakeDialogs();
 		var vm = new MainWindowViewModel(dialogs);
 		vm.LoadFile(path);

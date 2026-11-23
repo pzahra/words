@@ -14,6 +14,16 @@
          the window: the answer box and the grid take the room it gives -->
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="IsTrue"/>
+        <!-- a form's name above its words; the plain value has none -->
+        <Style x:Key="FormName" TargetType="TextBlock">
+            <Setter Property="Opacity" Value="0.6"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Form}" Value="">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
     <Grid x:Name="Root" Width="820">
         <Grid.RowDefinitions>
@@ -91,8 +101,9 @@
                      IsInactiveSelectionHighlightEnabled="True"/>
         </DockPanel>
 
-        <!-- the answer under review: a row per slot, a flagged key's unticked and saying why; a
-             row is as tall as its words, so the grid scrolls by the pixel, not by the row -->
+        <!-- the answer under review: a row per key, every form of the default beside every form
+             proposed, a flagged key's unticked and saying why; a row is as tall as its words, so
+             the grid scrolls by the pixel, not by the row -->
         <DockPanel Grid.Row="2" Visibility="{Binding IsReviewing, Converter={StaticResource IsTrue}}">
             <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0 10 0 0">
                 <Button Content="{l:Words machine.back}" Command="{Binding BackCommand}" MinWidth="80" Margin="2.5px"/>
@@ -117,27 +128,38 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
                     <DataGridTextColumn Header="{l:Words machine.key}" Binding="{Binding Key, Mode=OneWay}" IsReadOnly="True" Width="140"/>
-                    <DataGridTextColumn Header="{l:Words machine.form}" Binding="{Binding Form, Mode=OneWay}" IsReadOnly="True" Width="Auto"/>
-                    <DataGridTextColumn Header="{l:Words machine.default}" Binding="{Binding Default, Mode=OneWay}" IsReadOnly="True" Width="*">
-                        <DataGridTextColumn.ElementStyle>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="TextWrapping" Value="Wrap"/>
-                            </Style>
-                        </DataGridTextColumn.ElementStyle>
-                    </DataGridTextColumn>
-                    <DataGridTextColumn Header="{l:Words machine.proposed}" Binding="{Binding Text, UpdateSourceTrigger=PropertyChanged}" Width="*">
-                        <DataGridTextColumn.ElementStyle>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="TextWrapping" Value="Wrap"/>
-                            </Style>
-                        </DataGridTextColumn.ElementStyle>
-                        <DataGridTextColumn.EditingElementStyle>
-                            <Style TargetType="TextBox">
-                                <Setter Property="TextWrapping" Value="Wrap"/>
-                                <Setter Property="AcceptsReturn" Value="True"/>
-                            </Style>
-                        </DataGridTextColumn.EditingElementStyle>
-                    </DataGridTextColumn>
+                    <DataGridTemplateColumn Header="{l:Words machine.default}" IsReadOnly="True" Width="*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type vm:TranslationRow}">
+                                <ItemsControl ItemsSource="{Binding Defaults}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:TranslationForm}">
+                                            <StackPanel Margin="0 0 0 4">
+                                                <TextBlock Text="{Binding Form, Mode=OneWay}" Style="{StaticResource FormName}"/>
+                                                <TextBlock Text="{Binding Text, Mode=OneWay}" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="{l:Words machine.proposed}" Width="*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type vm:TranslationRow}">
+                                <ItemsControl ItemsSource="{Binding Proposed}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:TranslationForm}">
+                                            <StackPanel Margin="0 0 0 4">
+                                                <TextBlock Text="{Binding Form, Mode=OneWay}" Style="{StaticResource FormName}"/>
+                                                <TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" AcceptsReturn="True"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                     <DataGridTextColumn Header="{l:Words machine.notes}" Binding="{Binding Notes, Mode=OneWay}" IsReadOnly="True" Width="*">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">

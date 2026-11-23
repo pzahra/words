@@ -1,5 +1,6 @@
 using PatTech.Localization;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace PatTech.Localization.Authoring {
 	/// <summary>
@@ -16,7 +17,8 @@ namespace PatTech.Localization.Authoring {
 
 		/// <summary>
 		///     The name the translator gave itself, as it says, which a model may say
-		///     wrong: its runs of white space one space, cut to <see cref="TranslatorLength"/>;
+		///     wrong: its word characters, dots and dashes, each run of anything else one
+		///     space, cut to <see cref="TranslatorLength"/>;
 		///     null when it gave none.
 		/// </summary>
 		public string? Translator { get; init; }
@@ -125,15 +127,20 @@ namespace PatTech.Localization.Authoring {
 			return new(code.GetString()!, read) { Translator = Name(root) };
 		}
 
-		//the name the translator gave itself, on one line and not too long for a mark; none
-		//for a null, a blank or anything but text, which costs the answer nothing
+		//the name the translator gave itself, in word characters, dots and dashes alone, on one
+		//line and not too long for a mark; none for a null, a blank or anything but text, which
+		//costs the answer nothing
 		private static string? Name(JsonElement root) {
 			if (!root.TryGetProperty("translator", out var translator) || translator.ValueKind != JsonValueKind.String) {
 				return null;
 			}
-			string name = string.Join(' ', translator.GetString()!.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+			string kept = rxNotName.Replace(translator.GetString()!, " ");
+			string name = string.Join(' ', kept.Split(' ', StringSplitOptions.RemoveEmptyEntries));
 			return name == "" ? null : name.Length > TranslatorLength ? name[..TranslatorLength].TrimEnd() : name;
 		}
+
+		//what a name is not made of: anything but a word character, a dot or a dash, white space among it
+		private static readonly Regex rxNotName = new(@"[^\w.\-]+", RegexOptions.CultureInvariant);
 
 		/// <summary>
 		///     Checks the whole answer against <paramref name="keys"/>, one file's keys by
