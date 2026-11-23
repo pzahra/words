@@ -101,8 +101,9 @@ neither is what a `[return: Localized]` method returns. Generated code is skippe
 **What counts as localized.** An expression that reads a marked member — a name, a member
 access, or an indexer marked as Core's are — or calls a method marked
 `[return: Localized]`, an extension method by its definition; looked at through
-parentheses, `await`, `?.`, a cast and `!`. `null` and `default` are no text, not text
-left unlocalized, so a marked member may be handed either and nothing is reported. A `?:` is localized when both its arms are, and a switch
+parentheses, `await`, `?.`, a cast and `!`, the arm under a cast or a `!` reported on its
+own as under parentheses. `null`, `default`, `""` and `string.Empty` are no text, not text
+left unlocalized, so a marked member may be handed any of them and nothing is reported. A `?:` is localized when both its arms are, and a switch
 expression when every arm is; at the top of the expression each offending arm is
 reported on its own, so the one bad branch lights up and not the statement. A local
 carries no attribute, so it is traced: its initializer and every simple assignment to it
@@ -121,9 +122,9 @@ a marked property and to a marked field, and at one assigned through a marked `r
 `out` parameter, naming its method, a local function's too; passes a
 `[return: Localized]` call, a marked property, and a marked field assigned to another;
 and flags only the literal arm of a `?:`; passes `null` and `default`, `default(string)`,
-a cast null and `null!`, assigned to a marked property and field, passed to a marked
+a cast null, `null!`, `""` and `string.Empty`, assigned to a marked property and field, passed to a marked
 parameter, as an arm of a `?:` and of a switch, and held by a traced local; and flags a
-literal under a cast or a `!`. `LocalVariableTrackingTests` passes a local holding a localized value, and one
+literal under a cast or a `!`, and only the arm of a `?:` under one. `LocalVariableTrackingTests` passes a local holding a localized value, and one
 reassigned to another, and flags a local holding an unmarked value or reassigned to one.
 Each test compiles its own copy of the attribute.
 

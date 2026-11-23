@@ -313,6 +313,20 @@ namespace LocalizationAnalyzer
                         yield return node;
                     }
                     break;
+                // a cast or a ! is looked through as IsLocalizationError looks, so the arm under it lights up
+                case CastExpressionSyntax cast:
+                    foreach (var node in FindLocalizationErrors(semanticModel, cast.Expression, cancellationToken, visited))
+                    {
+                        yield return node;
+                    }
+                    break;
+                case PostfixUnaryExpressionSyntax suppressed
+                        when suppressed.IsKind(SyntaxKind.SuppressNullableWarningExpression):
+                    foreach (var node in FindLocalizationErrors(semanticModel, suppressed.Operand, cancellationToken, visited))
+                    {
+                        yield return node;
+                    }
+                    break;
                 case ConditionalExpressionSyntax conditional:
                     if (IsLocalizationError(semanticModel, conditional.WhenTrue, cancellationToken, visited))
                     {
@@ -370,8 +384,8 @@ namespace LocalizationAnalyzer
         /// <summary>
         /// Determine whether <paramref name="expression"/> fails to produce a localized
         /// value: it neither reads a <c>[Localized]</c> member nor invokes a method
-        /// marked <c>[return: Localized]</c>, nor is <c>null</c> or <c>default</c>, which
-        /// are no text at all (looking through parentheses, <c>await</c>, casts, <c>!</c>,
+        /// marked <c>[return: Localized]</c>, nor is <c>null</c>, <c>default</c>, <c>""</c> or
+        /// <c>string.Empty</c>, which are no text at all (looking through parentheses, <c>await</c>, casts, <c>!</c>,
         /// conditional access, conditionals, and switch expressions).
         /// </summary>
         private static bool IsLocalizationError(
@@ -398,6 +412,12 @@ namespace LocalizationAnalyzer
 
                         return !SymbolIsLocalized(symbol);
                     }
+                // string.Empty is no text, as "" is
+                case MemberAccessExpressionSyntax empty
+                        when empty.Name.Identifier.ValueText == "Empty"
+                        && semanticModel.GetSymbolInfo(empty, cancellationToken).Symbol is IFieldSymbol field
+                        && field.ContainingType.SpecialType == SpecialType.System_String:
+                    return false;
                 case MemberAccessExpressionSyntax memberAccess:
                     return IsLocalizationError(semanticModel, memberAccess.Name, cancellationToken, visited);
                 case ElementAccessExpressionSyntax elementAccess:
@@ -413,11 +433,12 @@ namespace LocalizationAnalyzer
                     return IsLocalizationError(semanticModel, parenthesized.Expression, cancellationToken, visited);
                 case AwaitExpressionSyntax await:
                     return IsLocalizationError(semanticModel, await.Expression, cancellationToken, visited);
-                // null and default are no text, not text left unlocalized: a marked member
-                // may hold none
+                // null, default and the empty string are no text, not text left unlocalized: a
+                // marked member may hold none
                 case LiteralExpressionSyntax literal
                         when literal.IsKind(SyntaxKind.NullLiteralExpression)
-                        || literal.IsKind(SyntaxKind.DefaultLiteralExpression):
+                        || literal.IsKind(SyntaxKind.DefaultLiteralExpression)
+                        || literal.IsKind(SyntaxKind.StringLiteralExpression) && literal.Token.ValueText.Length == 0:
                     return false;
                 case DefaultExpressionSyntax _:
                     return false;

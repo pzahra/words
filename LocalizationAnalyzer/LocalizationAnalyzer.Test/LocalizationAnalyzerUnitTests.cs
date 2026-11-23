@@ -276,6 +276,12 @@ public class ViewModel
         Failure = default(string);
         Failure = (string?)null;
         Failure = null!;
+        Failure = """";
+        Failure = @"""";
+        Failure = string.Empty;
+        Failure = System.String.Empty;
+        Show("""");
+        Show(string.Empty);
         note = null;
         Show(null);
         Show(default);
@@ -308,17 +314,27 @@ public class ViewModel
     [Localized]
     public string? Failure { get; set; }
 
-    public void Update()
+    [Localized]
+    static string Known
     {
-        Failure = {|#0:(string)""raw""|};
-        Failure = {|#1:""raw""!|};
+        get { return ""known""; }
+    }
+
+    public void Update(bool flag)
+    {
+        Failure = (string){|#0:""raw""|};
+        Failure = {|#1:""raw""|}!;
+        Failure = (flag ? {|#2:""raw""|} : Known)!;
+        Failure = (string?)(flag ? Known : {|#3:""raw""|});
     }
 }
 " + AttributeSource;
 
             await VerifyCS.VerifyAnalyzerAsync(test,
                 VerifyCS.Diagnostic(LocalizationAnalyzer.PropertyAssignmentDiagnostic).WithLocation(0).WithArguments("ViewModel.Failure"),
-                VerifyCS.Diagnostic(LocalizationAnalyzer.PropertyAssignmentDiagnostic).WithLocation(1).WithArguments("ViewModel.Failure"));
+                VerifyCS.Diagnostic(LocalizationAnalyzer.PropertyAssignmentDiagnostic).WithLocation(1).WithArguments("ViewModel.Failure"),
+                VerifyCS.Diagnostic(LocalizationAnalyzer.PropertyAssignmentDiagnostic).WithLocation(2).WithArguments("ViewModel.Failure"),
+                VerifyCS.Diagnostic(LocalizationAnalyzer.PropertyAssignmentDiagnostic).WithLocation(3).WithArguments("ViewModel.Failure"));
         }
     }
 }

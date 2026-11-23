@@ -24,8 +24,8 @@ static void WriteLocal([Localized] string message) { ... }
 ```
 
 It looks through parentheses, `await`, casts, `!`, conditionals, and switch
-expressions, and flags only the arms that misbehave. `null` and `default` go
-through untouched: no text at all isn't text you forgot to translate.
+expressions, and flags only the arms that misbehave. `null`, `default`, `""` and
+`string.Empty` go through untouched: no text at all isn't text you forgot to translate.
 
 ## What's in this folder
 
