@@ -16,9 +16,42 @@ namespace PatTech.Localization.Tests;
 /// The Avalonia twin of <c>MarkdownTextTests</c> (Localization-Tests): <see cref="Markdown"/>'s
 /// <c>Markdown.Text</c> (SPEC: Markdown into a TextBlock of one's own) fills a TextBlock's own
 /// inlines, which keeps its wrapping; a new value renders again, null empties it, and a link
-/// in it, clicked, navigates through the global handler.
+/// in it, clicked, navigates through the global handler. The navigate handler, the shared
+/// parser and the logger are globals, hence the shared collection.
 /// </summary>
+[Collection("Words globals")]
 public class AvaMarkdownTextTests {
+	//a parser that throws on a run holding "boom", as a broken one of an app's own would
+	private sealed class Throwing : MarkdownParser {
+		protected override Inline Run(string text) => text.Contains("boom") ? throw new InvalidOperationException("boom") : base.Run(text);
+	}
+
+	private sealed class Gripes : ITakeException {
+		public readonly List<string> Errors = [];
+		public void Warn(string text) { }
+		public void Error(Exception exception, string message) => Errors.Add(message);
+	}
+
+	[AvaloniaFact]
+	public void AValueThatWillNotRender_IsSaid_AndShownAsWritten() {
+		using var globals = new WordsGlobals();
+		MarkdownParser parser = MarkdownParser.Default;
+		var gripes = new Gripes();
+		Words.Logger = gripes;
+		try {
+			var block = new TextBlock();
+			Markdown.SetText(block, "previous");
+			MarkdownParser.Default = new Throwing();
+
+			Markdown.SetText(block, "a **boom**");
+
+			Assert.Equal("a **boom**", string.Concat(All(block.Inlines).OfType<Run>().Select(run => run.Text))); //what it holds, never what stood
+			Assert.Equal(["MD:TEXT"], gripes.Errors);
+		}
+		finally {
+			MarkdownParser.Default = parser;
+		}
+	}
 
 	//every inline in the collection, spans and what they hold
 	private static IEnumerable<Inline> All(InlineCollection? inlines) {

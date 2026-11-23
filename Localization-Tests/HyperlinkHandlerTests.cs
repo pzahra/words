@@ -10,6 +10,7 @@ namespace PatTech.Localization.Tests;
 /// and unsubscribe via disposal — mirroring the Avalonia package's contract.
 /// The handler is package-global state, so these tests share one class.
 /// </summary>
+[Collection("Words globals")] //MarkdownTextTests registers a handler too
 public class HyperlinkHandlerTests {
 
 	/// <summary>WPF elements insist on an STA thread; xunit runs MTA. Bridge the gap.</summary>

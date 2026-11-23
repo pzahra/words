@@ -1044,7 +1044,9 @@ WPF and Avalonia alike, `Markdown.Text`:
 markdown, rendered by `MarkdownParser.Default` as `WordsInline` renders it,
 fills that `TextBlock`'s own inlines, so it keeps its wrapping, trimming, font
 and style, and a link in it navigates as any rendered link does. A new value
-renders again; null or empty leaves it empty. It renders what it is given:
+renders again; null or empty leaves it empty; one the parser throws on is
+told to `Words.Logger` (`MD:TEXT`) and shown as written, so the `TextBlock`
+always shows the value it holds. It renders what it is given:
 words that follow a live language switch come from `WordsInline`, whose key
 tells a switch it is due, or from a binding that builds the markdown from
 `Words.Known` and updates on the switch. `MarkdownConverter` stays for a
@@ -1056,7 +1058,7 @@ alone, for a project's image rules.
 **Tests.** On each framework, and on Avalonia 11 and 12: a `TextBlock` given
 `Markdown.Text` holds the rendered inlines, bold and a link among them, and
 keeps the `TextWrapping` it was given; a new value renders again, and null
-empties it; a link in it navigates through the global handler, clicked on
+empties it; one the parser throws on is told and shown as written; a link in it navigates through the global handler, clicked on
 Avalonia; markup sets it by the words namespace. The converter's own
 `TextBlock` wraps. In Wordsmith, the bubble measures the page it opens with
 (`TheBubbleMeasuresThePageItOpensWith`) on `Markdown.Text`.

@@ -14,7 +14,8 @@ namespace PatTech.Localization.Avalonia;
 ///     rendered link does (<see cref="Hyperlink.RegisterGlobalNavigateHandler"/>).
 /// </summary>
 /// <remarks>
-///     A new value renders again; null or empty leaves the TextBlock empty. It renders what it is
+///     A new value renders again; null or empty leaves the TextBlock empty, and one the parser
+///     throws on is told to <see cref="Words.Logger"/> and shown as written. It renders what it is
 ///     given: words that follow a live language switch come from a <see cref="WordsInline"/>,
 ///     whose key tells the switch it is due, or from a binding that builds the markdown from
 ///     <see cref="Words.Known"/> and updates on the switch.
@@ -34,11 +35,26 @@ public static class Markdown {
 	/// <summary>Shows <paramref name="value"/>, markdown, in <paramref name="element"/>.</summary>
 	public static void SetText(TextBlock element, string? value) => element.SetValue(TextProperty, value);
 
-	//built whole, then swapped in, as WordsInline does: a render that throws leaves what stood
+	//built whole, then swapped in, as WordsInline does
 	private static void Render(TextBlock textBlock, string? text) {
-		List<Inline> built = text is { Length: > 0 } ? [.. MarkdownParser.Default.ToInlines(text)] : [];
+		List<Inline> built = Inlines(text);
 		textBlock.Inlines ??= new InlineCollection();
 		textBlock.Inlines.Clear();
 		textBlock.Inlines.AddRange(built);
+	}
+
+	//the markdown's inlines; one that will not render is said and shown as written, so the
+	//TextBlock always shows the value it holds
+	private static List<Inline> Inlines(string? text) {
+		if (text is not { Length: > 0 }) {
+			return [];
+		}
+		try {
+			return [.. MarkdownParser.Default.ToInlines(text)];
+		}
+		catch (Exception ex) {
+			Words.Logger.Error(ex, "MD:TEXT");
+			return [new Run(text)];
+		}
 	}
 }

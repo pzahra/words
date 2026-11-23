@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
@@ -14,7 +15,8 @@ namespace PatTech.Localization.Wpf {
 	///     any rendered link does (<see cref="Hyperlink.RegisterGlobalNavigateHandler"/>).
 	/// </summary>
 	/// <remarks>
-	///     A new value renders again; null or empty leaves the TextBlock empty. It renders what
+	///     A new value renders again; null or empty leaves the TextBlock empty, and one the parser
+	///     throws on is told to <see cref="Words.Logger"/> and shown as written. It renders what
 	///     it is given: words that follow a live language switch come from a
 	///     <see cref="WordsInline"/>, whose key tells the switch it is due, or from a binding that
 	///     builds the markdown from <see cref="Words.Known"/> and updates on the switch.
@@ -33,14 +35,29 @@ namespace PatTech.Localization.Wpf {
 		/// <summary>Shows <paramref name="value"/>, markdown, in <paramref name="element"/>.</summary>
 		public static void SetText(TextBlock element, string? value) => element.SetValue(TextProperty, value);
 
-		//built whole, then swapped in, as WordsInline does: a render that throws leaves what stood
+		//built whole, then swapped in, as WordsInline does
 		private static void TextChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) {
 			if (d is not TextBlock textBlock) {
 				return;
 			}
-			List<Inline> built = e.NewValue is string { Length: > 0 } text ? [.. MarkdownParser.Default.ToInlines(text)] : [];
+			List<Inline> built = Render(e.NewValue as string);
 			textBlock.Inlines.Clear();
 			textBlock.Inlines.AddRange(built);
+		}
+
+		//the markdown's inlines; one that will not render is said and shown as written, so the
+		//TextBlock always shows the value it holds
+		private static List<Inline> Render(string? text) {
+			if (text is not { Length: > 0 }) {
+				return [];
+			}
+			try {
+				return [.. MarkdownParser.Default.ToInlines(text)];
+			}
+			catch (Exception ex) {
+				Words.Logger.Error(ex, "MD:TEXT");
+				return [new Run(text)];
+			}
 		}
 	}
 }

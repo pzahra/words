@@ -14,8 +14,44 @@ namespace PatTech.Localization.Tests;
 /// own): markdown that is a string already fills a TextBlock's own inlines, and the TextBlock
 /// keeps its wrapping; a new value renders again, null empties it, and a link in it navigates
 /// through the global handler. <c>AvaMarkdownTextTests</c> (Localization-Ava.Tests) is the twin.
+/// The navigate handler, the shared parser and the logger are globals, hence the shared collection.
 /// </summary>
+[Collection("Words globals")]
 public class MarkdownTextTests {
+	//a parser that throws on a run holding "boom", as a broken one of an app's own would
+	private sealed class Throwing : MarkdownParser {
+		protected override Inline Run(string text) => text.Contains("boom") ? throw new InvalidOperationException("boom") : base.Run(text);
+	}
+
+	private sealed class Gripes : ITakeException {
+		public readonly List<string> Errors = [];
+		public void Warn(string text) { }
+		public void Error(Exception exception, string message) => Errors.Add(message);
+	}
+
+	[Fact]
+	public void AValueThatWillNotRender_IsSaid_AndShownAsWritten() {
+		RunSta<object?>(() => {
+			using var globals = new WordsGlobals();
+			MarkdownParser parser = MarkdownParser.Default;
+			var gripes = new Gripes();
+			Words.Logger = gripes;
+			try {
+				var block = new TextBlock();
+				Markdown.SetText(block, "previous");
+				MarkdownParser.Default = new Throwing();
+
+				Markdown.SetText(block, "a **boom**");
+
+				Assert.Equal("a **boom**", Text(block)); //what it holds, never what stood
+				Assert.Equal(["MD:TEXT"], gripes.Errors);
+			}
+			finally {
+				MarkdownParser.Default = parser;
+			}
+			return null;
+		});
+	}
 
 	private static T RunSta<T>(Func<T> func) {
 		T result = default!;
