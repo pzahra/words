@@ -114,14 +114,16 @@ public class AvaLiveTests {
 		Assert.Equal("Zweiter", control.Content);
 	}
 
-	[AvaloniaFact]
-	public void Off_TheBoundShapesFollowTheirSourceOnly() {
+	[AvaloniaTheory]
+	[InlineData(false)]
+	[InlineData(true)]
+	public void Off_TheBoundShapesFollowTheirSourceOnly(bool compiled) {
 		using var globals = new WordsGlobals();
 		WordsBuilder builder = WordsBuilder.Create().LoadString(Ini2);
 		builder.Digest("en");
 		var source = new LiveSource();
-		var key = InPanel<TextBlock>("<TextBlock Text=\"{l:Words {Binding Key}}\"/>", source);
-		var converted = InPanel<TextBlock>($"<TextBlock {Converted}/>", source);
+		var key = InPanel<TextBlock>("<TextBlock Text=\"{l:Words {Binding Key}}\"/>", source, compiled);
+		var converted = InPanel<TextBlock>($"<TextBlock {Converted}/>", source, compiled);
 		Assert.Equal("English value", key.Text);
 		Assert.Equal("N 5", converted.Text);
 

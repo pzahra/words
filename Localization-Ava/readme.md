@@ -2,6 +2,26 @@
 
 Use the Words extension to put Words in the AXAML.
 
+## Take the package for your Avalonia
+
+- **Avalonia 11**: `PatTech.Localization.Avalonia`.
+- **Avalonia 12**: `PatTech.Localization.Avalonia12`.
+
+They are one source tree, with the same assembly, namespaces and XAML namespace,
+so moving an app from one Avalonia to the other is a package swap. Reference one
+or the other, never both.
+
+Avalonia 12 compiles bindings by default, so a bound key, `{l:Words {Binding KeyName}}`,
+needs what any compiled binding needs: an `x:DataType` on the view, or a
+`{ReflectionBinding}` instead:
+
+``` xml
+<UserControl x:DataType="vm:StatusViewModel" ...>
+	<TextBlock Text="{l:Words {Binding KeyName}}"/>
+	<!-- or, where the view names no type -->
+	<TextBlock Text="{l:Words {ReflectionBinding KeyName}}"/>
+```
+
 ## Include Words
 
 ``` csharp

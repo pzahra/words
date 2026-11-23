@@ -1119,8 +1119,8 @@ else the library touches changes.
   `Args`' element type is the one difference in the public surface.
 - `Converter`, `ConverterParameter`, `ConverterCulture`, `Mode` and
   `StringFormat` are no longer on `BindingBase`: `ReflectionBinding`,
-  `CompiledBinding`, `MultiBinding` and `TemplateBinding` each declare their
-  own. Under `{l:Words}`, the 12 build wraps a reflection binding (`Binding` is
+  `CompiledBinding` and `MultiBinding` each declare their own, and
+  `TemplateBinding` its own but `StringFormat`. Under `{l:Words}`, the 12 build wraps a reflection binding (`Binding` is
   one) and a compiled binding, each by its own members, and hands any other on
   as it is; `ConverterCulture` is read directly, where 11 reflects for it,
   since 11.0 lacks it.
@@ -1156,7 +1156,7 @@ on NuGet, pointing at the newest `.AvaloniaNN`, and gets no further release.
 (built); `Sample-Ava` on Avalonia 12 on it, before anything else uses it
 (built); the Avalonia tests split and passing on both majors (built); the release
 pipeline packing both on an `api/` tag, with the readme saying which to take
-and the skill naming both.
+(built); and the skill naming both.
 
 **Tests.** Each package passes the Avalonia tests on its own major: `{l:Words}`
 over a reflection and a compiled binding, converted and not, live and not;

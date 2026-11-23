@@ -89,17 +89,18 @@ jobs:
       # makes a bare `dotnet pack` run the pack target without building first (NU5026:
       # the output dll is missing). Turn it off here so pack builds, then packs.
       # pwsh fails a step on the last native exit code only, so each pack is
-      # checked, and all three must be there before anything is pushed.
+      # checked, and all four must be there before anything is pushed: Avalonia 11's and
+      # Avalonia 12's are two packages from one source tree.
       - name: Pack API packages
         if: startsWith(github.ref, 'refs/tags/api/')
         shell: pwsh
         run: |
-          foreach ($project in 'Localization-Core/Localization-Core.csproj', 'Localization-Wpf/Localization-Wpf.csproj', 'Localization-Ava/Localization-Ava.csproj') {
+          foreach ($project in 'Localization-Core/Localization-Core.csproj', 'Localization-Wpf/Localization-Wpf.csproj', 'Localization-Ava/Localization-Ava.csproj', 'Localization-Ava12/Localization-Ava12.csproj') {
             dotnet pack $project -c Release -o artifacts -p:GeneratePackageOnBuild=false
             if ($LASTEXITCODE -ne 0) { throw "Pack failed for $project" }
           }
           $version = '${{ github.ref_name }}'.Split('/')[-1]
-          foreach ($id in 'Core', 'WPF', 'Avalonia') {
+          foreach ($id in 'Core', 'WPF', 'Avalonia', 'Avalonia12') {
             if (-not (Test-Path "artifacts/PatTech.Localization.$id.$version.nupkg")) { throw "PatTech.Localization.$id $version was not packed" }
           }
 
