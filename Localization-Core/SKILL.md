@@ -284,7 +284,14 @@ properties, or logs.
   lines ending `\`) fence a block. A span does not stop `{>key}` expanding at
   lookup: write `{{>key}` to show one.
 
-## Avalonia (`PatTech.Localization.Avalonia`)
+## Avalonia (`PatTech.Localization.Avalonia`, or `.Avalonia12`)
+
+Take `PatTech.Localization.Avalonia` for Avalonia 11 and
+`PatTech.Localization.Avalonia12` for Avalonia 12: one source tree, the same
+assembly, namespaces and XAML namespace, so moving between them is a package
+swap; reference one or the other. Avalonia 12 compiles bindings by default, so
+a bound key, `{l:Words {Binding KeyName}}`, needs an `x:DataType` on the view,
+or `{l:Words {ReflectionBinding KeyName}}`.
 
 ```xml
 xmlns:l="https://github.com/pzahra/words"
@@ -306,6 +313,11 @@ Title="{l:Words main.title}">          <!-- plain string, resolved once -->
   are bindings only (WPF admits nothing else in a `Collection<BindingBase>`)
   and on WPF a `MultiBinding` child stands alone. Re-renders when `Key` or the
   arguments change.
+- Markdown that is a string already, not looked up by a key, goes into a
+  `TextBlock` of the app's own: `<TextBlock TextWrapping="Wrap"
+  l:Markdown.Text="{Binding Page}"/>`. The TextBlock keeps its wrapping, font
+  and style; links go to the global handler. It renders what it is given: for
+  words that follow a live language switch, use `WordsInline`.
 - Load with `.LoadResource("avares://Proj/Assets/words.ini")`.
 - Hyperlink clicks route through one global handler; custom schemes make
   in-app commands:
@@ -334,7 +346,7 @@ Title="{l:Words main.title}">          <!-- plain string, resolved once -->
 
 ## WPF (`PatTech.Localization.WPF`)
 
-Same shapes as Avalonia (`{l:Words}`, `WordsInline`, converters). Load with
+Same shapes as Avalonia (`{l:Words}`, `WordsInline`, `Markdown.Text`, converters). Load with
 `.LoadResource("pack://application:,,,/Proj;Component/Assets/words.ini")` and
 digest with the WPF overload, `.Digest(lang, includeFrameworkElements: true)`:
 WPF hands bindings (`StringFormat`, `WordsConverter`) the element's `Language`,

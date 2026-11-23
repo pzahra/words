@@ -7,7 +7,7 @@
 #                 builds: Sample-Wpf for Windows; Sample-Ava and Sample-Console
 #                 for Windows, Linux and macOS
 #
-# The samples reference Core, WPF and Avalonia as projects, so they build from
+# The samples reference Core, WPF and Avalonia 12 as projects, so they build from
 # the tagged source, the same code the packages carry. Wordsmith's releases
 # share the Releases page, so this one is never marked Latest, and its notes run
 # from the previous api/ tag rather than from whichever release came last.

@@ -4,7 +4,8 @@
 # this repository, and this file's path (.github/workflows/build.yml).
 #
 # Two independent release lines, told apart by the tag prefix:
-#   api/X.Y.Z       -> Core, WPF and Avalonia (one API surface, released together)
+#   api/X.Y.Z       -> Core, WPF, Avalonia and Avalonia12 (one API surface, released
+#                      together; Avalonia 11's and 12's packages from one source tree)
 #   analyzer/X.Y.Z  -> the analyzer package, and beside it the Rider plugin
 #                      (WordsXaml), at the same number, as a GitHub Release asset
 #
@@ -12,7 +13,7 @@
 # publish. Bump the props, commit, then tag that commit; the version job fails a
 # tag whose number the props don't carry, before anything is built.
 #
-# Core/WPF/Avalonia depend on the analyzer at a version pinned by hand in
+# Core/WPF/Avalonia/Avalonia12 depend on the analyzer at a version pinned by hand in
 # Localization-Core.csproj (the editor and samples pin it too), not at
 # AnalyzerVersion, and restore it from nuget.org only. So when the analyzer
 # changed: tag analyzer/X first; once X is on nuget.org, bump the pinned
@@ -85,7 +86,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/analyzer/')
         run: dotnet pack LocalizationAnalyzer/LocalizationAnalyzer.Package/LocalizationAnalyzer.Package.csproj -c Release -o artifacts
 
-      # Core/WPF/Avalonia set GeneratePackageOnBuild for a local Release build, which
+      # Core/WPF/Avalonia/Avalonia12 set GeneratePackageOnBuild for a local Release build, which
       # makes a bare `dotnet pack` run the pack target without building first (NU5026:
       # the output dll is missing). Turn it off here so pack builds, then packs.
       # pwsh fails a step on the last native exit code only, so each pack is
