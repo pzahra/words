@@ -111,6 +111,11 @@ has any (`forms: #few #other`), and the file that declares it.
   inspection; C# `[WordsKey]` completion and quick-doc. `dotnet build src/dotnet/WordsXaml` → 0 errors
   (warnings are SDK NU1701/MSB3277 noise).
 
+### 1.5.0
+
+Unchanged, and built again at the analyzer's number. The analyzer it ships beside lets PTL001 pass
+`null` and `default`, which are no text, rather than flagging them as text left unlocalized.
+
 ### 1.4.0
 
 The plugin now ships on the analyzer's track, at its number: an `analyzer/X.Y.Z` tag attaches

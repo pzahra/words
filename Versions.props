@@ -5,12 +5,12 @@
        and a tag whose number is not the one here publishes nothing.
        Source Link appends the commit to the informational version. -->
   <PropertyGroup>
-    <!-- PatTech.Localization.Core, .WPF and .Avalonia: one API surface, released together -->
+    <!-- PatTech.Localization.Core, .WPF, .Avalonia and .Avalonia12: one API surface, released together -->
     <ApiVersion>1.6.0</ApiVersion>
     <!-- PatTech.Localization.Analyzer: the analyzer package's own number. The API
          packages (and the editor and samples) pin the analyzer version they depend
          on by hand, so this can move ahead of nuget.org until its tag publishes it -->
-    <AnalyzerVersion>1.4.0</AnalyzerVersion>
+    <AnalyzerVersion>1.5.0</AnalyzerVersion>
     <!-- Wordsmith, the editor, and words, the command line that ships beside it -->
     <WordsmithVersion>1.5.0</WordsmithVersion>
   </PropertyGroup>
