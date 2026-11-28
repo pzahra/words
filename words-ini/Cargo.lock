@@ -5,3 +5,10 @@ version = 4
 [[package]]
 name = "words-ini"
 version = "0.1.0"
+dependencies = [
+ "words-ini-macros",
+]
+
+[[package]]
+name = "words-ini-macros"
+version = "0.1.0"

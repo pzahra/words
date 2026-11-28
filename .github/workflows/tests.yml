@@ -64,7 +64,8 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: words-ini formatting
-        run: cargo fmt --manifest-path words-ini/Cargo.toml --check
+        run: cargo fmt --manifest-path words-ini/Cargo.toml --all --check
 
+      # the crate and its macros, words-ini/macros, one workspace
       - name: words-ini tests
-        run: cargo test --manifest-path words-ini/Cargo.toml --locked
+        run: cargo test --manifest-path words-ini/Cargo.toml --workspace --locked

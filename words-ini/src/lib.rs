@@ -31,8 +31,50 @@
 //! assert_eq!(russian.get("nope"), "#nope#");
 //! ```
 //!
-//! A build script can turn the file into a function per key, embedded and
-//! checked when the app compiles: see [`build`].
+//! Two ways check each key while the app compiles. A build script can turn the
+//! file into a function per key: see [`build`]. Or [`embed!`] names the file
+//! once and defines `words!`, which reads a key from it:
+//!
+//! ```
+//! words_ini::embed!("tests/fixtures/app.ini");
+//!
+//! fn main() {
+//!     words::use_locale("en");
+//!     assert_eq!(words!("pool.status", 3, Name = "Main"), "Main: 3 files");
+//!     assert_eq!(words!("file", 2), "files");
+//!     assert_eq!(words!("app.title"), "Pool Manager 0.1");
+//! }
+//! ```
+//!
+//! A key the file lacks fails to compile:
+//!
+//! ```compile_fail
+//! words_ini::embed!("tests/fixtures/app.ini");
+//!
+//! fn main() {
+//!     let _ = words!("pool.statsu", 3, Name = "Main");
+//! }
+//! ```
+//!
+//! So does an argument too many, or too few:
+//!
+//! ```compile_fail
+//! words_ini::embed!("tests/fixtures/app.ini");
+//!
+//! fn main() {
+//!     let _ = words!("pool.status", 3);
+//! }
+//! ```
+//!
+//! And a name the words don't read:
+//!
+//! ```compile_fail
+//! words_ini::embed!("tests/fixtures/app.ini");
+//!
+//! fn main() {
+//!     let _ = words!("pool.status", 3, Nmae = "Main");
+//! }
+//! ```
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -49,3 +91,8 @@ pub use code::LanguageCode;
 pub use dictionary::{Dictionary, locale_from_env};
 pub use plural::Category;
 pub use words::Words;
+#[cfg(feature = "macros")]
+#[doc(hidden)]
+pub use words_ini_macros::__words;
+#[cfg(feature = "macros")]
+pub use words_ini_macros::embed;

@@ -177,6 +177,53 @@ keywords, other scripts and characters Rust refuses; placeholders gathered
 through languages, references, selectors and forms, but not constants; a
 skipped number and meeting names refused; a `{words}` placeholder.
 
+## Keys checked by a macro
+
+The other way, for a crate with no build script. `embed!("assets/words.ini")`,
+once at the crate root, takes the file's path relative to Cargo.toml and
+defines two things:
+- the module `words`, which holds what the build script's module holds except
+  the functions;
+- a crate-local `words!`, in scope for the code after it, child modules
+  declared later included.
+
+The macros live in `words-ini/macros`, the proc-macro crate
+`words-ini-macros`. It reads the reader's own sources by path, so a call is
+checked by the generator's rules: the same placeholders, the count first, a
+skipped number refused. `words-ini` re-exports `embed!` under its default
+`macros` feature, so an app takes one dependency, and the two crates are one
+Cargo workspace.
+
+`words!(key, arguments…)` takes the key as a string literal, then arguments
+by position and `Name = value` by name, a key with forms taking its count
+first. It expands to the lookup the generated function makes, on
+`crate::words::words()`: `get`, `format_with`, `count` or `count_with`. Each
+argument goes in with its own span, so a value that is not `Display` is
+reported at the argument. These fail to compile, each pointing at the key or
+the argument:
+- a key the file lacks, naming the nearest key within a third of its length;
+- an argument too many, or too few;
+- a name the words don't read, a name given twice, or one they read and the
+  call leaves out;
+- a key that is no string literal: a key chosen at run time reads
+  `words::words().format(key, …)`.
+
+The module's `include_str!` makes Cargo rebuild the crate when the file
+changes, and every call is checked again. Each compilation reads the file
+once; a long-lived macro server, an editor's, reads it again when it changes.
+A macro cannot warn on stable Rust, so `check()`'s findings wait for a test.
+An argument holding a comma outside brackets, such as a turbofish with two
+types, wants parentheses.
+
+**Tests.** A crate embedding `tests/fixtures/app.ini` reads, under a chosen
+locale, every kind of call: no arguments, by position, by name, a count, a
+count with arguments, a trailing comma, a raw string key, expressions, and a
+call in a module declared after `embed!`. Doc tests fail to compile on a
+missing key, a missing argument and a misspelt name. The macro crate's own
+tests check what a key reads, the nearest key, each kind of misfit with its
+message and where it points, and literals as Rust reads them. Without the
+`macros` feature the crate builds and passes the rest.
+
 ## Checks for a test
 
 `check()` lists the warnings, each key with no default value, each reference,

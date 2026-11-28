@@ -86,18 +86,22 @@ pub fn source(module: &str, include: &str, text: &str) -> Result<String, String>
         node.functions.insert(ident, key.to_string());
     }
 
-    let mut out = String::new();
-    let keys = dictionary.keys().iter().map(|key| format!("{key:?}")).collect::<Vec<_>>().join(", ");
-    let module_ident = ident(module);
-    let _ = write!(
-        out,
-        "\
-// Made by words-ini from a words.ini: change the words.ini, not this.
+    let mut out = String::from("// Made by words-ini from a words.ini: change the words.ini, not this.\n\n");
+    let doc = "a function per key: `[pool.status]` is\n/// `pool::status`, a placeholder is a parameter, and a key with plural forms\n/// takes its count first";
+    out.push_str(&module_head("pub", &ident(module), doc, include, &dictionary.keys()));
+    write_node(&mut out, store, &root, 1)?;
+    out.push_str("}\n");
+    Ok(out)
+}
 
-/// The words of the embedded words.ini, a function per key: `[pool.status]` is
-/// `pool::status`, a placeholder is a parameter, and a key with plural forms
-/// takes its count first.
-pub mod {module_ident} {{
+//the module's own items, as the generated module and embed! both hold them,
+//through the last of them: the closing brace is the caller's to write
+pub(crate) fn module_head(visibility: &str, module: &str, doc: &str, include: &str, keys: &[&str]) -> String {
+    let keys = keys.iter().map(|key| format!("{key:?}")).collect::<Vec<_>>().join(", ");
+    format!(
+        "\
+/// The words of the embedded words.ini, {doc}.
+{visibility} mod {module} {{
     #![allow(dead_code, missing_docs, non_snake_case, non_upper_case_globals, unreachable_pub, clippy::all)]
 
     /// The words.ini this module was made from, embedded.
@@ -126,10 +130,12 @@ pub mod {module_ident} {{
         WORDS.get().is_none() && WORDS.set(dictionary().for_locale(locale)).is_ok()
     }}
 "
-    );
-    write_node(&mut out, store, &root, 1)?;
-    out.push_str("}\n");
-    Ok(out)
+    )
+}
+
+//whether a key has a plural form in any language: then its count comes first
+pub(crate) fn has_forms(store: &Store, key: &str) -> bool {
+    store.languages.values().any(|words| words.keys().any(|entry| entry.starts_with(key) && entry[key.len()..].starts_with('#')))
 }
 
 //names the module's own items take, which no key at its root may
@@ -149,8 +155,7 @@ fn write_node(out: &mut String, store: &Store, node: &Node, depth: usize) -> Res
     let root = if depth == 1 { "self::".to_string() } else { "super::".repeat(depth - 1) };
     for (name, key) in &node.functions {
         let (positional, named) = placeholders(store, key)?;
-        let has_forms =
-            store.languages.values().any(|words| words.keys().any(|entry| entry.starts_with(key) && entry[key.len()..].starts_with('#')));
+        let has_forms = has_forms(store, key);
 
         let mut taken = HashSet::new();
         let mut unique = |wanted: String| {
@@ -216,7 +221,7 @@ fn write_doc(out: &mut String, indent: &str, store: &Store, key: &str) {
 //names in the order they first appear. A number no language reads below the
 //highest is refused: it is a typo far more often than an argument left unread,
 //and {1000} for {1} would make a function of 1001 parameters
-fn placeholders(store: &Store, key: &str) -> Result<(usize, Vec<String>), String> {
+pub(crate) fn placeholders(store: &Store, key: &str) -> Result<(usize, Vec<String>), String> {
     let mut codes: Vec<&str> = vec![""];
     codes.extend(store.codes.iter().map(String::as_str).filter(|code| !code.is_empty()));
     let forms_of = |key: &str| -> Vec<String> {

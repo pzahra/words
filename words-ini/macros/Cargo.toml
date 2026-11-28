@@ -1,0 +1,15 @@
+[package]
+name = "words-ini-macros"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "The embed! and words! macros of words-ini: each key and its arguments checked while the app compiles. Use them through words-ini."
+license = "MIT"
+repository = "https://github.com/pzahra/words"
+
+[lib]
+proc-macro = true
+# the reader's own sources come in by path, and their docs show words-ini's examples
+doctest = false
+
+[dependencies]

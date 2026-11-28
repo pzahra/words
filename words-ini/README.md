@@ -7,21 +7,52 @@ This is Words. It gives you Words, in Rust.
 same sections, fallbacks, plural forms, references, constants and escapes, and
 means the same thing by them, as the .NET runtime does. What comes out is plain
 text for a terminal. The words are embedded in the binary, every key is checked
-when the app compiles, and the crate has no dependencies and no `unsafe`.
+when the app compiles, and there are no third-party dependencies and no
+`unsafe`.
+
+Keys get checked one of two ways: a build script that writes a function per
+key, or a macro that checks each call. Pick one per crate.
 
 ## Getting it
 
-It lives in this repository, so Cargo fetches it from git. It goes in twice:
-once for the app, and once for the build script that turns your `words.ini`
-into Rust:
+It lives in this repository, so Cargo fetches it from git:
 
 ```toml
 [dependencies]
 words-ini = { git = "https://github.com/pzahra/words", branch = "words-ini" }
-
-[build-dependencies]
-words-ini = { git = "https://github.com/pzahra/words", branch = "words-ini" }
 ```
+
+The build script needs it a second time, under `[build-dependencies]`, with
+the same line. The macros need nothing more. They come in the default
+`macros` feature, which a build-script crate can turn off with
+`default-features = false`.
+
+## A macro per call
+
+Name the file once, at the crate root, before your modules:
+
+```rust
+// main.rs
+words_ini::embed!("assets/words.ini");
+
+fn main() {
+    println!("{}", words!("pool.status", 3, Name = "Main"));
+}
+```
+
+`words!` takes the key, then its arguments: by position for `{0}`, `{1}`…, and
+`Name = value` for `{Name}`. A key with plural forms takes its count first, as
+in `words!("file", 5)`. The compiler stops on a key the file lacks (suggesting
+the nearest), on an argument too many or too few, and on a name the words
+don't read, pointing at the key or the argument. Edit only the `words.ini` and
+the next build checks every call again. A macro can't print warnings, though,
+so the file's other problems wait for [the test](#a-test-for-the-file).
+
+The path is relative to Cargo.toml. `embed!` also defines a module `words`,
+holding everything the build script's module does except the functions:
+`words::words()`, `words::use_locale(…)` and the rest below. A key chosen at
+run time, like an enum's, isn't checked by either way; read it with
+`words::words().format(key, …)` and test it.
 
 ## A function per key
 

@@ -10,4 +10,17 @@ readme = "README.md"
 keywords = ["localization", "i18n", "plural", "ini", "cldr"]
 categories = ["localization", "internationalization", "command-line-interface"]
 
+[features]
+default = ["macros"]
+# embed! and words!, which check each key while compiling, in place of a build script
+macros = ["dep:words-ini-macros"]
+
 [dependencies]
+words-ini-macros = { path = "macros", version = "=0.1.0", optional = true }
+
+[[test]]
+name = "macros"
+required-features = ["macros"]
+
+[workspace]
+members = ["macros"]
