@@ -6,6 +6,7 @@ Gives you Words.
 [![Core](https://img.shields.io/nuget/v/PatTech.Localization.Core?label=Core)](https://www.nuget.org/packages/PatTech.Localization.Core)
 [![WPF](https://img.shields.io/nuget/v/PatTech.Localization.WPF?label=WPF)](https://www.nuget.org/packages/PatTech.Localization.WPF)
 [![Avalonia](https://img.shields.io/nuget/v/PatTech.Localization.Avalonia?label=Avalonia)](https://www.nuget.org/packages/PatTech.Localization.Avalonia)
+[![Avalonia12](https://img.shields.io/nuget/v/PatTech.Localization.Avalonia12?label=Avalonia%2012)](https://www.nuget.org/packages/PatTech.Localization.Avalonia12)
 [![Analyzer](https://img.shields.io/nuget/v/PatTech.Localization.Analyzer?label=Analyzer)](https://www.nuget.org/packages/PatTech.Localization.Analyzer)
 
 You write your strings in a `words.ini` file. Words reads them, picks the right
@@ -20,7 +21,7 @@ There is even a compiler warning for the day you inevitably try to sneak a raw
 |---|---|
 | [Localization-Core](Localization-Core/readme.md)       | The engine. Parses `words.ini`, resolves languages and fallbacks, formats parameters. Enough on its own for a console app or a framework we haven't met yet. Ships as `PatTech.Localization.Core`.                  |
 | [Localization-Wpf](Localization-Wpf/readme.md)         | Puts Words in the XAML. Ships as `PatTech.Localization.WPF`.                                                                                                                                                        |
-| [Localization-Ava](Localization-Ava/readme.md)         | Puts Words in the AXAML. Ships as `PatTech.Localization.Avalonia`.                                                                                                                                                  |
+| [Localization-Ava](Localization-Ava/readme.md)         | Puts Words in the AXAML. Ships as `PatTech.Localization.Avalonia` for Avalonia 11, and, built from the same sources by `Localization-Ava12`, as `PatTech.Localization.Avalonia12` for Avalonia 12. |
 | [LocalizationAnalyzer](LocalizationAnalyzer/readme.md) | The Words police. Provides `[Localized]` and `[WordsKey]`: warns (PTL001) when an unlocalized string is handed to something that wanted Words, and (PTL002) when a key the code names isn't in a `*words.ini`. Ships as `PatTech.Localization.Analyzer`, and comes along automatically with Core. |
 | [WordsXaml](WordsXaml/README.md)                       | The Rider plugin: key completion, tooltips and an unknown-key squiggle for `{l:Words …}` in XAML, and completion in C# wherever a `[WordsKey]` is wanted. Ships beside the analyzer, as a zip on each `analyzer/` release, to install from disk. |
 | [WordsEdit](WordsEdit/readme.md)                       | Wordsmith, the WPF editor for `words.ini` files. For when the translators would rather not hand-edit an INI file.                                                                                                   |

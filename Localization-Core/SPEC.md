@@ -4,8 +4,10 @@ The runtime is the library an app actually ships: `Localization-Core` and the
 framework packages on top of it (`Localization-Wpf`, `Localization-Ava`).
 Wordsmith, the editor, has its own spec ([../WordsEdit/SPEC.md](../WordsEdit/SPEC.md)),
 and so does `words`, the command line ([../WordsCli/SPEC.md](../WordsCli/SPEC.md));
-this one fixes the runtime's behavior. Everything up to *Planned upgrades* is
-what the library does today; the last part is what it does not do yet.
+this one fixes the runtime's behavior. A section is what the library does
+today, unless *Planned, not built.* stands under its heading: then it is the
+shape the feature takes when it is built, or the question it has to answer
+first.
 
 ## The dictionary is a snapshot
 
@@ -154,7 +156,8 @@ one home: a `Watch()` from a thread with no synchronization context (a pool
 thread, a service at startup) leaves it where a UI thread put it. A WPF app
 with a second UI thread, such as a splash screen or a tool window on its own
 Dispatcher, still moves it with that thread's `Watch()`; one trigger per
-synchronization context waits until somebody needs it (Planned upgrades).
+synchronization context waits until somebody needs it (*One trigger per
+synchronization context*).
 
 **Rendering controls.** A control that renders Words itself rather than handing a
 string to a property — `WordsInline`, on both frameworks — implements
@@ -1063,12 +1066,9 @@ Avalonia; markup sets it by the words namespace. The converter's own
 `TextBlock` wraps. In Wordsmith, the bubble measures the page it opens with
 (`TheBubbleMeasuresThePageItOpensWith`) on `Markdown.Text`.
 
-# Planned upgrades
-
-Not built. Each section here is the shape the feature takes when it is, or the
-question it has to answer first.
-
 ## A library written in another language
+
+*Planned, not built.*
 
 A library's defaults are written in its own language, and its host's may be
 written in another: a German library under an English app. The runtime has
@@ -1084,6 +1084,8 @@ the languages differ, and whether Wordsmith flags a library written in
 another language than its host's default.
 
 ## FormatByName's dictionary overloads
+
+*Planned, not built.*
 
 The template overloads with an `IReadOnlyDictionary` parameter stay, hidden from completion (`[EditorBrowsable(Never)]`), and read as the
 `object` overloads do (*Plural forms*). The goal is to steer callers to the
@@ -1167,6 +1169,8 @@ stand. The 12 package's assembly answers the same XAML namespace, and
 `Sample-Ava` runs on it.
 
 ## One trigger per synchronization context
+
+*Planned, not built.*
 
 `TriggerWords` is one for the process, and lives on the UI thread whose
 `Watch()` came last (*Live language switching*). A WPF app with a second UI
